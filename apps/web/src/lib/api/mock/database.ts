@@ -1,5 +1,6 @@
 /*
- * The database explorer's mock world. storefront/production is a shop database with a 10k-row
+ * The database explorer's mock world. backoffice/production is a MySQL database of supplier
+ * invoices, and its SQL editor speaks MySQL's errors. storefront/production is a shop database with a 10k-row
  * orders table, a view, a materialized view, a table without a primary key and a second schema.
  * storefront/staging is unreachable until it is redeployed. booking/production answers writes
  * with 403, as for a member with read only. Customer 7 was deleted by a teammate after the
@@ -8,6 +9,7 @@
  */
 import {
 	type Cell,
+	type DatabaseEngine,
 	type DatabaseSchema,
 	type DbColumn,
 	type DbTable,
@@ -43,7 +45,11 @@ type MockTable = {
 	/** Rows still listed but already deleted by someone else. */
 	ghosts?: Set<string>;
 };
-type World = { database: string; tables: MockTable[] };
+type World = {
+	engine: DatabaseEngine;
+	database: string;
+	tables: MockTable[];
+};
 
 function prng(seed: number) {
 	let a = seed;
@@ -276,6 +282,7 @@ function storefront(seed: number): World {
 	]);
 
 	return {
+		engine: "postgres",
 		database: "storefront",
 		tables: [
 			{
@@ -392,6 +399,113 @@ function storefront(seed: number): World {
 	};
 }
 
+/** MySQL datetime(6) text. */
+const dt = (ms: number) =>
+	`${new Date(ms).toISOString().replace("T", " ").slice(0, 23)}000`;
+
+function backoffice(seed: number, engine: DatabaseEngine): World {
+	const r = prng(seed);
+	const pick = <T>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)] as T;
+	const suppliers = Array.from({ length: 48 }, (_, i): Cell[] => [
+		i + 1,
+		`${pick(LAST)} ${pick(["Legno", "Holz", "Bois", "Timber"])} ${pick(["S.r.l.", "GmbH", "SARL", "Ltd"])}`,
+		pick(COUNTRIES),
+		r() < 0.9 ? `${Math.floor(1e10 + r() * 9e10)}` : null,
+	]);
+	const invoices = Array.from({ length: 2400 }, (_, i): Cell[] => [
+		big(i + 1),
+		1 + Math.floor(r() * 48),
+		`INV-2026-${String(i + 1).padStart(5, "0")}`,
+		money(80 + r() * 9000),
+		r() < 0.85 ? "EUR" : "CHF",
+		dt(LOADED - (2400 - i) * 4 * 3_600_000),
+		r() < 0.7 ? 1 : 0,
+		r() < 0.25
+			? json({
+					terms_days: pick([30, 60, 90]),
+					po: `PO-${Math.floor(r() * 9000)}`,
+				})
+			: null,
+		i % 9 === 0 ? { type: "bytea", value: "\\x255044462d312e37" } : null,
+	]);
+	const id = (type: string) =>
+		col("id", type, { pk: true, default: "auto_increment" });
+	return {
+		engine,
+		database: "backoffice",
+		tables: [
+			{
+				schema: "backoffice",
+				name: "invoices",
+				kind: "table",
+				columns: [
+					id("bigint unsigned"),
+					col("supplier_id", "int"),
+					col("number", "varchar(32)"),
+					col("amount", "decimal(12,2)"),
+					col("currency", "char(3)", { default: "EUR" }),
+					col("issued_at", "datetime(6)", { default: "CURRENT_TIMESTAMP(6)" }),
+					col("paid", "tinyint(1)", { default: "0" }),
+					col("meta", "json", { nullable: true }),
+					col("scan", "mediumblob", { nullable: true }),
+				],
+				rows: invoices,
+			},
+			{
+				schema: "backoffice",
+				name: "suppliers",
+				kind: "table",
+				columns: [
+					id("int"),
+					col("name", "varchar(120)"),
+					col("country", "char(2)"),
+					col("vat_id", "varchar(20)", { nullable: true }),
+				],
+				rows: suppliers,
+			},
+			{
+				schema: "backoffice",
+				name: "unpaid_invoices",
+				kind: "view",
+				columns: [
+					col("id", "bigint unsigned"),
+					col("number", "varchar(32)"),
+					col("amount", "decimal(12,2)"),
+				],
+				rows: invoices
+					.filter((x) => x[6] === 0)
+					.map((x) => [x[0] ?? null, x[2] ?? null, x[3] ?? null]),
+			},
+			{
+				schema: "backoffice",
+				name: "import_log",
+				kind: "table",
+				columns: [
+					col("at", "datetime", { nullable: true }),
+					col("message", "text", { nullable: true }),
+				],
+				rows: Array.from({ length: 40 }, (_, i): Cell[] => [
+					dt(LOADED - (40 - i) * 86_400_000).slice(0, 19),
+					`imported ${Math.floor(r() * 60)} invoices`,
+				]),
+			},
+			{
+				schema: "reporting",
+				name: "monthly_totals",
+				kind: "table",
+				columns: [
+					col("month", "char(7)", { pk: true }),
+					col("total", "decimal(14,2)"),
+				],
+				rows: Array.from({ length: 12 }, (_, i): Cell[] => [
+					`2026-${String(i + 1).padStart(2, "0")}`,
+					money(40_000 + r() * 90_000),
+				]),
+			},
+		],
+	};
+}
+
 const worlds = new Map<string, World>();
 function worldOf(id: string): World {
 	if (
@@ -410,6 +524,11 @@ function worldOf(id: string): World {
 			{ reason: "unreachable", engineCode: "ENOTFOUND" },
 		);
 	let w = worlds.get(id);
+	const engine = mockDb.services.find((x) => x.id === id)?.spec;
+	if (!w && engine?.kind === "database" && engine.engine !== "postgres") {
+		w = backoffice(id.length * 7919, engine.engine);
+		worlds.set(id, w);
+	}
 	if (!w) {
 		w = storefront(id.length * 7919);
 		if (id.startsWith("svc_booking")) w.database = "booking";
@@ -450,7 +569,8 @@ function compare(a: Cell, b: Cell): number {
 	return cellText(a).localeCompare(cellText(b));
 }
 
-const NUMERIC = /^(smallint|integer|bigint|real|double precision|numeric)/;
+const NUMERIC =
+	/^(smallint|integer|bigint|real|double|numeric|tinyint|mediumint|int|decimal|float)/;
 
 function matches(
 	cell: Cell,
@@ -502,11 +622,12 @@ function invalid(column: DbColumn, v: Cell): string | null {
 function defaultFor(t: MockTable, column: DbColumn): Cell {
 	const d = column.default;
 	if (!d) return null;
-	if (d.startsWith("nextval")) {
+	if (d.startsWith("nextval") || d === "auto_increment") {
 		const max = Math.max(0, ...t.rows.map((r) => num(r[0] ?? null) ?? 0));
-		return column.type === "bigint" ? big(max + 1) : max + 1;
+		return column.type.startsWith("bigint") ? big(max + 1) : max + 1;
 	}
 	if (d === "now()") return ts(Date.now());
+	if (d.startsWith("CURRENT_TIMESTAMP")) return dt(Date.now());
 	if (d === "true" || d === "false") return d === "true";
 	if (/^-?\d+$/.test(d))
 		return column.type.startsWith("numeric") ? money(Number(d)) : Number(d);
@@ -584,7 +705,7 @@ export const mockDatabase: DatabaseApi = {
 		const w = worldOf(id);
 		const schemas = [...new Set(w.tables.map((t) => t.schema))];
 		const value: DatabaseSchema = {
-			engine: "postgres",
+			engine: w.engine,
 			database: w.database,
 			schemas: schemas.map((name) => ({
 				name,
@@ -765,13 +886,73 @@ const TYPNAME: [RegExp, string][] = [
 const typname = (t: string) =>
 	TYPNAME.reduce((x, [re, to]) => x.replace(re, to), t);
 
+type MockError = Omit<QueryError, "statement">;
+
+/** How each engine words the errors the mock editor raises; MariaDB words them as MySQL. */
+const ERRORS = {
+	postgres: {
+		syntax: (token: string, at: number): MockError => ({
+			message: `syntax error at or near "${token}"`,
+			code: "42601",
+			position: at,
+		}),
+		readOnly: (verb: string): MockError => ({
+			message: `cannot execute ${verb} in a read-only transaction`,
+			code: "25006",
+		}),
+		missing: (name: string, at: number): MockError => ({
+			message: `relation "${name}" does not exist`,
+			code: "42P01",
+			position: at,
+		}),
+		cancelled: {
+			message: "canceling statement due to user request",
+			code: "57014",
+		},
+		timeout: {
+			message: "canceling statement due to statement timeout",
+			code: "57014",
+		},
+		type: typname,
+	},
+	mysql: {
+		syntax: (token: string): MockError => ({
+			message: `You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '${token}' at line 1`,
+			code: "ER_PARSE_ERROR",
+		}),
+		readOnly: (): MockError => ({
+			message: "Cannot execute statement in a READ ONLY transaction.",
+			code: "ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION",
+		}),
+		missing: (name: string): MockError => ({
+			message: `Table 'backoffice.${name}' doesn't exist`,
+			code: "ER_NO_SUCH_TABLE",
+		}),
+		cancelled: {
+			message: "Query execution was interrupted",
+			code: "ER_QUERY_INTERRUPTED",
+		},
+		timeout: {
+			message: "the statement ran past the 30 s timeout",
+			code: "ER_QUERY_TIMEOUT",
+		},
+		type: (t: string) => t.replace(/\(.*\)| unsigned/g, ""),
+	},
+};
+const dialectOf = (w: World) =>
+	w.engine === "postgres" ? "postgres" : "mysql";
+
 class Failed extends Error {
-	constructor(readonly error: Omit<QueryError, "statement">) {
+	constructor(readonly error: MockError) {
 		super(error.message);
 	}
 }
 
-const sleep = (ms: number, runId?: string) =>
+const sleep = (
+	ms: number,
+	runId?: string,
+	cancelled: MockError = ERRORS.postgres.cancelled,
+) =>
 	new Promise<void>((resolve, reject) => {
 		const t = setTimeout(done, ms);
 		function done() {
@@ -782,12 +963,7 @@ const sleep = (ms: number, runId?: string) =>
 			running.set(runId, () => {
 				clearTimeout(t);
 				running.delete(runId);
-				reject(
-					new Failed({
-						message: "canceling statement due to user request",
-						code: "57014",
-					}),
-				);
+				reject(new Failed(cancelled));
 			});
 	});
 
@@ -832,29 +1008,24 @@ async function statement(
 ): Promise<Omit<StatementResult, "from" | "to" | "durationMs">> {
 	const word = leadingWord(text);
 	const verb = word.toUpperCase();
+	const errors = ERRORS[dialectOf(w)];
 	const empty = { columns: [], rows: [], truncated: false };
 	if (!KNOWN.has(word) && !WRITES.has(word) && word !== "set") {
 		const at = text.search(/\S/);
-		throw new Failed({
-			message: `syntax error at or near "${text.slice(at).split(/\s/)[0]}"`,
-			code: "42601",
-			position: at,
-		});
+		throw new Failed(errors.syntax(text.slice(at).split(/\s/)[0] ?? "", at));
 	}
 	// The canned typo: `form` for `from`.
 	const typo = /\bform\b/i.exec(text);
-	if (typo)
-		throw new Failed({
-			message: `syntax error at or near "${typo[0]}"`,
-			code: "42601",
-			position: typo.index,
-		});
+	if (typo) throw new Failed(errors.syntax(typo[0], typo.index));
 	if (WRITES.has(word)) {
 		if (readOnly)
-			throw new Failed({
-				message: `cannot execute ${verb === "CREATE" || verb === "ALTER" || verb === "DROP" ? `${verb} TABLE` : verb} in a read-only transaction`,
-				code: "25006",
-			});
+			throw new Failed(
+				errors.readOnly(
+					verb === "CREATE" || verb === "ALTER" || verb === "DROP"
+						? `${verb} TABLE`
+						: verb,
+				),
+			);
 		if (id.startsWith("svc_booking"))
 			throw new ApiError(
 				403,
@@ -885,18 +1056,14 @@ async function statement(
 			truncated: false,
 			affected: null,
 		};
-	const sleepFor = /pg_sleep\(\s*([\d.]+)\s*\)/i.exec(text);
+	const sleepFor = /\b(pg_)?sleep\(\s*([\d.]+)\s*\)/i.exec(text);
 	if (sleepFor) {
-		const seconds = Number(sleepFor[1]);
-		await sleep(Math.min(seconds, 30) * 1000, runId);
-		if (seconds > 30)
-			throw new Failed({
-				message: "canceling statement due to statement timeout",
-				code: "57014",
-			});
+		const seconds = Number(sleepFor[2]);
+		await sleep(Math.min(seconds, 30) * 1000, runId, errors.cancelled);
+		if (seconds > 30) throw new Failed(errors.timeout);
 		return {
 			command: "SELECT",
-			columns: [{ name: "pg_sleep", type: "void" }],
+			columns: [{ name: sleepFor[0], type: sleepFor[1] ? "void" : "bigint" }],
 			rows: [[""]],
 			truncated: false,
 			affected: 1,
@@ -919,21 +1086,17 @@ async function statement(
 			affected: n > QUERY_ROWS_LIMIT ? null : n,
 		};
 	}
-	const from = /\bfrom\s+(?:"?(\w+)"?\.)?"?(\w+)"?(?:\s+limit\s+(\d+))?/i.exec(
-		text,
-	);
+	const from =
+		/\bfrom\s+(?:["`]?(\w+)["`]?\.)?["`]?(\w+)["`]?(?:\s+limit\s+(\d+))?/i.exec(
+			text,
+		);
 	if (from) {
 		const name = from[2] ?? "";
 		const t = w.tables.find(
 			(x) => x.name === name && (from[1] ? x.schema === from[1] : true),
 		);
 		if (!t) {
-			const at = text.indexOf(name);
-			throw new Failed({
-				message: `relation "${name}" does not exist`,
-				code: "42P01",
-				position: at,
-			});
+			throw new Failed(errors.missing(name, text.indexOf(name)));
 		}
 		await sleep(60 + Math.random() * 120);
 		if (/^\s*select\s+count\(\*\)/i.test(text))
@@ -949,7 +1112,10 @@ async function statement(
 		const truncated = rows.length > QUERY_ROWS_LIMIT;
 		return {
 			command: "SELECT",
-			columns: t.columns.map((c) => ({ name: c.name, type: typname(c.type) })),
+			columns: t.columns.map((c) => ({
+				name: c.name,
+				type: errors.type(c.type),
+			})),
 			rows: rows.slice(0, QUERY_ROWS_LIMIT),
 			truncated,
 			affected: truncated ? null : rows.length,
@@ -979,7 +1145,7 @@ async function runMock(
 	runId?: string,
 ): Promise<QueryResult> {
 	const results: StatementResult[] = [];
-	for (const [i, s] of splitSql(sql).entries()) {
+	for (const [i, s] of splitSql(sql, dialectOf(w)).entries()) {
 		const started = performance.now();
 		try {
 			const r = await statement(w, id, s.text, readOnly, runId);

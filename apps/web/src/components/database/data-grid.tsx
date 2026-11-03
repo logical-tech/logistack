@@ -96,11 +96,11 @@ export function widthOf(c: { name: string; type: string }) {
 	const t = c.type;
 	const w = /^bool/.test(t)
 		? 100
-		: /^(smallint|integer|bigint|real|double|numeric|oid|date|int[248]|float[48])/.test(
+		: /^(smallint|integer|bigint|real|double|numeric|oid|date|int[248]|float[48]|tinyint|mediumint|int|decimal|float|year)\b/.test(
 					t,
 				)
 			? 130
-			: /^timestamp/.test(t)
+			: /^(timestamp|datetime)/.test(t)
 				? 230
 				: /^uuid/.test(t)
 					? 310

@@ -27,7 +27,7 @@ export function cellText(cell: Cell): string {
 export const sameCell = (a: Cell, b: Cell) =>
 	JSON.stringify(a) === JSON.stringify(b);
 
-/** Postgres's `format_type` names, shortened for a column header. */
+/** Postgres's `format_type` names, shortened for a column header; MySQL names pass through. */
 const SHORT: [RegExp, string][] = [
 	[/^character varying/, "varchar"],
 	[/^character\b/, "char"],
@@ -40,10 +40,28 @@ const SHORT: [RegExp, string][] = [
 export const shortType = (type: string) =>
 	SHORT.reduce((t, [re, to]) => t.replace(re, to), type);
 
-const base = (type: string) => type.replace(/\(.*?\)/, "");
-// format_type names from the schema, pg_type names (int4) from SQL results.
-const INTEGER = new Set(["smallint", "integer", "oid", "int2", "int4"]);
-const FLOAT = new Set(["real", "double precision", "float4", "float8"]);
+const base = (type: string) =>
+	type.replace(/\(.*?\)/, "").replace(/ (unsigned|zerofill)\b/g, "");
+// format_type names from the schema, pg_type names (int4) from SQL results, MySQL's own names.
+const INTEGER = new Set([
+	"smallint",
+	"integer",
+	"oid",
+	"int2",
+	"int4",
+	"tinyint",
+	"mediumint",
+	"int",
+	"year",
+]);
+const FLOAT = new Set([
+	"real",
+	"double precision",
+	"float4",
+	"float8",
+	"float",
+	"double",
+]);
 const TAGGED: Record<string, "bigint" | "numeric" | "bytea" | "json"> = {
 	bigint: "bigint",
 	numeric: "numeric",
@@ -60,7 +78,8 @@ export function isNumeric(type: string) {
 		FLOAT.has(t) ||
 		t === "bigint" ||
 		t === "int8" ||
-		t === "numeric"
+		t === "numeric" ||
+		t === "decimal"
 	);
 }
 

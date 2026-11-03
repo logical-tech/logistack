@@ -19,6 +19,7 @@ import { EMPTY_STAGED, type Staged } from "./cells";
 import { DataGrid } from "./data-grid";
 import { DumpRestore } from "./dump-restore";
 import { SchemaTree, TablePicker } from "./schema-tree";
+import { defaultSchema } from "./sql-editor";
 import { SqlPanel } from "./sql-panel";
 
 export type DatabaseView = "data" | "sql";
@@ -45,7 +46,10 @@ export function ServiceDatabase({
 	onNavigate: (next: Partial<DatabaseLocation>) => void;
 }) {
 	const spec = service.spec.kind === "database" ? service.spec : null;
-	const supported = spec?.engine === "postgres";
+	const supported =
+		spec?.engine === "postgres" ||
+		spec?.engine === "mysql" ||
+		spec?.engine === "mariadb";
 	const running = service.status.observed === "running";
 	const [redeployed, setRedeployed] = useState(false);
 	const schema = useQuery({
@@ -89,7 +93,7 @@ export function ServiceDatabase({
 					description={
 						running
 							? `Download a dump or restore one from the menu above. Browsing and editing ${engine} follow in the next releases.`
-							: "The explorer reads and edits Postgres tables today. MySQL, MariaDB, MongoDB and Redis follow in the next releases."
+							: "The explorer reads and edits Postgres, MySQL and MariaDB tables today. MongoDB and Redis follow in the next releases."
 					}
 				/>
 			</>
@@ -208,7 +212,7 @@ export function ServiceDatabase({
 	);
 	const current =
 		all.find((x) => x.schema === at.schema && x.table.name === at.table) ??
-		all.find((x) => x.schema === "public") ??
+		all.find((x) => x.schema === defaultSchema(schema.data)) ??
 		all[0];
 	if (!current)
 		return (

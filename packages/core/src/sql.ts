@@ -5,12 +5,19 @@ export type SqlStatement = {
 	to: number;
 };
 
+export type SqlDialect = "postgres" | "mysql";
+
 /**
- * Splits a Postgres script on top-level semicolons. Quotes ('', E'', ""), dollar quotes and
- * comments (--, nested /* *\/) are skipped, so a semicolon inside them never splits. Each
- * statement is trimmed; empty and comment-only ones are dropped.
+ * Splits a script on top-level semicolons; a semicolon inside a quote or comment never splits.
+ * Postgres: '', E'', "", dollar quotes, -- and nested /* *\/ comments. MySQL: '' and "" with
+ * backslash escapes, `` ` `` identifiers, #, "-- " and flat /* *\/ comments. Each statement
+ * is trimmed; empty and comment-only ones are dropped.
  */
-export function splitSql(script: string): SqlStatement[] {
+export function splitSql(
+	script: string,
+	dialect: SqlDialect = "postgres",
+): SqlStatement[] {
+	const my = dialect === "mysql";
 	const out: SqlStatement[] = [];
 	let start = 0;
 	let i = 0;
@@ -24,7 +31,12 @@ export function splitSql(script: string): SqlStatement[] {
 	while (i < script.length) {
 		const ch = script[i];
 		const next = script[i + 1];
-		if (ch === "-" && next === "-") {
+		if (
+			(ch === "-" &&
+				next === "-" &&
+				(!my || /\s|^$/.test(script[i + 2] ?? ""))) ||
+			(my && ch === "#")
+		) {
 			const nl = script.indexOf("\n", i);
 			i = nl < 0 ? script.length : nl + 1;
 		} else if (ch === "/" && next === "*") {
@@ -32,16 +44,17 @@ export function splitSql(script: string): SqlStatement[] {
 			i += 2;
 			while (i < script.length && depth > 0) {
 				const pair = script.slice(i, i + 2);
-				if (pair === "/*") depth++;
+				if (pair === "/*" && !my) depth++;
 				else if (pair === "*/") depth--;
 				i += pair === "/*" || pair === "*/" ? 2 : 1;
 			}
-		} else if (ch === "'" || ch === '"') {
-			// E'...' strings take backslash escapes; everything else only doubles the quote.
+		} else if (ch === "'" || ch === '"' || (my && ch === "`")) {
+			// MySQL strings and Postgres E'...' take backslash escapes; all of them double the quote.
 			const escapes =
-				ch === "'" &&
-				/[eE]/.test(script[i - 1] ?? "") &&
-				!/\w/.test(script[i - 2] ?? "");
+				(my && ch !== "`") ||
+				(ch === "'" &&
+					/[eE]/.test(script[i - 1] ?? "") &&
+					!/\w/.test(script[i - 2] ?? ""));
 			i++;
 			while (i < script.length) {
 				if (escapes && script[i] === "\\") i += 2;
@@ -50,7 +63,7 @@ export function splitSql(script: string): SqlStatement[] {
 				else i++;
 			}
 			i++;
-		} else if (ch === "$") {
+		} else if (ch === "$" && !my) {
 			const tag = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(script.slice(i));
 			// `$1` is a parameter and `a$b$` part of a name, not a dollar quote.
 			if (tag && !/[\w$]/.test(script[i - 1] ?? "")) {
@@ -68,6 +81,6 @@ export function splitSql(script: string): SqlStatement[] {
 
 /** The first keyword of a statement, lowercased, after leading comments and parentheses. */
 export function leadingWord(text: string): string {
-	const s = text.replace(/^(\s+|--[^\n]*(\n|$)|\/\*[\s\S]*?\*\/|\()+/, "");
+	const s = text.replace(/^(\s+|(--|#)[^\n]*(\n|$)|\/\*[\s\S]*?\*\/|\()+/, "");
 	return /^[A-Za-z_]+/.exec(s)?.[0]?.toLowerCase() ?? "";
 }

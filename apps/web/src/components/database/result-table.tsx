@@ -38,7 +38,14 @@ function outcome(r: StatementResult) {
 
 /** The caller stopped it; not a failure of their SQL. */
 const cancelled = (e: QueryError) =>
-	e.code === "57014" && e.message.includes("user request");
+	(e.code === "57014" && e.message.includes("user request")) ||
+	e.code === "ER_QUERY_INTERRUPTED";
+
+const TIMEOUTS = new Set(["ER_QUERY_TIMEOUT", "ER_STATEMENT_TIMEOUT"]);
+const READ_ONLY = new Set([
+	"25006",
+	"ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION",
+]);
 
 const ms = (n: number) =>
 	n < 1000
@@ -185,7 +192,8 @@ function CopyAs({
 
 function ErrorView({ error, run }: { error: QueryError; run: RunOutcome }) {
 	const timedOut =
-		error.code === "57014" && error.message.includes("statement timeout");
+		(error.code === "57014" && error.message.includes("statement timeout")) ||
+		TIMEOUTS.has(error.code ?? "");
 	return (
 		<div className="t-reveal flex flex-col gap-2 overflow-auto px-4 py-5 sm:px-5">
 			{cancelled(error) ? (
@@ -202,11 +210,17 @@ function ErrorView({ error, run }: { error: QueryError; run: RunOutcome }) {
 			)}
 			<p className="text-xs text-muted-foreground">
 				Statement {error.statement + 1}
-				{error.code && <> · SQLSTATE {error.code}</>}
+				{error.code && (
+					<>
+						{" "}
+						· {/^[0-9A-Z]{5}$/.test(error.code) && "SQLSTATE "}
+						{error.code}
+					</>
+				)}
 				{error.position !== undefined && <> · underlined in the editor</>}
 				{timedOut && <> · statements stop after 30 seconds</>}
 			</p>
-			{error.code === "25006" && (
+			{READ_ONLY.has(error.code ?? "") && (
 				<p className="text-xs text-muted-foreground">
 					Turn off Read only to run statements that write.
 				</p>

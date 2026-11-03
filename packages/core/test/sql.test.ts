@@ -44,3 +44,24 @@ test("leadingWord skips comments and parentheses", () => {
 	expect(leadingWord("COMMIT")).toBe("commit");
 	expect(leadingWord("-- only")).toBe("");
 });
+
+test("mysql: backticks, backslash escapes and # comments do not split", () => {
+	const my = (s: string) => splitSql(s, "mysql").map((x) => x.text);
+	expect(
+		my(
+			"select `a;b` from t; select 'it\\'s;' , \"x\\\";\"; # c ;\nselect 1 -- ;\n; select 2--1; select $$;select $$",
+		),
+	).toEqual([
+		"select `a;b` from t",
+		"select 'it\\'s;' , \"x\\\";\"",
+		"# c ;\nselect 1 -- ;",
+		"select 2--1",
+		"select $$",
+		"select $$",
+	]);
+	expect(my("select 1 /* ; /* ; */ ; select 2")).toEqual([
+		"select 1 /* ; /* ; */",
+		"select 2",
+	]);
+	expect(leadingWord("# note\nUPDATE t set a = 1")).toBe("update");
+});

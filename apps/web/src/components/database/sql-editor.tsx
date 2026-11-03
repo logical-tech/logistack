@@ -5,7 +5,13 @@ import {
 	historyKeymap,
 	indentWithTab,
 } from "@codemirror/commands";
-import { PostgreSQL, type SQLNamespace, sql } from "@codemirror/lang-sql";
+import {
+	MariaSQL,
+	MySQL,
+	PostgreSQL,
+	type SQLNamespace,
+	sql,
+} from "@codemirror/lang-sql";
 import {
 	bracketMatching,
 	indentOnInput,
@@ -30,7 +36,7 @@ import {
 	placeholder,
 } from "@codemirror/view";
 import type { DatabaseSchema } from "@logistack/contracts";
-import { splitSql } from "@logistack/core";
+import { type SqlDialect, splitSql } from "@logistack/core";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import {
 	editorHighlight,
@@ -141,9 +147,17 @@ export function namespaceOf(schema: DatabaseSchema): SQLNamespace {
 	);
 }
 
+/** Where unqualified names resolve: `public` in Postgres, the connected database in MySQL. */
+export const defaultSchema = (s: DatabaseSchema) =>
+	s.engine === "postgres" ? "public" : s.database;
+
 /** The statement the cursor is in, or the last one before it. */
-function statementAt(doc: string, pos: number): RunTarget | null {
-	const all = splitSql(doc);
+function statementAt(
+	doc: string,
+	pos: number,
+	dialect: SqlDialect,
+): RunTarget | null {
+	const all = splitSql(doc, dialect);
 	const hit =
 		all.find((s) => s.from <= pos && pos <= s.to) ??
 		all.filter((s) => s.to <= pos).at(-1) ??
@@ -151,7 +165,7 @@ function statementAt(doc: string, pos: number): RunTarget | null {
 	return hit ? { text: hit.text, offset: hit.from } : null;
 }
 
-/** Postgres SQL with schema completion. Mod+Enter runs at the cursor, Shift+Mod+Enter runs all. */
+/** SQL in the engine's dialect, with schema completion. Mod+Enter runs at the cursor, Shift+Mod+Enter runs all. */
 export function SqlEditor({
 	ref,
 	value,
@@ -178,9 +192,14 @@ export function SqlEditor({
 
 	const language = (s: DatabaseSchema) =>
 		sql({
-			dialect: PostgreSQL,
+			dialect:
+				s.engine === "mysql"
+					? MySQL
+					: s.engine === "mariadb"
+						? MariaSQL
+						: PostgreSQL,
 			schema: namespaceOf(s),
-			defaultSchema: "public",
+			defaultSchema: defaultSchema(s),
 		});
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: the view is created once; value and schema sync below.
@@ -269,7 +288,11 @@ export function SqlEditor({
 					const text = raw.trim();
 					return text ? { text, offset: sel.from + raw.indexOf(text) } : null;
 				}
-				return statementAt(doc, sel.head);
+				return statementAt(
+					doc,
+					sel.head,
+					schema.engine === "postgres" ? "postgres" : "mysql",
+				);
 			},
 			markError(pos) {
 				const v = view.current;
@@ -285,7 +308,7 @@ export function SqlEditor({
 			},
 			focus: () => view.current?.focus(),
 		}),
-		[],
+		[schema.engine],
 	);
 
 	return (

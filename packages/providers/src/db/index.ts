@@ -9,6 +9,7 @@ import type {
 	TableRef,
 } from "@logistack/contracts";
 import { ProviderError } from "../http.ts";
+import { mysqlClient } from "./mysql.ts";
 import { postgresClient } from "./postgres.ts";
 
 export { rowsQuery } from "./postgres.ts";
@@ -67,6 +68,8 @@ export type DatabaseClient = {
 
 export function databaseClient(conn: DatabaseConnection): DatabaseClient {
 	if (conn.engine === "postgres") return postgresClient(conn);
+	if (conn.engine === "mysql" || conn.engine === "mariadb")
+		return mysqlClient(conn);
 	throw new DatabaseError(
 		"open",
 		`the explorer does not support ${conn.engine} yet`,

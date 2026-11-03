@@ -3,6 +3,7 @@ import type { DbColumn } from "@logistack/contracts";
 import {
 	EMPTY_STAGED,
 	fromText,
+	isNumeric,
 	nextSort,
 	shortType,
 	stageEdit,
@@ -106,4 +107,23 @@ test("results copy as CSV and JSON without losing duplicates or precision", () =
 		{ a: 1, a_2: 'say "hi", then\nleave', big: "9007199254740993" },
 		{ a: null, a_2: "", big: null },
 	]);
+});
+
+test("MySQL column types: numbers align right and edit as numbers", () => {
+	const column = (type: string) => ({
+		name: "n",
+		type,
+		nullable: true,
+		default: null,
+		primaryKey: false,
+	});
+	expect(isNumeric("int unsigned")).toBe(true);
+	expect(isNumeric("decimal(30,10)")).toBe(true);
+	expect(isNumeric("varchar(20)")).toBe(false);
+	expect(fromText("7", column("int unsigned"), null)).toBe(7);
+	expect(fromText("9007199254740993", column("bigint(20)"), null)).toEqual({
+		type: "bigint",
+		value: "9007199254740993",
+	});
+	expect(fromText("1.50", column("decimal(10,2)"), null)).toBe("1.50");
 });

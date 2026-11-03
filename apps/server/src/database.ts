@@ -45,7 +45,50 @@ export type DatabaseService = {
 	client: DatabaseClient;
 };
 
-const ENV_KEYS = ["POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"];
+const ENV_KEYS = [
+	"POSTGRES_USER",
+	"POSTGRES_PASSWORD",
+	"POSTGRES_DB",
+	"MYSQL_ROOT_PASSWORD",
+	"MYSQL_DATABASE",
+	"MARIADB_ROOT_PASSWORD",
+	"MARIADB_DATABASE",
+];
+
+type Login = {
+	user: string;
+	/** The env key the password comes from, named when it is missing. */
+	passwordKey: string;
+	password: string | undefined;
+	database: string;
+};
+
+/** Who the explorer logs in as: the engine's superuser, from the env the image initialised with. */
+const LOGIN: Partial<
+	Record<DatabaseEngine, (env: Record<string, string>) => Login>
+> = {
+	postgres: (env) => {
+		const user = env.POSTGRES_USER || "postgres";
+		return {
+			user,
+			passwordKey: "POSTGRES_PASSWORD",
+			password: env.POSTGRES_PASSWORD,
+			database: env.POSTGRES_DB || user,
+		};
+	},
+	mysql: (env) => ({
+		user: "root",
+		passwordKey: "MYSQL_ROOT_PASSWORD",
+		password: env.MYSQL_ROOT_PASSWORD,
+		database: env.MYSQL_DATABASE ?? "",
+	}),
+	mariadb: (env) => ({
+		user: "root",
+		passwordKey: "MARIADB_ROOT_PASSWORD",
+		password: env.MARIADB_ROOT_PASSWORD || env.MYSQL_ROOT_PASSWORD,
+		database: env.MARIADB_DATABASE || env.MYSQL_DATABASE || "",
+	}),
+};
 
 async function credentials(deps: Deps, serviceId: string) {
 	const rows = await deps.db
@@ -86,19 +129,20 @@ export async function openDatabase(
 ): Promise<DatabaseService> {
 	const deps = c.var.deps;
 	const { slug, engine } = await databaseRow(c, serviceId);
-	if (engine !== "postgres")
+	const login = LOGIN[engine];
+	if (!login)
 		throw new Failure(
 			"bad_request",
 			`the explorer does not support ${engine} yet`,
 		);
-	const env = await credentials(deps, serviceId);
-	const password = env.POSTGRES_PASSWORD;
+	const { user, passwordKey, password, database } = login(
+		await credentials(deps, serviceId),
+	);
 	if (!password)
 		throw new Failure(
 			"conflict",
-			"POSTGRES_PASSWORD is missing from the service env",
+			`${passwordKey} is missing from the service env`,
 		);
-	const user = env.POSTGRES_USER || "postgres";
 	const conn = {
 		engine,
 		...(deps.databaseEndpoint ?? defaultDatabaseEndpoint)(
@@ -107,7 +151,7 @@ export async function openDatabase(
 		),
 		user,
 		password,
-		database: env.POSTGRES_DB || user,
+		database,
 		statementTimeoutMs: deps.databaseStatementTimeoutMs,
 	};
 	const key = Bun.hash(JSON.stringify(conn)).toString(16);

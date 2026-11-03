@@ -11,6 +11,7 @@
 	"dependencies": {
 		"@logistack/contracts": "workspace:*",
 		"@logistack/core": "workspace:*",
+		"mysql2": "3.24.6",
 		"nodemailer": "10.3.1",
 		"postgres": "3.4.9",
 		"zod": "4.6.7"

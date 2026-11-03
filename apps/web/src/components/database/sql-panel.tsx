@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api";
 import { databaseApi } from "@/lib/api/database";
 import { cn } from "@/lib/utils";
 import { ResultTabs, type RunOutcome } from "./result-table";
-import { SqlEditor, type SqlEditorHandle } from "./sql-editor";
+import { defaultSchema, SqlEditor, type SqlEditorHandle } from "./sql-editor";
 
 const MOD =
 	typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform)
@@ -24,7 +24,7 @@ function readDraft(id: string, schema: DatabaseSchema) {
 		if (saved !== null) return saved;
 	} catch {}
 	const first =
-		schema.schemas.find((s) => s.name === "public")?.tables[0] ??
+		schema.schemas.find((s) => s.name === defaultSchema(schema))?.tables[0] ??
 		schema.schemas[0]?.tables[0];
 	return first ? `select * from ${first.name} limit 100;\n` : "select 1;\n";
 }
