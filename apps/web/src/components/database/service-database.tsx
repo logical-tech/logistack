@@ -19,6 +19,7 @@ import { EMPTY_STAGED, type Staged } from "./cells";
 import { DataGrid } from "./data-grid";
 import { DocumentList } from "./document-list";
 import { DumpRestore } from "./dump-restore";
+import { KeyBrowser, RedisConsole } from "./key-browser";
 import { SchemaTree, TablePicker } from "./schema-tree";
 import { defaultSchema } from "./sql-editor";
 import { SqlPanel } from "./sql-panel";
@@ -33,6 +34,8 @@ export type DatabaseLocation = {
 	filter: RowFilter[];
 	/** MongoDB's find: Extended JSON filter, sort and projection. */
 	find: DocumentsFind;
+	/** Redis: the SCAN pattern; `schema` is the logical database. */
+	match: string;
 };
 
 const errorText = (e: unknown) =>
@@ -53,7 +56,8 @@ export function ServiceDatabase({
 		spec?.engine === "postgres" ||
 		spec?.engine === "mysql" ||
 		spec?.engine === "mariadb" ||
-		spec?.engine === "mongo";
+		spec?.engine === "mongo" ||
+		spec?.engine === "redis";
 	const running = service.status.observed === "running";
 	const [redeployed, setRedeployed] = useState(false);
 	const schema = useQuery({
@@ -97,7 +101,7 @@ export function ServiceDatabase({
 					description={
 						running
 							? `Download a dump or restore one from the menu above. Browsing and editing ${engine} follow in the next releases.`
-							: "The explorer reads and edits Postgres, MySQL and MariaDB tables and MongoDB collections today. Redis follows in the next release."
+							: "The explorer reads and edits Postgres, MySQL and MariaDB tables, MongoDB collections and Redis keys."
 					}
 				/>
 			</>
@@ -182,6 +186,56 @@ export function ServiceDatabase({
 			</>
 		);
 
+	const frame =
+		"isolate flex h-[min(76dvh,46rem)] min-h-[28rem] overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border";
+	if (schema.data.engine === "redis") {
+		const db = Math.min(
+			Number(at.schema) || 0,
+			Math.max(0, schema.data.schemas.length - 1),
+		);
+		return (
+			<>
+				{bar(
+					<Segmented
+						label="Explorer view"
+						value={at.view}
+						onChange={(view) => onNavigate({ view })}
+						options={[
+							{ value: "data", label: "Keys" },
+							{ value: "sql", label: "Command" },
+						]}
+					/>,
+				)}
+				<div className={frame}>
+					{at.view === "sql" ? (
+						<RedisConsole
+							serviceId={service.id}
+							db={db}
+							forbidden={forbidden}
+							onForbidden={() => setForbidden(true)}
+						/>
+					) : (
+						<KeyBrowser
+							key={db}
+							serviceId={service.id}
+							schema={schema.data}
+							db={db}
+							match={at.match}
+							onNavigate={(next) =>
+								onNavigate({
+									...(next.db !== undefined && { schema: String(next.db) }),
+									...(next.match !== undefined && { match: next.match }),
+								})
+							}
+							forbidden={forbidden}
+							onForbidden={() => setForbidden(true)}
+						/>
+					)}
+				</div>
+			</>
+		);
+	}
+
 	// Mongo has no SQL editor: finds run from the document list.
 	const mongo = schema.data.engine === "mongo";
 	const noun = mongo ? "collections" : "tables";
@@ -198,8 +252,6 @@ export function ServiceDatabase({
 					]}
 				/>,
 			);
-	const frame =
-		"isolate flex h-[min(76dvh,46rem)] min-h-[28rem] overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border";
 	if (at.view === "sql" && !mongo)
 		return (
 			<>

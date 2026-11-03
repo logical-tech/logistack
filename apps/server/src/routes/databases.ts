@@ -6,6 +6,14 @@ import {
 	DocumentWritten,
 	QueryRequest,
 	QueryResult,
+	REDIS_KEYS_LIMIT,
+	RedisCommand,
+	RedisDb,
+	RedisKeysPage,
+	RedisReply,
+	RedisValue,
+	RedisWrite,
+	RedisWritten,
 	ROWS_LIMIT,
 	RowFilter,
 	RowSort,
@@ -20,6 +28,7 @@ import {
 	documentClient,
 	dumpResponse,
 	dumpTarget,
+	keyValueClient,
 	openDatabase,
 	restoreFrom,
 	runQuery,
@@ -69,6 +78,28 @@ const RowsParams = z.object({
 		.describe(
 			'JSON array of RowFilter, e.g. [{"column":"name","op":"contains","value":"x"}]',
 		),
+});
+
+const KeysParams = z.object({
+	db: z.coerce.number().pipe(RedisDb).default(0),
+	match: z
+		.string()
+		.min(1)
+		.max(1024)
+		.default("*")
+		.describe("SCAN MATCH glob, e.g. session:*"),
+	cursor: z.string().regex(/^\d+$/).optional(),
+	count: z.coerce.number().int().min(1).max(REDIS_KEYS_LIMIT).default(200),
+});
+
+const ValueParams = z.object({
+	db: z.coerce.number().pipe(RedisDb).default(0),
+	key: z
+		.string()
+		.describe("The key as UTF-8, or base64 with `encoding=base64`"),
+	encoding: z.enum(["utf8", "base64"]).default("utf8"),
+	cursor: z.string().max(64).optional(),
+	count: z.coerce.number().int().min(1).max(REDIS_KEYS_LIMIT).default(200),
 });
 
 function jsonParam(raw: string | undefined, name: string): unknown {
@@ -319,5 +350,110 @@ export const databases = router()
 			const body = c.req.raw.body;
 			if (!body) throw new Failure("bad_request", "empty body");
 			return c.json(await restoreFrom(c, id, body), 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/databases/{id}/keys",
+			tags: ["databases"],
+			security,
+			summary: "One SCAN batch of a Redis logical database's keys",
+			description:
+				'Walks `SCAN` with `MATCH`, never `KEYS`, for up to about `count` keys, each with its type, TTL (`PTTL`) and `MEMORY USAGE`. Keys that are valid UTF-8 come back as strings, others as `{type: "base64", value}`. Pass `cursor` back with the same `match` for more; null means the scan is done. SCAN can repeat a key across batches.',
+			middleware: [requirePermission("read", svc)],
+			request: { params: Id, query: KeysParams },
+			responses: { 200: json(RedisKeysPage, "Keys"), ...errors },
+		}),
+		async (c) => {
+			const { db, ...q } = c.req.valid("query");
+			const client = keyValueClient(
+				await openDatabase(c, c.req.valid("param").id),
+			);
+			return c.json(await client.keys(db, q), 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/databases/{id}/keys/value",
+			tags: ["databases"],
+			security,
+			summary: "One page of a Redis key's value, by type",
+			description:
+				"A string returns its first MiB with `truncated`. A hash pages with `HSCAN`, a set with `SSCAN`, a list with `LRANGE` windows, a sorted set with `ZRANGE` windows in score order, a stream with `XRANGE`. Pass `cursor` back for the next page. 404 when the key is gone.",
+			middleware: [requirePermission("read", svc)],
+			request: { params: Id, query: ValueParams },
+			responses: { 200: json(RedisValue, "Value"), ...errors },
+		}),
+		async (c) => {
+			const { db, key, encoding, ...q } = c.req.valid("query");
+			const client = keyValueClient(
+				await openDatabase(c, c.req.valid("param").id),
+			);
+			return c.json(
+				await client.value(
+					db,
+					encoding === "base64" ? { type: "base64", value: key } : key,
+					q,
+				),
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.key_write",
+			createRoute({
+				method: "post",
+				path: "/databases/{id}/keys",
+				tags: ["databases"],
+				security,
+				summary: "Change one Redis key",
+				description:
+					"One op per request: set a string (an optional TTL; without one the key keeps its TTL), set or delete a hash field, add or remove a set or sorted-set member, set a list index, expire, persist, delete or rename (RENAMENX) the key. The key is WATCHed and its type checked before the op runs in MULTI/EXEC. When the key is gone, holds another type, or changes before EXEC, nothing is written and the answer is 409 with `details.reason` `stale`.",
+				middleware: [requirePermission("write", svc)],
+				request: { params: Id, ...body(RedisWrite) },
+				responses: {
+					200: json(RedisWritten, "The key after the write"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const op = c.req.valid("json");
+			c.set("auditResourceId", id);
+			c.set("auditDiff", { db: op.db, op: op.op, key: op.key });
+			const client = keyValueClient(await openDatabase(c, id));
+			return c.json(await client.write(op), 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.command",
+			createRoute({
+				method: "post",
+				path: "/databases/{id}/command",
+				tags: ["databases"],
+				security,
+				summary: "Run one Redis command",
+				description:
+					'`argv` is the command and its arguments as separate strings, never a command line. Only reads and key data commands are allowed; FLUSHALL, FLUSHDB, CONFIG, DEBUG, SHUTDOWN, MONITOR, KEYS, scripting (EVAL, FUNCTION, FCALL), replication, ACL, CLIENT, SELECT, MULTI, pub/sub, blocking commands and anything else off the allowlist are a 400. Needs `write`, and every run is audited with its argv. An error reply from Redis is a 200 whose `reply` has `type: "error"`.',
+				middleware: [requirePermission("write", svc)],
+				request: { params: Id, ...body(RedisCommand) },
+				responses: { 200: json(RedisReply, "Reply"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { db, argv } = c.req.valid("json");
+			c.set("auditResourceId", id);
+			c.set("auditDiff", { db, argv });
+			const client = keyValueClient(await openDatabase(c, id));
+			const result = await client.command(db, argv);
+			if (result.reply.type === "error")
+				c.set("auditDiff", { db, argv, error: result.reply.value });
+			return c.json(result, 200);
 		},
 	);

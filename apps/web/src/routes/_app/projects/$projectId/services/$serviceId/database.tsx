@@ -25,6 +25,7 @@ export const Route = createFileRoute(
 			})
 			.optional()
 			.catch(undefined),
+		match: z.string().max(1024).optional().catch(undefined),
 	}),
 	component: DatabaseTab,
 });
@@ -42,6 +43,7 @@ function DatabaseTab() {
 		sort: search.sort ?? [],
 		filter: search.filter ?? [],
 		find: search.find ?? {},
+		match: search.match ?? "*",
 	};
 	return (
 		<ServiceDatabase
@@ -58,6 +60,7 @@ function DatabaseTab() {
 						sort: to.sort.length ? to.sort : undefined,
 						filter: to.filter.length ? to.filter : undefined,
 						find: Object.values(to.find).some(Boolean) ? to.find : undefined,
+						match: to.match === "*" ? undefined : to.match,
 					},
 					replace: !("table" in next || "view" in next),
 				});

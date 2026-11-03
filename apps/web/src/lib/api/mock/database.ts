@@ -27,6 +27,13 @@ import { ApiError } from "../adapter";
 import type { DatabaseApi } from "../database";
 import { mockDb } from ".";
 import { mockDocuments, mockWriteDocument, mongoSchema } from "./documents";
+import {
+	mockCommand,
+	mockKeys,
+	mockKeyValue,
+	mockWriteKey,
+	redisSchema,
+} from "./redis";
 
 const delay = <T>(value: T, ms = 140 + Math.random() * 240): Promise<T> =>
 	new Promise((resolve) =>
@@ -701,14 +708,15 @@ function write(t: MockTable, ops: RowPatch[]) {
 	return { rows: written };
 }
 
-const isMongo = (id: string) => {
+const engineOf = (id: string) => {
 	const spec = mockDb.services.find((x) => x.id === id)?.spec;
-	return spec?.kind === "database" && spec.engine === "mongo";
+	return spec?.kind === "database" ? spec.engine : undefined;
 };
 
 export const mockDatabase: DatabaseApi = {
 	schema: async (id) => {
-		if (isMongo(id)) return mongoSchema(id);
+		if (engineOf(id) === "mongo") return mongoSchema(id);
+		if (engineOf(id) === "redis") return redisSchema(id);
 		const w = worldOf(id);
 		const schemas = [...new Set(w.tables.map((t) => t.schema))];
 		const value: DatabaseSchema = {
@@ -785,6 +793,10 @@ export const mockDatabase: DatabaseApi = {
 	},
 	documents: mockDocuments,
 	writeDocument: mockWriteDocument,
+	keys: mockKeys,
+	keyValue: mockKeyValue,
+	writeKey: mockWriteKey,
+	command: mockCommand,
 	query: (id, { sql, readOnly = true, runId }) =>
 		runMock(worldOf(id), id, sql, readOnly, runId),
 	cancel: async (_id, runId) => {

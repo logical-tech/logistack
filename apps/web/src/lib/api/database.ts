@@ -11,6 +11,13 @@ import type {
 	DocumentWritten,
 	QueryRequest,
 	QueryResult,
+	RedisBytes,
+	RedisCommand,
+	RedisKeysPage,
+	RedisReply,
+	RedisValue,
+	RedisWrite,
+	RedisWritten,
 	RowFilter,
 	RowPatch,
 	RowSort,
@@ -61,6 +68,20 @@ export type DatabaseApi = {
 		ref: CollectionRef,
 		op: DocumentWrite,
 	): Promise<DocumentWritten>;
+	/** Redis: one SCAN batch of keys matching `match`; pass `cursor` back for more. */
+	keys(
+		id: string,
+		q: { db: number; match: string; cursor?: string },
+	): Promise<RedisKeysPage>;
+	/** One page of a key's value; 404 once the key is gone. */
+	keyValue(
+		id: string,
+		q: { db: number; key: RedisBytes; cursor?: string },
+	): Promise<RedisValue>;
+	/** One op; 409 `stale` when the key vanished or changed type, 403 without write. */
+	writeKey(id: string, op: RedisWrite): Promise<RedisWritten>;
+	/** One allowlisted command; 400 for a denied one, an error reply is a 200. */
+	command(id: string, input: RedisCommand): Promise<RedisReply>;
 	/** A failing statement is `error` in a 200; a write without `write` is a 403. */
 	query(id: string, input: QueryRequest): Promise<QueryResult>;
 	/** 404 once the run has finished. */
@@ -171,6 +192,36 @@ const http: DatabaseApi = {
 		) as Promise<DocumentsPage>,
 	writeDocument: (id, ref, json) =>
 		ok(docs.$post({ param: { id, ...ref }, json })) as Promise<DocumentWritten>,
+	keys: (id, { db, match, cursor }) =>
+		ok(
+			d.keys.$get({
+				param: { id },
+				query: {
+					db: String(db),
+					match,
+					count: PAGE,
+					...(cursor ? { cursor } : {}),
+				},
+			}),
+		) as Promise<RedisKeysPage>,
+	keyValue: (id, { db, key, cursor }) =>
+		ok(
+			d.keys.value.$get({
+				param: { id },
+				query: {
+					db: String(db),
+					count: PAGE,
+					...(typeof key === "string"
+						? { key }
+						: { key: key.value, encoding: "base64" }),
+					...(cursor ? { cursor } : {}),
+				},
+			}),
+		) as Promise<RedisValue>,
+	writeKey: (id, json) =>
+		ok(d.keys.$post({ param: { id }, json })) as Promise<RedisWritten>,
+	command: (id, json) =>
+		ok(d.command.$post({ param: { id }, json })) as Promise<RedisReply>,
 	query: (id, json) =>
 		ok(d.query.$post({ param: { id }, json })) as Promise<QueryResult>,
 	cancel: (id, runId) =>
@@ -254,6 +305,54 @@ export const documentsQuery = (
 		placeholderData: keepPreviousData,
 		retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 1,
 	});
+
+export const keysQuery = (id: string, db: number, match: string) =>
+	infiniteQueryOptions({
+		queryKey: [...key(id), "keys", db, match],
+		queryFn: ({ pageParam }) =>
+			databaseApi.keys(id, {
+				db,
+				match,
+				...(pageParam ? { cursor: pageParam } : {}),
+			}),
+		initialPageParam: "",
+		getNextPageParam: (last) => last.cursor ?? undefined,
+		placeholderData: keepPreviousData,
+		retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 1,
+	});
+
+export const keyValueQuery = (id: string, db: number, k: RedisBytes) =>
+	infiniteQueryOptions({
+		queryKey: [...key(id), "key", db, k],
+		queryFn: ({ pageParam }) =>
+			databaseApi.keyValue(id, {
+				db,
+				key: k,
+				...(pageParam ? { cursor: pageParam } : {}),
+			}),
+		initialPageParam: "",
+		getNextPageParam: (last) =>
+			"cursor" in last ? (last.cursor ?? undefined) : undefined,
+		retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 1,
+	});
+
+/** Changes one key, then refreshes the key list, the open value and the key counts. */
+export function useWriteKey(id: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (op: RedisWrite) => databaseApi.writeKey(id, op),
+		onSuccess: () => qc.invalidateQueries({ queryKey: key(id) }),
+	});
+}
+
+export function useRedisCommand(id: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (input: RedisCommand) => databaseApi.command(id, input),
+		// A command may have written anything; what is on screen reloads.
+		onSuccess: () => qc.invalidateQueries({ queryKey: key(id) }),
+	});
+}
 
 /** Writes one document, then refreshes the pages and the collection counts. */
 export function useWriteDocument(id: string, ref: CollectionRef) {

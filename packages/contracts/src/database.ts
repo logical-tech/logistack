@@ -37,7 +37,14 @@ export type DbTable = z.infer<typeof DbTable>;
 export const DatabaseSchema = z.object({
 	engine: DatabaseEngine,
 	database: z.string(),
-	schemas: z.array(z.object({ name: z.string(), tables: z.array(DbTable) })),
+	schemas: z.array(
+		z.object({
+			name: z.string(),
+			tables: z.array(DbTable),
+			/** Redis: keys in this logical database (whose name is its index); it has no tables. */
+			keys: z.number().optional(),
+		}),
+	),
 });
 export type DatabaseSchema = z.infer<typeof DatabaseSchema>;
 
@@ -250,3 +257,176 @@ export const DocumentWritten = z.object({
 	document: EjsonDocument.nullable(),
 });
 export type DocumentWritten = z.infer<typeof DocumentWritten>;
+
+/**
+ * Redis bytes (a key, field, member or value): the UTF-8 text when the bytes are valid UTF-8,
+ * otherwise tagged base64, so binary data round-trips exactly. Writes take the same shapes.
+ */
+export const RedisBytes = z.union([
+	z.string(),
+	z.object({ type: z.literal("base64"), value: z.base64() }),
+]);
+export type RedisBytes = z.infer<typeof RedisBytes>;
+
+export const RedisDb = z.number().int().min(0).max(255);
+
+/** One key as SCAN found it. */
+export const RedisKey = z.object({
+	key: RedisBytes,
+	/** string, hash, list, set, zset, stream, or a module's type name; "none" when it expired meanwhile. */
+	type: z.string(),
+	/** Milliseconds until it expires; null when it never does. */
+	ttlMs: z.number().nullable(),
+	/** MEMORY USAGE in bytes; null when the server did not report it. */
+	bytes: z.number().nullable(),
+});
+export type RedisKey = z.infer<typeof RedisKey>;
+
+export const REDIS_KEYS_LIMIT = 1000;
+
+/**
+ * One SCAN batch. Pass `cursor` back for more with the same `match`; null when the scan is done.
+ * SCAN may repeat a key that moved during a rehash, so a client dedupes across batches.
+ */
+export const RedisKeysPage = z.object({
+	keys: z.array(RedisKey),
+	cursor: z.string().nullable(),
+});
+export type RedisKeysPage = z.infer<typeof RedisKeysPage>;
+
+export const REDIS_STRING_MAX = 1024 * 1024;
+
+const RedisPage = {
+	/** Elements in the whole key (STRLEN, HLEN, LLEN, SCARD, ZCARD, XLEN). */
+	length: z.number(),
+	/** Pass back as `cursor` for the next page; null on the last one. */
+	cursor: z.string().nullable(),
+};
+
+/** A key's value by type, one page at a time. */
+export const RedisValue = z.discriminatedUnion("type", [
+	z.object({
+		type: z.literal("string"),
+		value: RedisBytes,
+		/** Only the first REDIS_STRING_MAX bytes are in `value`. */
+		truncated: z.boolean(),
+		length: z.number(),
+	}),
+	z.object({
+		type: z.literal("hash"),
+		entries: z.array(z.object({ field: RedisBytes, value: RedisBytes })),
+		...RedisPage,
+	}),
+	z.object({
+		type: z.literal("list"),
+		items: z.array(RedisBytes),
+		...RedisPage,
+	}),
+	z.object({
+		type: z.literal("set"),
+		members: z.array(RedisBytes),
+		...RedisPage,
+	}),
+	/** Ordered by score; scores are Redis's own text (`inf`, `1.5`). */
+	z.object({
+		type: z.literal("zset"),
+		members: z.array(z.object({ member: RedisBytes, score: z.string() })),
+		...RedisPage,
+	}),
+	z.object({
+		type: z.literal("stream"),
+		entries: z.array(
+			z.object({
+				id: z.string(),
+				fields: z.array(z.object({ field: RedisBytes, value: RedisBytes })),
+			}),
+		),
+		...RedisPage,
+	}),
+]);
+export type RedisValue = z.infer<typeof RedisValue>;
+
+const Ttl = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
+
+/**
+ * One write per request, atomic: the key is WATCHed, its type checked, and the op runs in
+ * MULTI/EXEC. Every op but `set` needs the key to exist with the op's type (`expire`, `persist`,
+ * `delete` and `rename` take any type); otherwise, or when the key changes between the check
+ * and EXEC, it fails with 409 `stale`. `set` creates or overwrites a string and is stale only
+ * when the key holds another type.
+ */
+const W = { db: RedisDb, key: RedisBytes };
+export const RedisWrite = z.discriminatedUnion("op", [
+	z.object({
+		...W,
+		op: z.literal("set"),
+		value: RedisBytes,
+		/** Expire after this many ms; without it the key keeps no TTL. */
+		ttlMs: Ttl.optional(),
+	}),
+	z.object({
+		...W,
+		op: z.literal("hset"),
+		field: RedisBytes,
+		value: RedisBytes,
+	}),
+	z.object({ ...W, op: z.literal("hdel"), field: RedisBytes }),
+	z.object({ ...W, op: z.literal("sadd"), member: RedisBytes }),
+	z.object({ ...W, op: z.literal("srem"), member: RedisBytes }),
+	z.object({
+		...W,
+		op: z.literal("zadd"),
+		member: RedisBytes,
+		score: z.number(),
+	}),
+	z.object({ ...W, op: z.literal("zrem"), member: RedisBytes }),
+	z.object({
+		...W,
+		op: z.literal("lset"),
+		index: z.number().int(),
+		value: RedisBytes,
+	}),
+	z.object({ ...W, op: z.literal("expire"), ttlMs: Ttl }),
+	z.object({ ...W, op: z.literal("persist") }),
+	z.object({ ...W, op: z.literal("delete") }),
+	/** Fails with 409 when `to` already exists. */
+	z.object({ ...W, op: z.literal("rename"), to: RedisBytes }),
+]);
+export type RedisWrite = z.infer<typeof RedisWrite>;
+
+/** The key after the write (the new name after a rename); null once it is gone. */
+export const RedisWritten = z.object({ key: RedisKey.nullable() });
+export type RedisWritten = z.infer<typeof RedisWritten>;
+
+export const RedisCommand = z.object({
+	db: RedisDb.default(0),
+	/** The command and its arguments, e.g. ["HGET", "user:1", "name"]; never a shell string. */
+	argv: z.array(RedisBytes).min(1).max(1000),
+});
+export type RedisCommand = z.input<typeof RedisCommand>;
+
+/** A RESP2 reply as a tree. An error reply is a value too, not a failed request. */
+export type RespValue =
+	| { type: "null" }
+	| { type: "integer"; value: number }
+	| { type: "string"; value: RedisBytes }
+	| { type: "error"; value: string }
+	| { type: "array"; items: RespValue[] };
+// The id names it as one OpenAPI component, which is what lets the generator follow the recursion.
+export const RespValue: z.ZodType<RespValue> = z
+	.lazy(() =>
+		z.discriminatedUnion("type", [
+			z.object({ type: z.literal("null") }),
+			z.object({ type: z.literal("integer"), value: z.number() }),
+			z.object({ type: z.literal("string"), value: RedisBytes }),
+			z.object({ type: z.literal("error"), value: z.string() }),
+			z.object({ type: z.literal("array"), items: z.array(RespValue) }),
+		]),
+	)
+	.meta({ id: "RespValue" });
+
+export const RedisReply = z.object({
+	reply: RespValue,
+	durationMs: z.number(),
+});
+export type RedisReply = z.infer<typeof RedisReply>;

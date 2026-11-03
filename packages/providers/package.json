@@ -12,6 +12,7 @@
 		"@logistack/contracts": "workspace:*",
 		"@logistack/core": "workspace:*",
 		"mongodb": "7.8.0",
+		"ioredis": "5.11.1",
 		"mysql2": "3.24.6",
 		"nodemailer": "10.3.1",
 		"postgres": "3.4.9",

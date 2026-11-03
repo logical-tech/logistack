@@ -11,6 +11,7 @@ import {
 	type DatabaseClient,
 	type DocumentClient,
 	databaseClient,
+	type KeyValueClient,
 	type SqlClient,
 } from "@logistack/providers";
 import {
@@ -61,6 +62,7 @@ const ENV_KEYS = [
 	"MONGO_INITDB_ROOT_USERNAME",
 	"MONGO_INITDB_ROOT_PASSWORD",
 	"MONGO_INITDB_DATABASE",
+	"REDIS_PASSWORD",
 ];
 
 type Login = {
@@ -102,6 +104,13 @@ const LOGIN: Partial<
 		passwordKey: "MONGO_INITDB_ROOT_PASSWORD",
 		password: env.MONGO_INITDB_ROOT_PASSWORD,
 		database: env.MONGO_INITDB_DATABASE ?? "",
+	}),
+	// requirepass only: the default user, no name.
+	redis: (env) => ({
+		user: "",
+		passwordKey: "REDIS_PASSWORD",
+		password: env.REDIS_PASSWORD,
+		database: "0",
 	}),
 };
 
@@ -179,7 +188,7 @@ export async function openDatabase(
 	return { id: serviceId, slug, engine, client: cached.client };
 }
 
-/** The client of a SQL engine; Mongo has collections, not tables. */
+/** The client of a SQL engine; Mongo has collections and Redis keys, not tables. */
 export function sqlClient(db: DatabaseService): SqlClient {
 	if (db.client.kind !== "sql")
 		throw new Failure("bad_request", `${db.engine} has no tables or SQL`);
@@ -189,6 +198,12 @@ export function sqlClient(db: DatabaseService): SqlClient {
 export function documentClient(db: DatabaseService): DocumentClient {
 	if (db.client.kind !== "document")
 		throw new Failure("bad_request", `${db.engine} has no collections`);
+	return db.client;
+}
+
+export function keyValueClient(db: DatabaseService): KeyValueClient {
+	if (db.client.kind !== "kv")
+		throw new Failure("bad_request", `${db.engine} has no keys`);
 	return db.client;
 }
 

@@ -7,6 +7,12 @@ import type {
 	DocumentWrite,
 	DocumentWritten,
 	QueryResult,
+	RedisBytes,
+	RedisKeysPage,
+	RedisReply,
+	RedisValue,
+	RedisWrite,
+	RedisWritten,
 	RowPatch,
 	RowsPage,
 	RowsQuery,
@@ -17,6 +23,7 @@ import { ProviderError } from "../http.ts";
 import { mongoClient } from "./mongo.ts";
 import { mysqlClient } from "./mysql.ts";
 import { postgresClient } from "./postgres.ts";
+import { redisClient } from "./redis.ts";
 
 export { rowsQuery } from "./postgres.ts";
 
@@ -60,7 +67,7 @@ type Common = {
 };
 
 /** What the explorer runs against one database service; one implementation per engine. */
-export type DatabaseClient = SqlClient | DocumentClient;
+export type DatabaseClient = SqlClient | DocumentClient | KeyValueClient;
 
 export type SqlClient = Common & {
 	kind: "sql";
@@ -86,11 +93,32 @@ export type DocumentClient = Common & {
 	write(ref: CollectionRef, op: DocumentWrite): Promise<DocumentWritten>;
 };
 
+/** Redis: keys in numbered logical databases; `introspect` lists the databases with key counts. */
+export type KeyValueClient = Common & {
+	kind: "kv";
+	/** One SCAN ... MATCH batch, never KEYS. */
+	keys(
+		db: number,
+		q: { match: string; cursor?: string; count: number },
+	): Promise<RedisKeysPage>;
+	/** A page of a key's value by its type; `missing` when the key is gone. */
+	value(
+		db: number,
+		key: RedisBytes,
+		q: { cursor?: string; count: number },
+	): Promise<RedisValue>;
+	/** WATCH, type check, MULTI/EXEC; `stale` when the key vanished or changed type. */
+	write(op: RedisWrite): Promise<RedisWritten>;
+	/** One allowlisted command; an error reply comes back as a value, a denied command as `query`. */
+	command(db: number, argv: RedisBytes[]): Promise<RedisReply>;
+};
+
 export function databaseClient(conn: DatabaseConnection): DatabaseClient {
 	if (conn.engine === "postgres") return postgresClient(conn);
 	if (conn.engine === "mysql" || conn.engine === "mariadb")
 		return mysqlClient(conn);
 	if (conn.engine === "mongo") return mongoClient(conn);
+	if (conn.engine === "redis") return redisClient(conn);
 	throw new DatabaseError(
 		"open",
 		`the explorer does not support ${conn.engine} yet`,
