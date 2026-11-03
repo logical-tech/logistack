@@ -5,7 +5,14 @@ import {
 	ObservedState,
 	ServiceSpec,
 } from "@logistack/contracts";
-import { deployment, domain, service, serviceStatus } from "@logistack/db";
+import { encrypt, storageCredentials } from "@logistack/core";
+import {
+	deployment,
+	domain,
+	envVar,
+	service,
+	serviceStatus,
+} from "@logistack/db";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -149,21 +156,41 @@ export const services = router()
 				nodeId: null,
 				...(input.nodeId ? { requestedNodeId: input.nodeId } : {}),
 			});
-			const row = one(
-				await c.var.deps.db
-					.insert(service)
-					.values({
-						environmentId: c.req.valid("param").id,
-						name: input.name,
-						slug: input.slug ?? slugify(input.name),
-						kind: input.spec.kind,
-						spec: input.spec,
-						nodeId: nodeId ?? null,
-						createdBy: requireActor(c).userId,
-						importedFrom: input.importedFrom ?? null,
-					})
-					.returning(),
-			);
+			const { db, masterKey } = c.var.deps;
+			const spec = input.spec;
+			const row = await db.transaction(async (tx) => {
+				const created = one(
+					await tx
+						.insert(service)
+						.values({
+							environmentId: c.req.valid("param").id,
+							name: input.name,
+							slug: input.slug ?? slugify(input.name),
+							kind: spec.kind,
+							spec,
+							nodeId: nodeId ?? null,
+							createdBy: requireActor(c).userId,
+							importedFrom: input.importedFrom ?? null,
+						})
+						.returning(),
+				);
+				// Storage root credentials are minted here and only ever live encrypted in the service env.
+				if (spec.kind === "storage")
+					await tx.insert(envVar).values(
+						await Promise.all(
+							Object.entries(storageCredentials(spec.engine)).map(
+								async ([key, value]) => ({
+									scope: "service" as const,
+									scopeId: created.id,
+									key,
+									valueEncrypted: await encrypt(masterKey, value),
+									isSecret: true,
+								}),
+							),
+						),
+					);
+				return created;
+			});
 			c.set("auditResourceId", row.id);
 			return c.json(row, 201);
 		},
@@ -245,6 +272,15 @@ export const services = router()
 				throw new Failure("bad_request", "spec.kind cannot change", {
 					kind: current?.kind,
 				});
+			if (
+				input.spec?.kind === "storage" &&
+				current?.spec.kind === "storage" &&
+				input.spec.engine !== current.spec.engine
+			)
+				throw new Failure(
+					"bad_request",
+					"spec.engine cannot change: the data volume belongs to the engine",
+				);
 			let nodeId: string | null | undefined;
 			if (input.spec) {
 				c.set("auditDiff", { before: current?.spec, after: input });

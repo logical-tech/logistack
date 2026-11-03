@@ -27,6 +27,7 @@ export const idPrefixes = {
 	nodeJoin: "njn",
 	metricThreshold: "thr",
 	instanceUpdate: "upd",
+	storageAccessKey: "sak",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];

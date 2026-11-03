@@ -67,7 +67,8 @@ export async function signV4(
 		query,
 		names.map((n) => `${n}:${headers.get(n)}\n`).join(""),
 		signedHeaders,
-		await sha256Hex(req.body ?? ""),
+		// S3 signs the declared payload hash, which also covers binary and UNSIGNED-PAYLOAD bodies.
+		headers.get("x-amz-content-sha256") ?? (await sha256Hex(req.body ?? "")),
 	].join("\n");
 
 	const scope = `${date}/${opts.region}/${opts.service}/aws4_request`;

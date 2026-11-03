@@ -18,6 +18,7 @@ function sourceLabel(o: ServiceOverview) {
 	if (o.current?.imageRef) return o.current.imageRef;
 	const spec = o.spec;
 	if (spec.kind === "database") return `${spec.engine} ${spec.version}`;
+	if (spec.kind === "storage") return `${spec.engine} object storage`;
 	if (spec.source.type === "image") return spec.source.image;
 	if (spec.source.type === "inline") return "Compose file";
 	return `${spec.source.repository}@${spec.source.branch}`;

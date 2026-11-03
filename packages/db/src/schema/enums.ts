@@ -22,6 +22,7 @@ import {
 	runStatuses,
 	scheduleConcurrencies,
 	serviceKinds,
+	storageKeyAccess,
 } from "@logistack/contracts";
 import { pgEnum } from "drizzle-orm/pg-core";
 
@@ -59,4 +60,9 @@ export const auditOutcome = pgEnum("audit_outcome", auditOutcomes);
 export const generatedDomainBase = pgEnum(
 	"generated_domain_base",
 	generatedDomainBases,
+);
+
+export const storageKeyAccessEnum = pgEnum(
+	"storage_key_access",
+	storageKeyAccess,
 );

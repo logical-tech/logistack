@@ -70,11 +70,13 @@ export type CreateServiceInput = {
 	name: string;
 	spec: ServiceSpec;
 	/** `generated` asks the server for an sslip.io / nip.io / wildcard hostname. */
-	domain:
-		| { kind: "generated"; port: number }
-		| { kind: "custom"; hostname: string; port: number; https: boolean }
-		| null;
+	domain: DomainInput | null;
+	/** More domains on other ports, like an object storage console. */
+	extraDomains?: DomainInput[];
 };
+export type DomainInput =
+	| { kind: "generated"; port: number }
+	| { kind: "custom"; hostname: string; port: number; https: boolean };
 
 /** A service reduced to what list views draw: its name and observed status. */
 export type ServiceSignal = ProjectSummary["services"][number];

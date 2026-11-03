@@ -23,6 +23,12 @@ const ConfigSchema = z.object({
 	/** Server IP used for generated sslip/nip hostnames. */
 	PUBLIC_IP: z.union([z.ipv4(), z.ipv6()]).optional(),
 	LOG_LEVEL: z.enum(["info", "silent"]).default("info"),
+	/** Largest object the storage browser accepts in one upload. */
+	MAX_UPLOAD_BYTES: z.coerce
+		.number()
+		.int()
+		.positive()
+		.default(50 * 1024 ** 3),
 	/** The built web app, served with an SPA fallback when its index.html exists. */
 	WEB_DIST_DIR: z
 		.string()

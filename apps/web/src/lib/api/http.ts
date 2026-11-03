@@ -88,7 +88,13 @@ export const httpAdapter: ApiAdapter = {
 	services: {
 		listByEnvironment: (id) =>
 			ok(api.environments[":id"].services.$get({ param: { id } })),
-		create: async ({ environmentId, name, spec, domain }) => {
+		create: async ({
+			environmentId,
+			name,
+			spec,
+			domain,
+			extraDomains = [],
+		}) => {
 			const service = await ok(
 				api.environments[":id"].services.$post({
 					param: { id: environmentId },
@@ -96,25 +102,27 @@ export const httpAdapter: ApiAdapter = {
 				}),
 			);
 			const param = { param: { id: service.id } };
-			if (domain?.kind === "generated")
-				await ok(
-					api.services[":id"].domains.generated.$post({
-						...param,
-						json: { port: domain.port },
-					}),
-				);
-			if (domain?.kind === "custom")
-				await ok(
-					api.services[":id"].domains.$post({
-						...param,
-						json: {
-							hostname: domain.hostname,
-							port: domain.port,
-							https: domain.https,
-							cert: "auto",
-						},
-					}),
-				);
+			for (const d of domain ? [domain, ...extraDomains] : extraDomains) {
+				if (d.kind === "generated")
+					await ok(
+						api.services[":id"].domains.generated.$post({
+							...param,
+							json: { port: d.port },
+						}),
+					);
+				else
+					await ok(
+						api.services[":id"].domains.$post({
+							...param,
+							json: {
+								hostname: d.hostname,
+								port: d.port,
+								https: d.https,
+								cert: "auto",
+							},
+						}),
+					);
+			}
 			await ok(api.services[":id"].deploy.$post(param));
 			return service;
 		},

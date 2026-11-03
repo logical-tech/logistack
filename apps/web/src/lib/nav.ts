@@ -10,6 +10,7 @@ import {
 	Fingerprint,
 	GitBranch,
 	Globe,
+	HardDrive,
 	House,
 	KeyRound,
 	LockKeyhole,
@@ -91,6 +92,19 @@ export const NAV: NavGroup[] = [
 					action: "Add domain",
 				},
 				keywords: ["dns", "tls", "hostnames"],
+			},
+			{
+				to: "/storage",
+				title: "Storage",
+				icon: HardDrive,
+				description:
+					"S3-compatible object storage in every project: buckets, files, scoped keys and share links.",
+				empty: {
+					title: "No object storage yet",
+					body: "Add an Object storage service to an environment. MinIO, RustFS, Garage and SeaweedFS run on your own servers.",
+					action: "Choose a project",
+				},
+				keywords: ["s3", "buckets", "minio", "files", "object storage"],
 			},
 		],
 	},

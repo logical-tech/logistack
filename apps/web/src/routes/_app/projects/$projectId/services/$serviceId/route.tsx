@@ -18,6 +18,7 @@ const BASE = "/projects/$projectId/services/$serviceId";
 /** Tabs are child routes; the id is the path segment after the service. */
 const TABS = [
 	{ id: "overview", label: "Overview", to: BASE },
+	{ id: "storage", label: "Storage", to: `${BASE}/storage` },
 	{ id: "deployments", label: "Deployments", to: `${BASE}/deployments` },
 	{ id: "logs", label: "Logs", to: `${BASE}/logs` },
 	{ id: "terminal", label: "Terminal", to: `${BASE}/terminal` },
@@ -77,7 +78,9 @@ function ServiceLayout() {
 						const to = TABS.find((t) => t.id === id)?.to ?? BASE;
 						navigate({ to, params: { projectId, serviceId } });
 					}}
-					items={TABS.map((t) => ({ id: t.id, label: t.label }))}
+					items={TABS.filter(
+						(t) => t.id !== "storage" || service.kind === "storage",
+					).map((t) => ({ id: t.id, label: t.label }))}
 				/>
 			</div>
 			<div

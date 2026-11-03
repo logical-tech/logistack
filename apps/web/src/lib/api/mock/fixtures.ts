@@ -123,6 +123,14 @@ const db = (
 	resources: { cpu: 1, memoryMb: 1024 },
 });
 
+const storage = (
+	engine: "minio" | "rustfs" | "garage" | "seaweedfs",
+): ServiceSpec => ({
+	kind: "storage",
+	engine,
+	resources: { cpu: 1, memoryMb: 1024 },
+});
+
 let depCounter = 0;
 const deployments: Deployment[] = [];
 
@@ -503,6 +511,36 @@ export function createMockDb(): MockDb {
 			"stopped",
 			[],
 			[0, 0],
+		),
+		service(
+			e("storefront", "production"),
+			"media",
+			"media",
+			storage("minio"),
+			"running",
+			["s3.acme-retail.it", "console.s3.acme-retail.it"],
+		),
+		service(
+			e("rossi", "production"),
+			"uploads",
+			"uploads",
+			storage("garage"),
+			"running",
+			["s3.studiorossi.it"],
+		),
+		service(
+			e("analytics", "production"),
+			"archive",
+			"archive",
+			storage("seaweedfs"),
+			"running",
+		),
+		service(
+			e("llm-gateway", "staging"),
+			"datasets",
+			"datasets",
+			storage("rustfs"),
+			"running",
 		),
 	];
 

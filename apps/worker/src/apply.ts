@@ -96,6 +96,7 @@ async function resolvePin(
 ): Promise<string | undefined> {
 	const stateful =
 		sc.service.spec.kind === "database" ||
+		sc.service.spec.kind === "storage" ||
 		sc.mounts.some((m) => m.kind === "volume") ||
 		(sc.service.spec.kind === "application" &&
 			!!sc.service.spec.mounts?.length);
@@ -143,6 +144,10 @@ export async function desiredSpec(
 		sc.service.environmentId,
 	);
 	const ingress = await ctx.docker.networks.inspect(ctx.cfg.LS_INGRESS_NETWORK);
+	const storage =
+		sc.service.spec.kind === "storage"
+			? await ctx.docker.networks.inspect(ctx.cfg.LS_STORAGE_NETWORK)
+			: undefined;
 	const input: CompileServiceInput = {
 		service: {
 			id: sc.service.id,
@@ -159,7 +164,11 @@ export async function desiredSpec(
 		),
 		mounts: sc.mounts,
 		domains: sc.domains,
-		networks: { environment: envNet, ingress: ingress.Id },
+		networks: {
+			environment: envNet,
+			ingress: ingress.Id,
+			...(storage ? { storage: storage.Id } : {}),
+		},
 		fileIds: {},
 		scope: scope(ctx),
 	};

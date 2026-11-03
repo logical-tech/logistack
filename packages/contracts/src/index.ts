@@ -8,5 +8,6 @@ export * from "./monitoring.ts";
 export * from "./operations.ts";
 export * from "./resources.ts";
 export * from "./service-spec.ts";
+export * from "./storage.ts";
 export * from "./template.ts";
 export * from "./updates.ts";

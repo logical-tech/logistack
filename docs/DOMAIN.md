@@ -11,11 +11,12 @@ Source of truth for entity shapes. `packages/db` implements it in Drizzle, `pack
 - `folder` — `id, organization_id, parent_id?, name, slug, position`. Depth ≤ 2 (a folder with a parent cannot itself be a parent). Enforced in `core` and by a check trigger.
 - `project` — `id, organization_id, folder_id?, name, slug, description`.
 - `environment` — `id, project_id, name, slug, kind: production|staging|preview|custom, is_default`.
-- `service` — `id, environment_id, name, slug, kind: application|database|compose, node_id? (pinned when stateful), spec jsonb, desired_state: running|stopped, created_by, imported_from?`. `imported_from` is provenance (`dokploy:<appName>/<service>`), kept outside `spec` so spec edits never drop it; a re-import skips a service that carries it.
+- `service` — `id, environment_id, name, slug, kind: application|database|compose|storage, node_id? (pinned when stateful), spec jsonb, desired_state: running|stopped, created_by, imported_from?`. `imported_from` is provenance (`dokploy:<appName>/<service>`), kept outside `spec` so spec edits never drop it; a re-import skips a service that carries it.
   - `spec` is a discriminated union by `kind` (zod in contracts):
     - application: `source` (git repo+branch+path | image ref), `build` (`dockerfile|railpack|static|image` + options), `ports[] {target, published?, protocol: tcp|udp, mode?: host|ingress (default host)}`, `replicas`, `resources {cpu, memory}`, `healthcheck`, `command?`, `placement[]`, `mounts?[] {kind: bind, hostPath, target, readOnly?, allowSensitiveHostPath?}` (admin only; pins the service to `node_id`), `user?` (`uid[:gid]`), `capAdd?[]`, `capDrop?[]`, `restart?: any|on-failure|none`.
     - database: `engine: postgres|mysql|mariadb|mongo|redis`, `version`, `credentials_ref`, `resources`.
     - compose: `source` (inline | git path), `original_yaml`, `services_overrides`.
+    - storage: `engine: minio|rustfs|garage|seaweedfs`, `resources`. Root credentials are minted by `service.create` into secret service env vars (`STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, Garage also `STORAGE_ADMIN_TOKEN`, `STORAGE_RPC_SECRET`); the image is pinned per engine in `core/storage.ts`. The public S3 endpoint and the console are ordinary `domain` rows on the engine's S3 or console port.
 - `env_var` — `id, scope: organization|project|environment|service, scope_id, key, value_encrypted, is_secret, is_build_time`. Resolution order org → project → environment → service.
 - `mount` — `id, service_id, kind: volume|config|secret, target, volume_name? (volume), content_encrypted? (config/secret), read_only`.
 
@@ -37,7 +38,26 @@ Source of truth for entity shapes. `packages/db` implements it in Drizzle, `pack
 - `git_provider` — `id, organization_id, kind: github|gitlab|gitea|bitbucket|generic, name, config_encrypted jsonb` (GitHub App id/private key/webhook secret; OAuth tokens...).
 - `registry` — `id, organization_id, kind: local|ghcr|dockerhub|gitlab|generic, url, username, password_encrypted, is_default`.
 - `ssh_key` — `id, organization_id, name, public_key, private_key_encrypted, fingerprint`.
-- `s3_destination` — `id, organization_id, name, endpoint, region, bucket, prefix, access_key_id, secret_encrypted, force_path_style`.
+- `s3_destination` — `id, organization_id, name, endpoint, region, bucket, prefix, access_key_id, secret_encrypted, force_path_style, storage_service_id?`. With `storage_service_id` the worker derives the endpoint from the service id on `ls-storage` and skips the SSRF check.
+
+## Storage
+
+- `storage_access_key` — `id, service_id, name, access_key_id, buckets text[], access: read|readwrite, created_by`. A scoped key LogiStack created in the engine (MinIO/RustFS service account with an inline policy, Garage key with per-bucket grants, SeaweedFS IAM user with a user policy). The secret is returned once and never stored.
+
+### Engines and images
+
+| Engine | Image (pinned by digest) | S3 / console | Versioning, policies | Usage |
+| --- | --- | --- | --- | --- |
+| MinIO | `cgr.dev/chainguard/minio` RELEASE.2026-10-23T20-06-51Z. MinIO stopped publishing community images in 2025 (`minio/minio` is gone from Docker Hub); Chainguard builds each release from source. | 9000 / 9001 | yes, yes | `datausageinfo` |
+| RustFS | `rustfs/rustfs:1.0.4` | 9000 / 9001 | yes, yes | `datausageinfo` |
+| Garage | `dxflrs/garage:v2.5.0` | 3900 / none (admin API 3903, never published) | no, no | admin `GetBucketInfo` |
+| SeaweedFS | `chrislusf/seaweedfs:4.52` (`weed mini`) | 8333 / none | yes, yes | none |
+
+Garage starts without a layout or keys; the api bootstraps it through the admin API on first use (assign the node, apply the layout, import the root key) and creates buckets with a global alias so scoped keys can address them by name.
+
+### Network
+
+The api and worker live on `ls-control`, storage on its environment network. Storage services also join `ls-storage`, a static overlay the api and worker join in the stack, so neither ever needs a `service update` (which restarts tasks) per environment. Apps never join `ls-storage`; storage tasks see each other there (each is authenticated S3), the same trade-off as `ls-ingress`. Object uploads stream from the browser through the api into a multipart upload (8 MiB parts), so storage needs no public endpoint or CORS; share links are S3 presigned URLs when the service has a public S3 domain, otherwise api links sealed with the master key.
 
 ## Operations
 

@@ -11,7 +11,12 @@ export const environmentKinds = [
 export const EnvironmentKind = z.enum(environmentKinds);
 export type EnvironmentKind = z.infer<typeof EnvironmentKind>;
 
-export const serviceKinds = ["application", "database", "compose"] as const;
+export const serviceKinds = [
+	"application",
+	"database",
+	"compose",
+	"storage",
+] as const;
 export const ServiceKind = z.enum(serviceKinds);
 export type ServiceKind = z.infer<typeof ServiceKind>;
 

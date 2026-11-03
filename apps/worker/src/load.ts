@@ -1,4 +1,8 @@
-import type { ApplicationSpec, DatabaseSpec } from "@logistack/contracts";
+import type {
+	ApplicationSpec,
+	DatabaseSpec,
+	StorageSpec,
+} from "@logistack/contracts";
 import {
 	type CompileMount,
 	decrypt,
@@ -32,7 +36,7 @@ export type ServiceRow = typeof service.$inferSelect;
 export type DomainRow = typeof domain.$inferSelect;
 
 export type ServiceContext = {
-	service: ServiceRow & { spec: ApplicationSpec | DatabaseSpec };
+	service: ServiceRow & { spec: ApplicationSpec | DatabaseSpec | StorageSpec };
 	organizationId: string;
 	env: Record<string, ResolvedEnvVar>;
 	mounts: CompileMount[];

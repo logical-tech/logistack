@@ -17,6 +17,7 @@ import { Route as AppDomainsRouteImport } from './routes/_app/domains'
 import { Route as AppMonitoringRouteRouteImport } from './routes/_app/monitoring/route'
 import { Route as AppProjectsRouteRouteImport } from './routes/_app/projects/route'
 import { Route as AppSchedulesRouteImport } from './routes/_app/schedules'
+import { Route as AppStorageRouteImport } from './routes/_app/storage'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth/forgot-password'
 import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
@@ -74,6 +75,7 @@ import { Route as AppProjectsProjectIdServicesServiceIdEnvironmentRouteImport } 
 import { Route as AppProjectsProjectIdServicesServiceIdLogsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/logs'
 import { Route as AppProjectsProjectIdServicesServiceIdMetricsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/metrics'
 import { Route as AppProjectsProjectIdServicesServiceIdSettingsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/settings'
+import { Route as AppProjectsProjectIdServicesServiceIdStorageRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/storage'
 import { Route as AppProjectsProjectIdServicesServiceIdTerminalRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/terminal'
 
 const AppRoute = AppRouteImport.update({
@@ -112,6 +114,11 @@ const AppProjectsRouteRoute = AppProjectsRouteRouteImport.update({
 const AppSchedulesRoute = AppSchedulesRouteImport.update({
   id: '/schedules',
   path: '/schedules',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStorageRoute = AppStorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
   getParentRoute: () => AppRoute,
 } as any)
 const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
@@ -425,6 +432,12 @@ const AppProjectsProjectIdServicesServiceIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdServicesServiceIdStorageRoute =
+  AppProjectsProjectIdServicesServiceIdStorageRouteImport.update({
+    id: '/storage',
+    path: '/storage',
+    getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdTerminalRoute =
   AppProjectsProjectIdServicesServiceIdTerminalRouteImport.update({
     id: '/terminal',
@@ -439,6 +452,7 @@ export interface FileRoutesByFullPath {
   '/projects': typeof AppProjectsRouteRouteWithChildren
   '/domains': typeof AppDomainsRoute
   '/schedules': typeof AppSchedulesRoute
+  '/storage': typeof AppStorageRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
@@ -495,6 +509,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
+  '/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
 }
@@ -503,6 +518,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/domains': typeof AppDomainsRoute
   '/schedules': typeof AppSchedulesRoute
+  '/storage': typeof AppStorageRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
@@ -557,6 +573,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
+  '/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
 }
@@ -569,6 +586,7 @@ export interface FileRoutesById {
   '/_app/projects': typeof AppProjectsRouteRouteWithChildren
   '/_app/domains': typeof AppDomainsRoute
   '/_app/schedules': typeof AppSchedulesRoute
+  '/_app/storage': typeof AppStorageRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/sign-in': typeof AuthSignInRoute
   '/_auth/sign-up': typeof AuthSignUpRoute
@@ -626,6 +644,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/_app/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/_app/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
+  '/_app/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/_app/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   '/_app/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
 }
@@ -638,6 +657,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/domains'
     | '/schedules'
+    | '/storage'
     | '/forgot-password'
     | '/sign-in'
     | '/sign-up'
@@ -694,6 +714,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
     | '/projects/$projectId/services/$serviceId/settings'
+    | '/projects/$projectId/services/$serviceId/storage'
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/services/$serviceId/'
   fileRoutesByTo: FileRoutesByTo
@@ -702,6 +723,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/domains'
     | '/schedules'
+    | '/storage'
     | '/forgot-password'
     | '/sign-in'
     | '/sign-up'
@@ -756,6 +778,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
     | '/projects/$projectId/services/$serviceId/settings'
+    | '/projects/$projectId/services/$serviceId/storage'
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/services/$serviceId'
   id:
@@ -767,6 +790,7 @@ export interface FileRouteTypes {
     | '/_app/projects'
     | '/_app/domains'
     | '/_app/schedules'
+    | '/_app/storage'
     | '/_auth/forgot-password'
     | '/_auth/sign-in'
     | '/_auth/sign-up'
@@ -824,6 +848,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/$serviceId/logs'
     | '/_app/projects/$projectId/services/$serviceId/metrics'
     | '/_app/projects/$projectId/services/$serviceId/settings'
+    | '/_app/projects/$projectId/services/$serviceId/storage'
     | '/_app/projects/$projectId/services/$serviceId/terminal'
     | '/_app/projects/$projectId/services/$serviceId/'
   fileRoutesById: FileRoutesById
@@ -890,6 +915,13 @@ declare module '@tanstack/react-router' {
       path: '/schedules'
       fullPath: '/schedules'
       preLoaderRoute: typeof AppSchedulesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/storage': {
+      id: '/_app/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof AppStorageRouteImport
       parentRoute: typeof AppRoute
     }
     '/_auth/forgot-password': {
@@ -1291,6 +1323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdSettingsRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/services/$serviceId/storage': {
+      id: '/_app/projects/$projectId/services/$serviceId/storage'
+      path: '/storage'
+      fullPath: '/projects/$projectId/services/$serviceId/storage'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdStorageRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/terminal': {
       id: '/_app/projects/$projectId/services/$serviceId/terminal'
       path: '/terminal'
@@ -1328,6 +1367,7 @@ interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
   AppProjectsProjectIdServicesServiceIdLogsRoute: typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   AppProjectsProjectIdServicesServiceIdMetricsRoute: typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   AppProjectsProjectIdServicesServiceIdSettingsRoute: typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
+  AppProjectsProjectIdServicesServiceIdStorageRoute: typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   AppProjectsProjectIdServicesServiceIdTerminalRoute: typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   AppProjectsProjectIdServicesServiceIdIndexRoute: typeof AppProjectsProjectIdServicesServiceIdIndexRoute
 }
@@ -1348,6 +1388,8 @@ const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjec
       AppProjectsProjectIdServicesServiceIdMetricsRoute,
     AppProjectsProjectIdServicesServiceIdSettingsRoute:
       AppProjectsProjectIdServicesServiceIdSettingsRoute,
+    AppProjectsProjectIdServicesServiceIdStorageRoute:
+      AppProjectsProjectIdServicesServiceIdStorageRoute,
     AppProjectsProjectIdServicesServiceIdTerminalRoute:
       AppProjectsProjectIdServicesServiceIdTerminalRoute,
     AppProjectsProjectIdServicesServiceIdIndexRoute:
@@ -1402,6 +1444,7 @@ interface AppRouteChildren {
   AppProjectsRouteRoute: typeof AppProjectsRouteRouteWithChildren
   AppDomainsRoute: typeof AppDomainsRoute
   AppSchedulesRoute: typeof AppSchedulesRoute
+  AppStorageRoute: typeof AppStorageRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAccountSecurityRoute: typeof AppAccountSecurityRoute
   AppDomainsNewRoute: typeof AppDomainsNewRoute
@@ -1441,6 +1484,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProjectsRouteRoute: AppProjectsRouteRouteWithChildren,
   AppDomainsRoute: AppDomainsRoute,
   AppSchedulesRoute: AppSchedulesRoute,
+  AppStorageRoute: AppStorageRoute,
   AppIndexRoute: AppIndexRoute,
   AppAccountSecurityRoute: AppAccountSecurityRoute,
   AppDomainsNewRoute: AppDomainsNewRoute,

@@ -7,5 +7,6 @@ export * from "./ids.ts";
 export * from "./node-labels.ts";
 export * from "./permissions.ts";
 export * from "./ports.ts";
+export * from "./storage.ts";
 export * from "./template.ts";
 export * from "./version.ts";

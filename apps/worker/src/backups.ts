@@ -5,7 +5,7 @@ import {
 	LIVE_CHANNEL,
 	type LiveMessage,
 } from "@logistack/contracts";
-import { decrypt, dockerName, newId } from "@logistack/core";
+import { decrypt, dockerName, newId, storageEngineDefs } from "@logistack/core";
 import {
 	backupPolicy,
 	backupRun,
@@ -97,6 +97,30 @@ export async function openDestination(
 		.from(s3Destination)
 		.where(eq(s3Destination.id, id));
 	if (!d) throw new Error(`S3 destination ${id} is gone`);
+	const config = {
+		endpoint: d.endpoint,
+		region: d.region,
+		bucket: d.bucket,
+		prefix: d.prefix,
+		accessKeyId: d.accessKeyId,
+		secretAccessKey: await decrypt(ctx.masterKey, d.secretEncrypted),
+		forcePathStyle: d.forcePathStyle,
+	};
+	// A LogiStack storage service: the endpoint is derived from its id on the storage network, never read from the row.
+	if (d.storageServiceId) {
+		const [svc] = await ctx.db
+			.select({ spec: service.spec })
+			.from(service)
+			.where(eq(service.id, d.storageServiceId));
+		if (svc?.spec.kind !== "storage")
+			throw new Error(`S3 destination ${id}: its storage service is gone`);
+		const port = storageEngineDefs[svc.spec.engine].s3Port;
+		return instantiate(s3Provider, {
+			...config,
+			endpoint: `http://${svcName(ctx, d.storageServiceId)}:${port}`,
+			forcePathStyle: true,
+		});
+	}
 	const url = new URL(d.endpoint);
 	const [settings] = await ctx.db
 		.select({ allow: instanceSettings.allowPrivateHosts })
@@ -105,15 +129,7 @@ export async function openDestination(
 		throw new Error("only https S3 endpoints are allowed");
 	// shortcut: checked, not pinned; Bun's S3Client takes no custom fetch.
 	await publicAddress(ctx, url.hostname);
-	return instantiate(s3Provider, {
-		endpoint: d.endpoint,
-		region: d.region,
-		bucket: d.bucket,
-		prefix: d.prefix,
-		accessKeyId: d.accessKeyId,
-		secretAccessKey: await decrypt(ctx.masterKey, d.secretEncrypted),
-		forcePathStyle: d.forcePathStyle,
-	});
+	return instantiate(s3Provider, config);
 }
 
 /** The service's oldest running task and its node; Swarm marks a task running only once healthy. */

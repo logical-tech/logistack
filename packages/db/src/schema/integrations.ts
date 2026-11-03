@@ -9,6 +9,7 @@ import {
 import { organization } from "./auth.ts";
 import { id, timestamps } from "./columns.ts";
 import { gitProviderKind, registryKind } from "./enums.ts";
+import { service } from "./hierarchy.ts";
 
 const org = () =>
 	text("organization_id")
@@ -71,5 +72,9 @@ export const s3Destination = pgTable("s3_destination", {
 	accessKeyId: text("access_key_id").notNull(),
 	secretEncrypted: text("secret_encrypted").notNull(),
 	forcePathStyle: boolean("force_path_style").notNull().default(false),
+	/** Set when the destination is a LogiStack storage service; the worker derives its endpoint. */
+	storageServiceId: text("storage_service_id").references(() => service.id, {
+		onDelete: "set null",
+	}),
 	...timestamps,
 });

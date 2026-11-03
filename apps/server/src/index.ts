@@ -49,7 +49,13 @@ export async function startServer(config: Config) {
 		authenticate: nodeTokenAuth(deps.db, config.LOGISTACK_AGENT_TOKEN),
 	});
 	const rpc = await serveAgentRpc(agents, config.REDIS_URL);
-	const server = Bun.serve({ port: config.PORT, fetch: app.fetch, websocket });
+	const server = Bun.serve({
+		port: config.PORT,
+		fetch: app.fetch,
+		websocket,
+		// Object uploads stream through; JSON routes have their own limit (app.ts).
+		maxRequestBodySize: config.MAX_UPLOAD_BYTES,
+	});
 	return {
 		server,
 		deps,

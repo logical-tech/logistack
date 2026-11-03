@@ -1,3 +1,4 @@
+import type { StorageEngine } from "@logistack/contracts";
 import { Link } from "@tanstack/react-router";
 import {
 	Box,
@@ -5,6 +6,7 @@ import {
 	Database,
 	GitBranch,
 	Globe,
+	HardDrive,
 	Layers,
 	type LucideIcon,
 } from "lucide-react";
@@ -22,6 +24,7 @@ const KIND_ICON: Record<ServiceKind, LucideIcon> = {
 	application: Box,
 	database: Database,
 	compose: Layers,
+	storage: HardDrive,
 };
 
 const ENGINE: Record<DatabaseEngine, string> = {
@@ -30,6 +33,13 @@ const ENGINE: Record<DatabaseEngine, string> = {
 	mariadb: "MariaDB",
 	mongo: "MongoDB",
 	redis: "Redis",
+};
+
+const STORAGE_ENGINE: Record<StorageEngine, string> = {
+	minio: "MinIO",
+	rustfs: "RustFS",
+	garage: "Garage",
+	seaweedfs: "SeaweedFS",
 };
 
 function Source({ service: s }: { service: Service }) {
@@ -41,6 +51,8 @@ function Source({ service: s }: { service: Service }) {
 			</span>
 		);
 	}
+	if (spec.kind === "storage")
+		return <span className="truncate">{STORAGE_ENGINE[spec.engine]}</span>;
 	const source = spec.source;
 	if (source.type === "image") {
 		return (

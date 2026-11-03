@@ -14,6 +14,8 @@ export type Deps = {
 	bus: Bus;
 	/** Jobs, execs and log follows on any node, whichever replica holds its agent socket. */
 	nodes: NodeRunner;
+	/** How the api dials a storage service's port; default its Swarm name on ls-storage. */
+	storageEndpoint?: (serviceId: string, port: number) => string;
 };
 
 export type Env = {

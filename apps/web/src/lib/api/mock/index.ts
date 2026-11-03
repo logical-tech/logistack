@@ -16,6 +16,9 @@ import { templatesMock } from "./templates";
 
 const db = createMockDb();
 
+/** The storage mock reads services and projects from the same in-memory world. */
+export { db as mockDb };
+
 /** Realistic, jittered latency so loading states are seen in dev. */
 function delay<T>(value: T, ms = 220 + Math.random() * 380): Promise<T> {
 	return new Promise((resolve) =>
@@ -202,7 +205,7 @@ export const mockAdapter: ApiAdapter = {
 	services: {
 		listByEnvironment: (environmentId) =>
 			delay(db.services.filter((s) => s.environmentId === environmentId)),
-		create: ({ environmentId, name, spec, domain }) => {
+		create: ({ environmentId, name, spec, domain, extraDomains = [] }) => {
 			const id = rid("svc");
 			const at = new Date().toISOString();
 			const deployment: Deployment = {
@@ -236,14 +239,12 @@ export const mockAdapter: ApiAdapter = {
 					observedAt: at,
 				},
 				latestDeployment: deployment,
-				domains:
-					domain?.kind === "custom"
-						? [domain.hostname]
-						: domain
-							? [
-									`${slugify(name)}-${id.slice(-6)}.${db.publicIp.replaceAll(".", "-")}.sslip.io`,
-								]
-							: [],
+				domains: (domain ? [domain, ...extraDomains] : extraDomains).map(
+					(d, i) =>
+						d.kind === "custom"
+							? d.hostname
+							: `${slugify(name)}${i ? `-${i}` : ""}-${id.slice(-6)}.${db.publicIp.replaceAll(".", "-")}.sslip.io`,
+				),
 				nodeId: null,
 				createdBy: null,
 				importedFrom: null,

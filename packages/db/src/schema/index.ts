@@ -9,4 +9,5 @@ export * from "./node-token.ts";
 export * from "./operations.ts";
 export * from "./runtime.ts";
 export * from "./settings.ts";
+export * from "./storage.ts";
 export * from "./triggers.ts";

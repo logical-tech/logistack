@@ -4,6 +4,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { AGENT_WS_PATH } from "@logistack/contracts";
 import { Scalar } from "@scalar/hono-api-reference";
 import type { MiddlewareHandler } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
@@ -40,6 +41,7 @@ import { services } from "./routes/services.ts";
 import { setup } from "./routes/setup.ts";
 import { sshKeys } from "./routes/ssh-keys.ts";
 import { sso } from "./routes/sso.ts";
+import { storage } from "./routes/storage.ts";
 import { templates } from "./routes/templates.ts";
 import { updates } from "./routes/updates.ts";
 import { webhooks } from "./routes/webhooks.ts";
@@ -68,6 +70,21 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		await next();
 	});
 	app.use(requestLogger);
+	// Bun.serve allows object-sized bodies for storage uploads; everything else keeps the old ceiling.
+	const limited = bodyLimit({
+		maxSize: 128 * 1024 * 1024,
+		onError: (c) =>
+			c.json(
+				{ error: { code: "bad_request", message: "request body too large" } },
+				413,
+			),
+	});
+	app.use("/api/*", (c, next) =>
+		c.req.method === "PUT" &&
+		/^\/api\/storage\/[^/]+\/buckets\/[^/]+\/upload$/.test(c.req.path)
+			? next()
+			: limited(c, next),
+	);
 	app.use(
 		"/api/*",
 		cors({ origin: deps.config.WEB_ORIGIN, credentials: true }),
@@ -79,6 +96,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		c.req.path === "/api/health" ||
 		// Authenticated by the provider's signature instead of a session.
 		c.req.path.startsWith("/api/webhooks/") ||
+		// The sealed token in the path is the credential.
+		c.req.path.startsWith("/api/storage/shared/") ||
 		c.req.path === AGENT_WS_PATH
 			? next()
 			: identify(c, next),
@@ -131,6 +150,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", backups)
 		.route("/api", schedules)
 		.route("/api", templates)
+		.route("/api", storage)
 		.route("/", realtime)
 		.route("/", terminal);
 

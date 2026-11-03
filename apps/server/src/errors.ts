@@ -1,5 +1,6 @@
 import type { Hook } from "@hono/zod-openapi";
 import type { ApiError, ErrorCode } from "@logistack/contracts";
+import { StorageError } from "@logistack/providers";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Env } from "./env.ts";
@@ -84,9 +85,23 @@ function pgError(err: unknown): { code: string; message: string } | undefined {
 	return undefined;
 }
 
+const storageCodes: Record<number, ErrorCode> = {
+	400: "bad_request",
+	404: "not_found",
+	409: "conflict",
+};
+
 export function onError(err: Error, c: Context<Env>) {
 	if (err instanceof Failure)
 		return c.json(body(err.code, err.message, err.details), err.status);
+	if (err instanceof StorageError) {
+		// The engine's own 403 means our root credentials were refused, not the caller.
+		const code = storageCodes[err.status ?? 0] ?? "conflict";
+		return c.json(
+			body(code, err.message, err.code ? { engineCode: err.code } : undefined),
+			statusOf[code],
+		);
+	}
 	const pg = pgError(err);
 	if (pg) {
 		const code = pgCodes[pg.code] ?? "internal";

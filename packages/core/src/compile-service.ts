@@ -6,6 +6,7 @@ import type {
 	DesiredState,
 	Healthcheck as HealthcheckSpec,
 	MountKind,
+	StorageSpec,
 } from "@logistack/contracts";
 import {
 	type ConfigReference,
@@ -18,6 +19,7 @@ import {
 	type ServiceSpec,
 } from "@logistack/docker";
 import { dockerName } from "./ids.ts";
+import { storageEngineDefs } from "./storage.ts";
 
 export type CompileMount = {
 	id: string;
@@ -36,7 +38,7 @@ export type CompileServiceInput = {
 		/** DNS alias on the environment network; validated by the API. */
 		slug: string;
 		desiredState: DesiredState;
-		spec: ApplicationSpec | DatabaseSpec;
+		spec: ApplicationSpec | DatabaseSpec | StorageSpec;
 	};
 	/** Rolls the tasks even when nothing else changed, so every deployment is a real update. */
 	deploymentId: string;
@@ -46,7 +48,8 @@ export type CompileServiceInput = {
 	env: Record<string, string>;
 	mounts: CompileMount[];
 	domains: { port: number }[];
-	networks: { environment: string; ingress: string };
+	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
+	networks: { environment: string; ingress: string; storage?: string };
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
@@ -57,6 +60,7 @@ export type CompileServiceInput = {
 
 export type ServiceFile = {
 	mountId: string;
+	target: string;
 	kind: "config" | "secret";
 	/** Carries a content hash, so a content change creates a new object and rolls the service. */
 	name: string;
@@ -146,22 +150,38 @@ function labelsFor(
 
 /** The Swarm configs and secrets a service mounts; create them before `compileService`. */
 export function serviceFiles(input: CompileServiceInput): ServiceFile[] {
-	return input.mounts.flatMap((m): ServiceFile[] => {
-		if (m.kind === "volume") return [];
-		if (m.content === undefined)
-			throw new Error(`mount ${m.id}: ${m.kind} mount without content`);
-		const kind = m.kind;
-		const base = dockerName(kind === "config" ? "cfg" : "sec", m.id);
-		return [
-			{
-				mountId: m.id,
-				kind,
-				name: `${prefixOf(input)}${base}-${sha256(m.content)}`,
-				data: m.content,
-				labels: labelsFor(input, m.id, kind),
-			},
-		];
-	});
+	const spec = input.service.spec;
+	const engineFiles = (
+		spec.kind === "storage" ? (storageEngineDefs[spec.engine].files ?? []) : []
+	).map(
+		(f, i): ServiceFile => ({
+			mountId: `${input.service.id}#${i}`,
+			target: f.target,
+			kind: "config",
+			name: `${prefixOf(input)}${dockerName("cfg", input.service.id)}-${sha256(f.content)}`,
+			data: f.content,
+			labels: labelsFor(input, input.service.id, "config"),
+		}),
+	);
+	return input.mounts
+		.flatMap((m): ServiceFile[] => {
+			if (m.kind === "volume") return [];
+			if (m.content === undefined)
+				throw new Error(`mount ${m.id}: ${m.kind} mount without content`);
+			const kind = m.kind;
+			const base = dockerName(kind === "config" ? "cfg" : "sec", m.id);
+			return [
+				{
+					mountId: m.id,
+					target: m.target,
+					kind,
+					name: `${prefixOf(input)}${base}-${sha256(m.content)}`,
+					data: m.content,
+					labels: labelsFor(input, m.id, kind),
+				},
+			];
+		})
+		.concat(engineFiles);
 }
 
 function shellQuote(v: string): string {
@@ -215,6 +235,8 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	const prefix = prefixOf(input);
 	const db = spec.kind === "database" ? spec : undefined;
 	const app = spec.kind === "application" ? spec : undefined;
+	const store =
+		spec.kind === "storage" ? storageEngineDefs[spec.engine] : undefined;
 	const isDb = db !== undefined;
 	const kind: ManagedKind = isDb ? "db" : "service";
 	// The slug is the service's DNS name on the environment network; siblings resolve it.
@@ -246,6 +268,23 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			VolumeOptions: { Labels: labelsFor(input, service.id, "volume") },
 		});
 	}
+	if (store) {
+		const missing = store.required.filter((k) => !input.env[k]);
+		if (missing.length)
+			throw new Error(
+				`service ${service.id}: ${store.label} needs env ${missing.join(", ")}`,
+			);
+		if (!input.networks.storage)
+			throw new Error(
+				`service ${service.id}: storage needs the storage network`,
+			);
+		volumeMounts.push({
+			Type: "volume",
+			Source: `${prefix}${dockerName("vol", service.id)}`,
+			Target: store.dataDir,
+			VolumeOptions: { Labels: labelsFor(input, service.id, "volume") },
+		});
+	}
 
 	const bindMounts: Mount[] = (app?.mounts ?? []).map((m) => ({
 		Type: "bind",
@@ -259,8 +298,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	for (const f of serviceFiles(input)) {
 		const id = input.fileIds[f.name];
 		if (!id) throw new Error(`${f.kind} ${f.name} has no Swarm id`);
-		const mount = input.mounts.find((m) => m.id === f.mountId) as CompileMount;
-		const File = { Name: mount.target, UID: "0", GID: "0", Mode: 0o444 };
+		const File = { Name: f.target, UID: "0", GID: "0", Mode: 0o444 };
 		if (f.kind === "config")
 			configs.push({ ConfigID: id, ConfigName: f.name, File });
 		else secrets.push({ SecretID: id, SecretName: f.name, File });
@@ -272,18 +310,21 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			`service ${service.id} is stateful and needs a node to pin`,
 		);
 
-	const image = db && engine ? engine.image(db.version) : input.image;
+	const image =
+		db && engine ? engine.image(db.version) : (store?.image ?? input.image);
 	if (!image) throw new Error(`service ${service.id}: no image to deploy`);
 
 	const hasIngress = !isDb && input.domains.length > 0;
 	const test = engine
 		? engine.healthcheck
-		: healthcheckTest(
-				app?.healthcheck,
-				hasIngress
-					? (app?.ports[0]?.target ?? input.domains[0]?.port)
-					: undefined,
-			);
+		: store
+			? store.healthcheck
+			: healthcheckTest(
+					app?.healthcheck,
+					hasIngress
+						? (app?.ports[0]?.target ?? input.domains[0]?.port)
+						: undefined,
+				);
 
 	const deploymentLabel = { "logistack.deployment": input.deploymentId };
 	const published = (app?.ports ?? []).filter((p) => p.published);
@@ -293,7 +334,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	const resources = spec.resources;
 	const replicas =
 		service.desiredState === "stopped" ? 0 : isDb ? 1 : (app?.replicas ?? 1);
-	const env = Object.entries(input.env)
+	const env = Object.entries({ ...input.env, ...store?.env(input.env) })
 		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 		.map(([k, v]) => `${k}=${v}`);
 
@@ -310,8 +351,8 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				Labels: { ...labelsFor(input, service.id, kind), ...deploymentLabel },
 				...(engine?.args
 					? { Command: engine.args }
-					: app?.command
-						? { Args: app.command }
+					: (app?.command ?? store?.args)
+						? { Args: app?.command ?? store?.args }
 						: {}),
 				...(app?.entrypoint ? { Command: app.entrypoint } : {}),
 				Env: env,
@@ -325,7 +366,12 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				Secrets: secrets,
 				StopGracePeriod: s(10),
 				...(test
-					? { Healthcheck: { Test: test, ...healthTimings(isDb ? 30 : 15) } }
+					? {
+							Healthcheck: {
+								Test: test,
+								...healthTimings(isDb || store ? 30 : 15),
+							},
+						}
 					: {}),
 			},
 			Resources: {
@@ -352,6 +398,9 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			Networks: [
 				{ Target: input.networks.environment, Aliases: [service.slug] },
 				...(hasIngress ? [{ Target: input.networks.ingress }] : []),
+				...(store && input.networks.storage
+					? [{ Target: input.networks.storage }]
+					: []),
 			],
 		},
 		Mode: { Replicated: { Replicas: replicas } },

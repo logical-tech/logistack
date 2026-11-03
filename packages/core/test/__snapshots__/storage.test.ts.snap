@@ -1,0 +1,484 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`storage compile snapshot minio 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_obj0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-obj0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Args": [
+        "server",
+        "/data",
+        "--console-address",
+        ":9001",
+      ],
+      "Configs": [],
+      "Env": [
+        "MINIO_ROOT_PASSWORD=root-secret-0000000000000000000000000000",
+        "MINIO_ROOT_USER=LSROOTKEY000000000000",
+        "STORAGE_ACCESS_KEY_ID=LSROOTKEY000000000000",
+        "STORAGE_ADMIN_TOKEN=admin-token",
+        "STORAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "STORAGE_SECRET_ACCESS_KEY=root-secret-0000000000000000000000000000",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf "GET /minio/health/live HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\n\\r\\n" >&3 && read -r line <&3 && [[ $line == *" 200 "* ]]",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "cgr.dev/chainguard/minio@sha256:3c60a2a8c4d33409a9bc7a623a7fcbfb4605adc3d89422d2f53b3f673a6e5597",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_obj0000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-obj0000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_obj0000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "files",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-storage-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-1",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 536870912,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`storage compile snapshot rustfs 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_obj0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-obj0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "RUSTFS_ACCESS_KEY=LSROOTKEY000000000000",
+        "RUSTFS_ADDRESS=:9000",
+        "RUSTFS_CONSOLE_ADDRESS=:9001",
+        "RUSTFS_CONSOLE_ENABLE=true",
+        "RUSTFS_SECRET_KEY=root-secret-0000000000000000000000000000",
+        "RUSTFS_VOLUMES=/data",
+        "STORAGE_ACCESS_KEY_ID=LSROOTKEY000000000000",
+        "STORAGE_ADMIN_TOKEN=admin-token",
+        "STORAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "STORAGE_SECRET_ACCESS_KEY=root-secret-0000000000000000000000000000",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "curl",
+          "-fsS",
+          "-o",
+          "/dev/null",
+          "http://127.0.0.1:9000/health",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_obj0000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-obj0000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_obj0000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "files",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-storage-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-1",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 536870912,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`storage compile snapshot garage 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_obj0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-obj0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [
+        {
+          "ConfigID": "id-of-ls-cfg-obj0000000000000000000000-0f4ecb90edf9",
+          "ConfigName": "ls-cfg-obj0000000000000000000000-0f4ecb90edf9",
+          "File": {
+            "GID": "0",
+            "Mode": 292,
+            "Name": "/etc/garage.toml",
+            "UID": "0",
+          },
+        },
+      ],
+      "Env": [
+        "GARAGE_ADMIN_TOKEN=admin-token",
+        "GARAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "STORAGE_ACCESS_KEY_ID=LSROOTKEY000000000000",
+        "STORAGE_ADMIN_TOKEN=admin-token",
+        "STORAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "STORAGE_SECRET_ACCESS_KEY=root-secret-0000000000000000000000000000",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "/garage",
+          "status",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_obj0000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-obj0000000000000000000000",
+          "Target": "/var/lib/garage",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_obj0000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "files",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-storage-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-1",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 536870912,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`storage compile snapshot seaweedfs 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_obj0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-obj0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Args": [
+        "mini",
+        "-dir=/data",
+        "-s3.iam.readOnly=false",
+        "-s3.iam.selfServiceRequiresGrant=true",
+        "-admin.ui=false",
+      ],
+      "Configs": [],
+      "Env": [
+        "AWS_ACCESS_KEY_ID=LSROOTKEY000000000000",
+        "AWS_SECRET_ACCESS_KEY=root-secret-0000000000000000000000000000",
+        "STORAGE_ACCESS_KEY_ID=LSROOTKEY000000000000",
+        "STORAGE_ADMIN_TOKEN=admin-token",
+        "STORAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "STORAGE_SECRET_ACCESS_KEY=root-secret-0000000000000000000000000000",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:8333/healthz",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_obj0000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-obj0000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_obj0000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "files",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-storage-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-1",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 536870912,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;

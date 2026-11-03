@@ -127,8 +127,7 @@ export const webhooks = router().openapi(
 			);
 		const push = event;
 		const matching = targets.filter(({ service: s, paths }) => {
-			if (s.spec.kind === "database" || s.spec.source.type !== "git")
-				return false;
+			if (!("source" in s.spec) || s.spec.source.type !== "git") return false;
 			const src = s.spec.source;
 			return (
 				src.repository.toLowerCase() === push.repo.toLowerCase() &&

@@ -12,6 +12,7 @@ import {
 	Database,
 	GitBranch,
 	Globe,
+	HardDrive,
 	Layers,
 	Link2Off,
 	Lock,
@@ -30,6 +31,13 @@ import {
 	ProcessFields,
 	withRoutedPort,
 } from "@/components/service/host-settings";
+import {
+	STORAGE_DEFAULTS,
+	type StorageFields,
+	storageDomains,
+	storageSteps,
+	storageSummary,
+} from "@/components/storage/wizard-steps";
 import { TemplatesTile } from "@/components/templates/templates-tile";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,6 +94,7 @@ import type {
 	ServiceSpec,
 } from "@/lib/api/types";
 import { stepParam } from "@/lib/search";
+import { STORAGE_ENGINES } from "@/lib/storage-engines";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/projects/$projectId/services/new")({
@@ -97,9 +106,9 @@ export const Route = createFileRoute("/_app/projects/$projectId/services/new")({
 	component: NewService,
 });
 
-type SourceKind = "git" | "image" | "database" | "compose";
+type SourceKind = "git" | "image" | "database" | "compose" | "storage";
 
-type V = {
+type V = StorageFields & {
 	kind: SourceKind;
 	name: string;
 	/** A connected Git provider, or "" for a public repository over HTTPS. */
@@ -140,6 +149,7 @@ const DEFAULTS: V = {
 	hostname: "",
 	https: true,
 	host: { ports: [] },
+	...STORAGE_DEFAULTS,
 };
 
 const ENGINES: Record<
@@ -178,6 +188,7 @@ function serviceName(v: V) {
 	if (v.kind === "image")
 		return slug(v.image.split("/").pop()?.split(":")[0] ?? "") || "app";
 	if (v.kind === "database") return v.engine;
+	if (v.kind === "storage") return "storage";
 	return "stack";
 }
 
@@ -282,6 +293,13 @@ function buildSteps(
 							description: "Paste a compose file and deploy it as one stack.",
 							icon: Layers,
 						},
+						{
+							value: "storage",
+							title: "Object storage",
+							description:
+								"An S3-compatible server with buckets, scoped keys and share links.",
+							icon: HardDrive,
+						},
 					]}
 				/>
 			),
@@ -290,6 +308,7 @@ function buildSteps(
 			id: "configure",
 			title: "Configure",
 			description: `Settings for the new service in ${env.name}.`,
+			when: (v) => v.kind !== "storage",
 			schema: (v) => {
 				const base = { name: nameSchema };
 				if (v.kind === "git") {
@@ -350,6 +369,12 @@ function buildSteps(
 			},
 			render: (w) => <ConfigureStep w={w} providers={providers} />,
 		},
+		...storageSteps<V>({
+			envName: env.name,
+			slug: serviceName,
+			generated,
+			nameField: (w) => <NameField w={w} />,
+		}),
 		{
 			id: "test",
 			title: "Test the source",
@@ -413,7 +438,7 @@ function buildSteps(
 			id: "domain",
 			title: "Domain",
 			description: "How people reach this service from the internet.",
-			when: (v) => v.kind !== "database",
+			when: (v) => v.kind !== "database" && v.kind !== "storage",
 			schema: (v) =>
 				z.object({
 					hostname:
@@ -496,10 +521,38 @@ function buildSteps(
 			),
 		},
 		{
+			id: "storage-review",
+			title: "Review",
+			description:
+				"Nothing is created until you confirm. The engine starts right after, with fresh root credentials.",
+			when: (v) => v.kind === "storage",
+			render: (w) => (
+				<Summary
+					w={w}
+					sections={[
+						{
+							stepId: "engine",
+							title: "Object storage",
+							rows: [
+								{ label: "Name", value: serviceName(w.values) },
+								{ label: "Environment", value: env.name },
+								{
+									label: "Engine",
+									value: `${STORAGE_ENGINES[w.values.storageEngine].label} ${STORAGE_ENGINES[w.values.storageEngine].version}`,
+								},
+							],
+						},
+						storageSummary(w.values, generated),
+					]}
+				/>
+			),
+		},
+		{
 			id: "review",
 			title: "Review",
 			description:
 				"Nothing is created until you confirm. The first deployment starts right after.",
+			when: (v) => v.kind !== "storage",
 			render: (w) => {
 				const v = w.values;
 				const source =
@@ -712,6 +765,21 @@ function BranchField({ w }: { w: WizardApi<V> }) {
 	);
 }
 
+function NameField({ w }: { w: WizardApi<V> }) {
+	const fallback = serviceName({ ...w.values, name: "" });
+	return (
+		<Field
+			id="wz-name"
+			label="Service name"
+			optional
+			error={w.error("name")}
+			hint={`Defaults to “${fallback}”.`}
+		>
+			<Input {...w.bind("name")} placeholder={fallback} />
+		</Field>
+	);
+}
+
 function ConfigureStep({
 	w,
 	providers,
@@ -720,20 +788,7 @@ function ConfigureStep({
 	providers: GitProvider[];
 }) {
 	const v = w.values;
-	const name = (
-		<Field
-			id="wz-name"
-			label="Service name"
-			optional
-			error={w.error("name")}
-			hint={`Defaults to “${serviceName({ ...v, name: "" })}”.`}
-		>
-			<Input
-				{...w.bind("name")}
-				placeholder={serviceName({ ...v, name: "" })}
-			/>
-		</Field>
-	);
+	const name = <NameField w={w} />;
 	if (v.kind === "git") {
 		return (
 			<div className="grid gap-4">
@@ -1104,6 +1159,8 @@ function HostAdvanced({ w }: { w: WizardApi<V> }) {
 }
 
 function toSpec(v: V): ServiceSpec {
+	if (v.kind === "storage")
+		return { kind: "storage", engine: v.storageEngine, resources: {} };
 	if (v.kind === "database")
 		// shortcut: the server has no endpoint that mints database credentials yet.
 		throw new Error(
@@ -1213,18 +1270,34 @@ function NewService() {
 						environmentId: env.id,
 						name,
 						spec: toSpec(v),
-						domain:
-							v.kind === "database" || v.domainMode === "none"
-								? null
-								: v.domainMode === "custom"
-									? {
-											kind: "custom",
-											hostname: v.hostname.trim().toLowerCase(),
-											port: Number(v.port) || 80,
-											https: v.https,
-										}
-									: { kind: "generated", port: Number(v.port) || 80 },
+						...(v.kind === "storage"
+							? storageDomains(v)
+							: {
+									domain:
+										v.kind === "database" || v.domainMode === "none"
+											? null
+											: v.domainMode === "custom"
+												? {
+														kind: "custom",
+														hostname: v.hostname.trim().toLowerCase(),
+														port: Number(v.port) || 80,
+														https: v.https,
+													}
+												: { kind: "generated", port: Number(v.port) || 80 },
+								}),
 					});
+					if (v.kind === "storage") {
+						toast.success(`${name} is starting`, {
+							description:
+								"Create a bucket once the engine reports healthy, usually within a minute.",
+							icon: <HardDrive className="size-4" />,
+						});
+						await navigate({
+							to: "/projects/$projectId/services/$serviceId/storage",
+							params: { projectId, serviceId: service.id },
+						});
+						return;
+					}
 					const hook = await wirePushes(service.id, v);
 					toast.success(`${name} is deploying`, {
 						description:

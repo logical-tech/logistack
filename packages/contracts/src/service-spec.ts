@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DatabaseEngine } from "./enums.ts";
+import { StorageEngine } from "./storage.ts";
 
 const Port = z.int().min(1).max(65535);
 
@@ -228,9 +229,18 @@ export const ComposeSpec = z.object({
 });
 export type ComposeSpec = z.infer<typeof ComposeSpec>;
 
+/** S3-compatible object storage; root credentials live in the service's secret env vars. */
+export const StorageSpec = z.object({
+	kind: z.literal("storage"),
+	engine: StorageEngine,
+	resources: Resources,
+});
+export type StorageSpec = z.infer<typeof StorageSpec>;
+
 export const ServiceSpec = z.discriminatedUnion("kind", [
 	ApplicationSpec,
 	DatabaseSpec,
 	ComposeSpec,
+	StorageSpec,
 ]);
 export type ServiceSpec = z.infer<typeof ServiceSpec>;
