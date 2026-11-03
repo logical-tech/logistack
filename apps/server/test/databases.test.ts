@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { encrypt } from "@logistack/core";
+import { decrypt, encrypt } from "@logistack/core";
 import { auditLog, createDb, envVar } from "@logistack/db";
 import { rowsQuery } from "@logistack/providers";
 import { and, eq } from "drizzle-orm";
@@ -124,6 +124,34 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 	afterAll(async () => {
 		await shop?.end();
 		await h?.close();
+	});
+
+	test("a new database service is created with generated, encrypted credentials", async () => {
+		const created = await h.call(
+			"POST",
+			`/api/environments/${envId}/services`,
+			{
+				headers: { cookie },
+				body: {
+					name: "cache",
+					spec: { ...dbSpec, engine: "redis", version: "7.4" },
+				},
+			},
+		);
+		expect(created.status).toBe(201);
+		const vars = await h.deps.db
+			.select()
+			.from(envVar)
+			.where(eq(envVar.scopeId, created.json.id));
+		expect(vars.map((v) => [v.key, v.isSecret])).toEqual([
+			["REDIS_PASSWORD", true],
+		]);
+		const value = await decrypt(
+			h.deps.masterKey,
+			vars[0]?.valueEncrypted ?? "",
+		);
+		expect(value).toMatch(/^[A-Za-z0-9_-]{32}$/);
+		expect(vars[0]?.valueEncrypted).not.toContain(value);
 	});
 
 	test("returns schemas, tables, views and columns", async () => {

@@ -103,12 +103,13 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 			});
 		dbId = (await svc("orders-db", dbSpec)).json.id;
 		appId = (await svc("web", appSpec)).json.id;
-		await h.deps.db.insert(envVar).values({
-			scope: "service",
-			scopeId: dbId,
-			key: "POSTGRES_PASSWORD",
-			valueEncrypted: "v1:x:y",
-		});
+		// Pin the minted password to a known value; the restore copy must carry it over.
+		await h.deps.db
+			.update(envVar)
+			.set({ valueEncrypted: "v1:x:y" })
+			.where(
+				and(eq(envVar.scopeId, dbId), eq(envVar.key, "POSTGRES_PASSWORD")),
+			);
 	}, 90_000);
 	afterAll(async () => {
 		await h?.close();

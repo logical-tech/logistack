@@ -5,6 +5,7 @@ import {
 	compileService,
 	serviceFiles,
 } from "../src/compile-service.ts";
+import { databaseCredentials } from "../src/database-credentials.ts";
 
 const app: CompileServiceInput = {
 	service: {
@@ -276,6 +277,13 @@ describe("healthcheck", () => {
 			"-q",
 		]);
 	});
+});
+
+test("minted credentials satisfy every engine's required env", () => {
+	for (const engine of Object.keys(dbEnv) as DatabaseEngine[])
+		expect(() =>
+			compileService({ ...database(engine), env: databaseCredentials(engine) }),
+		).not.toThrow();
 });
 
 test("database without credentials in env is a compile error", () => {

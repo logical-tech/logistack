@@ -1163,10 +1163,14 @@ function toSpec(v: V): ServiceSpec {
 	if (v.kind === "storage")
 		return { kind: "storage", engine: v.storageEngine, resources: {} };
 	if (v.kind === "database")
-		// shortcut: the server has no endpoint that mints database credentials yet.
-		throw new Error(
-			"Managed databases arrive with the credentials API. Use a Docker image for now.",
-		);
+		return {
+			kind: "database",
+			engine: v.engine,
+			version: v.version,
+			// The server mints the credentials into the service env when it creates the service.
+			credentialsRef: "env",
+			resources: {},
+		};
 	if (v.kind === "compose")
 		return {
 			kind: "compose",

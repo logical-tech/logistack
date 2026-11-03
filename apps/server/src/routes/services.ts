@@ -6,8 +6,8 @@ import {
 	ServiceSpec,
 } from "@logistack/contracts";
 import {
+	databaseCredentials,
 	encrypt,
-	libsqlCredentials,
 	storageCredentials,
 } from "@logistack/core";
 import {
@@ -178,12 +178,12 @@ export const services = router()
 						})
 						.returning(),
 				);
-				// Storage and libSQL credentials are minted here and only ever live encrypted in the service env.
+				// Storage and database credentials are minted here and only ever live encrypted in the service env.
 				const minted =
 					spec.kind === "storage"
 						? storageCredentials(spec.engine)
-						: spec.kind === "database" && spec.engine === "libsql"
-							? libsqlCredentials()
+						: spec.kind === "database"
+							? databaseCredentials(spec.engine)
 							: undefined;
 				if (minted)
 					await tx.insert(envVar).values(
