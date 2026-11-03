@@ -30,7 +30,8 @@ describe("backup scripts", () => {
 		expect(judgeSanity("mongo", "")).toMatchObject({ ok: false });
 	});
 
-	test("redis restores go through the volume", () => {
+	test("redis and libsql restores go through the volume", () => {
 		expect(() => restoreScript("redis")).toThrow(/volume/);
+		expect(() => restoreScript("libsql")).toThrow(/volume/);
 	});
 });

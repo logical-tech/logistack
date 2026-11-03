@@ -77,6 +77,7 @@ const DATA_DIRS: Record<DatabaseSpec["engine"], string> = {
 	mariadb: "/var/lib/mysql",
 	mongo: "/data/db",
 	redis: "/data",
+	libsql: "/var/lib/sqld",
 };
 
 /**

@@ -757,6 +757,110 @@ exports[`snapshots database redis 1`] = `
 }
 `;
 
+exports[`snapshots database libsql 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "db",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_db00000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-db00000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "LIBSQL_AUTH_TOKEN=token",
+        "SQLD_AUTH_JWT_KEY=key",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /health HTTP/1.0\\r\\n\\r\\n" >&3 && IFS= read -r l <&3 && [[ $l == *" 200 "* ]]",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "ghcr.io/tursodatabase/libsql-server:v1",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "db",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_db00000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-db00000000000000000000000",
+          "Target": "/var/lib/sqld",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_db00000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "db",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {},
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
 exports[`host-level application settings snapshot 1`] = `
 {
   "EndpointSpec": {

@@ -165,6 +165,7 @@ const ENGINES: Record<
 	},
 	mongo: { label: "MongoDB", versions: ["8.0", "7.0"], port: 27017 },
 	redis: { label: "Redis", versions: ["8.2", "7.4"], port: 6379 },
+	libsql: { label: "libSQL", versions: ["0.24.33"], port: 8080 },
 };
 
 const slug = (s: string) =>
@@ -284,7 +285,7 @@ function buildSteps(
 							value: "database",
 							title: "Database",
 							description:
-								"PostgreSQL, MySQL, MariaDB, MongoDB or Redis with backups.",
+								"PostgreSQL, MySQL, MariaDB, MongoDB, Redis or libSQL with backups.",
 							icon: Database,
 						},
 						{

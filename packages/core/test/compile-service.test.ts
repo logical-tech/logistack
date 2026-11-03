@@ -79,6 +79,7 @@ const dbEnv: Record<DatabaseEngine, Record<string, string>> = {
 		MONGO_INITDB_ROOT_PASSWORD: "pw",
 	},
 	redis: { REDIS_PASSWORD: "pw" },
+	libsql: { SQLD_AUTH_JWT_KEY: "key", LIBSQL_AUTH_TOKEN: "token" },
 };
 
 const database = (engine: DatabaseEngine): CompileServiceInput => ({

@@ -127,9 +127,12 @@ export const databaseEngines = [
 	"mariadb",
 	"mongo",
 	"redis",
+	"libsql",
 ] as const;
 export const DatabaseEngine = z.enum(databaseEngines);
 export type DatabaseEngine = z.infer<typeof DatabaseEngine>;
+/** Engines whose dumps the API cannot restore or verify; their volume backups restore instead. */
+export const dumpOnlyEngines: readonly DatabaseEngine[] = ["redis", "libsql"];
 
 export const backupTargets = ["database", "volume"] as const;
 export const BackupTarget = z.enum(backupTargets);

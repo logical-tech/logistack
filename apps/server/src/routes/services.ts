@@ -5,7 +5,11 @@ import {
 	ObservedState,
 	ServiceSpec,
 } from "@logistack/contracts";
-import { encrypt, storageCredentials } from "@logistack/core";
+import {
+	encrypt,
+	libsqlCredentials,
+	storageCredentials,
+} from "@logistack/core";
 import {
 	deployment,
 	domain,
@@ -174,19 +178,23 @@ export const services = router()
 						})
 						.returning(),
 				);
-				// Storage root credentials are minted here and only ever live encrypted in the service env.
-				if (spec.kind === "storage")
+				// Storage and libSQL credentials are minted here and only ever live encrypted in the service env.
+				const minted =
+					spec.kind === "storage"
+						? storageCredentials(spec.engine)
+						: spec.kind === "database" && spec.engine === "libsql"
+							? libsqlCredentials()
+							: undefined;
+				if (minted)
 					await tx.insert(envVar).values(
 						await Promise.all(
-							Object.entries(storageCredentials(spec.engine)).map(
-								async ([key, value]) => ({
-									scope: "service" as const,
-									scopeId: created.id,
-									key,
-									valueEncrypted: await encrypt(masterKey, value),
-									isSecret: true,
-								}),
-							),
+							Object.entries(minted).map(async ([key, value]) => ({
+								scope: "service" as const,
+								scopeId: created.id,
+								key,
+								valueEncrypted: await encrypt(masterKey, value),
+								isSecret: true,
+							})),
 						),
 					);
 				return created;

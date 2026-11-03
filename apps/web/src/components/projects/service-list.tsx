@@ -33,6 +33,7 @@ const ENGINE: Record<DatabaseEngine, string> = {
 	mariadb: "MariaDB",
 	mongo: "MongoDB",
 	redis: "Redis",
+	libsql: "libSQL",
 };
 
 const STORAGE_ENGINE: Record<StorageEngine, string> = {

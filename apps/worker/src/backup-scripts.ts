@@ -1,4 +1,5 @@
 import type { DatabaseEngine } from "@logistack/contracts";
+import { LIBSQL_HEALTH } from "@logistack/core";
 
 // Shell run inside containers (script on stdin, or `sh -c` for execs that need stdin for data).
 // Credentials come from the container's own env and reach the tools through env or a 0600 file,
@@ -11,6 +12,7 @@ export const DUMP_EXTENSION: Record<DatabaseEngine, string> = {
 	mariadb: "sql",
 	mongo: "archive",
 	redis: "rdb",
+	libsql: "sql",
 };
 export const VOLUME_EXTENSION = "tar.zst";
 
@@ -39,6 +41,17 @@ const mongoAuth =
 
 const mariaPassword = "MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD";
 
+// sqld has no dump CLI and its image no HTTP client: bash speaks HTTP/1.0 to /dump over /dev/tcp.
+// printf is a builtin, so the token never reaches an argv. Header lines end in \r; the blank one is just \r.
+const libsqlDump = `exec bash -c 'set -e
+exec 3<>/dev/tcp/127.0.0.1/8080
+printf "GET /dump HTTP/1.0\\r\\nAuthorization: Bearer %s\\r\\n\\r\\n" "$LIBSQL_AUTH_TOKEN" >&3
+IFS= read -r status <&3
+[[ $status == *" 200 "* ]] || { echo "dump failed: $status" >&2; exit 1; }
+while IFS= read -r line <&3 && (( \${#line} > 1 )); do :; done
+exec cat <&3'
+`;
+
 /** Writes the whole dump to stdout, nothing else. */
 export function dumpScript(engine: DatabaseEngine): string {
 	switch (engine) {
@@ -52,6 +65,8 @@ export function dumpScript(engine: DatabaseEngine): string {
 			return `set -e\n${mongoCfg}\nmongodump --quiet --archive ${mongoAuth}\n`;
 		case "redis":
 			return `set -e\nexport REDISCLI_AUTH="$REDIS_PASSWORD"\nexec redis-cli --rdb -\n`;
+		case "libsql":
+			return libsqlDump;
 	}
 }
 
@@ -70,6 +85,10 @@ export function restoreScript(engine: DatabaseEngine): string {
 			throw new Error(
 				"Redis restores copy the RDB into the data volume; restore the volume instead",
 			);
+		case "libsql":
+			throw new Error(
+				"libSQL dumps are not restored; restore the volume instead",
+			);
 	}
 }
 
@@ -81,6 +100,7 @@ export const VERIFY_DATA_DIR: Record<DatabaseEngine, string> = {
 	mariadb: "/var/lib/mysql",
 	mongo: "/data/db",
 	redis: "/data",
+	libsql: "/var/lib/sqld",
 };
 
 export const VERIFY_ENV: Record<DatabaseEngine, string[]> = {
@@ -89,6 +109,7 @@ export const VERIFY_ENV: Record<DatabaseEngine, string[]> = {
 	mariadb: ["MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=yes"],
 	mongo: [],
 	redis: [],
+	libsql: [],
 };
 
 /**
@@ -103,6 +124,7 @@ export function readyScript(engine: DatabaseEngine, timeoutSec = 120): string {
 		mongo:
 			"mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' >/dev/null",
 		redis: "redis-cli -h 127.0.0.1 ping | grep -q PONG",
+		libsql: `bash -c '${LIBSQL_HEALTH}'`,
 	};
 	return `i=0\nuntil ${probe[engine]} 2>/dev/null; do\n  i=$((i+1)); [ $i -ge ${timeoutSec} ] && { echo "not ready after ${timeoutSec}s" >&2; exit 1; }\n  sleep 1\ndone\n`;
 }
@@ -119,7 +141,8 @@ export function verifyRestoreScript(engine: DatabaseEngine): string {
 		case "mongo":
 			return "exec mongorestore --quiet --archive";
 		case "redis":
-			throw new Error("Redis backups cannot be verified by a restore");
+		case "libsql":
+			throw new Error(`${engine} backups cannot be verified by a restore`);
 	}
 }
 
@@ -137,7 +160,8 @@ export function sanityScript(engine: DatabaseEngine): string {
 		case "mongo":
 			return `exec mongosh --quiet --eval "db.adminCommand({ping:1}).ok === 1 && print(db.adminCommand({listDatabases:1}).databases.map(d => d.name).filter(n => !['admin','local','config'].includes(n)).join(','))"`;
 		case "redis":
-			throw new Error("Redis backups cannot be verified by a restore");
+		case "libsql":
+			throw new Error(`${engine} backups cannot be verified by a restore`);
 	}
 }
 

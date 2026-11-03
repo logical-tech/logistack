@@ -60,6 +60,7 @@ const DUMP: Record<string, string> = {
 	mariadb: "mariadb-dump with --single-transaction, so tables stay consistent.",
 	mongo: "mongodump --archive, gzip-compressed.",
 	redis: "An RDB snapshot; restore it by copying it back into the data volume.",
+	libsql: "An SQL dump from sqld; restore by copying the data volume back.",
 };
 
 const target = (v: V) =>

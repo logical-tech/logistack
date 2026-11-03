@@ -5,7 +5,13 @@ import {
 	LIVE_CHANNEL,
 	type LiveMessage,
 } from "@logistack/contracts";
-import { decrypt, dockerName, newId, storageEngineDefs } from "@logistack/core";
+import {
+	databaseImage,
+	decrypt,
+	dockerName,
+	newId,
+	storageEngineDefs,
+} from "@logistack/core";
 import {
 	backupPolicy,
 	backupRun,
@@ -397,7 +403,7 @@ const engineOf = (svc: ServiceRow): DatabaseEngine => {
 };
 const engineImage = (svc: ServiceRow) => {
 	if (svc.spec.kind !== "database") throw new Error("not a database");
-	return `${svc.spec.engine}:${svc.spec.version}`;
+	return databaseImage(svc.spec.engine, svc.spec.version);
 };
 
 function stamp(d: Date) {

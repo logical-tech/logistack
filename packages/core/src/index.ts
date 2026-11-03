@@ -4,6 +4,7 @@ export * from "./deployment.ts";
 export * from "./env.ts";
 export * from "./folders.ts";
 export * from "./ids.ts";
+export * from "./libsql.ts";
 export * from "./node-labels.ts";
 export * from "./permissions.ts";
 export * from "./ports.ts";
