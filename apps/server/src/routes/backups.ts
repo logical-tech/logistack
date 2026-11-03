@@ -4,6 +4,7 @@ import {
 	BackupRetention,
 	BackupRunKind,
 	BackupTarget,
+	dumpOnlyEngines,
 	RestoreTarget,
 	RunStatus,
 } from "@logistack/contracts";
@@ -565,11 +566,11 @@ export const backups = router()
 			if (
 				policy.target === "database" &&
 				svc.spec.kind === "database" &&
-				svc.spec.engine === "redis"
+				dumpOnlyEngines.includes(svc.spec.engine)
 			)
 				throw new Failure(
 					"bad_request",
-					"Redis RDB files are restored by copying them into the data volume; back up the volume instead",
+					`${svc.spec.engine} dumps cannot be restored here; back up and restore the volume instead`,
 				);
 
 			const expected = target.kind === "same" ? svc.name : target.name;

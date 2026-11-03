@@ -19,6 +19,7 @@ import {
 	type ServiceSpec,
 } from "@logistack/docker";
 import { dockerName } from "./ids.ts";
+import { LIBSQL_ENV, LIBSQL_HEALTH } from "./libsql.ts";
 import { storageEngineDefs } from "./storage.ts";
 
 export type CompileMount = {
@@ -136,7 +137,17 @@ const engines: Record<DatabaseEngine, Engine> = {
 			"umask 077 && printf 'requirepass %s\\n' \"$REDIS_PASSWORD\" > /tmp/redis.conf && chown redis:redis /tmp/redis.conf && exec docker-entrypoint.sh redis-server /tmp/redis.conf --appendonly yes",
 		],
 	},
+	libsql: {
+		image: (v) => `ghcr.io/tursodatabase/libsql-server:v${v}`,
+		dataDir: "/var/lib/sqld",
+		required: [LIBSQL_ENV.jwtKey],
+		healthcheck: ["CMD", "bash", "-c", LIBSQL_HEALTH],
+	},
 };
+
+/** The image a database service runs: each engine's official one at the pinned version. */
+export const databaseImage = (engine: DatabaseEngine, version: string) =>
+	engines[engine].image(version);
 
 const sha256 = (data: string) =>
 	new Bun.CryptoHasher("sha256").update(data).digest("hex").slice(0, 12);

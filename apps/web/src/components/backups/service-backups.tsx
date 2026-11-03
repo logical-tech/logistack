@@ -1,3 +1,4 @@
+import { type DatabaseEngine, dumpOnlyEngines } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -43,6 +44,7 @@ const ENGINE_DUMP: Record<string, string> = {
 	mariadb: "mariadb-dump",
 	mongo: "mongodump",
 	redis: "RDB snapshot",
+	libsql: "sqld /dump",
 };
 
 export function policyTitle(p: BackupPolicy, data: Backups) {
@@ -72,8 +74,11 @@ export const restorable = (r: BackupRun, data: Backups) => {
 		r.status === "succeeded" &&
 		!r.prunedAt &&
 		!!r.objectKey &&
-		// Redis dumps come back by copying the volume; the server refuses a database restore.
-		!(policy?.target === "database" && data.service.engine === "redis")
+		// These dumps come back by copying the volume; the server refuses a database restore.
+		!(
+			policy?.target === "database" &&
+			dumpOnlyEngines.includes(data.service.engine as DatabaseEngine)
+		)
 	);
 };
 

@@ -11,6 +11,7 @@ export const DUMP_EXTENSION: Record<DatabaseEngine, string> = {
 	mariadb: "sql",
 	mongo: "archive",
 	redis: "rdb",
+	libsql: "sql",
 };
 
 // biome-ignore lint/suspicious/noTemplateCurlyInString: expanded by the container shell
@@ -38,6 +39,17 @@ const mongoAuth =
 
 const mariaPassword = "MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD";
 
+// sqld has no dump CLI and its image no HTTP client: bash speaks HTTP/1.0 to /dump over /dev/tcp.
+// printf is a builtin, so the token never reaches an argv. Header lines end in \r; the blank one is just \r.
+const libsqlDump = `exec bash -c 'set -e
+exec 3<>/dev/tcp/127.0.0.1/8080
+printf "GET /dump HTTP/1.0\\r\\nAuthorization: Bearer %s\\r\\n\\r\\n" "$LIBSQL_AUTH_TOKEN" >&3
+IFS= read -r status <&3
+[[ $status == *" 200 "* ]] || { echo "dump failed: $status" >&2; exit 1; }
+while IFS= read -r line <&3 && (( \${#line} > 1 )); do :; done
+exec cat <&3'
+`;
+
 /** Writes the whole dump to stdout, nothing else. */
 export function dumpScript(engine: DatabaseEngine): string {
 	switch (engine) {
@@ -51,6 +63,8 @@ export function dumpScript(engine: DatabaseEngine): string {
 			return `set -e\n${mongoCfg}\nmongodump --quiet --archive ${mongoAuth}\n`;
 		case "redis":
 			return `set -e\nexport REDISCLI_AUTH="$REDIS_PASSWORD"\nexec redis-cli --rdb -\n`;
+		case "libsql":
+			return libsqlDump;
 	}
 }
 
@@ -68,6 +82,10 @@ export function restoreScript(engine: DatabaseEngine): string {
 		case "redis":
 			throw new Error(
 				"Redis restores copy the RDB into the data volume; restore the volume instead",
+			);
+		case "libsql":
+			throw new Error(
+				"libSQL dumps are not restored; restore the volume instead",
 			);
 	}
 }

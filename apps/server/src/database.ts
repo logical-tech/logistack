@@ -33,6 +33,7 @@ const ports: Record<DatabaseEngine, number> = {
 	mariadb: 3306,
 	mongo: 27017,
 	redis: 6379,
+	libsql: 8080,
 };
 
 /**
@@ -399,8 +400,11 @@ export async function restoreFrom(
 	body: ReadableStream<Uint8Array>,
 ) {
 	const db = await databaseRow(c, serviceId);
-	if (db.engine === "redis")
-		throw new Failure("bad_request", "restore is not supported for redis");
+	if (db.engine === "redis" || db.engine === "libsql")
+		throw new Failure(
+			"bad_request",
+			`restore is not supported for ${db.engine}`,
+		);
 	const task = await replica(c, serviceId);
 	const exec = c.var.deps.nodes.exec(
 		task.nodeId,

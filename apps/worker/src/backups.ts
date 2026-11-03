@@ -7,6 +7,7 @@ import {
 } from "@logistack/contracts";
 import {
 	DUMP_EXTENSION,
+	databaseImage,
 	decrypt,
 	dockerName,
 	dumpScript,
@@ -370,7 +371,7 @@ const engineOf = (svc: ServiceRow): DatabaseEngine => {
 };
 const engineImage = (svc: ServiceRow) => {
 	if (svc.spec.kind !== "database") throw new Error("not a database");
-	return `${svc.spec.engine}:${svc.spec.version}`;
+	return databaseImage(svc.spec.engine, svc.spec.version);
 };
 
 function stamp(d: Date) {

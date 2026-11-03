@@ -876,6 +876,7 @@ const DUMP_EXT = {
 	mariadb: "sql",
 	mongo: "archive",
 	redis: "rdb",
+	libsql: "sql",
 } as const;
 
 // SQL editor

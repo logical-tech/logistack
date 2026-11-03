@@ -45,6 +45,7 @@ const FORMAT: Record<DatabaseEngine, { ext: string; tool: string }> = {
 	mariadb: { ext: ".sql", tool: "mariadb-dump, all databases" },
 	mongo: { ext: ".archive", tool: "mongodump archive" },
 	redis: { ext: ".rdb", tool: "RDB snapshot" },
+	libsql: { ext: ".sql", tool: "SQL dump from sqld" },
 };
 
 const errorText = (e: unknown) =>
@@ -85,8 +86,8 @@ export function DumpRestore({
 	};
 
 	const restoreBlocked =
-		engine === "redis"
-			? "Redis restores go through a volume backup"
+		engine === "redis" || engine === "libsql"
+			? `${engine === "redis" ? "Redis" : "libSQL"} restores go through a volume backup`
 			: restoreForbidden
 				? "Needs admin on this service"
 				: null;

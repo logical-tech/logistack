@@ -1,4 +1,5 @@
 import type { DatabaseEngine } from "@logistack/contracts";
+import { LIBSQL_HEALTH } from "@logistack/core";
 
 // Shell run inside containers (script on stdin, or `sh -c` for execs that need stdin for data).
 // Credentials come from the container's own env and reach the tools through env or a 0600 file,
@@ -14,6 +15,7 @@ export const VERIFY_DATA_DIR: Record<DatabaseEngine, string> = {
 	mariadb: "/var/lib/mysql",
 	mongo: "/data/db",
 	redis: "/data",
+	libsql: "/var/lib/sqld",
 };
 
 export const VERIFY_ENV: Record<DatabaseEngine, string[]> = {
@@ -22,6 +24,7 @@ export const VERIFY_ENV: Record<DatabaseEngine, string[]> = {
 	mariadb: ["MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=yes"],
 	mongo: [],
 	redis: [],
+	libsql: [],
 };
 
 /**
@@ -36,6 +39,7 @@ export function readyScript(engine: DatabaseEngine, timeoutSec = 120): string {
 		mongo:
 			"mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' >/dev/null",
 		redis: "redis-cli -h 127.0.0.1 ping | grep -q PONG",
+		libsql: `bash -c '${LIBSQL_HEALTH}'`,
 	};
 	return `i=0\nuntil ${probe[engine]} 2>/dev/null; do\n  i=$((i+1)); [ $i -ge ${timeoutSec} ] && { echo "not ready after ${timeoutSec}s" >&2; exit 1; }\n  sleep 1\ndone\n`;
 }
@@ -52,7 +56,8 @@ export function verifyRestoreScript(engine: DatabaseEngine): string {
 		case "mongo":
 			return "exec mongorestore --quiet --archive";
 		case "redis":
-			throw new Error("Redis backups cannot be verified by a restore");
+		case "libsql":
+			throw new Error(`${engine} backups cannot be verified by a restore`);
 	}
 }
 
@@ -70,7 +75,8 @@ export function sanityScript(engine: DatabaseEngine): string {
 		case "mongo":
 			return `exec mongosh --quiet --eval "db.adminCommand({ping:1}).ok === 1 && print(db.adminCommand({listDatabases:1}).databases.map(d => d.name).filter(n => !['admin','local','config'].includes(n)).join(','))"`;
 		case "redis":
-			throw new Error("Redis backups cannot be verified by a restore");
+		case "libsql":
+			throw new Error(`${engine} backups cannot be verified by a restore`);
 	}
 }
 
