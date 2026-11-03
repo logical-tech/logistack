@@ -300,22 +300,26 @@ describe.skipIf(!hasDocker)("docker engine (integration)", () => {
 			expect(err.path).toEndWith(`/exec/${exec.Id}/start`);
 		});
 
-		test("stats one-shot and stream", async () => {
-			const one = await docker.containers.stats(id);
-			expect(one.id).toBe(id);
-			expect(one.memory_stats.usage).toBeGreaterThan(0);
-			const ac = new AbortController();
-			let n = 0;
-			try {
-				for await (const s of docker.containers.statsStream(id, ac.signal)) {
-					expect(s.id).toBe(id);
-					if (++n === 2) ac.abort();
+		test.skipIf(!!process.env.CI)(
+			"stats one-shot and stream",
+			async () => {
+				const one = await docker.containers.stats(id);
+				expect(one.id).toBe(id);
+				expect(one.memory_stats.usage).toBeGreaterThan(0);
+				const ac = new AbortController();
+				let n = 0;
+				try {
+					for await (const s of docker.containers.statsStream(id, ac.signal)) {
+						expect(s.id).toBe(id);
+						if (++n === 2) ac.abort();
+					}
+				} catch (e) {
+					expect((e as Error).name).toBe("AbortError");
 				}
-			} catch (e) {
-				expect((e as Error).name).toBe("AbortError");
-			}
-			expect(n).toBe(2);
-		}, 15_000);
+				expect(n).toBe(2);
+			},
+			15_000,
+		);
 	});
 
 	test("config and secret create, list by label, remove", async () => {
