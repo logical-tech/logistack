@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonRows } from "@/components/panel";
 import { ENGINE } from "@/components/projects/service-list";
+import { Segmented } from "@/components/segmented";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -17,8 +18,12 @@ import {
 import { EMPTY_STAGED, type Staged } from "./cells";
 import { DataGrid } from "./data-grid";
 import { SchemaTree, TablePicker } from "./schema-tree";
+import { SqlPanel } from "./sql-panel";
+
+export type DatabaseView = "data" | "sql";
 
 export type DatabaseLocation = {
+	view: DatabaseView;
 	schema: string | undefined;
 	table: string | undefined;
 	sort: RowSort[];
@@ -141,6 +146,36 @@ export function ServiceDatabase({
 			</EmptyState>
 		);
 
+	const switcher = (
+		<div className="mb-3 flex items-center">
+			<Segmented
+				label="Explorer view"
+				value={at.view}
+				onChange={(view) => onNavigate({ view })}
+				options={[
+					{ value: "data", label: "Data" },
+					{ value: "sql", label: "SQL" },
+				]}
+			/>
+		</div>
+	);
+	const frame =
+		"isolate flex h-[min(76dvh,46rem)] min-h-[28rem] overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border";
+	if (at.view === "sql")
+		return (
+			<>
+				{switcher}
+				<section aria-label="SQL editor" className={frame}>
+					<SqlPanel
+						serviceId={service.id}
+						schema={schema.data}
+						forbidden={forbidden}
+						onForbidden={() => setForbidden(true)}
+					/>
+				</section>
+			</>
+		);
+
 	const schemas = schema.data.schemas;
 	const all = schemas.flatMap((s) =>
 		s.tables.map((t) => ({ schema: s.name, table: t })),
@@ -170,40 +205,45 @@ export function ServiceDatabase({
 		onNavigate({ schema: s, table: t, sort: [], filter: [] });
 
 	return (
-		<div className="isolate flex h-[min(76dvh,46rem)] min-h-[28rem] overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border">
-			<SchemaTree
-				database={schema.data.database}
-				schemas={schemas}
-				selected={{ schema: current.schema, table: current.table.name }}
-				pending={pending}
-				onSelect={select}
-			/>
-			<section
-				aria-label={`Rows of ${tableKey}`}
-				className="flex min-w-0 flex-1 flex-col"
-			>
-				<div className="border-b px-3 py-2 md:hidden">
-					<TablePicker
-						schemas={schemas}
-						selected={{ schema: current.schema, table: current.table.name }}
-						onSelect={select}
-					/>
-				</div>
-				<DataGrid
-					key={tableKey}
-					serviceId={service.id}
-					schema={current.schema}
-					table={current.table}
-					sort={at.sort}
-					filter={at.filter}
-					onSort={(sort) => onNavigate({ sort })}
-					onFilter={(filter) => onNavigate({ filter })}
-					staged={staged[tableKey] ?? EMPTY_STAGED}
-					onStage={(next) => setStaged((all) => ({ ...all, [tableKey]: next }))}
-					forbidden={forbidden}
-					onForbidden={() => setForbidden(true)}
+		<>
+			{switcher}
+			<div className={frame}>
+				<SchemaTree
+					database={schema.data.database}
+					schemas={schemas}
+					selected={{ schema: current.schema, table: current.table.name }}
+					pending={pending}
+					onSelect={select}
 				/>
-			</section>
-		</div>
+				<section
+					aria-label={`Rows of ${tableKey}`}
+					className="flex min-w-0 flex-1 flex-col"
+				>
+					<div className="border-b px-3 py-2 md:hidden">
+						<TablePicker
+							schemas={schemas}
+							selected={{ schema: current.schema, table: current.table.name }}
+							onSelect={select}
+						/>
+					</div>
+					<DataGrid
+						key={tableKey}
+						serviceId={service.id}
+						schema={current.schema}
+						table={current.table}
+						sort={at.sort}
+						filter={at.filter}
+						onSort={(sort) => onNavigate({ sort })}
+						onFilter={(filter) => onNavigate({ filter })}
+						staged={staged[tableKey] ?? EMPTY_STAGED}
+						onStage={(next) =>
+							setStaged((all) => ({ ...all, [tableKey]: next }))
+						}
+						forbidden={forbidden}
+						onForbidden={() => setForbidden(true)}
+					/>
+				</section>
+			</div>
+		</>
 	);
 }

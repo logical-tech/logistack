@@ -27,9 +27,9 @@ import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 /** Colours come from the app's tokens, so light and dark follow the theme without a second style. */
-const highlight = HighlightStyle.define([
+export const editorHighlight = HighlightStyle.define([
 	{ tag: t.comment, color: "var(--muted-foreground)", fontStyle: "italic" },
-	{ tag: [t.keyword, t.controlKeyword], color: "var(--info-text)" },
+	{ tag: [t.keyword, t.controlKeyword, t.typeName], color: "var(--info-text)" },
 	{ tag: [t.string, t.special(t.string)], color: "var(--ok-text)" },
 	{
 		tag: [t.variableName, t.definition(t.variableName)],
@@ -40,7 +40,7 @@ const highlight = HighlightStyle.define([
 	{ tag: t.meta, color: "var(--muted-foreground)" },
 ]);
 
-const theme = EditorView.theme({
+export const editorTheme = EditorView.theme({
 	"&": {
 		backgroundColor: "var(--card)",
 		color: "var(--foreground)",
@@ -130,10 +130,10 @@ export function ScriptEditor({
 					bracketMatching(),
 					highlightActiveLine(),
 					StreamLanguage.define(shell),
-					syntaxHighlighting(highlight),
+					syntaxHighlighting(editorHighlight),
 					keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
 					placeholder("#!/bin/sh\nset -eu\n"),
-					theme,
+					editorTheme,
 					EditorView.lineWrapping,
 					EditorView.contentAttributes.of({
 						id,

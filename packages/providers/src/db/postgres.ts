@@ -1,17 +1,26 @@
-import type {
-	Cell,
-	DatabaseSchema,
-	DbColumn,
-	DbTable,
-	RowFilter,
-	RowPatch,
-	RowsPage,
-	RowsQuery,
-	RowsWritten,
-	TableRef,
+import {
+	type Cell,
+	type DatabaseSchema,
+	type DbColumn,
+	type DbTable,
+	QUERY_ROWS_LIMIT,
+	type QueryError,
+	type QueryResult,
+	type RowFilter,
+	type RowPatch,
+	type RowsPage,
+	type RowsQuery,
+	type RowsWritten,
+	type StatementResult,
+	type TableRef,
 } from "@logistack/contracts";
+import { leadingWord, splitSql } from "@logistack/core";
 import postgres, { type PendingQuery, type Row, type Sql } from "postgres";
-import { type DatabaseConnection, DatabaseError } from "./index.ts";
+import {
+	type DatabaseClient,
+	type DatabaseConnection,
+	DatabaseError,
+} from "./index.ts";
 
 const UNREACHABLE = new Set([
 	"ECONNREFUSED",
@@ -89,20 +98,12 @@ type Table = { kind: DbTable["kind"]; columns: DbColumn[]; key: string[] };
 const bad = (op: string, message: string) =>
 	new DatabaseError(op, message, "query");
 
-// postgres.js splits identifiers on dots, so such a name would address something else.
-function checkName(name: string) {
-	if (name.includes("."))
-		throw new DatabaseError(
-			"rows",
-			`names containing a dot are not supported: ${name}`,
-			"unsupported",
-		);
-}
-
-// Its own fragment, so a keyword earlier in the query never turns it into an insert/update builder.
+/**
+ * A quoted identifier. postgres.js's own `sql(name)` splits on dots, so `a.b` would address
+ * column b of a; doubling the quotes keeps any name one identifier.
+ */
 function ident(sql: Sql, name: string) {
-	checkName(name);
-	return sql`${sql(name)}`;
+	return sql`${sql.unsafe(`"${name.replaceAll('"', '""')}"`)}`;
 }
 
 const join = (sql: Sql, parts: PendingQuery<Row[]>[], sep: "and" | ",") =>
@@ -220,7 +221,22 @@ export function rowsQuery(
 	};
 }
 
-export function postgresClient(conn: DatabaseConnection) {
+// A run is one transaction the explorer owns, so statements that end or open one are refused.
+const TX_CONTROL = new Set([
+	"begin",
+	"start",
+	"commit",
+	"end",
+	"rollback",
+	"abort",
+]);
+
+const ms = (since: number) => Math.round((performance.now() - since) * 10) / 10;
+
+export function postgresClient(conn: DatabaseConnection): DatabaseClient {
+	const timeout = conn.statementTimeoutMs ?? 30_000;
+	// oid -> type name, for result headers; types rarely change, so it lives as long as the pool.
+	const typeNames = new Map<number, string>();
 	const sql = postgres({
 		host: conn.host,
 		port: conn.port,
@@ -232,7 +248,11 @@ export function postgresClient(conn: DatabaseConnection) {
 		idle_timeout: 300,
 		connect_timeout: 5,
 		onnotice: () => {},
-		connection: { application_name: "logistack-explorer" },
+		connection: {
+			application_name: "logistack-explorer",
+			statement_timeout: timeout,
+			idle_in_transaction_session_timeout: timeout * 2,
+		},
 		// Array values stay in their text form too.
 		fetch_types: false,
 		// Values cross in the engine's text form both ways, never through a JS Date, Buffer or
@@ -294,11 +314,50 @@ export function postgresClient(conn: DatabaseConnection) {
 		for (const [name, v] of Object.entries(values)) {
 			if (!table.columns.some((c) => c.name === name))
 				throw bad("mutate", `unknown column ${name}`);
-			checkName(name);
 			out[name] = cellText(v);
 		}
 		return out;
 	};
+
+	const insertValues = (values: Record<string, string | null>) => {
+		const names = Object.keys(values);
+		return sql`(${join(
+			sql,
+			names.map((n) => ident(sql, n)),
+			",",
+		)}) values (${join(
+			sql,
+			names.map((n) => sql`${values[n] ?? null}`),
+			",",
+		)})`;
+	};
+
+	const assignments = (values: Record<string, string | null>) =>
+		join(
+			sql,
+			Object.entries(values).map(([n, v]) => sql`${ident(sql, n)} = ${v}`),
+			",",
+		);
+
+	/** Replaces each column's type oid with its name: int4, text, _int4 as int4[]. */
+	async function nameTypes(results: StatementResult[]) {
+		const columns = results.flatMap((r) => r.columns);
+		const missing = [...new Set(columns.map((c) => Number(c.type)))].filter(
+			(oid) => !typeNames.has(oid),
+		);
+		if (missing.length)
+			try {
+				const rows = await sql<{ oid: number; name: string }[]>`
+					select t.oid::int4 as oid,
+						case when e.oid is not null and t.typcategory = 'A' then e.typname || '[]' else t.typname end as name
+					from pg_type t left join pg_type e on e.oid = t.typelem
+					where t.oid = any(${`{${missing.join(",")}}`}::oid[])`;
+				for (const r of rows) typeNames.set(r.oid, r.name);
+			} catch {
+				// Headers fall back to the oid; the results matter more.
+			}
+		for (const c of columns) c.type = typeNames.get(Number(c.type)) ?? c.type;
+	}
 
 	function keyMatch(table: Table, key: Record<string, Cell>) {
 		const names = Object.keys(key);
@@ -433,10 +492,10 @@ export function postgresClient(conn: DatabaseConnection) {
 					for (const [i, op] of ops.entries()) {
 						const r = await (op.op === "insert"
 							? Object.keys(op.values).length
-								? tx`insert into ${from} ${tx(pick(table, op.values))} returning *`
+								? tx`insert into ${from} ${insertValues(pick(table, op.values))} returning *`
 								: tx`insert into ${from} default values returning *`
 							: op.op === "update"
-								? tx`update ${from} set ${tx(pick(table, op.values))}
+								? tx`update ${from} set ${assignments(pick(table, op.values))}
 									where ${keyMatch(table, op.key)} returning *`
 								: tx`delete from ${from} where ${keyMatch(table, op.key)}`
 						).values();
@@ -453,6 +512,96 @@ export function postgresClient(conn: DatabaseConnection) {
 			} catch (e) {
 				throw e instanceof DatabaseError ? e : wrap("mutate", e);
 			}
+		},
+		async query(script, { readOnly, signal }): Promise<QueryResult> {
+			const statements = splitSql(script);
+			const refused = statements.findIndex((s) =>
+				TX_CONTROL.has(leadingWord(s.text)),
+			);
+			if (refused >= 0)
+				return {
+					results: [],
+					error: {
+						statement: refused,
+						message:
+							"a run is already one transaction: BEGIN, COMMIT and ROLLBACK are not supported",
+					},
+				};
+			const results: StatementResult[] = [];
+			let error: QueryError | null = null;
+			let current: { cancel(): unknown } | undefined;
+			const abort = () => current?.cancel();
+			signal?.addEventListener("abort", abort);
+			try {
+				await sql.begin(readOnly ? "read only" : "", async (tx) => {
+					// Takes the snapshot, so a later `set transaction read write` is refused.
+					await tx`select 1`;
+					for (const [i, s] of statements.entries()) {
+						if (signal?.aborted) {
+							error = {
+								statement: i,
+								message: "canceling statement due to user request",
+								code: "57014",
+							};
+							throw signal.reason;
+						}
+						const started = performance.now();
+						const q = tx.unsafe(s.text, [], { prepare: false }).values();
+						current = q;
+						// A run may `set statement_timeout = 0`; this bounds it anyway.
+						const hard = setTimeout(abort, timeout + 2000);
+						let batch: unknown[][] | undefined;
+						try {
+							const r = await q.cursor(QUERY_ROWS_LIMIT + 1, (rows) => {
+								batch = rows;
+								return sql.CLOSE;
+							});
+							// SHOW and EXPLAIN never reach the callback; their rows are the result.
+							const rows = batch ?? [...r];
+							const truncated = rows.length > QUERY_ROWS_LIMIT;
+							results.push({
+								from: s.from,
+								to: s.to,
+								// A cursor closed early loses the tag; the verb is the statement's.
+								command: r.command ?? leadingWord(s.text).toUpperCase(),
+								columns: r.columns.map((c) => ({
+									name: c.name,
+									type: String(c.type),
+								})),
+								rows: rows
+									.slice(0, QUERY_ROWS_LIMIT)
+									.map((row) => encodeRow(row, r.columns)),
+								truncated,
+								affected: truncated ? null : (r.count ?? null),
+								durationMs: ms(started),
+							});
+						} catch (e) {
+							const err = e as { code?: string; position?: string };
+							if (err.code && !UNREACHABLE.has(err.code))
+								error = {
+									statement: i,
+									message: (e as Error).message,
+									code: err.code,
+									...(err.position
+										? { position: s.from + Number(err.position) - 1 }
+										: {}),
+								};
+							throw e;
+						} finally {
+							clearTimeout(hard);
+							current = undefined;
+						}
+					}
+					// Settings a run changed stay with the pooled connection after a commit.
+					await tx`reset all`;
+				});
+			} catch (e) {
+				if (!error) throw wrap("query", e);
+			} finally {
+				signal?.removeEventListener("abort", abort);
+			}
+			await nameTypes(results);
+			return { results, error };
 		},
 		close: () => sql.end({ timeout: 5 }),
 	};

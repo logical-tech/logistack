@@ -1,4 +1,9 @@
-import type { Cell, DbColumn, RowPatch } from "@logistack/contracts";
+import type {
+	Cell,
+	DbColumn,
+	QueryColumn,
+	RowPatch,
+} from "@logistack/contracts";
 
 export type Values = Record<string, Cell>;
 
@@ -36,8 +41,9 @@ export const shortType = (type: string) =>
 	SHORT.reduce((t, [re, to]) => t.replace(re, to), type);
 
 const base = (type: string) => type.replace(/\(.*?\)/, "");
-const INTEGER = new Set(["smallint", "integer", "oid"]);
-const FLOAT = new Set(["real", "double precision"]);
+// format_type names from the schema, pg_type names (int4) from SQL results.
+const INTEGER = new Set(["smallint", "integer", "oid", "int2", "int4"]);
+const FLOAT = new Set(["real", "double precision", "float4", "float8"]);
 const TAGGED: Record<string, "bigint" | "numeric" | "bytea" | "json"> = {
 	bigint: "bigint",
 	numeric: "numeric",
@@ -49,7 +55,13 @@ const TAGGED: Record<string, "bigint" | "numeric" | "bytea" | "json"> = {
 /** Right-aligned, tabular columns. */
 export function isNumeric(type: string) {
 	const t = base(type);
-	return INTEGER.has(t) || FLOAT.has(t) || t === "bigint" || t === "numeric";
+	return (
+		INTEGER.has(t) ||
+		FLOAT.has(t) ||
+		t === "bigint" ||
+		t === "int8" ||
+		t === "numeric"
+	);
 }
 
 /**
@@ -128,4 +140,39 @@ export function nextSort(
 	return cur
 		? sort.map((s) => (s.column === column ? step : s))
 		: [...sort, step];
+}
+
+const csvField = (text: string) =>
+	/[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+
+/** RFC 4180 CSV with a header row; NULL is an empty field. */
+export function toCsv(columns: QueryColumn[], rows: Cell[][]): string {
+	return [columns.map((c) => c.name), ...rows.map((r) => r.map(cellText))]
+		.map((r) => r.map(csvField).join(","))
+		.join("\r\n");
+}
+
+/**
+ * One object per row. A repeated column name gets a suffix (`a`, `a_2`); tagged values keep
+ * their exact text, so bigints and numerics are never rounded.
+ */
+export function toJson(columns: QueryColumn[], rows: Cell[][]): string {
+	const seen = new Map<string, number>();
+	const keys = columns.map((c) => {
+		const n = (seen.get(c.name) ?? 0) + 1;
+		seen.set(c.name, n);
+		return n === 1 ? c.name : `${c.name}_${n}`;
+	});
+	return JSON.stringify(
+		rows.map((r) =>
+			Object.fromEntries(
+				keys.map((k, i) => {
+					const v = r[i] ?? null;
+					return [k, v !== null && typeof v === "object" ? v.value : v];
+				}),
+			),
+		),
+		null,
+		2,
+	);
 }

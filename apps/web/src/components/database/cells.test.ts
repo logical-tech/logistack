@@ -6,6 +6,8 @@ import {
 	nextSort,
 	shortType,
 	stageEdit,
+	toCsv,
+	toJson,
 	toOps,
 } from "./cells";
 
@@ -80,5 +82,28 @@ test("a header click cycles one column; shift adds and keeps the others", () => 
 	]);
 	expect(nextSort(nextSort(two, "a", true), "a", true)).toEqual([
 		{ column: "b", desc: false },
+	]);
+});
+
+test("results copy as CSV and JSON without losing duplicates or precision", () => {
+	const columns = [
+		{ name: "a", type: "int4" },
+		{ name: "a", type: "text" },
+		{ name: "big", type: "int8" },
+	];
+	const rows = [
+		[
+			1,
+			'say "hi", then\nleave',
+			{ type: "bigint" as const, value: "9007199254740993" },
+		],
+		[null, "", null],
+	];
+	expect(toCsv(columns, rows)).toBe(
+		'a,a,big\r\n1,"say ""hi"", then\nleave",9007199254740993\r\n,,',
+	);
+	expect(JSON.parse(toJson(columns, rows))).toEqual([
+		{ a: 1, a_2: 'say "hi", then\nleave', big: "9007199254740993" },
+		{ a: null, a_2: "", big: null },
 	]);
 });

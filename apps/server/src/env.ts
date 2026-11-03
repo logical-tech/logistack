@@ -21,6 +21,8 @@ export type Deps = {
 		serviceId: string,
 		port: number,
 	) => { host: string; port: number };
+	/** Statement timeout of explorer queries; default 30 s. Tests shorten it. */
+	databaseStatementTimeoutMs?: number;
 };
 
 export type Env = {

@@ -5,6 +5,8 @@
  */
 import type {
 	DatabaseSchema,
+	QueryRequest,
+	QueryResult,
 	RowFilter,
 	RowPatch,
 	RowSort,
@@ -22,7 +24,7 @@ import {
 import { isMock } from ".";
 import { ApiError } from "./adapter";
 import { client } from "./client";
-import { ok } from "./http";
+import { done, ok } from "./http";
 
 export type RowsQuery = {
 	sort: RowSort[];
@@ -36,6 +38,10 @@ export type DatabaseApi = {
 	rows(id: string, ref: TableRef, query: RowsQuery): Promise<RowsPage>;
 	/** One transaction; 409 `stale` when an update or delete misses its row, 403 without write. */
 	write(id: string, ref: TableRef, ops: RowPatch[]): Promise<RowsWritten>;
+	/** A failing statement is `error` in a 200; a write without `write` is a 403. */
+	query(id: string, input: QueryRequest): Promise<QueryResult>;
+	/** 404 once the run has finished. */
+	cancel(id: string, runId: string): Promise<void>;
 };
 
 const PAGE = "200";
@@ -61,6 +67,10 @@ const http: DatabaseApi = {
 		ok(
 			r.$post({ param: { id, ...ref }, json: { ops } }),
 		) as Promise<RowsWritten>,
+	query: (id, json) =>
+		ok(d.query.$post({ param: { id }, json })) as Promise<QueryResult>,
+	cancel: (id, runId) =>
+		done(d.query[":runId"].$delete({ param: { id, runId } })),
 };
 
 export const databaseApi: DatabaseApi = isMock

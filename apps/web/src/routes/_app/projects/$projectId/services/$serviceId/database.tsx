@@ -12,6 +12,7 @@ export const Route = createFileRoute(
 	"/_app/projects/$projectId/services/$serviceId/database",
 )({
 	validateSearch: z.object({
+		view: z.enum(["data", "sql"]).optional().catch(undefined),
 		schema: z.string().max(63).optional().catch(undefined),
 		table: z.string().max(63).optional().catch(undefined),
 		sort: z.array(RowSort).max(8).optional().catch(undefined),
@@ -27,6 +28,7 @@ function DatabaseTab() {
 	const { data: service } = useQuery(overviewQuery(serviceId));
 	if (!service) return null;
 	const at: DatabaseLocation = {
+		view: search.view ?? "data",
 		schema: search.schema,
 		table: search.table,
 		sort: search.sort ?? [],
@@ -41,12 +43,13 @@ function DatabaseTab() {
 				// Empty sort and filter are the defaults, so they stay out of the URL.
 				navigate({
 					search: {
+						view: to.view === "sql" ? "sql" : undefined,
 						schema: to.schema,
 						table: to.table,
 						sort: to.sort.length ? to.sort : undefined,
 						filter: to.filter.length ? to.filter : undefined,
 					},
-					replace: !("table" in next),
+					replace: !("table" in next || "view" in next),
 				});
 			}}
 		/>

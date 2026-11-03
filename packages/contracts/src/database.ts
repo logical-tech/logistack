@@ -137,3 +137,53 @@ export const RowsWritten = z.object({
 	rows: z.array(z.array(Cell).nullable()),
 });
 export type RowsWritten = z.infer<typeof RowsWritten>;
+
+export const QUERY_ROWS_LIMIT = 1000;
+
+export const QueryRequest = z.object({
+	/** One or more statements separated by semicolons; they run in order, in one transaction. */
+	sql: z.string().min(1).max(100_000),
+	/** Read-only runs need `read` and run in a READ ONLY transaction; writes need `write`. */
+	readOnly: z.boolean().default(true),
+	/** Names the run, so `DELETE /databases/{id}/query/{runId}` can cancel it. */
+	runId: z.uuid().optional(),
+});
+export type QueryRequest = z.input<typeof QueryRequest>;
+
+export const QueryColumn = z.object({ name: z.string(), type: z.string() });
+export type QueryColumn = z.infer<typeof QueryColumn>;
+
+/** One statement's outcome. Rows are arrays aligned with `columns`; names may repeat. */
+export const StatementResult = z.object({
+	/** The statement's offsets in the request's `sql`. */
+	from: z.number().int(),
+	to: z.number().int(),
+	/** The command tag's verb: SELECT, UPDATE, CREATE TABLE. */
+	command: z.string(),
+	columns: z.array(QueryColumn),
+	rows: z.array(z.array(Cell)),
+	/** More than QUERY_ROWS_LIMIT rows came back; only the first ones are here. */
+	truncated: z.boolean(),
+	/** Rows returned or affected; null when the command reports none or the rows were cut. */
+	affected: z.number().nullable(),
+	durationMs: z.number(),
+});
+export type StatementResult = z.infer<typeof StatementResult>;
+
+export const QueryError = z.object({
+	/** Index of the failing statement; the ones before it are in `results`. */
+	statement: z.number().int(),
+	message: z.string(),
+	/** The SQLSTATE, e.g. 42601 for a syntax error or 57014 for a timeout or cancel. */
+	code: z.string().optional(),
+	/** 0-based offset of the error in the request's `sql`, when the engine reports one. */
+	position: z.number().int().optional(),
+});
+export type QueryError = z.infer<typeof QueryError>;
+
+/** On an error the whole transaction rolls back, so nothing a write run did persists. */
+export const QueryResult = z.object({
+	results: z.array(StatementResult),
+	error: QueryError.nullable(),
+});
+export type QueryResult = z.infer<typeof QueryResult>;

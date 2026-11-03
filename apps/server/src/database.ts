@@ -90,6 +90,7 @@ export async function openDatabase(
 		user,
 		password,
 		database: env.POSTGRES_DB || user,
+		statementTimeoutMs: deps.databaseStatementTimeoutMs,
 	};
 	const key = Bun.hash(JSON.stringify(conn)).toString(16);
 	let cached = clients.get(serviceId);
@@ -99,4 +100,40 @@ export async function openDatabase(
 		clients.set(serviceId, cached);
 	}
 	return { id: serviceId, slug: row.slug, engine, client: cached.client };
+}
+
+// shortcut: in memory, so a cancel must reach the api replica running the query; share it (Redis) when the api scales out.
+const runs = new Map<
+	string,
+	{ serviceId: string; actorId: string; abort: AbortController }
+>();
+
+/** Runs a script under `runId` (when given) so its own actor can cancel it. */
+export async function runQuery(
+	db: DatabaseService,
+	actorId: string,
+	input: { sql: string; readOnly: boolean; runId?: string },
+) {
+	const abort = new AbortController();
+	const { runId } = input;
+	if (runId) {
+		if (runs.has(runId)) throw new Failure("conflict", "run already started");
+		runs.set(runId, { serviceId: db.id, actorId, abort });
+	}
+	try {
+		return await db.client.query(input.sql, {
+			readOnly: input.readOnly,
+			signal: abort.signal,
+		});
+	} finally {
+		if (runId) runs.delete(runId);
+	}
+}
+
+/** Aborts a run of `actorId` on `serviceId`; false when there is none (finished, or not theirs). */
+export function cancelRun(serviceId: string, actorId: string, runId: string) {
+	const run = runs.get(runId);
+	if (run?.serviceId !== serviceId || run.actorId !== actorId) return false;
+	run.abort.abort();
+	return true;
 }

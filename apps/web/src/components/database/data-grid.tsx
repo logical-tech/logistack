@@ -92,11 +92,13 @@ const TINT = {
 		"bg-[color-mix(in_oklab,var(--card),var(--bad)_9%)] text-muted-foreground line-through decoration-bad-text/50",
 };
 
-function widthOf(c: DbColumn) {
+export function widthOf(c: { name: string; type: string }) {
 	const t = c.type;
 	const w = /^bool/.test(t)
 		? 100
-		: /^(smallint|integer|bigint|real|double|numeric|oid|date)/.test(t)
+		: /^(smallint|integer|bigint|real|double|numeric|oid|date|int[248]|float[48])/.test(
+					t,
+				)
 			? 130
 			: /^timestamp/.test(t)
 				? 230
@@ -112,12 +114,12 @@ type GridRow =
 	| { id: string; kind: "new"; values: Values }
 	| { id: string; kind: "row"; cells: Cell[]; key: Values };
 
-function CellView({
+export function CellView({
 	value,
 	column,
 }: {
 	value: Cell | undefined;
-	column: DbColumn;
+	column: { type: string };
 }) {
 	if (value === undefined)
 		return <span className="text-muted-foreground/70 italic">default</span>;

@@ -3,16 +3,23 @@
  * orders table, a view, a materialized view, a table without a primary key and a second schema.
  * storefront/staging is unreachable until it is redeployed. booking/production answers writes
  * with 403, as for a member with read only. Customer 7 was deleted by a teammate after the
- * page loaded: editing it shows the stale conflict.
+ * page loaded: editing it shows the stale conflict. The SQL editor answers `select * from
+ * <table>`, literal selects, generate_series, pg_sleep (cancellable), writes and syntax errors.
  */
-import type {
-	Cell,
-	DatabaseSchema,
-	DbColumn,
-	DbTable,
-	RowPatch,
-	RowsPage,
+import {
+	type Cell,
+	type DatabaseSchema,
+	type DbColumn,
+	type DbTable,
+	QUERY_ROWS_LIMIT,
+	type QueryColumn,
+	type QueryError,
+	type QueryResult,
+	type RowPatch,
+	type RowsPage,
+	type StatementResult,
 } from "@logistack/contracts";
+import { leadingWord, splitSql } from "@logistack/core";
 import { cellText } from "@/components/database/cells";
 import { ApiError } from "../adapter";
 import type { DatabaseApi } from "../database";
@@ -648,4 +655,280 @@ export const mockDatabase: DatabaseApi = {
 			);
 		return delay(write(t, ops), 300);
 	},
+	query: (id, { sql, readOnly = true, runId }) =>
+		runMock(worldOf(id), id, sql, readOnly, runId),
+	cancel: async (_id, runId) => {
+		const run = running.get(runId);
+		if (!run) throw new ApiError(404, "run not found", "not_found");
+		run();
+	},
 };
+
+// SQL editor
+
+const running = new Map<string, () => void>();
+const KNOWN = new Set(["select", "with", "values", "show", "explain", "table"]);
+const WRITES = new Set([
+	"insert",
+	"update",
+	"delete",
+	"create",
+	"alter",
+	"drop",
+	"truncate",
+	"grant",
+]);
+
+const TYPNAME: [RegExp, string][] = [
+	[/^integer/, "int4"],
+	[/^bigint/, "int8"],
+	[/^smallint/, "int2"],
+	[/^boolean/, "bool"],
+	[/^numeric.*/, "numeric"],
+	[/^timestamp.* with time zone/, "timestamptz"],
+	[/^timestamp.*/, "timestamp"],
+	[/^character varying.*/, "varchar"],
+	[/^double precision/, "float8"],
+];
+const typname = (t: string) =>
+	TYPNAME.reduce((x, [re, to]) => x.replace(re, to), t);
+
+class Failed extends Error {
+	constructor(readonly error: Omit<QueryError, "statement">) {
+		super(error.message);
+	}
+}
+
+const sleep = (ms: number, runId?: string) =>
+	new Promise<void>((resolve, reject) => {
+		const t = setTimeout(done, ms);
+		function done() {
+			if (runId) running.delete(runId);
+			resolve();
+		}
+		if (runId)
+			running.set(runId, () => {
+				clearTimeout(t);
+				running.delete(runId);
+				reject(
+					new Failed({
+						message: "canceling statement due to user request",
+						code: "57014",
+					}),
+				);
+			});
+	});
+
+/** `1 as a, 'x' as a`: each item's literal type and value. */
+function literals(list: string): { columns: QueryColumn[]; row: Cell[] } {
+	const columns: QueryColumn[] = [];
+	const row: Cell[] = [];
+	for (const item of list.split(/,(?=(?:[^']*'[^']*')*[^']*$)/)) {
+		const m = /^\s*(.+?)(?:\s+as\s+"?([\w ]+)"?)?\s*$/i.exec(item);
+		const expr = m?.[1] ?? item.trim();
+		const name = m?.[2] ?? "?column?";
+		if (/^-?\d+$/.test(expr)) {
+			columns.push({ name, type: "int4" });
+			row.push(Number(expr));
+		} else if (/^-?\d+\.\d+$/.test(expr)) {
+			columns.push({ name, type: "numeric" });
+			row.push({ type: "numeric", value: expr });
+		} else if (/^(true|false)$/i.test(expr)) {
+			columns.push({ name, type: "bool" });
+			row.push(expr.toLowerCase() === "true");
+		} else if (/^now\(\)$/i.test(expr)) {
+			columns.push({ name: m?.[2] ?? "now", type: "timestamptz" });
+			row.push(`${new Date().toISOString().replace("T", " ").slice(0, 23)}+00`);
+		} else if (/^'.*'$/.test(expr)) {
+			columns.push({ name, type: "text" });
+			row.push(expr.slice(1, -1).replaceAll("''", "'"));
+		} else
+			throw new Failed({
+				message: `column "${expr}" does not exist`,
+				code: "42703",
+			});
+	}
+	return { columns, row };
+}
+
+async function statement(
+	w: World,
+	id: string,
+	text: string,
+	readOnly: boolean,
+	runId?: string,
+): Promise<Omit<StatementResult, "from" | "to" | "durationMs">> {
+	const word = leadingWord(text);
+	const verb = word.toUpperCase();
+	const empty = { columns: [], rows: [], truncated: false };
+	if (!KNOWN.has(word) && !WRITES.has(word) && word !== "set") {
+		const at = text.search(/\S/);
+		throw new Failed({
+			message: `syntax error at or near "${text.slice(at).split(/\s/)[0]}"`,
+			code: "42601",
+			position: at,
+		});
+	}
+	// The canned typo: `form` for `from`.
+	const typo = /\bform\b/i.exec(text);
+	if (typo)
+		throw new Failed({
+			message: `syntax error at or near "${typo[0]}"`,
+			code: "42601",
+			position: typo.index,
+		});
+	if (WRITES.has(word)) {
+		if (readOnly)
+			throw new Failed({
+				message: `cannot execute ${verb === "CREATE" || verb === "ALTER" || verb === "DROP" ? `${verb} TABLE` : verb} in a read-only transaction`,
+				code: "25006",
+			});
+		if (id.startsWith("svc_booking"))
+			throw new ApiError(
+				403,
+				"missing permission 'write' on service",
+				"forbidden",
+			);
+		await sleep(80);
+		const command =
+			verb === "CREATE" || verb === "ALTER" || verb === "DROP"
+				? `${verb} TABLE`
+				: verb;
+		return {
+			...empty,
+			command,
+			affected: /\bwhere\s+id\s*=/i.test(text)
+				? 1
+				: /^(insert|update|delete)$/.test(word)
+					? 1 + (text.length % 9)
+					: null,
+		};
+	}
+	if (word === "set") return { ...empty, command: "SET", affected: null };
+	if (word === "show")
+		return {
+			command: "SHOW",
+			columns: [{ name: text.split(/\s+/)[1] ?? "setting", type: "text" }],
+			rows: [["30s"]],
+			truncated: false,
+			affected: null,
+		};
+	const sleepFor = /pg_sleep\(\s*([\d.]+)\s*\)/i.exec(text);
+	if (sleepFor) {
+		const seconds = Number(sleepFor[1]);
+		await sleep(Math.min(seconds, 30) * 1000, runId);
+		if (seconds > 30)
+			throw new Failed({
+				message: "canceling statement due to statement timeout",
+				code: "57014",
+			});
+		return {
+			command: "SELECT",
+			columns: [{ name: "pg_sleep", type: "void" }],
+			rows: [[""]],
+			truncated: false,
+			affected: 1,
+		};
+	}
+	const series =
+		/generate_series\(\s*(\d+)\s*,\s*(\d+)\s*\)(?:\s+as\s+(\w+))?/i.exec(text);
+	if (series) {
+		const lo = Number(series[1]);
+		const hi = Number(series[2]);
+		const n = Math.max(0, hi - lo + 1);
+		await sleep(Math.min(900, 40 + n / 100));
+		return {
+			command: "SELECT",
+			columns: [{ name: series[3] ?? "generate_series", type: "int4" }],
+			rows: Array.from({ length: Math.min(n, QUERY_ROWS_LIMIT) }, (_, i) => [
+				lo + i,
+			]),
+			truncated: n > QUERY_ROWS_LIMIT,
+			affected: n > QUERY_ROWS_LIMIT ? null : n,
+		};
+	}
+	const from = /\bfrom\s+(?:"?(\w+)"?\.)?"?(\w+)"?(?:\s+limit\s+(\d+))?/i.exec(
+		text,
+	);
+	if (from) {
+		const name = from[2] ?? "";
+		const t = w.tables.find(
+			(x) => x.name === name && (from[1] ? x.schema === from[1] : true),
+		);
+		if (!t) {
+			const at = text.indexOf(name);
+			throw new Failed({
+				message: `relation "${name}" does not exist`,
+				code: "42P01",
+				position: at,
+			});
+		}
+		await sleep(60 + Math.random() * 120);
+		if (/^\s*select\s+count\(\*\)/i.test(text))
+			return {
+				command: "SELECT",
+				columns: [{ name: "count", type: "int8" }],
+				rows: [[{ type: "bigint", value: String(t.rows.length) }]],
+				truncated: false,
+				affected: 1,
+			};
+		const limit = from[3] ? Number(from[3]) : t.rows.length;
+		const rows = t.rows.slice(0, Math.min(limit, QUERY_ROWS_LIMIT + 1));
+		const truncated = rows.length > QUERY_ROWS_LIMIT;
+		return {
+			command: "SELECT",
+			columns: t.columns.map((c) => ({ name: c.name, type: typname(c.type) })),
+			rows: rows.slice(0, QUERY_ROWS_LIMIT),
+			truncated,
+			affected: truncated ? null : rows.length,
+		};
+	}
+	const select = /^\s*select\s+([\s\S]+?)(\s+where\s+false)?\s*$/i.exec(text);
+	if (select?.[1]) {
+		await sleep(40 + Math.random() * 60);
+		const { columns, row } = literals(select[1]);
+		return {
+			command: "SELECT",
+			columns,
+			rows: select[2] ? [] : [row],
+			truncated: false,
+			affected: select[2] ? 0 : 1,
+		};
+	}
+	await sleep(60);
+	return { ...empty, command: verb, affected: null };
+}
+
+async function runMock(
+	w: World,
+	id: string,
+	sql: string,
+	readOnly: boolean,
+	runId?: string,
+): Promise<QueryResult> {
+	const results: StatementResult[] = [];
+	for (const [i, s] of splitSql(sql).entries()) {
+		const started = performance.now();
+		try {
+			const r = await statement(w, id, s.text, readOnly, runId);
+			results.push({
+				...r,
+				from: s.from,
+				to: s.to,
+				durationMs: Math.round((performance.now() - started) * 10) / 10,
+			});
+		} catch (e) {
+			if (!(e instanceof Failed)) throw e;
+			const { position, ...rest } = e.error;
+			return {
+				results,
+				error: {
+					statement: i,
+					...rest,
+					...(position !== undefined ? { position: s.from + position } : {}),
+				},
+			};
+		}
+	}
+	return { results, error: null };
+}

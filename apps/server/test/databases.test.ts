@@ -84,6 +84,9 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 			create table x (id int);
 			analyze items;
 			create table "select" ("select" text primary key, n int);
+			create table "a.b" ("a.b" int primary key, "x""y" text);
+			insert into "a.b" values (1, 'one'), (2, 'two');
+			create table ledger (id serial primary key, note text);
 			insert into "select" values ('a', 1), ('b', 2);
 			create table notes (id serial primary key, body text);
 			create table kinds (
@@ -98,6 +101,7 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 			);
 		`);
 		h.deps.databaseEndpoint = () => target;
+		h.deps.databaseStatementTimeoutMs = 2000;
 		await setEnv("POSTGRES_PASSWORD", "test");
 		await setEnv("POSTGRES_DB", "shop");
 
@@ -446,5 +450,215 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 				= (b.big, b.num, b.raw, b.doc, b.j::text, b.at, b.ts, b.d, b.flag, b.f, b.tags)::text as same
 				from kinds a, kinds b where a.id = 1 and b.id = 2`;
 		expect(copy?.same).toBe(true);
+	});
+
+	test("dotted and quoted identifiers address one table and column", async () => {
+		const read = await rows("a.b", {
+			sort: [{ column: "a.b", desc: true }],
+			filter: [{ column: "a.b", op: "lte", value: "2" }],
+		});
+		expect(read.status).toBe(200);
+		expect(read.json.columns.map((c: { name: string }) => c.name)).toEqual([
+			"a.b",
+			'x"y',
+		]);
+		expect(read.json.rows).toEqual([
+			[2, "two"],
+			[1, "one"],
+		]);
+		const w = await write("a.b", [
+			{ op: "insert", values: { "a.b": 3, 'x"y': "three" } },
+			{ op: "update", key: { "a.b": 1 }, values: { 'x"y': "uno" } },
+			{ op: "delete", key: { "a.b": 2 } },
+		]);
+		expect(w.status).toBe(200);
+		expect(w.json.rows).toEqual([[3, "three"], [1, "uno"], null]);
+		expect([...(await shop`select * from "a.b" order by 1`)]).toEqual([
+			{ "a.b": 1, 'x"y': "uno" },
+			{ "a.b": 3, 'x"y': "three" },
+		]);
+	});
+
+	const query = (
+		sql: string,
+		opts: { readOnly?: boolean; runId?: string } = {},
+		headers: Record<string, string> = { cookie },
+	) =>
+		h.call("POST", `/api/databases/${dbId}/query`, {
+			headers,
+			body: { sql, ...opts },
+		});
+
+	test("an empty result keeps duplicate column names and their types", async () => {
+		const r = await query("select 1 as a, 'x' as a where false");
+		expect(r.status).toBe(200);
+		expect(r.json.error).toBeNull();
+		expect(r.json.results).toEqual([
+			{
+				from: 0,
+				to: 35,
+				command: "SELECT",
+				columns: [
+					{ name: "a", type: "int4" },
+					{ name: "a", type: "text" },
+				],
+				rows: [],
+				truncated: false,
+				affected: 0,
+				durationMs: expect.any(Number),
+			},
+		]);
+	});
+
+	test("several statements return one result each, in order", async () => {
+		const sql =
+			"select 1 as x;\nselect 'a;b' as y, 9007199254740993::bigint as z, array[1,2] as arr;\nshow statement_timeout";
+		const r = await query(sql);
+		expect(r.json.error).toBeNull();
+		const [a, b, c] = r.json.results;
+		expect(r.json.results).toHaveLength(3);
+		expect(sql.slice(b.from, b.to)).toStartWith("select 'a;b'");
+		expect(a.rows).toEqual([[1]]);
+		expect(b.columns.map((col: { type: string }) => col.type)).toEqual([
+			"text",
+			"int8",
+			"int4[]",
+		]);
+		expect(b.rows).toEqual([
+			["a;b", { type: "bigint", value: "9007199254740993" }, "{1,2}"],
+		]);
+		expect(c).toMatchObject({ command: "SHOW", rows: [["2s"]] });
+	});
+
+	test("read only refuses writes and ways out of the read-only transaction", async () => {
+		const before = [...(await shop`select * from "select" order by 1`)];
+		const r = await query(`update "select" set n = 0`);
+		expect(r.status).toBe(200);
+		expect(r.json.error).toMatchObject({
+			statement: 0,
+			code: "25006",
+			message: "cannot execute UPDATE in a read-only transaction",
+		});
+		const readWrite = await query(
+			`set transaction read write; update "select" set n = 0`,
+		);
+		expect(readWrite.json.error).toMatchObject({ statement: 0, code: "25001" });
+		const commit = await query(`select 1; commit; update "select" set n = 0`);
+		expect(commit.json.error.statement).toBe(1);
+		expect(commit.json.results).toEqual([]);
+		expect([...(await shop`select * from "select" order by 1`)]).toEqual(
+			before,
+		);
+	});
+
+	test("rows past 1000 are cut and flagged", async () => {
+		const r = await query("select generate_series(1, 50000) as n");
+		const [res] = r.json.results;
+		expect(res.rows).toHaveLength(1000);
+		expect(res.rows.at(-1)).toEqual([1000]);
+		expect(res).toMatchObject({ truncated: true, affected: null });
+	});
+
+	test("a syntax error names its statement and its offset in the script", async () => {
+		const sql = "select 1;\n  selec 2;\nselect 3";
+		const r = await query(sql);
+		expect(r.json.results).toHaveLength(1);
+		expect(r.json.error).toMatchObject({ statement: 1, code: "42601" });
+		expect(r.json.error.position).toBe(sql.indexOf("selec "));
+	});
+
+	test("a statement past the timeout is stopped, even after resetting it", async () => {
+		const t = performance.now();
+		const r = await query("select pg_sleep(10)");
+		expect(r.json.error).toMatchObject({ code: "57014" });
+		expect(r.json.error.message).toContain("statement timeout");
+		const bypass = await query(
+			"set statement_timeout = 0; select pg_sleep(10)",
+		);
+		expect(bypass.json.error).toMatchObject({ statement: 1, code: "57014" });
+		expect(performance.now() - t).toBeLessThan(8000);
+		// The pooled connection did not keep the run's setting.
+		const after = await query("show statement_timeout");
+		expect(after.json.results[0].rows).toEqual([["2s"]]);
+	}, 15_000);
+
+	test("the caller cancels their own run; nobody else can", async () => {
+		const runId = crypto.randomUUID();
+		const t = performance.now();
+		const running = query("select pg_sleep(10)", { runId });
+		await Bun.sleep(300);
+		const other = await h.call(
+			"DELETE",
+			`/api/databases/${dbId}/query/${runId}`,
+			{ headers: { cookie: viewer } },
+		);
+		expect(other.status).toBe(404);
+		const cancel = await h.call(
+			"DELETE",
+			`/api/databases/${dbId}/query/${runId}`,
+			{ headers: { cookie } },
+		);
+		expect(cancel.status).toBe(204);
+		const r = await running;
+		expect(r.json.error).toMatchObject({
+			code: "57014",
+			message: "canceling statement due to user request",
+		});
+		expect(performance.now() - t).toBeLessThan(1500);
+		const again = await h.call(
+			"DELETE",
+			`/api/databases/${dbId}/query/${runId}`,
+			{ headers: { cookie } },
+		);
+		expect(again.status).toBe(404);
+	});
+
+	test("a write run commits as one, is audited with its SQL, and rolls back on error", async () => {
+		const sql = "insert into ledger (note) values ('from the editor')";
+		const w = await query(sql, { readOnly: false });
+		expect(w.json.error).toBeNull();
+		expect(w.json.results[0]).toMatchObject({ command: "INSERT", affected: 1 });
+		const failed = await query(
+			"insert into ledger (note) values ('lost'); select 1/0",
+			{ readOnly: false },
+		);
+		expect(failed.json.error).toMatchObject({ statement: 1, code: "22012" });
+		expect([...(await shop`select note from ledger`)]).toEqual([
+			{ note: "from the editor" },
+		]);
+		const audit = await h.deps.db
+			.select({ diff: auditLog.diff, outcome: auditLog.outcome })
+			.from(auditLog)
+			.where(eq(auditLog.action, "database.query"));
+		expect(audit).toContainEqual({
+			outcome: "success",
+			diff: { sql, readOnly: false },
+		});
+	});
+
+	test("a viewer runs read-only SQL but cannot write", async () => {
+		const read = await query(
+			"select count(*) from ledger",
+			{},
+			{ cookie: viewer },
+		);
+		expect(read.status).toBe(200);
+		expect(read.json.results[0].rows).toEqual([
+			[{ type: "bigint", value: "1" }],
+		]);
+		const sql = "delete from ledger";
+		const w = await query(sql, { readOnly: false }, { cookie: viewer });
+		expect(w.status).toBe(403);
+		expect([...(await shop`select count(*)::int as n from ledger`)]).toEqual([
+			{ n: 1 },
+		]);
+		const audit = await h.deps.db
+			.select({ diff: auditLog.diff, outcome: auditLog.outcome })
+			.from(auditLog)
+			.where(eq(auditLog.action, "database.query"));
+		expect(audit).toContainEqual({
+			outcome: "denied",
+			diff: { sql, readOnly: false },
+		});
 	});
 });

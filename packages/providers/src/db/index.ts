@@ -1,6 +1,7 @@
 import type {
 	DatabaseEngine,
 	DatabaseSchema,
+	QueryResult,
 	RowPatch,
 	RowsPage,
 	RowsQuery,
@@ -19,6 +20,8 @@ export type DatabaseConnection = {
 	user: string;
 	password: string;
 	database: string;
+	/** Per statement, explorer queries included; default 30 s. */
+	statementTimeoutMs?: number;
 };
 
 /**
@@ -50,6 +53,15 @@ export type DatabaseClient = {
 	rows(ref: TableRef, q: RowsQuery): Promise<RowsPage>;
 	/** Applies every patch in one transaction; any failure rolls all of them back. */
 	mutate(ref: TableRef, ops: RowPatch[]): Promise<RowsWritten>;
+	/**
+	 * Runs a script's statements in order, in one transaction (READ ONLY when asked). A statement
+	 * that fails, times out or is aborted through `signal` rolls the whole run back and comes
+	 * back as `error`; only a lost connection throws.
+	 */
+	query(
+		script: string,
+		opts: { readOnly: boolean; signal?: AbortSignal },
+	): Promise<QueryResult>;
 	close(): Promise<void>;
 };
 
