@@ -15,6 +15,7 @@ export const dbTableKinds = [
 	"view",
 	"materialized_view",
 	"foreign_table",
+	"collection",
 ] as const;
 
 export const DbTable = z.object({
@@ -28,6 +29,11 @@ export const DbTable = z.object({
 });
 export type DbTable = z.infer<typeof DbTable>;
 
+/**
+ * For MongoDB, `schemas` are the databases and `tables` their collections and views: `rows` is
+ * the estimated document count and `columns` the top-level fields of a sample, typed by the
+ * first value seen (`objectId`, `string`, `date`, `long`...).
+ */
 export const DatabaseSchema = z.object({
 	engine: DatabaseEngine,
 	database: z.string(),
@@ -187,3 +193,60 @@ export const QueryResult = z.object({
 	error: QueryError.nullable(),
 });
 export type QueryResult = z.infer<typeof QueryResult>;
+
+/** A MongoDB collection or view. */
+export const CollectionRef = z.object({
+	database: z.string(),
+	collection: z.string(),
+});
+export type CollectionRef = z.infer<typeof CollectionRef>;
+
+/**
+ * A document in canonical Extended JSON v2 (`{"$oid": ...}`, `{"$numberLong": ...}`,
+ * `{"$date": {"$numberLong": ...}}`), so every BSON type round-trips exactly. Writes take any
+ * Extended JSON; a plain JSON number is an int32 when it fits, else a long or a double.
+ */
+export const EjsonDocument = z.record(z.string(), z.unknown());
+export type EjsonDocument = z.infer<typeof EjsonDocument>;
+
+/**
+ * One page of documents. `filter`, `sort` and `projection` are Extended JSON objects passed to
+ * `find`; `$where`, `$function` and `$accumulator` are rejected anywhere in them. With no sort, or
+ * a sort on `_id` alone, pages follow `_id`; any other sort pages by offset with `_id` as
+ * tiebreaker. `_id` is always returned, so every document stays addressable.
+ */
+export const DocumentsQuery = z.object({
+	limit: z.number().int().min(1).max(ROWS_LIMIT).default(100),
+	cursor: z.string().optional(),
+	filter: z.string().optional(),
+	sort: z.string().optional(),
+	projection: z.string().optional(),
+});
+export type DocumentsQuery = z.infer<typeof DocumentsQuery>;
+
+export const DocumentsPage = z.object({
+	documents: z.array(EjsonDocument),
+	nextCursor: z.string().nullable(),
+});
+export type DocumentsPage = z.infer<typeof DocumentsPage>;
+
+/** An `_id` as Extended JSON: `{"$oid": ...}`, a string, a number... */
+const DocumentId = z.unknown().refine((v) => v !== undefined, "id is required");
+
+/** One write per request, so it is atomic on a standalone server too. */
+export const DocumentWrite = z.discriminatedUnion("op", [
+	z.object({ op: z.literal("insert"), document: EjsonDocument }),
+	z.object({
+		op: z.literal("replace"),
+		id: DocumentId,
+		document: EjsonDocument,
+	}),
+	z.object({ op: z.literal("delete"), id: DocumentId }),
+]);
+export type DocumentWrite = z.infer<typeof DocumentWrite>;
+
+/** The document as stored after an insert or replace; null after a delete. */
+export const DocumentWritten = z.object({
+	document: EjsonDocument.nullable(),
+});
+export type DocumentWritten = z.infer<typeof DocumentWritten>;

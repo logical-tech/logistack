@@ -1,5 +1,6 @@
 import type { DatabaseSchema, DbTable } from "@logistack/contracts";
 import {
+	Braces,
 	ChevronRight,
 	Eye,
 	Globe,
@@ -32,6 +33,7 @@ export const KIND: Record<
 	view: { icon: Eye, label: "View" },
 	materialized_view: { icon: Layers, label: "Materialized view" },
 	foreign_table: { icon: Globe, label: "Foreign table" },
+	collection: { icon: Braces, label: "Collection" },
 };
 
 const compact = new Intl.NumberFormat("en", {
@@ -43,6 +45,7 @@ type Item =
 	| { id: string; kind: "schema"; name: string; open: boolean }
 	| { id: string; kind: "table"; schema: string; table: DbTable };
 
+const cap = (s: string) => s[0]?.toUpperCase() + s.slice(1);
 const schemaId = (name: string) => `s:${name}`;
 const tableId = (schema: string, table: string) => `t:${schema}.${table}`;
 const domId = (id: string) => `dbtree-${id}`;
@@ -54,7 +57,10 @@ export function SchemaTree({
 	selected,
 	pending,
 	onSelect,
+	noun = "tables",
 }: {
+	/** What the leaves are, lowercase plural: tables, or collections for MongoDB. */
+	noun?: string;
 	database: string;
 	schemas: Schemas;
 	selected: Ref;
@@ -144,7 +150,7 @@ export function SchemaTree({
 
 	return (
 		<nav
-			aria-label="Tables"
+			aria-label={cap(noun)}
 			className="hidden w-64 shrink-0 flex-col border-r md:flex"
 		>
 			<div className="grid gap-2 border-b p-2">
@@ -170,8 +176,8 @@ export function SchemaTree({
 								setQuery("");
 							}
 						}}
-						placeholder="Filter tables"
-						aria-label="Filter tables"
+						placeholder={`Filter ${noun}`}
+						aria-label={`Filter ${noun}`}
 						aria-controls="dbtree"
 						className="h-8 pl-8"
 					/>
@@ -181,7 +187,7 @@ export function SchemaTree({
 				<div
 					id="dbtree"
 					role="tree"
-					aria-label={`Tables in ${database}`}
+					aria-label={`${cap(noun)} in ${database}`}
 					className="min-h-0 flex-1 overflow-y-auto p-1.5"
 				>
 					{items.map((item, i) => {
@@ -277,10 +283,12 @@ export function TablePicker({
 	schemas,
 	selected,
 	onSelect,
+	label = "Table",
 }: {
 	schemas: Schemas;
 	selected: Ref;
 	onSelect: (schema: string, table: string) => void;
+	label?: string;
 }) {
 	return (
 		<Select
@@ -290,7 +298,7 @@ export function TablePicker({
 				onSelect(s, t);
 			}}
 		>
-			<SelectTrigger className="w-full" aria-label="Table">
+			<SelectTrigger className="w-full" aria-label={label}>
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>

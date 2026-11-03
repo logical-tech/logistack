@@ -12,7 +12,7 @@ import {
 	syntaxHighlighting,
 } from "@codemirror/language";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
-import { EditorState } from "@codemirror/state";
+import { EditorState, type Extension } from "@codemirror/state";
 import {
 	drawSelection,
 	EditorView,
@@ -91,7 +91,9 @@ export const editorTheme = EditorView.theme({
 	".cm-placeholder": { color: "var(--muted-foreground)" },
 });
 
-/** Bash with line numbers and history. Tab indents; Escape then Tab leaves the editor. */
+const bash = StreamLanguage.define(shell);
+
+/** Bash (or `language`) with line numbers and history. Tab indents; Escape then Tab leaves the editor. */
 export function ScriptEditor({
 	id,
 	value,
@@ -100,6 +102,8 @@ export function ScriptEditor({
 	describedBy,
 	className,
 	label = "Script",
+	language = bash,
+	hint = "#!/bin/sh\nset -eu\n",
 }: {
 	id: string;
 	value: string;
@@ -108,6 +112,8 @@ export function ScriptEditor({
 	describedBy?: string;
 	className?: string;
 	label?: string;
+	language?: Extension;
+	hint?: string;
 }) {
 	const host = useRef<HTMLDivElement>(null);
 	const view = useRef<EditorView | null>(null);
@@ -129,10 +135,10 @@ export function ScriptEditor({
 					indentOnInput(),
 					bracketMatching(),
 					highlightActiveLine(),
-					StreamLanguage.define(shell),
+					language,
 					syntaxHighlighting(editorHighlight),
 					keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-					placeholder("#!/bin/sh\nset -eu\n"),
+					placeholder(hint),
 					editorTheme,
 					EditorView.lineWrapping,
 					EditorView.contentAttributes.of({

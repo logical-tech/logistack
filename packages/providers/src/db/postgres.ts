@@ -17,9 +17,9 @@ import {
 import { leadingWord, splitSql } from "@logistack/core";
 import postgres, { type PendingQuery, type Row, type Sql } from "postgres";
 import {
-	type DatabaseClient,
 	type DatabaseConnection,
 	DatabaseError,
+	type SqlClient,
 } from "./index.ts";
 
 const UNREACHABLE = new Set([
@@ -233,7 +233,7 @@ const TX_CONTROL = new Set([
 
 const ms = (since: number) => Math.round((performance.now() - since) * 10) / 10;
 
-export function postgresClient(conn: DatabaseConnection): DatabaseClient {
+export function postgresClient(conn: DatabaseConnection): SqlClient {
 	const timeout = conn.statementTimeoutMs ?? 30_000;
 	// oid -> type name, for result headers; types rarely change, so it lives as long as the pool.
 	const typeNames = new Map<number, string>();
@@ -377,6 +377,7 @@ export function postgresClient(conn: DatabaseConnection): DatabaseClient {
 	}
 
 	return {
+		kind: "sql",
 		async introspect(): Promise<DatabaseSchema> {
 			try {
 				const [schemas, columns] = await Promise.all([

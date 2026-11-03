@@ -10,13 +10,14 @@ import { Segmented } from "@/components/segmented";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { reasonOf, schemaQuery } from "@/lib/api/database";
+import { type DocumentsFind, reasonOf, schemaQuery } from "@/lib/api/database";
 import {
 	type ServiceOverview,
 	useServiceMutation,
 } from "@/lib/api/service-ops";
 import { EMPTY_STAGED, type Staged } from "./cells";
 import { DataGrid } from "./data-grid";
+import { DocumentList } from "./document-list";
 import { DumpRestore } from "./dump-restore";
 import { SchemaTree, TablePicker } from "./schema-tree";
 import { defaultSchema } from "./sql-editor";
@@ -30,6 +31,8 @@ export type DatabaseLocation = {
 	table: string | undefined;
 	sort: RowSort[];
 	filter: RowFilter[];
+	/** MongoDB's find: Extended JSON filter, sort and projection. */
+	find: DocumentsFind;
 };
 
 const errorText = (e: unknown) =>
@@ -49,7 +52,8 @@ export function ServiceDatabase({
 	const supported =
 		spec?.engine === "postgres" ||
 		spec?.engine === "mysql" ||
-		spec?.engine === "mariadb";
+		spec?.engine === "mariadb" ||
+		spec?.engine === "mongo";
 	const running = service.status.observed === "running";
 	const [redeployed, setRedeployed] = useState(false);
 	const schema = useQuery({
@@ -93,7 +97,7 @@ export function ServiceDatabase({
 					description={
 						running
 							? `Download a dump or restore one from the menu above. Browsing and editing ${engine} follow in the next releases.`
-							: "The explorer reads and edits Postgres, MySQL and MariaDB tables today. MongoDB and Redis follow in the next releases."
+							: "The explorer reads and edits Postgres, MySQL and MariaDB tables and MongoDB collections today. Redis follows in the next release."
 					}
 				/>
 			</>
@@ -178,20 +182,25 @@ export function ServiceDatabase({
 			</>
 		);
 
-	const switcher = bar(
-		<Segmented
-			label="Explorer view"
-			value={at.view}
-			onChange={(view) => onNavigate({ view })}
-			options={[
-				{ value: "data", label: "Data" },
-				{ value: "sql", label: "SQL" },
-			]}
-		/>,
-	);
+	// Mongo has no SQL editor: finds run from the document list.
+	const mongo = schema.data.engine === "mongo";
+	const noun = mongo ? "collections" : "tables";
+	const switcher = mongo
+		? bar()
+		: bar(
+				<Segmented
+					label="Explorer view"
+					value={at.view}
+					onChange={(view) => onNavigate({ view })}
+					options={[
+						{ value: "data", label: "Data" },
+						{ value: "sql", label: "SQL" },
+					]}
+				/>,
+			);
 	const frame =
 		"isolate flex h-[min(76dvh,46rem)] min-h-[28rem] overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border";
-	if (at.view === "sql")
+	if (at.view === "sql" && !mongo)
 		return (
 			<>
 				{switcher}
@@ -220,8 +229,12 @@ export function ServiceDatabase({
 				{bar()}
 				<EmptyState
 					icon={Database}
-					title={`${schema.data.database} has no tables yet`}
-					description="Tables your app's migrations create appear here, ready to browse and edit. A dump restored from the menu above fills them too."
+					title={
+						mongo
+							? "No collections yet"
+							: `${schema.data.database} has no tables yet`
+					}
+					description={`${mongo ? "Collections your app writes to" : "Tables your app's migrations create"} appear here, ready to browse and edit. A dump restored from the menu above fills them too.`}
 				/>
 			</>
 		);
@@ -235,21 +248,22 @@ export function ServiceDatabase({
 			: 0;
 	};
 	const select = (s: string, t: string) =>
-		onNavigate({ schema: s, table: t, sort: [], filter: [] });
+		onNavigate({ schema: s, table: t, sort: [], filter: [], find: {} });
 
 	return (
 		<>
 			{switcher}
 			<div className={frame}>
 				<SchemaTree
-					database={schema.data.database}
+					noun={noun}
+					database={mongo ? service.name : schema.data.database}
 					schemas={schemas}
 					selected={{ schema: current.schema, table: current.table.name }}
 					pending={pending}
 					onSelect={select}
 				/>
 				<section
-					aria-label={`Rows of ${tableKey}`}
+					aria-label={`${mongo ? "Documents" : "Rows"} of ${tableKey}`}
 					className="flex min-w-0 flex-1 flex-col"
 				>
 					<div className="border-b px-3 py-2 md:hidden">
@@ -257,24 +271,38 @@ export function ServiceDatabase({
 							schemas={schemas}
 							selected={{ schema: current.schema, table: current.table.name }}
 							onSelect={select}
+							label={mongo ? "Collection" : "Table"}
 						/>
 					</div>
-					<DataGrid
-						key={tableKey}
-						serviceId={service.id}
-						schema={current.schema}
-						table={current.table}
-						sort={at.sort}
-						filter={at.filter}
-						onSort={(sort) => onNavigate({ sort })}
-						onFilter={(filter) => onNavigate({ filter })}
-						staged={staged[tableKey] ?? EMPTY_STAGED}
-						onStage={(next) =>
-							setStaged((all) => ({ ...all, [tableKey]: next }))
-						}
-						forbidden={forbidden}
-						onForbidden={() => setForbidden(true)}
-					/>
+					{mongo ? (
+						<DocumentList
+							key={tableKey}
+							serviceId={service.id}
+							database={current.schema}
+							collection={current.table}
+							find={at.find}
+							onFind={(find) => onNavigate({ find })}
+							forbidden={forbidden}
+							onForbidden={() => setForbidden(true)}
+						/>
+					) : (
+						<DataGrid
+							key={tableKey}
+							serviceId={service.id}
+							schema={current.schema}
+							table={current.table}
+							sort={at.sort}
+							filter={at.filter}
+							onSort={(sort) => onNavigate({ sort })}
+							onFilter={(filter) => onNavigate({ filter })}
+							staged={staged[tableKey] ?? EMPTY_STAGED}
+							onStage={(next) =>
+								setStaged((all) => ({ ...all, [tableKey]: next }))
+							}
+							forbidden={forbidden}
+							onForbidden={() => setForbidden(true)}
+						/>
+					)}
 				</section>
 			</div>
 		</>

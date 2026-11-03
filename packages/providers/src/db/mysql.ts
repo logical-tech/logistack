@@ -22,9 +22,9 @@ import mysql, {
 	Types,
 } from "mysql2";
 import {
-	type DatabaseClient,
 	type DatabaseConnection,
 	DatabaseError,
+	type SqlClient,
 } from "./index.ts";
 
 const UNREACHABLE = new Set([
@@ -273,7 +273,7 @@ type Streamed = {
 };
 
 /** MySQL 8.x and MariaDB 10.11+/11.x over mysql2, which reports column metadata for every result. */
-export function mysqlClient(conn: DatabaseConnection): DatabaseClient {
+export function mysqlClient(conn: DatabaseConnection): SqlClient {
 	const timeout = conn.statementTimeoutMs ?? 30_000;
 	const options = {
 		host: conn.host,
@@ -501,6 +501,7 @@ export function mysqlClient(conn: DatabaseConnection): DatabaseClient {
 	}
 
 	return {
+		kind: "sql",
 		introspect: () =>
 			using("introspect", async (c) => {
 				const system = SYSTEM.map(() => "?").join(", ");

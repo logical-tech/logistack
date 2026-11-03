@@ -17,6 +17,14 @@ export const Route = createFileRoute(
 		table: z.string().max(63).optional().catch(undefined),
 		sort: z.array(RowSort).max(8).optional().catch(undefined),
 		filter: z.array(RowFilter).max(16).optional().catch(undefined),
+		find: z
+			.object({
+				filter: z.string().max(4000).optional(),
+				sort: z.string().max(1000).optional(),
+				projection: z.string().max(1000).optional(),
+			})
+			.optional()
+			.catch(undefined),
 	}),
 	component: DatabaseTab,
 });
@@ -33,6 +41,7 @@ function DatabaseTab() {
 		table: search.table,
 		sort: search.sort ?? [],
 		filter: search.filter ?? [],
+		find: search.find ?? {},
 	};
 	return (
 		<ServiceDatabase
@@ -48,6 +57,7 @@ function DatabaseTab() {
 						table: to.table,
 						sort: to.sort.length ? to.sort : undefined,
 						filter: to.filter.length ? to.filter : undefined,
+						find: Object.values(to.find).some(Boolean) ? to.find : undefined,
 					},
 					replace: !("table" in next || "view" in next),
 				});

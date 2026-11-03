@@ -4,7 +4,11 @@
  * for VITE_API_MOCK=1.
  */
 import type {
+	CollectionRef,
 	DatabaseSchema,
+	DocumentsPage,
+	DocumentWrite,
+	DocumentWritten,
 	QueryRequest,
 	QueryResult,
 	RowFilter,
@@ -32,12 +36,31 @@ export type RowsQuery = {
 	cursor?: string;
 };
 
+/** Extended JSON texts given to Mongo's `find`; empty means none. */
+export type DocumentsFind = {
+	filter?: string;
+	sort?: string;
+	projection?: string;
+};
+
 export type DatabaseApi = {
 	/** 409 with `details.reason` `unreachable` until a redeploy puts the service on ls-db. */
 	schema(id: string): Promise<DatabaseSchema>;
 	rows(id: string, ref: TableRef, query: RowsQuery): Promise<RowsPage>;
 	/** One transaction; 409 `stale` when an update or delete misses its row, 403 without write. */
 	write(id: string, ref: TableRef, ops: RowPatch[]): Promise<RowsWritten>;
+	/** MongoDB: canonical Extended JSON documents; 400 for bad JSON or `$where`/`$function`. */
+	documents(
+		id: string,
+		ref: CollectionRef,
+		find: DocumentsFind & { cursor?: string },
+	): Promise<DocumentsPage>;
+	/** One insert, replace or delete; 409 `stale` when the `_id` is gone, 403 without write. */
+	writeDocument(
+		id: string,
+		ref: CollectionRef,
+		op: DocumentWrite,
+	): Promise<DocumentWritten>;
 	/** A failing statement is `error` in a 200; a write without `write` is a 403. */
 	query(id: string, input: QueryRequest): Promise<QueryResult>;
 	/** 404 once the run has finished. */
@@ -112,6 +135,7 @@ function restoreUpload(
 const PAGE = "200";
 const d = client.api.databases[":id"];
 const r = d.tables[":schema"][":table"].rows;
+const docs = d.collections[":database"][":collection"].documents;
 
 const http: DatabaseApi = {
 	schema: (id) =>
@@ -132,6 +156,21 @@ const http: DatabaseApi = {
 		ok(
 			r.$post({ param: { id, ...ref }, json: { ops } }),
 		) as Promise<RowsWritten>,
+	documents: (id, ref, { cursor, ...find }) =>
+		ok(
+			docs.$get({
+				param: { id, ...ref },
+				query: {
+					limit: PAGE,
+					...(cursor ? { cursor } : {}),
+					...Object.fromEntries(
+						Object.entries(find).filter(([, v]) => v?.trim()),
+					),
+				},
+			}),
+		) as Promise<DocumentsPage>,
+	writeDocument: (id, ref, json) =>
+		ok(docs.$post({ param: { id, ...ref }, json })) as Promise<DocumentWritten>,
 	query: (id, json) =>
 		ok(d.query.$post({ param: { id }, json })) as Promise<QueryResult>,
 	cancel: (id, runId) =>
@@ -197,6 +236,33 @@ export const rowsQuery = (
 		placeholderData: keepPreviousData,
 		retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 1,
 	});
+
+export const documentsQuery = (
+	id: string,
+	ref: CollectionRef,
+	find: DocumentsFind,
+) =>
+	infiniteQueryOptions({
+		queryKey: [...key(id), "documents", ref.database, ref.collection, find],
+		queryFn: ({ pageParam }) =>
+			databaseApi.documents(id, ref, {
+				...find,
+				...(pageParam ? { cursor: pageParam } : {}),
+			}),
+		initialPageParam: "",
+		getNextPageParam: (last) => last.nextCursor ?? undefined,
+		placeholderData: keepPreviousData,
+		retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 1,
+	});
+
+/** Writes one document, then refreshes the pages and the collection counts. */
+export function useWriteDocument(id: string, ref: CollectionRef) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (op: DocumentWrite) => databaseApi.writeDocument(id, ref, op),
+		onSuccess: () => qc.invalidateQueries({ queryKey: key(id) }),
+	});
+}
 
 /** Writes one batch, then refreshes every page and the schema's row estimates. */
 export function useWriteRows(id: string, ref: TableRef) {

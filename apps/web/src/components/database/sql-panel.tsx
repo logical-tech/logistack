@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { ResultTabs, type RunOutcome } from "./result-table";
 import { defaultSchema, SqlEditor, type SqlEditorHandle } from "./sql-editor";
 
-const MOD =
+export const MOD =
 	typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform)
 		? "⌘"
 		: "Ctrl";

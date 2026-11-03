@@ -7,7 +7,12 @@ import {
 	restoreScript,
 } from "@logistack/core";
 import { envVar, service } from "@logistack/db";
-import { type DatabaseClient, databaseClient } from "@logistack/providers";
+import {
+	type DatabaseClient,
+	type DocumentClient,
+	databaseClient,
+	type SqlClient,
+} from "@logistack/providers";
 import {
 	ExecFailed,
 	feed,
@@ -53,6 +58,9 @@ const ENV_KEYS = [
 	"MYSQL_DATABASE",
 	"MARIADB_ROOT_PASSWORD",
 	"MARIADB_DATABASE",
+	"MONGO_INITDB_ROOT_USERNAME",
+	"MONGO_INITDB_ROOT_PASSWORD",
+	"MONGO_INITDB_DATABASE",
 ];
 
 type Login = {
@@ -87,6 +95,13 @@ const LOGIN: Partial<
 		passwordKey: "MARIADB_ROOT_PASSWORD",
 		password: env.MARIADB_ROOT_PASSWORD || env.MYSQL_ROOT_PASSWORD,
 		database: env.MARIADB_DATABASE || env.MYSQL_DATABASE || "",
+	}),
+	// Authenticates against `admin`; the database only names the one the tab opens first.
+	mongo: (env) => ({
+		user: env.MONGO_INITDB_ROOT_USERNAME || "root",
+		passwordKey: "MONGO_INITDB_ROOT_PASSWORD",
+		password: env.MONGO_INITDB_ROOT_PASSWORD,
+		database: env.MONGO_INITDB_DATABASE ?? "",
 	}),
 };
 
@@ -164,6 +179,19 @@ export async function openDatabase(
 	return { id: serviceId, slug, engine, client: cached.client };
 }
 
+/** The client of a SQL engine; Mongo has collections, not tables. */
+export function sqlClient(db: DatabaseService): SqlClient {
+	if (db.client.kind !== "sql")
+		throw new Failure("bad_request", `${db.engine} has no tables or SQL`);
+	return db.client;
+}
+
+export function documentClient(db: DatabaseService): DocumentClient {
+	if (db.client.kind !== "document")
+		throw new Failure("bad_request", `${db.engine} has no collections`);
+	return db.client;
+}
+
 // shortcut: in memory, so a cancel must reach the api replica running the query; share it (Redis) when the api scales out.
 const runs = new Map<
 	string,
@@ -183,7 +211,7 @@ export async function runQuery(
 		runs.set(runId, { serviceId: db.id, actorId, abort });
 	}
 	try {
-		return await db.client.query(input.sql, {
+		return await sqlClient(db).query(input.sql, {
 			readOnly: input.readOnly,
 			signal: abort.signal,
 		});

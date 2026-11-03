@@ -329,6 +329,13 @@ export function createMockDb(): MockDb {
 			"running",
 		),
 		service(
+			e("storefront", "production"),
+			"catalog",
+			"catalog",
+			db("mongo", "8.0"),
+			"running",
+		),
+		service(
 			e("storefront", "staging"),
 			"web",
 			"web",

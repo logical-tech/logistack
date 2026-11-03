@@ -1,6 +1,9 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
 	DatabaseSchema,
+	DocumentsPage,
+	DocumentWrite,
+	DocumentWritten,
 	QueryRequest,
 	QueryResult,
 	ROWS_LIMIT,
@@ -14,11 +17,13 @@ import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import {
 	cancelRun,
+	documentClient,
 	dumpResponse,
 	dumpTarget,
 	openDatabase,
 	restoreFrom,
 	runQuery,
+	sqlClient,
 } from "../database.ts";
 import { Failure, notFound, parseInput } from "../errors.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
@@ -30,7 +35,26 @@ const TableParams = z.object({
 	schema: z.string().min(1),
 	table: z.string().min(1),
 });
+const CollectionParams = z.object({
+	id: z.string(),
+	database: z.string().min(1),
+	collection: z.string().min(1),
+});
 const svc = byParam("service");
+
+const DocumentsParams = z.object({
+	limit: z.coerce.number().int().min(1).max(ROWS_LIMIT).default(100),
+	cursor: z.string().optional(),
+	filter: z
+		.string()
+		.optional()
+		.describe('Extended JSON query, e.g. {"qty":{"$gt":5}}'),
+	sort: z.string().optional().describe('Extended JSON sort, e.g. {"at":-1}'),
+	projection: z
+		.string()
+		.optional()
+		.describe('Extended JSON projection, e.g. {"name":1}'),
+});
 
 const RowsParams = z.object({
 	limit: z.coerce.number().int().min(1).max(ROWS_LIMIT).default(100),
@@ -98,7 +122,7 @@ export const databases = router()
 				filter: parseInput(z.array(RowFilter), jsonParam(q.filter, "filter")),
 			};
 			const db = await openDatabase(c, id);
-			return c.json(await db.client.rows({ schema, table }, query), 200);
+			return c.json(await sqlClient(db).rows({ schema, table }, query), 200);
 		},
 	)
 	.openapi(
@@ -122,7 +146,68 @@ export const databases = router()
 			c.set("auditResourceId", id);
 			const db = await openDatabase(c, id);
 			return c.json(
-				await db.client.mutate({ schema, table }, c.req.valid("json").ops),
+				await sqlClient(db).mutate({ schema, table }, c.req.valid("json").ops),
+				200,
+			);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/databases/{id}/collections/{database}/{collection}/documents",
+			tags: ["databases"],
+			security,
+			summary: "One page of a MongoDB collection's documents",
+			description:
+				"Documents come back as canonical Extended JSON v2, so ObjectId, dates, int32/long/double, Decimal128 and binary keep their exact type. `filter`, `sort` and `projection` are Extended JSON objects given to `find`, never shell code: `$where`, `$function` and `$accumulator` are rejected with 400 wherever they appear. `_id` is always returned. Pass `nextCursor` back as `cursor` with the same filter and sort. Each find runs under a 30 s maxTimeMS.",
+			middleware: [requirePermission("read", svc)],
+			request: { params: CollectionParams, query: DocumentsParams },
+			responses: { 200: json(DocumentsPage, "Documents"), ...errors },
+		}),
+		async (c) => {
+			const { id, database, collection } = c.req.valid("param");
+			const db = await openDatabase(c, id);
+			return c.json(
+				await documentClient(db).find(
+					{ database, collection },
+					c.req.valid("query"),
+				),
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.document_write",
+			createRoute({
+				method: "post",
+				path: "/databases/{id}/collections/{database}/{collection}/documents",
+				tags: ["databases"],
+				security,
+				summary: "Insert, replace or delete one MongoDB document",
+				description:
+					"One operation per request, so it is atomic on a standalone server, which has no multi-document transactions. Documents and `_id`s are Extended JSON. A replace or delete whose `_id` matches nothing is a 409 with `details.reason` `stale`. A replace stores the whole document it is given: send every field, not a projection.",
+				middleware: [requirePermission("write", svc)],
+				request: { params: CollectionParams, ...body(DocumentWrite) },
+				responses: {
+					200: json(DocumentWritten, "Written document"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { id, database, collection } = c.req.valid("param");
+			const op = c.req.valid("json");
+			c.set("auditResourceId", id);
+			c.set("auditDiff", {
+				database,
+				collection,
+				op: op.op,
+				...(op.op === "insert" ? {} : { id: op.id }),
+			});
+			const db = await openDatabase(c, id);
+			return c.json(
+				await documentClient(db).write({ database, collection }, op),
 				200,
 			);
 		},
