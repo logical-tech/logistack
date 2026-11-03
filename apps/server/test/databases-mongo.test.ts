@@ -54,7 +54,24 @@ async function startMongo() {
 			return { target, admin: c };
 		} catch (e) {
 			await c.close().catch(() => {});
-			if (Date.now() > deadline) throw e;
+			if (Date.now() > deadline) {
+				const state = Bun.spawnSync(
+					[
+						"docker",
+						"inspect",
+						"-f",
+						"{{.State.Status}} exit={{.State.ExitCode}}",
+						name,
+					],
+					{ stderr: "pipe" },
+				).stdout.toString();
+				const logs = Bun.spawnSync(["docker", "logs", "--tail", "40", name], {
+					stderr: "pipe",
+				});
+				throw new Error(
+					`mongo never accepted a login (${state.trim()}): ${e instanceof Error ? e.message : e}\n${logs.stdout}${logs.stderr}`,
+				);
+			}
 			await Bun.sleep(500);
 		}
 	}
