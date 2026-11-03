@@ -125,7 +125,8 @@ services:
         target: redis_password
       - *agent-token
     # ls-storage: the object browser and key management talk to storage services directly.
-    networks: [ls-control, ls-storage]
+    # ls-db: the database explorer talks to database services directly.
+    networks: [ls-control, ls-storage, ls-db]
     deploy:
       <<: *rolling
       replicas: 1
@@ -142,6 +143,7 @@ services:
       LS_CONTROL_NETWORK: ls-control
       LS_INGRESS_NETWORK: ls-ingress
       LS_STORAGE_NETWORK: ls-storage
+      LS_DB_NETWORK: ls-db
       LS_CADDY_SERVICE: logistack_caddy
       LS_API_UPSTREAM: logistack-api:3000
       # Must match the railpack CLI pinned in the Dockerfile: the plan format follows the release.
@@ -152,8 +154,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - workerdata:/var/lib/logistack
-    # ls-storage: backups to a LogiStack storage service.
-    networks: [ls-control, ls-storage]
+    # ls-storage: backups to a LogiStack storage service. ls-db: so the worker can attach databases to it.
+    networks: [ls-control, ls-storage, ls-db]
     healthcheck:
       disable: true
     deploy:
@@ -236,6 +238,11 @@ networks:
   # Storage services plus the api and worker; apps never join, they reach storage on their environment network.
   ls-storage:
     name: ls-storage
+    driver: overlay
+    attachable: true
+  # Database services plus the api and worker, for the database explorer; apps reach databases on their environment network.
+  ls-db:
+    name: ls-db
     driver: overlay
     attachable: true
 

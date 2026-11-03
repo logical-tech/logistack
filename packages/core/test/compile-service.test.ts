@@ -132,6 +132,24 @@ describe("networks", () => {
 			expect(targets(database(engine))).toEqual(["net-env-id"]);
 	});
 
+	test("databases join the db network without an alias; apps never do", () => {
+		const withDb = (i: CompileServiceInput) => ({
+			...i,
+			networks: { ...i.networks, db: "net-db-id" },
+		});
+		for (const engine of Object.keys(dbEnv) as DatabaseEngine[])
+			expect(
+				compileService(withDb(database(engine))).TaskTemplate.Networks,
+			).toEqual([
+				{ Target: "net-env-id", Aliases: ["db"] },
+				{ Target: "net-db-id" },
+			]);
+		expect(targets(withDb({ ...app, domains: [{ port: 8080 }] }))).toEqual([
+			"net-env-id",
+			"net-ingress-id",
+		]);
+	});
+
 	test("the slug is the only alias, and only on the environment network", () => {
 		const nets = compileService({ ...app, domains: [{ port: 8080 }] })
 			.TaskTemplate.Networks;

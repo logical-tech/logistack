@@ -49,7 +49,13 @@ export type CompileServiceInput = {
 	mounts: CompileMount[];
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
-	networks: { environment: string; ingress: string; storage?: string };
+	/** `db`: the shared network the api reaches databases on for the explorer; absent leaves them off it. */
+	networks: {
+		environment: string;
+		ingress: string;
+		storage?: string;
+		db?: string;
+	};
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
@@ -401,6 +407,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				...(store && input.networks.storage
 					? [{ Target: input.networks.storage }]
 					: []),
+				...(isDb && input.networks.db ? [{ Target: input.networks.db }] : []),
 			],
 		},
 		Mode: { Replicated: { Replicas: replicas } },

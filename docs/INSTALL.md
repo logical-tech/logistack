@@ -51,7 +51,7 @@ The installer is idempotent. Re-running it repairs a broken install and never ro
 | `/var/log/logistack-install.log` | Full output of every command the installer ran, mode 600. |
 | Stack `logistack` | `postgres`, `redis`, `logistack-api`, `logistack-worker`, `logistack-agent` (one per node), `caddy` (one per ingress node). |
 | Service `ls-buildkit` | Rootless BuildKit for git builds. The worker creates it on the first build, outside the stack. `uninstall.sh` removes it. |
-| Networks | `ls-control` (10.247.0.0/16, control plane, never reachable from apps) `ls-ingress` (Caddy plus services with a domain) and `ls-storage` (storage services, the api and the worker; apps never join). |
+| Networks | `ls-control` (10.247.0.0/16, control plane, never reachable from apps) `ls-ingress` (Caddy plus services with a domain) `ls-storage` (storage services, the api and the worker; apps never join) and `ls-db` (database services, the api and the worker, for the database explorer; apps never join). |
 | Volumes | `logistack_pgdata` and `logistack_redisdata`, local to the node labelled `logistack.data=true`. `logistack_workerdata` holds clones and build logs, `ls-buildkit-cache` the build cache. |
 
 If the server already has `/etc/logistack/credentials` but no secrets (for example a new server where you copied the file), the installer creates the secrets from the file instead of generating new values. This is the manual disaster recovery path until `install.sh --restore` exists.

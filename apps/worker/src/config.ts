@@ -29,6 +29,7 @@ const ConfigSchema = z.object({
 	LS_INGRESS_NETWORK: z.string().default("ls-ingress"),
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
+	LS_DB_NETWORK: z.string().default("ls-db"),
 	/** Swarm service name of the Caddy ingress (stack `logistack`, service `caddy`). */
 	LS_CADDY_SERVICE: z.string().default("logistack_caddy"),
 	LS_API_UPSTREAM: z.string().default("logistack-api:3000"),

@@ -1,5 +1,6 @@
 export * from "./agent.ts";
 export * from "./agent-rpc.ts";
+export * from "./database.ts";
 export * from "./enums.ts";
 export * from "./errors.ts";
 export * from "./events.ts";

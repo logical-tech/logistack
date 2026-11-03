@@ -16,6 +16,11 @@ export type Deps = {
 	nodes: NodeRunner;
 	/** How the api dials a storage service's port; default its Swarm name on ls-storage. */
 	storageEndpoint?: (serviceId: string, port: number) => string;
+	/** How the api dials a database service's port; default its Swarm name on ls-db. */
+	databaseEndpoint?: (
+		serviceId: string,
+		port: number,
+	) => { host: string; port: number };
 };
 
 export type Env = {

@@ -148,6 +148,14 @@ export async function desiredSpec(
 		sc.service.spec.kind === "storage"
 			? await ctx.docker.networks.inspect(ctx.cfg.LS_STORAGE_NETWORK)
 			: undefined;
+	// Optional: without ls-db (dev machines, test harnesses) the database deploys, the explorer just can't reach it.
+	const db =
+		sc.service.spec.kind === "database"
+			? await ctx.docker.networks.inspect(ctx.cfg.LS_DB_NETWORK).catch((e) => {
+					if (notFound(e)) return undefined;
+					throw e;
+				})
+			: undefined;
 	const input: CompileServiceInput = {
 		service: {
 			id: sc.service.id,
@@ -168,6 +176,7 @@ export async function desiredSpec(
 			environment: envNet,
 			ingress: ingress.Id,
 			...(storage ? { storage: storage.Id } : {}),
+			...(db ? { db: db.Id } : {}),
 		},
 		fileIds: {},
 		scope: scope(ctx),
