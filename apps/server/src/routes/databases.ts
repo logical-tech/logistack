@@ -1,27 +1,119 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { DatabaseSchema } from "@logistack/contracts";
+import {
+	DatabaseSchema,
+	ROWS_LIMIT,
+	RowFilter,
+	RowSort,
+	RowsPage,
+	RowsWrite,
+	RowsWritten,
+} from "@logistack/contracts";
+import { mutation } from "../audit.ts";
 import { openDatabase } from "../database.ts";
-import { errors, json, router, security } from "../openapi.ts";
+import { Failure, parseInput } from "../errors.ts";
+import { body, errors, json, router, security } from "../openapi.ts";
 import { byParam, requirePermission } from "../scope.ts";
 
 const Id = z.object({ id: z.string() });
+const TableParams = z.object({
+	id: z.string(),
+	schema: z.string().min(1),
+	table: z.string().min(1),
+});
 const svc = byParam("service");
 
-export const databases = router().openapi(
-	createRoute({
-		method: "get",
-		path: "/databases/{id}/schema",
-		tags: ["databases"],
-		security,
-		summary: "Schemas, tables, views and columns of a database service",
-		description:
-			"A database deployed before the explorer existed is not on its network yet: the call fails with 409 and `details.reason` `unreachable` until the service is redeployed.",
-		middleware: [requirePermission("read", svc)],
-		request: { params: Id },
-		responses: { 200: json(DatabaseSchema, "Schema"), ...errors },
-	}),
-	async (c) => {
-		const db = await openDatabase(c, c.req.valid("param").id);
-		return c.json(await db.client.introspect(), 200);
-	},
-);
+const RowsParams = z.object({
+	limit: z.coerce.number().int().min(1).max(ROWS_LIMIT).default(100),
+	cursor: z.string().optional(),
+	sort: z
+		.string()
+		.optional()
+		.describe('JSON array of RowSort, e.g. [{"column":"id","desc":true}]'),
+	filter: z
+		.string()
+		.optional()
+		.describe(
+			'JSON array of RowFilter, e.g. [{"column":"name","op":"contains","value":"x"}]',
+		),
+});
+
+function jsonParam(raw: string | undefined, name: string): unknown {
+	if (raw === undefined) return [];
+	try {
+		return JSON.parse(raw);
+	} catch {
+		throw new Failure("validation_failed", `${name} is not valid JSON`);
+	}
+}
+
+export const databases = router()
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/databases/{id}/schema",
+			tags: ["databases"],
+			security,
+			summary: "Schemas, tables, views and columns of a database service",
+			description:
+				"A database deployed before the explorer existed is not on its network yet: the call fails with 409 and `details.reason` `unreachable` until the service is redeployed.",
+			middleware: [requirePermission("read", svc)],
+			request: { params: Id },
+			responses: { 200: json(DatabaseSchema, "Schema"), ...errors },
+		}),
+		async (c) => {
+			const db = await openDatabase(c, c.req.valid("param").id);
+			return c.json(await db.client.introspect(), 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/databases/{id}/tables/{schema}/{table}/rows",
+			tags: ["databases"],
+			security,
+			summary: "One page of a table's or view's rows, sorted and filtered",
+			description:
+				"Pass `nextCursor` back as `cursor` for the next page, with the same sort and filter.",
+			middleware: [requirePermission("read", svc)],
+			request: { params: TableParams, query: RowsParams },
+			responses: { 200: json(RowsPage, "Rows"), ...errors },
+		}),
+		async (c) => {
+			const { id, schema, table } = c.req.valid("param");
+			const q = c.req.valid("query");
+			const query = {
+				limit: q.limit,
+				cursor: q.cursor,
+				sort: parseInput(z.array(RowSort), jsonParam(q.sort, "sort")),
+				filter: parseInput(z.array(RowFilter), jsonParam(q.filter, "filter")),
+			};
+			const db = await openDatabase(c, id);
+			return c.json(await db.client.rows({ schema, table }, query), 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.rows_write",
+			createRoute({
+				method: "post",
+				path: "/databases/{id}/tables/{schema}/{table}/rows",
+				tags: ["databases"],
+				security,
+				summary: "Insert, update and delete rows in one transaction",
+				description:
+					"Updates and deletes address a row by its full primary key. When one of them does not hit exactly one row the whole batch rolls back with 409 and `details.reason` `stale`. Tables without a primary key and views are rejected with 400.",
+				middleware: [requirePermission("write", svc)],
+				request: { params: TableParams, ...body(RowsWrite) },
+				responses: { 200: json(RowsWritten, "Written rows"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { id, schema, table } = c.req.valid("param");
+			c.set("auditResourceId", id);
+			const db = await openDatabase(c, id);
+			return c.json(
+				await db.client.mutate({ schema, table }, c.req.valid("json").ops),
+				200,
+			);
+		},
+	);

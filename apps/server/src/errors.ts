@@ -1,6 +1,10 @@
 import type { Hook } from "@hono/zod-openapi";
 import type { ApiError, ErrorCode } from "@logistack/contracts";
-import { DatabaseError, StorageError } from "@logistack/providers";
+import {
+	DatabaseError,
+	type DatabaseFailure,
+	StorageError,
+} from "@logistack/providers";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Env } from "./env.ts";
@@ -91,6 +95,15 @@ const storageCodes: Record<number, ErrorCode> = {
 	409: "conflict",
 };
 
+const databaseCodes: Record<DatabaseFailure, ErrorCode> = {
+	unreachable: "conflict",
+	auth: "conflict",
+	stale: "conflict",
+	query: "bad_request",
+	unsupported: "bad_request",
+	missing: "not_found",
+};
+
 export function onError(err: Error, c: Context<Env>) {
 	if (err instanceof Failure)
 		return c.json(body(err.code, err.message, err.details), err.status);
@@ -104,10 +117,7 @@ export function onError(err: Error, c: Context<Env>) {
 	}
 	if (err instanceof DatabaseError) {
 		// The service's own database, not ours: never let its SQLSTATE map through pgCodes.
-		const code: ErrorCode =
-			err.reason === "query" || err.reason === "unsupported"
-				? "bad_request"
-				: "conflict";
+		const code = databaseCodes[err.reason];
 		const hint =
 			err.reason === "unreachable"
 				? " (a database deployed before the explorer existed needs a redeploy to join its network)"
