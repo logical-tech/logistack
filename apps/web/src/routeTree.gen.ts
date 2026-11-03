@@ -69,6 +69,7 @@ import { Route as AppProjectsProjectIdTemplatesIndexRouteImport } from './routes
 import { Route as AppProjectsProjectIdTemplatesTemplateIdRouteImport } from './routes/_app/projects/$projectId/templates/$templateId'
 import { Route as AppProjectsProjectIdServicesServiceIdIndexRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/index'
 import { Route as AppProjectsProjectIdServicesServiceIdBackupsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/backups'
+import { Route as AppProjectsProjectIdServicesServiceIdDatabaseRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/database'
 import { Route as AppProjectsProjectIdServicesServiceIdDeploymentsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/deployments'
 import { Route as AppProjectsProjectIdServicesServiceIdDomainsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/domains'
 import { Route as AppProjectsProjectIdServicesServiceIdEnvironmentRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/environment'
@@ -396,6 +397,12 @@ const AppProjectsProjectIdServicesServiceIdBackupsRoute =
     path: '/backups',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdServicesServiceIdDatabaseRoute =
+  AppProjectsProjectIdServicesServiceIdDatabaseRouteImport.update({
+    id: '/database',
+    path: '/database',
+    getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdDeploymentsRoute =
   AppProjectsProjectIdServicesServiceIdDeploymentsRouteImport.update({
     id: '/deployments',
@@ -503,6 +510,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
+  '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   '/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
@@ -567,6 +575,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates': typeof AppProjectsProjectIdTemplatesIndexRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
+  '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   '/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
@@ -638,6 +647,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/_app/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
   '/_app/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
+  '/_app/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/_app/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   '/_app/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/_app/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
@@ -708,6 +718,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates/'
     | '/projects/$projectId/services/$serviceId/backups'
+    | '/projects/$projectId/services/$serviceId/database'
     | '/projects/$projectId/services/$serviceId/deployments'
     | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
@@ -772,6 +783,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates'
     | '/projects/$projectId/services/$serviceId/backups'
+    | '/projects/$projectId/services/$serviceId/database'
     | '/projects/$projectId/services/$serviceId/deployments'
     | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
@@ -842,6 +854,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/templates/$templateId'
     | '/_app/projects/$projectId/templates/'
     | '/_app/projects/$projectId/services/$serviceId/backups'
+    | '/_app/projects/$projectId/services/$serviceId/database'
     | '/_app/projects/$projectId/services/$serviceId/deployments'
     | '/_app/projects/$projectId/services/$serviceId/domains'
     | '/_app/projects/$projectId/services/$serviceId/environment'
@@ -1281,6 +1294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdBackupsRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/services/$serviceId/database': {
+      id: '/_app/projects/$projectId/services/$serviceId/database'
+      path: '/database'
+      fullPath: '/projects/$projectId/services/$serviceId/database'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdDatabaseRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/deployments': {
       id: '/_app/projects/$projectId/services/$serviceId/deployments'
       path: '/deployments'
@@ -1361,6 +1381,7 @@ const AppMonitoringRouteRouteWithChildren =
 
 interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
   AppProjectsProjectIdServicesServiceIdBackupsRoute: typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
+  AppProjectsProjectIdServicesServiceIdDatabaseRoute: typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   AppProjectsProjectIdServicesServiceIdDeploymentsRoute: typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   AppProjectsProjectIdServicesServiceIdDomainsRoute: typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   AppProjectsProjectIdServicesServiceIdEnvironmentRoute: typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
@@ -1376,6 +1397,8 @@ const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjec
   {
     AppProjectsProjectIdServicesServiceIdBackupsRoute:
       AppProjectsProjectIdServicesServiceIdBackupsRoute,
+    AppProjectsProjectIdServicesServiceIdDatabaseRoute:
+      AppProjectsProjectIdServicesServiceIdDatabaseRoute,
     AppProjectsProjectIdServicesServiceIdDeploymentsRoute:
       AppProjectsProjectIdServicesServiceIdDeploymentsRoute,
     AppProjectsProjectIdServicesServiceIdDomainsRoute:

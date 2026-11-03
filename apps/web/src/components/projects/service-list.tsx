@@ -27,7 +27,7 @@ const KIND_ICON: Record<ServiceKind, LucideIcon> = {
 	storage: HardDrive,
 };
 
-const ENGINE: Record<DatabaseEngine, string> = {
+export const ENGINE: Record<DatabaseEngine, string> = {
 	postgres: "PostgreSQL",
 	mysql: "MySQL",
 	mariadb: "MariaDB",
