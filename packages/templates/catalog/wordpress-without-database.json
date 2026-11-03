@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "wordpress-without-database",
+	"name": "Wordpress Without Database",
+	"description": "WordPress is open source software you can use to create a beautiful website, blog, or app.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"blog",
+		"content",
+		"management"
+	],
+	"logo": "logos/wordpress-without-database.svg",
+	"docs": "https://wordpress.org/",
+	"version": "sha256:1f59452d2cee",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/wordpress-without-database.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "wordpressDomain",
+			"label": "Wordpress domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "wordpress",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "wordpress-files",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "wordpress@sha256:1f59452d2ceed177ad383d17b3a6a7a5c8225d89e34adb36880af8603ac244c2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "wordpressDomain"
+			}
+		}
+	]
+}

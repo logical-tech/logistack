@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "solidping",
+	"name": "SolidPing",
+	"description": "Distributed, self-hostable uptime monitoring: 40 check types, multi-region workers, private agents, status pages, incidents and on-call escalation — in a single Go binary.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"uptime",
+		"status-page",
+		"observability",
+		"alerts"
+	],
+	"logo": "logos/solidping.svg",
+	"website": "https://solidping.io/",
+	"docs": "https://solidping.io/docs",
+	"version": "0.32.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/solidping",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "solidping",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "solidping-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/fclairamb/solidping:0.32.1",
+			"ports": [
+				{
+					"target": 4000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 4000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

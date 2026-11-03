@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "statping-ng",
+	"name": "Statping-NG",
+	"description": "Statping-NG is an easy-to-use status page for monitoring websites and applications with beautiful metrics, analytics, and health checks.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"status-page"
+	],
+	"logo": "logos/statping-ng.png",
+	"website": "https://statping-ng.github.io/",
+	"docs": "https://statping-ng.github.io/install.html",
+	"version": "sha256:e32bd2e50ca0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/statping-ng",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "statping-ng",
+			"dependsOn": [],
+			"env": {
+				"TZ": "UTC",
+				"DB_CONN": "sqlite"
+			},
+			"volumes": [
+				{
+					"name": "files-statping-ng",
+					"target": "/app"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "adamboutcher/statping-ng@sha256:e32bd2e50ca023f37b0650e1942d51cb9269a2caab11042bc0cc53fac0474a2b",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

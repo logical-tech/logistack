@@ -1,0 +1,149 @@
+{
+	"schema": 1,
+	"id": "firefly",
+	"name": "Firefly",
+	"description": "A personal finances manager that can help you save money.",
+	"category": "finance",
+	"tags": [
+		"finance",
+		"money",
+		"personal",
+		"manager"
+	],
+	"logo": "logos/firefly.svg",
+	"docs": "https://firefly-iii.org/",
+	"version": "sha256:d51ab6a3a7b9",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/firefly.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "fireflyDomain",
+			"label": "Firefly domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "appkeySecret",
+			"label": "Appkey secret",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "crontokenSecret",
+			"label": "Crontoken secret",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "firefly",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"APP_KEY": "${{ inputs.appkeySecret }}",
+				"DB_HOST": "${{ services.mysql.host }}",
+				"DB_PORT": "3306",
+				"DB_CONNECTION": "mysql",
+				"DB_DATABASE": "firefly",
+				"DB_USERNAME": "${{ inputs.mysqlUser }}",
+				"DB_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"STATIC_CRON_TOKEN": "${{ inputs.crontokenSecret }}",
+				"TRUSTED_PROXIES": "*"
+			},
+			"volumes": [
+				{
+					"name": "firefly-upload",
+					"target": "/var/www/html/storage/upload"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "fireflyiii/core@sha256:d51ab6a3a7b91a5c892441578e0da7f2935f84f36bd1151fc3833acc6e060871",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8080/health"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "fireflyDomain"
+			}
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DATABASE": "firefly",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "firefly-mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": []
+		},
+		{
+			"name": "cron",
+			"dependsOn": [],
+			"env": {
+				"STATIC_CRON_TOKEN": "${{ inputs.crontokenSecret }}"
+			},
+			"volumes": [],
+			"files": [
+				{
+					"target": "/entrypoint.sh",
+					"content": "#!/bin/sh\n# Substitute the environment variable into the cron command\nCRON_COMMAND=\"0 3 * * * wget -qO- http://firefly:8080/api/v1/cron/${STATIC_CRON_TOKEN}\"\n# Add the cron command to the crontab\necho \"$CRON_COMMAND\" | crontab -\n# Start the cron daemon in the foreground with logging to stdout\ncrond -f -L /dev/stdout\n"
+				}
+			],
+			"kind": "application",
+			"image": "alpine@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a",
+			"entrypoint": [
+				"/entrypoint.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"ls /entrypoint.sh || exit 1"
+				]
+			}
+		}
+	]
+}

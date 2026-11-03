@@ -1,0 +1,105 @@
+{
+	"schema": 1,
+	"id": "kener",
+	"name": "Kener",
+	"description": "Kener is an open-source status page system for monitoring and alerting. It provides a modern interface for tracking service uptime and sending notifications.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"status-page",
+		"alerting",
+		"self-hosted"
+	],
+	"logo": "logos/kener.png",
+	"website": "https://kener.ing/",
+	"docs": "https://kener.ing/docs/",
+	"version": "4.1.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kener",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "kenerSecretKey",
+			"label": "Kener secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [
+				{
+					"target": 6379,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "kener",
+			"dependsOn": [
+				"redis"
+			],
+			"env": {
+				"TZ": "Etc/UTC",
+				"KENER_SECRET_KEY": "${{ inputs.kenerSecretKey }}",
+				"ORIGIN": "http://localhost:3000",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"DATABASE_URL": "sqlite://./database/kener.sqlite.db",
+				"RESEND_API_KEY": "",
+				"RESEND_SENDER_EMAIL": ""
+			},
+			"volumes": [
+				{
+					"name": "data",
+					"target": "/app/database"
+				},
+				{
+					"name": "files-uploads",
+					"target": "/app/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "rajnandan1/kener:4.1.1",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

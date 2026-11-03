@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "lidarr",
+	"name": "Lidarr",
+	"description": "Lidarr - a music collection manager for Usenet and BitTorrent users",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"music",
+		"audio"
+	],
+	"logo": "logos/lidarr.svg",
+	"docs": "https://hub.docker.com/r/linuxserver/lidarr",
+	"version": "3.1.0.4875-ls40",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/lidarr.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "lidarrDomain",
+			"label": "Lidarr domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "lidarr",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "America/Toronto"
+			},
+			"volumes": [
+				{
+					"name": "lidarr-config",
+					"target": "/config"
+				},
+				{
+					"name": "lidarr-music",
+					"target": "/music"
+				},
+				{
+					"name": "lidarr-downloads",
+					"target": "/downloads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/lidarr:3.1.0.4875-ls40",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:8686"
+				]
+			},
+			"public": {
+				"port": 8686,
+				"domain": "lidarrDomain"
+			}
+		}
+	]
+}

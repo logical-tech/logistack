@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "dexio",
+	"name": "Dexio",
+	"description": "One wiki for all your agents. AI agents read and write linked markdown pages over MCP from any machine, and people see what they know in a web app: the link graph, every page and its history.",
+	"category": "ai",
+	"tags": [
+		"wiki",
+		"knowledge-base",
+		"markdown",
+		"mcp",
+		"ai",
+		"agents"
+	],
+	"logo": "logos/dexio.svg",
+	"website": "https://dexio.wiki/",
+	"docs": "https://github.com/dexio-wiki/dexio/blob/main/deploy/README.md",
+	"version": "1.0.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/dexio",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "dexio",
+			"dependsOn": [],
+			"env": {
+				"DEXIO_PUBLIC_URL": "https://${{ inputs.mainDomain }}",
+				"DEXIO_SECRET_KEY": "${{ inputs.secretKey }}",
+				"DEXIO_DB": "/data/dexio.db",
+				"DEXIO_FILES_DIR": "/data/files"
+			},
+			"volumes": [
+				{
+					"name": "dexio-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/dexio-wiki/dexio:1.0.0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

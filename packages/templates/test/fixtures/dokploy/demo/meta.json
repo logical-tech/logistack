@@ -1,0 +1,13 @@
+{
+	"id": "demo",
+	"name": "Demo Board",
+	"version": "2.1.0",
+	"description": "A kanban board. Self-host it on your own server with Dokploy in minutes.",
+	"logo": "demo.svg",
+	"links": {
+		"github": "https://github.com/example/demo",
+		"website": "https://demo.example.org/",
+		"docs": "https://demo.example.org/docs"
+	},
+	"tags": ["Productivity", "kanban"]
+}

@@ -1,0 +1,102 @@
+{
+	"schema": 1,
+	"id": "qbittorrent",
+	"name": "Qbittorrent",
+	"description": "The qBittorrent project aims to provide an open-source software alternative to μTorrent.",
+	"category": "media",
+	"tags": [
+		"torrent",
+		"streaming",
+		"webui",
+		"download",
+		"file-sharing"
+	],
+	"logo": "logos/qbittorrent.svg",
+	"website": "https://www.qbittorrent.org/",
+	"docs": "https://docs.linuxserver.io/images/docker-qbittorrent/",
+	"version": "sha256:8887bd34b173",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/qbittorrent.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "qbitorrentDomain",
+			"label": "Qbitorrent domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "qbit",
+			"dependsOn": [],
+			"env": {
+				"WEBUI_PORT": "8080",
+				"PUID": "1000",
+				"PGID": "1000"
+			},
+			"volumes": [
+				{
+					"name": "qbittorrent-config",
+					"target": "/config"
+				},
+				{
+					"name": "qbittorrent-downloads",
+					"target": "/downloads"
+				},
+				{
+					"name": "qbittorrent-torrents",
+					"target": "/torrents"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/qbittorrent@sha256:05c1454f9a32967affc1f34f67f8cc0cc57dd805dca45489fe797095a6286556",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8080/"
+				]
+			}
+		},
+		{
+			"name": "vuetorrent-backend",
+			"dependsOn": [],
+			"env": {
+				"PORT": "8080",
+				"QBIT_BASE": "https://${{ inputs.qbitorrentDomain }}",
+				"RELEASE_TYPE": "stable",
+				"UPDATE_VT_CRON": "\"0 * * * *\""
+			},
+			"volumes": [
+				{
+					"name": "vuetorrent-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/vuetorrent/vuetorrent-backend@sha256:8887bd34b17396543c8374dcf2ab98af4c7deb24b24889cbc47742b3d56e4adc",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8080/"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "qbitorrentDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,57 @@
+{
+	"schema": 1,
+	"id": "organizr",
+	"name": "Organizr",
+	"description": "Homelab Services Organizer",
+	"category": "productivity",
+	"tags": [
+		"tool"
+	],
+	"logo": "logos/organizr.png",
+	"docs": "https://docs.organizr.app/",
+	"version": "sha256:703de7b15e3c",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/organizr.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "organizrDomain",
+			"label": "Organizr domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "organizr",
+			"dependsOn": [],
+			"env": {
+				"branch": "v2-master"
+			},
+			"volumes": [
+				{
+					"name": "organizr-data",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "organizr/organizr@sha256:703de7b15e3ca0046c9bcfee03c72539f74acc5e26929f2911aa1af2be8ebb01",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -sf http://localhost:80 || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "organizrDomain"
+			}
+		}
+	]
+}

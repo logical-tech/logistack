@@ -1,0 +1,65 @@
+{
+	"schema": 1,
+	"id": "slash",
+	"name": "Slash",
+	"description": "An open source, self-hosted links shortener and sharing platform.",
+	"category": "productivity",
+	"tags": [
+		"links",
+		"shortener",
+		"sharing",
+		"url",
+		"short",
+		"link",
+		"bookmarks",
+		"link-shortener",
+		"self-hosted"
+	],
+	"website": "https://github.com/yourselfhosted/slash#readme",
+	"docs": "https://github.com/yourselfhosted/slash",
+	"version": "sha256:ce3cc51f39f0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/slash.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "slashDomain",
+			"label": "Slash domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "slash",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "slash-data",
+					"target": "/var/opt/slash"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "yourselfhosted/slash@sha256:ce3cc51f39f0a55fc7d493e0968949bf3b2d78fe7f5b0f8376f38f4390aaca5d",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:5231"
+				]
+			},
+			"public": {
+				"port": 5231,
+				"domain": "slashDomain"
+			}
+		}
+	],
+	"logo": "logos/slash.png"
+}

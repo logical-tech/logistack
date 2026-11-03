@@ -1,0 +1,77 @@
+{
+	"schema": 1,
+	"id": "freellmapi",
+	"name": "FreeLLMAPI",
+	"description": "FreeLLMAPI aggregates free tiers from 29 LLM providers into a single OpenAI-compatible endpoint with smart routing, automatic failover, per-key rate tracking, and encrypted key storage.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"proxy",
+		"llm",
+		"openai-compatible",
+		"developer-tools"
+	],
+	"logo": "logos/freellmapi.svg",
+	"website": "https://freellmapi.co/",
+	"docs": "https://github.com/tashfeenahmed/freellmapi/blob/main/docs/install.md",
+	"version": "v0.8.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/freellmapi",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "freellmapi",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"PORT": "3001",
+				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}"
+			},
+			"volumes": [
+				{
+					"name": "freellmapi-data",
+					"target": "/app/server/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/tashfeenahmed/freellmapi:v0.8.4",
+			"ports": [
+				{
+					"target": 3001,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"fetch('http://127.0.0.1:3001/api/ping').then((res) => { if (!res.ok) process.exit(1); }).catch(() => process.exit(1));"
+				]
+			},
+			"public": {
+				"port": 3001,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

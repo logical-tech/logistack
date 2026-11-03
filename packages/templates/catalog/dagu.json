@@ -1,0 +1,74 @@
+{
+	"schema": 1,
+	"id": "dagu",
+	"name": "Dagu",
+	"description": "Dagu is a self-contained workflow engine with a Web UI. Schedule and orchestrate jobs as DAGs defined in declarative YAML, with no DBMS required.",
+	"category": "automation",
+	"tags": [
+		"workflow",
+		"automation",
+		"scheduler",
+		"cron",
+		"devops"
+	],
+	"logo": "logos/dagu.png",
+	"website": "https://dagu.sh/",
+	"docs": "https://docs.dagu.sh/",
+	"version": "2.10.7",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/dagu",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "dagu",
+			"dependsOn": [],
+			"env": {
+				"DAGU_HOST": "0.0.0.0",
+				"DAGU_PORT": "8080",
+				"DAGU_AUTH_MODE": "basic",
+				"DAGU_AUTH_BASIC_USERNAME": "admin",
+				"DAGU_AUTH_BASIC_PASSWORD": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "dagu-data",
+					"target": "/var/lib/dagu"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/dagucloud/dagu:2.10.7",
+			"command": [
+				"dagu",
+				"start-all"
+			],
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

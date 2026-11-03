@@ -1,0 +1,110 @@
+{
+	"schema": 1,
+	"id": "logto",
+	"name": "Logto",
+	"description": "A comprehensive identity solution covering both the front and backend, complete with pre-built infrastructure and enterprise-grade solutions.",
+	"category": "security",
+	"tags": [
+		"logto",
+		"identity",
+		"login",
+		"authentication",
+		"oauth",
+		"oidc",
+		"openid"
+	],
+	"logo": "logos/logto.svg",
+	"docs": "https://docs.logto.io/docs/tutorials/get-started/#logto-oss-self-hosted",
+	"version": "sha256:9a9aff9423ab",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/logto.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "logtoDomain",
+			"label": "Logto domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "logtoEndpoint",
+			"label": "Logto endpoint",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "logtoAdminEndpoint",
+			"label": "Logto admin endpoint",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "logto",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"TRUST_PROXY_HEADER": "1",
+				"DB_URL": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/logto",
+				"ENDPOINT": "${{ inputs.logtoEndpoint }}",
+				"ADMIN_ENDPOINT": "${{ inputs.logtoAdminEndpoint }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "svhd/logto@sha256:9a9aff9423ab7863f00c881c31408e0bfe4def730bac2182d0097367002f5854",
+			"entrypoint": [
+				"sh",
+				"-c",
+				"npm run cli db seed -- --swe && npm run alteration deploy latest && npm start"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"exit 0"
+				]
+			},
+			"public": {
+				"port": 3001,
+				"domain": "logtoDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "logto"
+			},
+			"volumes": [
+				{
+					"name": "logto-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "14-alpine"
+		}
+	]
+}

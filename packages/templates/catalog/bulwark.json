@@ -1,0 +1,80 @@
+{
+	"schema": 1,
+	"id": "bulwark",
+	"name": "Bulwark",
+	"description": "Modern webmail platform",
+	"category": "communication",
+	"tags": [
+		"mail",
+		"webmail",
+		"jmap",
+		"email",
+		"messaging"
+	],
+	"logo": "logos/bulwark.svg",
+	"docs": "https://bulwarkmail.org/docs",
+	"version": "v1.8.1",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/bulwark.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "bulwarkDomain",
+			"label": "Bulwark domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jmapServerUrl",
+			"label": "Jmap server URL",
+			"type": "text"
+		},
+		{
+			"key": "bulwarkHex",
+			"label": "Bulwark key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		}
+	],
+	"services": [
+		{
+			"name": "bulwark",
+			"dependsOn": [],
+			"env": {
+				"JMAP_SERVER_URL": "${{ inputs.jmapServerUrl }}",
+				"SESSION_SECRET": "${{ inputs.bulwarkHex }}"
+			},
+			"volumes": [
+				{
+					"name": "bulwark-config",
+					"target": "/app/data/admin"
+				},
+				{
+					"name": "bulwark-state",
+					"target": "/app/data/admin-state"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/bulwarkmail/webmail:v1.8.1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--no-verbose",
+					"--tries=1",
+					"--spider",
+					"http://127.0.0.1:3000/api/health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "bulwarkDomain"
+			}
+		}
+	]
+}

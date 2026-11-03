@@ -1,0 +1,248 @@
+{
+	"schema": 1,
+	"id": "bigcapital",
+	"name": "BigCapital",
+	"description": "BigCapital is a great open source alternative to QuickBooks. A comprehensive accounting and financial management system for businesses.",
+	"category": "finance",
+	"tags": [
+		"accounting",
+		"finance",
+		"bookkeeping",
+		"quickbooks",
+		"erp",
+		"business"
+	],
+	"logo": "logos/bigcapital.svg",
+	"website": "https://bigcapital.app/",
+	"docs": "https://github.com/bigcapitalhq/bigcapital",
+	"version": "sha256:7ce33209c225",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/bigcapital",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "agendashAuthPassword",
+			"label": "Agendash auth password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "webapp",
+			"dependsOn": [
+				"server"
+			],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "bigcapitalhq/webapp@sha256:7ce33209c225175264eca4a6adea9a398662ae1e3400d4d9a6857523cc2d4a56",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "server",
+			"dependsOn": [
+				"mysql",
+				"mongo",
+				"redis"
+			],
+			"env": {
+				"MAIL_HOST": "",
+				"MAIL_USERNAME": "",
+				"MAIL_PASSWORD": "",
+				"MAIL_PORT": "587",
+				"MAIL_SECURE": "false",
+				"MAIL_FROM_NAME": "BigCapital",
+				"MAIL_FROM_ADDRESS": "noreply@${{ inputs.mainDomain }}",
+				"DB_HOST": "${{ services.mysql.host }}",
+				"DB_USER": "bigcapital",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"DB_CHARSET": "utf8mb4",
+				"SYSTEM_DB_NAME": "bigcapital",
+				"TENANT_DB_NAME_PERFIX": "bigcapital_tenant_",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"MONGODB_DATABASE_URL": "mongodb://${{ services.mongo.host }}/bigcapital",
+				"BASE_URL": "https://${{ inputs.mainDomain }}",
+				"AGENDASH_AUTH_USER": "admin",
+				"AGENDASH_AUTH_PASSWORD": "${{ inputs.agendashAuthPassword }}",
+				"SIGNUP_DISABLED": "false",
+				"SIGNUP_ALLOWED_DOMAINS": "",
+				"SIGNUP_ALLOWED_EMAILS": "",
+				"SIGNUP_EMAIL_CONFIRMATION": "false",
+				"GOTENBERG_URL": "http://${{ services.gotenberg.host }}:9000",
+				"GOTENBERG_DOCS_URL": "http://${{ services.gotenberg.host }}:9000",
+				"EXCHANGE_RATE_SERVICE": "openexchangerates",
+				"OPEN_EXCHANGE_RATE_APP_ID": "",
+				"BANKING_CONNECT": "false",
+				"PLAID_ENV": "sandbox",
+				"PLAID_CLIENT_ID": "",
+				"PLAID_SECRET": "",
+				"PLAID_LINK_WEBHOOK": "",
+				"LEMONSQUEEZY_API_KEY": "",
+				"LEMONSQUEEZY_STORE_ID": "",
+				"LEMONSQUEEZY_WEBHOOK_SECRET": "",
+				"HOSTED_ON_BIGCAPITAL_CLOUD": "false",
+				"NEW_RELIC_DISTRIBUTED_TRACING_ENABLED": "false",
+				"NEW_RELIC_LOG": "false",
+				"NEW_RELIC_AI_MONITORING_ENABLED": "false",
+				"NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED": "10000",
+				"NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED": "10000",
+				"NEW_RELIC_LICENSE_KEY": "",
+				"NEW_RELIC_APP_NAME": "BigCapital",
+				"S3_REGION": "",
+				"S3_ACCESS_KEY_ID": "",
+				"S3_SECRET_ACCESS_KEY": "",
+				"S3_ENDPOINT": "",
+				"S3_BUCKET": ""
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "bigcapitalhq/server@sha256:dbedc06ad149726910bf86ca337acf4e435b7cc2e5ac3dcb8e1c60a876a3ddc0",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "bigcapital",
+				"MYSQL_USER": "bigcapital",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mysql",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.11",
+			"ports": [
+				{
+					"target": 3306,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD || exit 1"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mongo",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "mongo",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mongo:7",
+			"ports": [
+				{
+					"target": 27017,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [
+				{
+					"target": 6379,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "gotenberg",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "gotenberg/gotenberg:7",
+			"ports": [
+				{
+					"target": 9000,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		}
+	]
+}

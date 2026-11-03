@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "owncast",
+	"name": "Owncast",
+	"description": "Owncast is a self-hosted live video streaming and chat server for use with existing broadcasting software.",
+	"category": "media",
+	"tags": [
+		"streaming",
+		"live-video",
+		"chat",
+		"broadcasting",
+		"self-hosted",
+		"rtmp"
+	],
+	"logo": "logos/owncast.png",
+	"website": "https://owncast.online/",
+	"docs": "https://owncast.online/docs/",
+	"version": "sha256:39224bb144c1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/owncast",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "owncast",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "owncast-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "owncast/owncast@sha256:39224bb144c13aa84f7cc0028950c4c3f85a860037f9761e872989ba6b400c16",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				},
+				{
+					"target": 1935,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

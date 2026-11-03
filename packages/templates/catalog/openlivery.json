@@ -1,0 +1,194 @@
+{
+	"schema": 1,
+	"id": "openlivery",
+	"name": "OpenLivery",
+	"description": "MIT-licensed WhatsApp AI agents for agencies, with separate client workspaces and branded portals in one self-hosted installation",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"chat",
+		"customer-support"
+	],
+	"logo": "logos/openlivery.png",
+	"website": "https://www.openlivery.com/",
+	"docs": "https://github.com/sarrazola/openlivery/blob/main/docs/en/self-hosting.md",
+	"version": "v0.4.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/openlivery",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "secret",
+			"length": 48,
+			"charset": "hex"
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "bridgeToken",
+			"label": "Bridge token",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		}
+	],
+	"services": [
+		{
+			"name": "openlivery",
+			"dependsOn": [
+				"api",
+				"web"
+			],
+			"env": {},
+			"volumes": [],
+			"files": [
+				{
+					"target": "/etc/caddy/Caddyfile",
+					"content": ":80 {\n  handle /api/* {\n    reverse_proxy api:8000\n  }\n  handle {\n    reverse_proxy web:3000\n  }\n}\n"
+				}
+			],
+			"kind": "application",
+			"image": "caddy:2.10.2-alpine",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "openlivery",
+				"POSTGRES_USER": "openlivery",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17.6-alpine"
+		},
+		{
+			"name": "api",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql+psycopg://openlivery:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/openlivery",
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"WHATSAPP_BRIDGE_TOKEN": "${{ inputs.bridgeToken }}",
+				"FRONTEND_URL": "http://${{ inputs.mainDomain }}",
+				"COOKIE_SECURE": "false",
+				"COOKIE_SAMESITE": "lax",
+				"BACKEND_URL": "http://${{ services.api.host }}:8000",
+				"WHATSAPP_BRIDGE_URL": "http://${{ services.whatsapp.host }}:3101",
+				"STORAGE_DIR": "/app/backend/storage",
+				"ALLOW_MULTI_AGENCY": "false"
+			},
+			"volumes": [
+				{
+					"name": "backend-storage",
+					"target": "/app/backend/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/sarrazola/openlivery-api:v0.4.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"python",
+					"-c",
+					"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "web",
+			"dependsOn": [
+				"api"
+			],
+			"env": {
+				"BACKEND_INTERNAL_URL": "http://${{ services.api.host }}:8000"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/sarrazola/openlivery-web:v0.4.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"fetch('http://127.0.0.1:3000/login').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "whatsapp",
+			"dependsOn": [
+				"api"
+			],
+			"env": {
+				"BACKEND_URL": "http://${{ services.api.host }}:8000",
+				"WHATSAPP_BRIDGE_HOST": "0.0.0.0",
+				"WHATSAPP_BRIDGE_PORT": "3101",
+				"WHATSAPP_BRIDGE_TOKEN": "${{ inputs.bridgeToken }}",
+				"WHATSAPP_STORE_URL": "postgres://openlivery:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/openlivery?sslmode=disable&search_path=whatsmeow",
+				"WHATSAPP_LOG_LEVEL": "silent"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/sarrazola/openlivery-whatsapp:v0.4.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/app/bridge",
+					"-healthcheck"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

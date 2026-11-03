@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "statusnook",
+	"name": "Statusnook",
+	"description": "Effortlessly deploy a status page and start monitoring endpoints in minutes",
+	"category": "monitoring",
+	"tags": [
+		"go",
+		"html",
+		"monitoring",
+		"sqlite",
+		"self",
+		"hosted",
+		"status",
+		"page",
+		"htmx",
+		"smtp",
+		"slack"
+	],
+	"logo": "logos/statusnook.svg",
+	"docs": "https://statusnook.com/",
+	"version": "sha256:9b2c87213312",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/statusnook.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "statusnookDomain",
+			"label": "Statusnook domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "statusnook",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "statusnook-data",
+					"target": "/app/statusnook-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "goksan/statusnook@sha256:9b2c87213312b1856d52d576d7512aeae71190437b502739f352feba0bcc12e0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8000"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "statusnookDomain"
+			}
+		}
+	]
+}

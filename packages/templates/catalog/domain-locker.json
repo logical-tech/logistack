@@ -1,0 +1,105 @@
+{
+	"schema": 1,
+	"id": "domain-locker",
+	"name": "Domain Locker",
+	"description": "Domain Locker is an open-source tool for tracking domain expirations and sending renewal reminders.",
+	"category": "monitoring",
+	"tags": [
+		"domains",
+		"monitoring",
+		"utilities",
+		"postgres"
+	],
+	"logo": "logos/domain-locker.png",
+	"website": "https://domain-locker.com/",
+	"docs": "https://github.com/Lissy93/domain-locker#readme",
+	"version": "sha256:d090a1abbf03",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/domain-locker",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "pgPassword",
+			"label": "Pg password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "domain_locker",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.pgPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15-alpine"
+		},
+		{
+			"name": "app",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"NODE_ENV": "production",
+				"DL_ENV_TYPE": "selfHosted",
+				"DL_PG_HOST": "${{ services.postgres.host }}",
+				"DL_PG_PORT": "5432",
+				"DL_PG_USER": "postgres",
+				"DL_PG_PASSWORD": "${{ inputs.pgPassword }}",
+				"DL_PG_NAME": "domain_locker"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "lissy93/domain-locker@sha256:d090a1abbf03fa6df91edb8082cf6b989f626174d5aad78faabcb4a08d31d1df",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "updater",
+			"dependsOn": [
+				"app"
+			],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "alpine:3.20",
+			"command": [
+				"/bin/sh",
+				"-c",
+				"\n  apk add --no-cache curl &&\n  echo '0 3 * * * /usr/bin/curl -s -X POST http://app:3000/api/domain-updater' > /etc/crontabs/root &&\n  echo '0 4 * * * /usr/bin/curl -s -X POST http://app:3000/api/expiration-reminders' >> /etc/crontabs/root &&\n  crond -f -L /dev/stdout\n"
+			],
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

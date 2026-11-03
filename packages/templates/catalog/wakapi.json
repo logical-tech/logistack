@@ -1,0 +1,159 @@
+{
+	"schema": 1,
+	"id": "wakapi",
+	"name": "Wakapi",
+	"description": "A minimalist, self-hosted WakaTime-compatible backend for coding statistics",
+	"category": "analytics",
+	"tags": [
+		"productivity",
+		"self-hosted",
+		"developer-tools",
+		"time-tracker",
+		"wakatime",
+		"wakatime-api",
+		"coding-statistics",
+		"statistics",
+		"timetracking",
+		"analytics"
+	],
+	"logo": "logos/wakapi.svg",
+	"website": "https://wakapi.dev/",
+	"docs": "https://wakapi.dev/",
+	"version": "sha256:7a14217db1b6",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/wakapi.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "wakapiDomain",
+			"label": "Wakapi domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "passwordsaltSecret",
+			"label": "Passwordsalt secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "databaseUser",
+			"label": "Database user",
+			"type": "username"
+		},
+		{
+			"key": "databasePassword",
+			"label": "Database password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "wakapiMailSender",
+			"label": "Wakapi mail sender",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "wakapiMailSmtpHost",
+			"label": "Wakapi mail SMTP host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "wakapiMailSmtpUsername",
+			"label": "Wakapi mail SMTP username",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "wakapiMailSmtpPassword",
+			"label": "Wakapi mail SMTP password",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "wakapiPublicUrl",
+			"label": "Wakapi public URL",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "wakapi",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"TZ": "Europe/Berlin",
+				"WAKAPI_SERVER_LISTEN_IPV6": "\"-\"",
+				"WAKAPI_ENV": "production",
+				"WAKAPI_SECURITY_PASSWORD_SALT": "${{ inputs.passwordsaltSecret }}",
+				"WAKAPI_SECURITY_EXPOSE_METRICS": "false",
+				"WAKAPI_DB_TYPE": "postgres",
+				"WAKAPI_DB_NAME": "wakapi",
+				"WAKAPI_DB_USER": "${{ inputs.databaseUser }}",
+				"WAKAPI_DB_PASSWORD": "${{ inputs.databasePassword }}",
+				"WAKAPI_DB_HOST": "${{ services.postgres.host }}",
+				"WAKAPI_DB_PORT": "5432",
+				"WAKAPI_MAIL_ENABLED": "false",
+				"WAKAPI_MAIL_PROVIDER": "smtp",
+				"WAKAPI_MAIL_SENDER": "${{ inputs.wakapiMailSender }}",
+				"WAKAPI_MAIL_SMTP_HOST": "${{ inputs.wakapiMailSmtpHost }}",
+				"WAKAPI_MAIL_SMTP_PORT": "587",
+				"WAKAPI_MAIL_SMTP_USER": "${{ inputs.wakapiMailSmtpUsername }}",
+				"WAKAPI_MAIL_SMTP_PASS": "${{ inputs.wakapiMailSmtpPassword }}",
+				"WAKAPI_MAIL_SMTP_TLS": "true",
+				"WAKAPI_ALLOW_SIGNUP": "true",
+				"WAKAPI_LEADERBOARD_ENABLED": "true",
+				"WAKAPI_DISABLE_FRONTPAGE": "true",
+				"WAKAPI_PUBLIC_URL": "${{ inputs.wakapiPublicUrl }}"
+			},
+			"volumes": [
+				{
+					"name": "wakapi-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/muety/wakapi@sha256:7a14217db1b6a47816c8d8d0590cc40fa12fd409dfed6c194bbb4cd50f43d913",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:3000/"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "wakapiDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.databaseUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.databasePassword }}",
+				"POSTGRES_DB": "wakapi",
+				"POSTGRES_PORT": "5432"
+			},
+			"volumes": [
+				{
+					"name": "wakapi-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

@@ -1,0 +1,122 @@
+{
+	"schema": 1,
+	"id": "pyrodactyl",
+	"name": "Pyrodactyl",
+	"description": "Pyrodactyl is the Pterodactyl-based game server panel that's faster, smaller, safer, and more accessible than Pelican.",
+	"category": "other",
+	"tags": [
+		"self-hosted",
+		"open-source",
+		"management"
+	],
+	"logo": "logos/pyrodactyl.png",
+	"website": "https://pyrodactyl.dev/",
+	"docs": "https://pyrodactyl.dev/docs",
+	"version": "sha256:3c1008e2b933",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/pyrodactyl",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "database",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "panel",
+				"MYSQL_USER": "pterodactyl",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "pterodb",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"command": [
+				"--default-authentication-plugin=mysql_native_password"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "cache",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:alpine",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "panel",
+			"dependsOn": [],
+			"env": {
+				"APP_URL": "https://${{ inputs.mainDomain }}",
+				"APP_ENV": "production",
+				"APP_ENVIRONMENT_ONLY": "false",
+				"CACHE_DRIVER": "redis",
+				"SESSION_DRIVER": "redis",
+				"QUEUE_DRIVER": "redis",
+				"REDIS_HOST": "${{ services.cache.host }}",
+				"DB_HOST": "${{ services.database.host }}",
+				"DB_PORT": "3306",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"DB_CONNECTION": "mariadb"
+			},
+			"volumes": [
+				{
+					"name": "pterovar",
+					"target": "/app/var"
+				},
+				{
+					"name": "pteronginx",
+					"target": "/etc/nginx/http.d"
+				},
+				{
+					"name": "pterocerts",
+					"target": "/etc/letsencrypt"
+				},
+				{
+					"name": "pterologs",
+					"target": "/app/storage/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/pyrodactyl-oss/pyrodactyl@sha256:3c1008e2b9337655e60100eaff0fc4dcda4cad4834ae3cced9ab3baf861ad955",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

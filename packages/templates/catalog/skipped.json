@@ -1,0 +1,5417 @@
+{
+	"counts": {
+		"bind": 75,
+		"shared_volume": 65,
+		"command_secret": 49,
+		"ignored": 34,
+		"domain": 21,
+		"two_domains": 18,
+		"ulimits": 17,
+		"env_file": 17,
+		"shm_size": 15,
+		"tmpfs": 13,
+		"domain_path": 12,
+		"read_only": 12,
+		"build": 11,
+		"image": 11,
+		"env": 10,
+		"network_mode": 10,
+		"ports": 9,
+		"privileged": 8,
+		"working_dir": 8,
+		"domain_unrouted": 8,
+		"deploy": 8,
+		"unpinned": 8,
+		"schema": 8,
+		"user": 7,
+		"security_opt": 7,
+		"jwt": 7,
+		"extra_hosts": 7,
+		"devices": 6,
+		"pids_limit": 4,
+		"sysctls": 3,
+		"dns": 3,
+		"configs": 3,
+		"pid": 2,
+		"links": 2,
+		"volumes_from": 1,
+		"runtime": 1,
+		"group_add": 1,
+		"helper": 1,
+		"secrets": 1
+	},
+	"skipped": [
+		{
+			"source": "dokploy",
+			"path": "blueprints/3dokploy",
+			"reasons": [
+				{
+					"code": "extra_hosts",
+					"detail": "services.3dokploy.extra_hosts"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/affinepro",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume affine-storage is shared by affinepro, migration"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume affine-config is shared by affinepro, migration"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/agentdvr",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.agentdvr.ports \"50000-50100/udp\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/airbyte",
+			"reasons": [
+				{
+					"code": "tmpfs",
+					"detail": "services.k3s.tmpfs"
+				},
+				{
+					"code": "privileged",
+					"detail": "services.k3s: Swarm services cannot run privileged"
+				},
+				{
+					"code": "network_mode",
+					"detail": "services.docker-dns.network_mode"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.bootloader.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.server.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.manifest-server.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.workload-api-server.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.worker.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.cron.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.workload-launcher.env_file"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume k3s-kubeconfig is shared by k3s, k3s-bootstrap, dataplane-credentials, bootloader, workload-launcher"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume dataplane-credentials is shared by dataplane-credentials, workload-launcher"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/ampache",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.ampache.volumes host path /path/to/your/media"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/appflowy",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "minio/minio has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.1.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/appwrite",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "appwrite routes /v1"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/aptabase",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.aptabase_events_db.ulimits"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/arche",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.web.volumes host path /opt/arche/kb-content"
+				},
+				{
+					"code": "bind",
+					"detail": "services.web.volumes host path /opt/arche/kb-config"
+				},
+				{
+					"code": "bind",
+					"detail": "services.web.volumes host path /opt/arche/users"
+				},
+				{
+					"code": "bind",
+					"detail": "services.docker-socket-proxy.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/argilla",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.argilla-elasticsearch.environment.node.name"
+				},
+				{
+					"code": "env",
+					"detail": "services.argilla-elasticsearch.environment.cluster.name"
+				},
+				{
+					"code": "env",
+					"detail": "services.argilla-elasticsearch.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.argilla-elasticsearch.environment.cluster.routing.allocation.disk.threshold_enabled"
+				},
+				{
+					"code": "env",
+					"detail": "services.argilla-elasticsearch.environment.xpack.security.enabled"
+				},
+				{
+					"code": "command_secret",
+					"detail": "services.argilla-redis.command carries a secret on the command line"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume argilladata is shared by argilla-web, argilla-worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/audiobookshelf",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.audiobookshelf.volumes host path /path/to/your/audiobooks"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/authelia",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/authentik",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "server has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/autobase",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "autobase-console has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/automatisch",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.automatisch-redis.command carries a secret on the command line"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume storage is shared by automatisch, automatisch-worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/azerothcore",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "realm_address is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/backrest",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.backrest.volumes host path /"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/bazarr",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.bazarr.volumes host path /path/to/movies"
+				},
+				{
+					"code": "bind",
+					"detail": "services.bazarr.volumes host path /path/to/tv"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/beszel",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.beszel.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/billmora",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "APP_URL is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/blender",
+			"reasons": [
+				{
+					"code": "runtime",
+					"detail": "services.blender.runtime"
+				},
+				{
+					"code": "shm_size",
+					"detail": "services.blender.shm_size"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/bluesky-pds",
+			"reasons": [
+				{
+					"code": "jwt",
+					"detail": "${jwt} in jwt_secret"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/bolt.diy",
+			"reasons": [
+				{
+					"code": "extra_hosts",
+					"detail": "services.app.extra_hosts"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/borgitory",
+			"reasons": [
+				{
+					"code": "devices",
+					"detail": "services.borgitory.devices"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/budibase",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/capso",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "minio is routed at \"minio_domain_1\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/chatwoot",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume chatwoot-storage is shared by chatwoot, chatwoot-worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/checkcle",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.checkcle.ulimits"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/chibisafe",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume uploads is shared by chibisafe-server, caddy"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/chirpstack",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "chirpstack-rest-api is routed at \"api-${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/chroma",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "chroma routes /api/v2/heartbeat"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/cloud9",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.cloud9.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/cloudcommander",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.cloudcmd.volumes host path /root"
+				},
+				{
+					"code": "bind",
+					"detail": "services.cloudcmd.volumes host path /"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/cloudflare-ddns",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.cloudflare-ddns.read_only"
+				},
+				{
+					"code": "network_mode",
+					"detail": "services.cloudflare-ddns.network_mode"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/cloudflared",
+			"reasons": [
+				{
+					"code": "network_mode",
+					"detail": "services.cloudflared.network_mode"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/cloudreve",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Type"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Host"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.User"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Password"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Name"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Port"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Redis.Server"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/coder",
+			"reasons": [
+				{
+					"code": "group_add",
+					"detail": "services.coder.group_add"
+				},
+				{
+					"code": "bind",
+					"detail": "services.coder.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/collabora-office",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "DOMAIN is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/convertx",
+			"reasons": [
+				{
+					"code": "jwt",
+					"detail": "${jwt} in jwt_secret"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/convex",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "backend has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/coralproject",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/corsfix",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/crawl4ai",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.crawl4ai.shm_size"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/creed",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.creed.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.creed has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/crowdsec",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.crowdsec.volumes host path /etc/dokploy/traefik/dynamic/access.log"
+				},
+				{
+					"code": "bind",
+					"detail": "services.crowdsec.volumes host path /var/log/auth.log"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/cup",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.cup.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/datalens",
+			"reasons": [
+				{
+					"code": "extra_hosts",
+					"detail": "services.us.extra_hosts"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/didacta",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.didacta.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.postgres.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dify",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume dify-app-storage is shared by init-permissions, api, worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/discord-tickets",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.tickets-app.volumes host path /etc/timezone"
+				},
+				{
+					"code": "bind",
+					"detail": "services.tickets-app.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/discourse",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.discourse-redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dockge",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.dockge.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dockroute",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.dockroute.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/docktail",
+			"reasons": [
+				{
+					"code": "dns",
+					"detail": "services.docktail.dns"
+				},
+				{
+					"code": "bind",
+					"detail": "services.docktail.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "network_mode",
+					"detail": "services.tailscale.network_mode"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume tailscale-socket is shared by docktail, tailscale"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dokploy-actions-runner",
+			"reasons": [
+				{
+					"code": "user",
+					"detail": "services.dokploy-actions-runner.user runner is not numeric"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dokploy-prom-monitoring-extension",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.dokploy-monitoring.env_file"
+				},
+				{
+					"code": "bind",
+					"detail": "services.dokploy-monitoring.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dossier",
+			"reasons": [
+				{
+					"code": "extra_hosts",
+					"detail": "services.dossier.extra_hosts"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.dossier.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dozzle",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.dozzle.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dragonfly-db",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.dragonflydb.ulimits"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/drawio",
+			"reasons": [
+				{
+					"code": "links",
+					"detail": "services.drawio.links plantuml-server:plantuml-server"
+				},
+				{
+					"code": "links",
+					"detail": "services.drawio.links image-export:image-export"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume fonts-volume is shared by plantuml-server, image-export"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/dumbdrop",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "main_domain is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/elastic-search",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.xpack.security.enabled"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.xpack.security.http.ssl.enabled"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.node.store.allow_mmap"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.xpack.ml.enabled"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/emby",
+			"reasons": [
+				{
+					"code": "devices",
+					"detail": "services.emby.devices"
+				},
+				{
+					"code": "bind",
+					"detail": "services.emby.volumes host path /emby/programdata"
+				},
+				{
+					"code": "bind",
+					"detail": "services.emby.volumes host path /emby/series"
+				},
+				{
+					"code": "bind",
+					"detail": "services.emby.volumes host path /emby/movies"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/emqx",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "emqx is routed at \"emqx.yourdomain.com\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/engram",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "engram routes /dashboard"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/erpnext",
+			"reasons": [
+				{
+					"code": "deploy",
+					"detail": "services.backend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.frontend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-default.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-long.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-short.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.scheduler.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.websocket.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-cache.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-queue.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-socketio.deploy.restart_policy"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume sites is shared by backend, frontend, queue-default, queue-long, queue-short, scheduler, websocket, configurator, create-site, migration"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/erpnext-v16",
+			"reasons": [
+				{
+					"code": "deploy",
+					"detail": "services.backend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.frontend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-default.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-long.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-short.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.scheduler.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.websocket.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-cache.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-queue.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-socketio.deploy.restart_policy"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume sites is shared by backend, frontend, queue-default, queue-long, queue-short, scheduler, websocket, configurator, create-site, migration"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/ethora-core",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "api is routed at \"api.${root_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/evolutioncrm",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "evoia_domain is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/ezbookkeeping",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.ezbookkeeping.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/falco",
+			"reasons": [
+				{
+					"code": "security_opt",
+					"detail": "services.falco.security_opt apparmor:unconfined"
+				},
+				{
+					"code": "bind",
+					"detail": "services.falco.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "bind",
+					"detail": "services.falco.volumes host path /proc"
+				},
+				{
+					"code": "bind",
+					"detail": "services.falco.volumes host path /etc"
+				},
+				{
+					"code": "bind",
+					"detail": "services.falco.volumes host path /sys/kernel/tracing"
+				},
+				{
+					"code": "command_secret",
+					"detail": "services.falco-redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/feedbacks",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.feedbacks.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.feedbacks.tmpfs"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume feedbacks-s3-config is shared by feedbacks, s3-init, s3, s3-bucket"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/filerun",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume filerun-html is shared by filerun-init, filerun"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume filerun-user-files is shared by filerun-init, filerun"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/firecrawl",
+			"reasons": [
+				{
+					"code": "configs",
+					"detail": "top-level configs"
+				},
+				{
+					"code": "configs",
+					"detail": "services.firecrawl-db.configs"
+				},
+				{
+					"code": "configs",
+					"detail": "services.firecrawl-db-seed.configs"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.playwright-service.tmpfs"
+				},
+				{
+					"code": "ulimits",
+					"detail": "services.firecrawl.ulimits"
+				},
+				{
+					"code": "configs",
+					"detail": "services.swagger-ui.configs"
+				},
+				{
+					"code": "configs",
+					"detail": "services.gateway.configs"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/flowise",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume flowise-data is shared by flowise, flowise-worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/fluxer",
+			"reasons": [
+				{
+					"code": "configs",
+					"detail": "top-level configs"
+				},
+				{
+					"code": "configs",
+					"detail": "services.caddy.configs"
+				},
+				{
+					"code": "configs",
+					"detail": "services.livekit.configs"
+				},
+				{
+					"code": "working_dir",
+					"detail": "services.worker.working_dir"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/fonoster",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.routr.ports \"5060-5063:5060-5063\" (host IPs and ranges)"
+				},
+				{
+					"code": "ports",
+					"detail": "services.rtpengine.ports \"10000-10100:10000-10100/udp\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/forgejo",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.forgejo.volumes host path /etc/timezone"
+				},
+				{
+					"code": "bind",
+					"detail": "services.forgejo.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/frappe-hr",
+			"reasons": [
+				{
+					"code": "deploy",
+					"detail": "services.backend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.frontend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-default.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-long.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-short.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.scheduler.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.websocket.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-cache.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-queue.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-socketio.deploy.restart_policy"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume sites is shared by backend, frontend, queue-default, queue-long, queue-short, scheduler, websocket, configurator, create-site, migration"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/frappe-lending",
+			"reasons": [
+				{
+					"code": "deploy",
+					"detail": "services.backend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.frontend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-default.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-long.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-short.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.scheduler.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.websocket.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-cache.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-queue.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-socketio.deploy.restart_policy"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume sites is shared by backend, frontend, queue-default, queue-long, queue-short, scheduler, websocket, configurator, create-site, migration"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume apps is shared by backend, frontend, queue-default, queue-long, queue-short, scheduler, websocket, configurator, create-site, migration"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/frappe-lms",
+			"reasons": [
+				{
+					"code": "deploy",
+					"detail": "services.backend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.frontend.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-default.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-long.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.queue-short.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.scheduler.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.websocket.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.configurator.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.create-site.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.migration.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.mode"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.db.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-cache.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-queue.deploy.restart_policy"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.redis-socketio.deploy.restart_policy"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume sites is shared by backend, frontend, queue-default, queue-long, queue-short, scheduler, websocket, configurator, create-site, migration"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/freescout",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "tiredofit/freescout:latest has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.1.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/garage-with-ui",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "garage-webui is routed at \"${webui_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/gel",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "gel routes /ui"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/geoserver",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "geoserver is routed at \"undefined\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/gitlab-ce",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.gitlab.shm_size"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/glance",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.glance.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/glances",
+			"reasons": [
+				{
+					"code": "pid",
+					"detail": "services.glances.pid"
+				},
+				{
+					"code": "bind",
+					"detail": "services.glances.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/glitchtip",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume uploads is shared by web, worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/glpi",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.glpi-web.volumes host path /etc/timezone"
+				},
+				{
+					"code": "bind",
+					"detail": "services.glpi-web.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/go-whatsapp-web-multidevice",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.whatsapp.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/graylog",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.opensearch.ulimits"
+				},
+				{
+					"code": "env",
+					"detail": "services.opensearch.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.opensearch.environment.action.auto_create_index"
+				},
+				{
+					"code": "env",
+					"detail": "services.opensearch.environment.bootstrap.memory_lock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/grovs",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "dashboard is routed at \"dashboard.${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/habitica",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "client is routed at \"habitica.${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/harbor",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.harbor-init.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.harbor-init has no image"
+				},
+				{
+					"code": "shm_size",
+					"detail": "services.postgresql.shm_size"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume config is shared by harbor-init, core, postgresql, redis, registry, registryctl, jobservice, portal, proxy, trivy-adapter, exporter"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume data is shared by harbor-init, core"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume database is shared by harbor-init, postgresql"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume registry is shared by harbor-init, registry, registryctl"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume redis is shared by harbor-init, redis"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume jobs is shared by harbor-init, jobservice"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume trivy-cache is shared by harbor-init, trivy-adapter"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume trivy-reports is shared by harbor-init, trivy-adapter"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume control is shared by harbor-init, core, postgresql, redis, registry, registryctl, jobservice, portal, proxy, trivy-adapter, exporter"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/hermes",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "hermes has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/heyform",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.heyform.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/heyo-docs",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.heyo-docs.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.heyo-docs has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/hivemq-ce",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume hivemq-extensions is shared by hivemq-ce-init, hivemq-ce"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/homeassistant",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.homeassistant.volumes host path /opt/homeassistant"
+				},
+				{
+					"code": "bind",
+					"detail": "services.homeassistant.volumes host path /etc/localtime"
+				},
+				{
+					"code": "bind",
+					"detail": "services.homeassistant.volumes host path /run/dbus"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/huly",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.elastic.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.elastic.environment.http.cors.enabled"
+				},
+				{
+					"code": "env",
+					"detail": "services.elastic.environment.http.cors.allow-origin"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/hydrodactyl",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "ADMIN_EMAIL is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/hyperdx",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.clickhouse.ulimits"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/immich",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.immich-server.volumes host path /etc/localtime"
+				},
+				{
+					"code": "shm_size",
+					"detail": "services.immich-database.shm_size"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/inngest",
+			"reasons": [
+				{
+					"code": "jwt",
+					"detail": "${jwt} in event_key"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/instantdb",
+			"reasons": [
+				{
+					"code": "working_dir",
+					"detail": "services.server.working_dir"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/instatic",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.instatic.env_file"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume instatic-storage is shared by instatic-init, instatic"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/ipfs",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "ipfs has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/java",
+			"reasons": [
+				{
+					"code": "working_dir",
+					"detail": "services.java-app.working_dir"
+				},
+				{
+					"code": "user",
+					"detail": "services.java-app.user container is not numeric"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/jellyfin",
+			"reasons": [
+				{
+					"code": "extra_hosts",
+					"detail": "services.jellyfin.extra_hosts"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/jenkins",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.jenkins.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/junctio",
+			"reasons": [
+				{
+					"code": "tmpfs",
+					"detail": "services.junctio.tmpfs"
+				},
+				{
+					"code": "read_only",
+					"detail": "services.junctio.read_only"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/kestra",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.kestra.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "bind",
+					"detail": "services.kestra.volumes host path /tmp/kestra-wd"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/keydb",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.keydb.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/keyzori",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.keyzori.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.keyzori.tmpfs"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.keyzori.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/kokoro-tts",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.kokoro-tts.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.kokoro-tts has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/langfuse",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/languagetool",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "languagetool routes /v2/languages"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/lavalink",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume files-plugins is shared by fix-perms, lavalink"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/legejo",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.legejo.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/libredb-studio",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "libredb-studio is routed at \"undefined\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/linkding",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "csrf_trusted_origins is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/livekit",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "livekit is routed at \"${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/lodestone",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.lodestone.ports \"25565-25590:25565-25590\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/logto",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "app has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/macos",
+			"reasons": [
+				{
+					"code": "devices",
+					"detail": "services.macos.devices"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/mailu",
+			"reasons": [
+				{
+					"code": "dns",
+					"detail": "services.front.dns"
+				},
+				{
+					"code": "dns",
+					"detail": "services.admin.dns"
+				},
+				{
+					"code": "dns",
+					"detail": "services.imap.dns"
+				},
+				{
+					"code": "dns",
+					"detail": "services.smtp.dns"
+				},
+				{
+					"code": "dns",
+					"detail": "services.antispam.dns"
+				},
+				{
+					"code": "dns",
+					"detail": "services.webmail.dns"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/maintenant",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.maintenant.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.maintenant.tmpfs"
+				},
+				{
+					"code": "read_only",
+					"detail": "services.maintenant-app.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.maintenant-app.tmpfs"
+				},
+				{
+					"code": "bind",
+					"detail": "services.maintenant-app.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "bind",
+					"detail": "services.maintenant-app.volumes host path /proc"
+				},
+				{
+					"code": "bind",
+					"detail": "services.maintenant-app.volumes host path /etc/os-release"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/mattermost",
+			"reasons": [
+				{
+					"code": "pids_limit",
+					"detail": "services.postgres.pids_limit"
+				},
+				{
+					"code": "read_only",
+					"detail": "services.postgres.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.postgres.tmpfs"
+				},
+				{
+					"code": "pids_limit",
+					"detail": "services.mattermost.pids_limit"
+				},
+				{
+					"code": "read_only",
+					"detail": "services.mattermost.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.mattermost.tmpfs"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/mautic",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume mautic-data is shared by mautic, mautic-cron, mautic-worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/mc-controller",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.mc-controller.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/mcsmanager",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.web.volumes host path /etc/localtime"
+				},
+				{
+					"code": "bind",
+					"detail": "services.daemon.volumes host path /etc/localtime"
+				},
+				{
+					"code": "bind",
+					"detail": "services.daemon.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/mediacms",
+			"reasons": [
+				{
+					"code": "deploy",
+					"detail": "services.web.deploy.replicas"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.celery_worker.deploy.replicas"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume mediacms-data is shared by migrations, web, celery-beat, celery-worker"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume mediacms-static is shared by migrations, web, celery-beat, celery-worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/metabase",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.metabase.volumes host path /dev/urandom"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/minepanel",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "backend is routed at \"api-${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/minio",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "minio has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/multica",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.backend.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.backend has no image"
+				},
+				{
+					"code": "build",
+					"detail": "services.frontend.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.frontend has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/my-links",
+			"reasons": [
+				{
+					"code": "user",
+					"detail": "services.postgres.user postgres is not numeric"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/n8n-queue",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.n8n-worker.deploy.replicas"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/n8n-runner-postgres-ollama",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume ollama-storage is shared by ollama, init-ollama"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/naviserver",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.naviserver.ports \"25565-25600\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/nebulynk",
+			"reasons": [
+				{
+					"code": "configs",
+					"detail": "top-level configs"
+				},
+				{
+					"code": "build",
+					"detail": "services.frontend.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.frontend has no image"
+				},
+				{
+					"code": "configs",
+					"detail": "services.garage.configs"
+				},
+				{
+					"code": "configs",
+					"detail": "services.livekit.configs"
+				},
+				{
+					"code": "configs",
+					"detail": "services.livekit-egress.configs"
+				},
+				{
+					"code": "user",
+					"detail": "services.livekit-egress.user egress is not numeric"
+				},
+				{
+					"code": "build",
+					"detail": "services.backend.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.backend has no image"
+				},
+				{
+					"code": "build",
+					"detail": "services.transcription-worker.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.transcription-worker has no image"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume nebulynk-garage-meta is shared by garage-volume-init, garage"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume nebulynk-garage-data is shared by garage-volume-init, garage"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/neko",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.neko.shm_size"
+				},
+				{
+					"code": "ports",
+					"detail": "services.neko.ports \"52000-52100:52000-52100/udp\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/netdata",
+			"reasons": [
+				{
+					"code": "security_opt",
+					"detail": "services.netdata.security_opt apparmor:unconfined"
+				},
+				{
+					"code": "bind",
+					"detail": "services.netdata.volumes host path /etc/passwd"
+				},
+				{
+					"code": "bind",
+					"detail": "services.netdata.volumes host path /etc/group"
+				},
+				{
+					"code": "bind",
+					"detail": "services.netdata.volumes host path /proc"
+				},
+				{
+					"code": "bind",
+					"detail": "services.netdata.volumes host path /sys"
+				},
+				{
+					"code": "bind",
+					"detail": "services.netdata.volumes host path /etc/os-release"
+				},
+				{
+					"code": "bind",
+					"detail": "services.netdata.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/nextcloud-aio",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume nextcloud-data is shared by nextcloud, nextcloud-cron"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/ojs",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.ojs.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/onedev",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.onedev.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/onetimesecret",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.onetimesecret-redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/oneuptime",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/open_notebook",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "surrealdb is routed at \"surrealdb-${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/open-webui",
+			"reasons": [
+				{
+					"code": "extra_hosts",
+					"detail": "services.open-webui.extra_hosts"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openanalytics",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "edge has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openclaw",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.browser.shm_size"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/opencode",
+			"reasons": [
+				{
+					"code": "working_dir",
+					"detail": "services.opencode.working_dir"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/opendots",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.opendots.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.opendots has no image"
+				},
+				{
+					"code": "build",
+					"detail": "services.opendots-browser.build"
+				},
+				{
+					"code": "shm_size",
+					"detail": "services.opendots-browser.shm_size"
+				},
+				{
+					"code": "read_only",
+					"detail": "services.opendots-browser.read_only"
+				},
+				{
+					"code": "image",
+					"detail": "services.opendots-browser has no image"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.opendots-browser.volumes tmpfs"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openhands",
+			"reasons": [
+				{
+					"code": "extra_hosts",
+					"detail": "services.openhands.extra_hosts"
+				},
+				{
+					"code": "bind",
+					"detail": "services.openhands.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openpanel",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "op-api routes /api"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openproject",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume opdata is shared by web, seeder, worker, cron"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openresty-manager",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.openresty-manager.volumes host path /etc/localtime"
+				},
+				{
+					"code": "bind",
+					"detail": "services.openresty-manager.volumes host path /etc/resolv.conf"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openstatus",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.db-migrate.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.db-migrate has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/openwa",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.openwa.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.openwa.tmpfs"
+				},
+				{
+					"code": "pids_limit",
+					"detail": "services.openwa.pids_limit"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/orca-server",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.orca-server.build"
+				},
+				{
+					"code": "shm_size",
+					"detail": "services.orca-server.shm_size"
+				},
+				{
+					"code": "image",
+					"detail": "services.orca-server has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/outline",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "dex is routed at \"${dex_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/peerdb",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "mainDomain routes two services"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/penpot",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume penpot-assets is shared by penpot-frontend, penpot-backend"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/peppermint",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "peppermint-app has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/photoprism",
+			"reasons": [
+				{
+					"code": "working_dir",
+					"detail": "services.photoprism.working_dir"
+				},
+				{
+					"code": "security_opt",
+					"detail": "services.photoprism.security_opt seccomp:unconfined"
+				},
+				{
+					"code": "security_opt",
+					"detail": "services.photoprism.security_opt apparmor:unconfined"
+				},
+				{
+					"code": "security_opt",
+					"detail": "services.mariadb.security_opt seccomp:unconfined"
+				},
+				{
+					"code": "security_opt",
+					"detail": "services.mariadb.security_opt apparmor:unconfined"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/picsur",
+			"reasons": [
+				{
+					"code": "jwt",
+					"detail": "${jwt} in jwt_secret"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/plane",
+			"reasons": [
+				{
+					"code": "links",
+					"detail": "services.proxy.links plane-web:web"
+				},
+				{
+					"code": "links",
+					"detail": "services.proxy.links plane-api:api"
+				},
+				{
+					"code": "links",
+					"detail": "services.proxy.links plane-space:space"
+				},
+				{
+					"code": "links",
+					"detail": "services.proxy.links plane-admin:admin"
+				},
+				{
+					"code": "links",
+					"detail": "services.proxy.links plane-live:live"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/plausible",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.plausible_events_db.ulimits"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.plausible.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/plunk",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "plunk has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/ponos",
+			"reasons": [
+				{
+					"code": "user",
+					"detail": "services.ponos.user ponos is not numeric"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/portainer",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.portainer.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/poste.io",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.mailserver.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/posthog",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume posthog-assets is shared by init-assets, clickhouse"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume geoip-data is shared by init-assets, plugins, ingestion-general, feature-flags"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/postiz",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.temporal-elasticsearch.environment.cluster.routing.allocation.disk.threshold_enabled"
+				},
+				{
+					"code": "env",
+					"detail": "services.temporal-elasticsearch.environment.cluster.routing.allocation.disk.watermark.low"
+				},
+				{
+					"code": "env",
+					"detail": "services.temporal-elasticsearch.environment.cluster.routing.allocation.disk.watermark.high"
+				},
+				{
+					"code": "env",
+					"detail": "services.temporal-elasticsearch.environment.cluster.routing.allocation.disk.watermark.flood_stage"
+				},
+				{
+					"code": "env",
+					"detail": "services.temporal-elasticsearch.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.temporal-elasticsearch.environment.xpack.security.enabled"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/powersync",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "powersync routes /probes/liveness"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/pre0.22.5-supabase",
+			"reasons": [
+				{
+					"code": "security_opt",
+					"detail": "services.vector.security_opt label=disable"
+				},
+				{
+					"code": "bind",
+					"detail": "services.vector.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume files-volumes-storage is shared by storage, imgproxy"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/pulse",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.pulse.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/puppetflow",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.pinokio.shm_size"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume puppetflow-framework is shared by puppetflow, migrate, queue, scheduler, init-volumes"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume puppetflow-execution is shared by puppetflow, queue, scheduler, init-volumes, pinokio"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume puppetflow-uploads is shared by puppetflow, queue, scheduler, init-volumes"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/qbitwebui",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "ghcr.io/maciejonos/qbitwebui:latest has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.0.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/rabbitmq",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "rabbitmq has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/rallly",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.minio-init.entrypoint carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/reactive-resume",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "minio routes /default"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/reef-dev-cluster",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "reef-dev-cluster is routed at \"spec.${domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/reef-keygen",
+			"reasons": [
+				{
+					"code": "working_dir",
+					"detail": "services.reef-keygen.working_dir"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/reloop",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "working_dir",
+					"detail": "services.migrate.working_dir"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/rsshub",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.browserless.ulimits"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/rustdesk",
+			"reasons": [
+				{
+					"code": "domain_unrouted",
+					"detail": "server_domain is a domain no service is routed at"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/rustfs",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "rustfs has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/rutorrent",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.rutorrent.ports \"${INCOMING_PORT:-50000}:50000/tcp\" (host IPs and ranges)"
+				},
+				{
+					"code": "ports",
+					"detail": "services.rutorrent.ports \"${DHT_PORT:-6881}:6881/udp\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/rybbit",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "rybbit_backend routes /api"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/sable",
+			"reasons": [
+				{
+					"code": "dns",
+					"detail": "services.sable.dns"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/scrutiny",
+			"reasons": [
+				{
+					"code": "devices",
+					"detail": "services.scrutiny.devices"
+				},
+				{
+					"code": "bind",
+					"detail": "services.scrutiny.volumes host path /run/udev"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/seanime",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume seanime-config is shared by seanime-init, seanime"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume anime is shared by seanime-init, seanime"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume downloads is shared by seanime-init, seanime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/seaweedfs",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "filer is routed at \"${filer_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/shlink",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "shlink-web is routed at \"web-${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/shopware",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume shopware-code is shared by bootstrap, init-permissions, init, shopware, worker, scheduler"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume shopware-secrets is shared by bootstrap, init-permissions, init, shopware, worker, scheduler"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume files is shared by init-permissions, init, shopware, worker, scheduler"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume theme is shared by init-permissions, init, shopware, worker, scheduler"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume media is shared by init-permissions, init, shopware, worker, scheduler"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume thumbnail is shared by init-permissions, init, shopware, worker, scheduler"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume sitemap is shared by init-permissions, init, shopware, worker, scheduler"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/shoutrrr",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.shoutrrr.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/signoz",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.clickhouse.ulimits"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume files-clickhouse-user-scripts is shared by init-clickhouse, clickhouse"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/silo",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "silo has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/silverbullet",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.watchtower.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/sim",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "realtime routes /socket.io"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/soketi",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "soketi has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/spacedrive",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.server.volumes host path /var/spacedrive"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/spliit",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.spliit.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.spliit-db.env_file"
+				},
+				{
+					"code": "bind",
+					"detail": "services.spliit-db.volumes host path /data/spliit/database"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/stack-auth",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "stack-auth has more than one domain"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/streamflow",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.streamflow.build"
+				},
+				{
+					"code": "image",
+					"detail": "services.streamflow has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/supabase",
+			"reasons": [
+				{
+					"code": "jwt",
+					"detail": "${jwt} in anon_key"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/superset",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.superset_redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/taiga",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume taiga-static-data is shared by taiga-back, taiga-async, taiga-gateway"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume taiga-media-data is shared by taiga-back, taiga-async, taiga-gateway"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/teable",
+			"reasons": [
+				{
+					"code": "helper",
+					"detail": "${randomPort} in public_db_port"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/thingsboard",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume thingsboard-logs is shared by thingsboard, thingsboard-init"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/tooljet",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.tooljet.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.postgres.env_file"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/triggerdotdev",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.webapp.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.postgres.env_file"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.docker-provider.env_file"
+				},
+				{
+					"code": "bind",
+					"detail": "services.docker-provider.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.coordinator.env_file"
+				},
+				{
+					"code": "bind",
+					"detail": "services.coordinator.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/trilium",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.trilium.volumes host path /root/trilium-backups"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/trilium-next",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.trilium_next.volumes host path /root"
+				},
+				{
+					"code": "bind",
+					"detail": "services.trilium_next.volumes host path /etc/timezone"
+				},
+				{
+					"code": "bind",
+					"detail": "services.trilium_next.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/trypost",
+			"reasons": [
+				{
+					"code": "build",
+					"detail": "services.trypost.build"
+				},
+				{
+					"code": "env_file",
+					"detail": "services.trypost.env_file"
+				},
+				{
+					"code": "image",
+					"detail": "services.trypost has no image"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/twenty",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume twenty-server-local-data is shared by twenty-change-vol-ownership, twenty-server"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume twenty-docker-data is shared by twenty-change-vol-ownership, twenty-server"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/uptime-kuma",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.uptime-kuma.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/uptimekit",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.dash.env_file"
+				},
+				{
+					"code": "ulimits",
+					"detail": "services.clickhouse.ulimits"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/usesend",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "minio/minio:latest has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.2.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/vault",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.vault.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/vikunja",
+			"reasons": [
+				{
+					"code": "jwt",
+					"detail": "${jwt} in jwt_secret"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/wanderer",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "db is routed at \"db.${main_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/wazuh",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.wazuh.indexer.ulimits"
+				},
+				{
+					"code": "ulimits",
+					"detail": "services.wazuh.manager.ulimits"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume wazuh-certs is shared by wazuh-certs, wazuh-indexer, wazuh-manager, wazuh"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume wazuh-indexer-security is shared by wazuh-indexer-init, wazuh-indexer"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/weblate",
+			"reasons": [
+				{
+					"code": "tmpfs",
+					"detail": "services.weblate.tmpfs"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/wg-easy",
+			"reasons": [
+				{
+					"code": "sysctls",
+					"detail": "services.wg-easy.sysctls"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wg-easy.volumes host path /lib/modules"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/windmill",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.windmill-postgres.shm_size"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.windmill-worker.deploy.replicas"
+				},
+				{
+					"code": "bind",
+					"detail": "services.windmill-worker.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "deploy",
+					"detail": "services.windmill-worker-native.deploy.replicas"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume windmill-worker-logs is shared by windmill-server, windmill-worker, windmill-worker-native"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/windows",
+			"reasons": [
+				{
+					"code": "devices",
+					"detail": "services.windows.devices"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/wud",
+			"reasons": [
+				{
+					"code": "env_file",
+					"detail": "services.wud.env_file"
+				},
+				{
+					"code": "read_only",
+					"detail": "services.wud-socket-proxy.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.wud-socket-proxy.tmpfs"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wud-socket-proxy.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/wupnext",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume wupnext-db is shared by wupnext, wupnext-worker"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/xsshunter",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "xsshunterexpress-service is routed at \"xss.${admin_domain}\", not a domain variable"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/zabbix",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume zabbix-snmptraps is shared by zabbix-snmptraps, zabbix-server-pgsql"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume zabbix-mibs is shared by zabbix-snmptraps, zabbix-server-pgsql"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/zitadel",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.zitadel.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "dokploy",
+			"path": "blueprints/zulip",
+			"reasons": [
+				{
+					"code": "secrets",
+					"detail": "top-level secrets"
+				},
+				{
+					"code": "secrets",
+					"detail": "services.database.secrets"
+				},
+				{
+					"code": "secrets",
+					"detail": "services.memcached.secrets"
+				},
+				{
+					"code": "secrets",
+					"detail": "services.rabbitmq.secrets"
+				},
+				{
+					"code": "secrets",
+					"detail": "services.redis.secrets"
+				},
+				{
+					"code": "secrets",
+					"detail": "services.zulip.secrets"
+				},
+				{
+					"code": "ulimits",
+					"detail": "services.zulip.ulimits"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/affine.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume affine-config is shared by affine, affine-migration"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume affine-storage is shared by affine, affine-migration"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/anythingllm.yaml",
+			"reasons": [
+				{
+					"code": "user",
+					"detail": "services.anything-llm.user ${UID:-1000}:${GID:-1000} is not numeric"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/apprise-api.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.apprise-api.volumes host path /apprise-api/config"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/appwrite.yaml",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "SERVICE_URL_APPWRITE routes a path prefix"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/argilla.yaml",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.elasticsearch.ulimits"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.node.name"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.cluster.name"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.cluster.routing.allocation.disk.threshold_enabled"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.xpack.security.enabled"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume argilla-data is shared by argilla, worker"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/authentik.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.authentik-worker.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume data is shared by authentik-server, authentik-worker"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume custom-templates is shared by authentik-server, authentik-worker"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/autobase.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.autobase-api.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "bind",
+					"detail": "services.autobase-api.volumes host path /tmp/ansible"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/azimutt.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/beszel-agent.yaml",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "SERVICE_URL_BESZEL names no service"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/beszel.yaml",
+			"reasons": [
+				{
+					"code": "network_mode",
+					"detail": "services.beszel-agent.network_mode"
+				},
+				{
+					"code": "bind",
+					"detail": "services.beszel-agent.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume beszel-socket is shared by beszel, beszel-agent"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/bitcoin-core.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.bitcoin-core.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/booklore.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/budge.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/budibase.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis-service.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/buzz.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/calcom.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/calibre-web-automated-book-downloader.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume cwa-config is shared by calibre-web-automated, calibre-web-downloader"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume cwa-book-ingest is shared by calibre-web-automated, calibre-web-downloader"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/castopod.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/chaskiq.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume chaskiq-storage is shared by chaskiq, sidekiq"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/chatwoot.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume rails-data is shared by chatwoot, sidekiq"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/chibisafe.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume chibisafe-uploads is shared by chibisafe-server, caddy"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/cloudflare-ddns.yaml",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.cloudflare-ddns.read_only"
+				},
+				{
+					"code": "network_mode",
+					"detail": "services.cloudflare-ddns.network_mode"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/cloudflared.yaml",
+			"reasons": [
+				{
+					"code": "network_mode",
+					"detail": "services.cloudflared.network_mode"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/cloudreve.yaml",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Type"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Host"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.User"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Password"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Name"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Database.Port"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Redis.Server"
+				},
+				{
+					"code": "env",
+					"detail": "services.cloudreve.environment.CR_CONF_Redis.Password"
+				},
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/coder.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/codimd.yaml",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "nabo.codimd.dev/hackmdio/hackmd:latest has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.0.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/convex.yaml",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "backend has more than one public URL"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/deno-kv.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.denokv.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/dify.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/diun.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.diun.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/dozzle-with-auth.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.dozzle.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/dozzle.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.dozzle.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/edgedb.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/elasticsearch-with-kibana.yaml",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.bootstrap.memory_lock"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.xpack.security.http.ssl.enabled"
+				},
+				{
+					"code": "bind",
+					"detail": "services.elasticsearch.volumes host path /etc/localtime"
+				},
+				{
+					"code": "env",
+					"detail": "services.kibana.environment.XPACK.SECURITY.ENABLED"
+				},
+				{
+					"code": "bind",
+					"detail": "services.kibana.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/elasticsearch.yaml",
+			"reasons": [
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.discovery.type"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.bootstrap.memory_lock"
+				},
+				{
+					"code": "env",
+					"detail": "services.elasticsearch.environment.xpack.security.http.ssl.enabled"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/ente-photos.yaml",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "ghcr.io/ente-io/server:latest has no pinned tag or digest"
+				},
+				{
+					"code": "unpinned",
+					"detail": "ghcr.io/ente-io/web has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.0.image: image must be pinned to a version tag or a digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.1.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/esphome.yaml",
+			"reasons": [
+				{
+					"code": "network_mode",
+					"detail": "services.esphome.network_mode"
+				},
+				{
+					"code": "privileged",
+					"detail": "services.esphome: Swarm services cannot run privileged"
+				},
+				{
+					"code": "bind",
+					"detail": "services.esphome.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/espocrm.yaml",
+			"reasons": [
+				{
+					"code": "volumes_from",
+					"detail": "services.espocrm-daemon.volumes_from"
+				},
+				{
+					"code": "volumes_from",
+					"detail": "services.espocrm-websocket.volumes_from"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/fileflows.yaml",
+			"reasons": [
+				{
+					"code": "domain",
+					"detail": "SERVICE_URL_FILE_FLOWS names no service"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/flipt.yaml",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "docker.flipt.io/flipt/flipt:latest has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.0.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/forgejo-with-runner-with-mariadb.yaml",
+			"reasons": [
+				{
+					"code": "privileged",
+					"detail": "services.docker-in-docker: Swarm services cannot run privileged"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-did-certs is shared by docker-in-docker, runner"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-runner-data is shared by runner-register, runner"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/forgejo-with-runner-with-mysql.yaml",
+			"reasons": [
+				{
+					"code": "privileged",
+					"detail": "services.docker-in-docker: Swarm services cannot run privileged"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-did-certs is shared by docker-in-docker, runner"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-runner-data is shared by runner-register, runner"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/forgejo-with-runner-with-postgresql.yaml",
+			"reasons": [
+				{
+					"code": "privileged",
+					"detail": "services.docker-in-docker: Swarm services cannot run privileged"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-did-certs is shared by docker-in-docker, runner"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-runner-data is shared by runner-register, runner"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/forgejo-with-runner.yaml",
+			"reasons": [
+				{
+					"code": "privileged",
+					"detail": "services.docker-in-docker: Swarm services cannot run privileged"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-did-certs is shared by docker-in-docker, runner"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume forgejo-runner-data is shared by runner-register, runner"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/formbricks.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.minio-init.entrypoint carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/foundryvtt.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.foundryvtt.volumes host path /data/foundryvtt"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/getoutline.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/gitea-runner.yaml",
+			"reasons": [
+				{
+					"code": "working_dir",
+					"detail": "services.runner.working_dir"
+				},
+				{
+					"code": "bind",
+					"detail": "services.runner.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/github-runner.yaml",
+			"reasons": [
+				{
+					"code": "security_opt",
+					"detail": "services.runner.security_opt label:disable"
+				},
+				{
+					"code": "bind",
+					"detail": "services.runner.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/gitlab.yaml",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.gitlab.shm_size"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/glances.yaml",
+			"reasons": [
+				{
+					"code": "pid",
+					"detail": "services.glances.pid"
+				},
+				{
+					"code": "privileged",
+					"detail": "services.glances: Swarm services cannot run privileged"
+				},
+				{
+					"code": "bind",
+					"detail": "services.glances.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "bind",
+					"detail": "services.glances.volumes host path /run/user/1000/podman/podman.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/glitchtip.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume uploads is shared by web, worker"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/hatchet.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume hatchet-certs is shared by hatchet-dashboard, hatchet-engine, setup-config"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume hatchet-config is shared by hatchet-dashboard, hatchet-engine, setup-config"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/hermes-agent-with-webui.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume hermes-home is shared by hermes-agent, hermes-webui"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume hermes-agent-src is shared by hermes-agent, hermes-webui"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/hi-events.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/homarr.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.homarr.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/home-assistant.yaml",
+			"reasons": [
+				{
+					"code": "privileged",
+					"detail": "services.homeassistant: Swarm services cannot run privileged"
+				},
+				{
+					"code": "bind",
+					"detail": "services.homeassistant.volumes host path /run/dbus"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/huly.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/immich.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.immich.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/invoice-ninja.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/jenkins.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.jenkins.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/jupyter-notebook-python.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.jupyter-notebook-python.volumes host path /jupyter"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/kuzzle.yaml",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.elasticsearch.ulimits"
+				},
+				{
+					"code": "ulimits",
+					"detail": "services.kuzzle.ulimits"
+				},
+				{
+					"code": "sysctls",
+					"detail": "services.kuzzle.sysctls"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/langfuse.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/litequeen.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/macos.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/marimo.yml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.marimo.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/matrix-synapse-with-postgresql.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.synapse.entrypoint carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/matrix-synapse-with-sqlite.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.synapse.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/mautic5.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/maybe.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/metabase.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.metabase.volumes host path /dev/urandom"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/mindsdb.yaml",
+			"reasons": [
+				{
+					"code": "domain_path",
+					"detail": "SERVICE_URL_API_47335 routes a path prefix"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/minecraft.yaml",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.mc.ports \"${PORT}:25565\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/minio-community-edition.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/minio.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/moodle.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/mosquitto.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.mosquitto.entrypoint carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/n8n-with-postgres-and-worker.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume n8n-data is shared by n8n, n8n-worker"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/neon-ws-proxy.yaml",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "neon-proxy has more than one public URL"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/netbird-client.yaml",
+			"reasons": [
+				{
+					"code": "network_mode",
+					"detail": "services.netbird-client.network_mode"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/nodebb.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.nodebb.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/observium.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/obsidian.yaml",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.obsidian.shm_size"
+				},
+				{
+					"code": "security_opt",
+					"detail": "services.obsidian.security_opt seccomp=unconfined"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/onetimesecret.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/open-archiver.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.valkey.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/openclaw.yaml",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.browser.shm_size"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/openpanel.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "ulimits",
+					"detail": "services.clickhouse.ulimits"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/openwa-with-postgresql-and-redis.yaml",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.openwa.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.openwa.tmpfs"
+				},
+				{
+					"code": "pids_limit",
+					"detail": "services.openwa.pids_limit"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/openwa.yaml",
+			"reasons": [
+				{
+					"code": "read_only",
+					"detail": "services.openwa.read_only"
+				},
+				{
+					"code": "tmpfs",
+					"detail": "services.openwa.tmpfs"
+				},
+				{
+					"code": "pids_limit",
+					"detail": "services.openwa.pids_limit"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/opnform.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume api-storage is shared by opnform-api, api-worker, api-scheduler"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/orangehrm.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/osticket.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/owncloud.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/penpot-with-s3.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.minio-init.entrypoint carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/penpot.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume penpot-assets is shared by frontend, penpot-backend"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/peppermint.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/pingvinshare-with-clamav.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/pingvinshare.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/plausible.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/portainer.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.portainer.volumes host path /var/run/docker.sock"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/posthog.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/postiz.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/pterodactyl-with-wings.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /var/lib/docker/containers/"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /var/lib/pterodactyl/"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /tmp/pterodactyl/"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/rabbitmq.yaml",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.rabbitmq.ports \"${PORT}:5672\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/redlib.yaml",
+			"reasons": [
+				{
+					"code": "user",
+					"detail": "services.redlib.user nobody is not numeric"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/rustfs.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/satisfactory.yaml",
+			"reasons": [
+				{
+					"code": "ports",
+					"detail": "services.satisfactory-server.ports \"${SERVER_GAME_PORT}:7777/tcp\" (host IPs and ranges)"
+				},
+				{
+					"code": "ports",
+					"detail": "services.satisfactory-server.ports \"${SERVER_GAME_PORT}:7777/udp\" (host IPs and ranges)"
+				},
+				{
+					"code": "ports",
+					"detail": "services.satisfactory-server.ports \"${SERVER_MESSAGING_PORT}:8888/tcp\" (host IPs and ranges)"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/signoz.yaml",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.clickhouse.ulimits"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume user-scripts is shared by init-clickhouse, clickhouse"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/snapdrop.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/soketi-app-manager.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/sonarqube.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/spacebot.yaml",
+			"reasons": [
+				{
+					"code": "shm_size",
+					"detail": "services.spacebot.shm_size"
+				},
+				{
+					"code": "security_opt",
+					"detail": "services.spacebot.security_opt seccomp=unconfined"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/stalwart.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.stalwart.volumes host path /etc/localtime"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/supabase.yaml",
+			"reasons": [
+				{
+					"code": "jwt",
+					"detail": "SERVICE_SUPABASEANON_KEY is a generated JWT"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/superset-with-postgresql.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/supertokens-with-postgresql.yaml",
+			"reasons": [
+				{
+					"code": "unpinned",
+					"detail": "registry.supertokens.io/supertokens/supertokens-postgresql:latest has no pinned tag or digest"
+				},
+				{
+					"code": "schema",
+					"detail": "services.0.image: image must be pinned to a version tag or a digest"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/sure.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume sure-app-storage is shared by web, worker"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/swetrix.yaml",
+			"reasons": [
+				{
+					"code": "ulimits",
+					"detail": "services.clickhouse.ulimits"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/tailscale-client.yaml",
+			"reasons": [
+				{
+					"code": "devices",
+					"detail": "services.tailscale-client.devices"
+				},
+				{
+					"code": "network_mode",
+					"detail": "services.nginx.network_mode"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/teable.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.teable-cache.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/traccar.yaml",
+			"reasons": [
+				{
+					"code": "two_domains",
+					"detail": "traccar has more than one public URL"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/trigger.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.docker-proxy.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume shared-data is shared by trigger, supervisor"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/twenty.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume twenty-local-storage is shared by twenty, worker"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/vikunja.yaml",
+			"reasons": [
+				{
+					"code": "shared_volume",
+					"detail": "volume vikunja-data is shared by vikunja, init"
+				},
+				{
+					"code": "shared_volume",
+					"detail": "volume vikunja-sqlite-data is shared by vikunja, init"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/vvveb-with-mariadb.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/vvveb-with-mysql.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/vvveb.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/weblate.yaml",
+			"reasons": [
+				{
+					"code": "command_secret",
+					"detail": "services.redis.command carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/windmill.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/windows.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/wings.yaml",
+			"reasons": [
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /var/run/docker.sock"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /var/lib/docker/containers/"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /var/lib/pterodactyl/volumes"
+				},
+				{
+					"code": "bind",
+					"detail": "services.wings.volumes host path /tmp/pterodactyl"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/wireguard-easy.yaml",
+			"reasons": [
+				{
+					"code": "sysctls",
+					"detail": "services.wg-easy.sysctls"
+				},
+				{
+					"code": "command_secret",
+					"detail": "services.wg-easy.entrypoint carries a secret on the command line"
+				}
+			]
+		},
+		{
+			"source": "coolify",
+			"path": "templates/compose/zep.yaml",
+			"reasons": [
+				{
+					"code": "ignored",
+					"detail": "marked ignore upstream"
+				}
+			]
+		}
+	]
+}

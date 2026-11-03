@@ -1,0 +1,123 @@
+{
+	"schema": 1,
+	"id": "ntfy",
+	"name": "Ntfy",
+	"description": "ntfy is a simple HTTP-based pub-sub notification service. It allows you to send notifications to your phone or desktop via scripts from any computer, and/or using a REST API.",
+	"category": "communication",
+	"tags": [
+		"ntfy",
+		"notification",
+		"push notification",
+		"pub-sub",
+		"notify",
+		"alerting",
+		"alerts",
+		"api",
+		"notifications",
+		"self-hosted"
+	],
+	"logo": "logos/ntfy.svg",
+	"website": "https://ntfy.sh/",
+	"docs": "https://docs.ntfy.sh/",
+	"version": "sha256:a1dde1f3210b",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/ntfy.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "ntfyDomain",
+			"label": "Ntfy domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "upstreamAccessToken",
+			"label": "Upstream access token",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "ntfyWebPushPublicKey",
+			"label": "Ntfy web push public key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "ntfyWebPushPrivateKey",
+			"label": "Ntfy web push private key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "ntfyWebPushEmailAddress",
+			"label": "Ntfy web push email address",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "ntfy",
+			"dependsOn": [],
+			"env": {
+				"NTFY_BASE_URL": "https://${{ inputs.ntfyDomain }}",
+				"TZ": "UTC",
+				"NTFY_CACHE_FILE": "/var/cache/ntfy/cache.db",
+				"NTFY_AUTH_FILE": "/var/lib/ntfy/auth.db",
+				"NTFY_WEB_PUSH_FILE": "/var/cache/ntfy/webpush.db",
+				"NTFY_BEHIND_PROXY": "true",
+				"NTFY_UPSTREAM_BASE_URL": "https://ntfy.sh",
+				"NTFY_ENABLE_SIGNUP": "true",
+				"NTFY_ENABLE_LOGIN": "true",
+				"NTFY_CACHE_DURATION": "24h",
+				"NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT": "1G",
+				"NTFY_ATTACHMENT_FILE_SIZE_LIMIT": "10M",
+				"NTFY_ATTACHMENT_EXPIRY_DURATION": "24h",
+				"NTFY_SMTP_SENDER_ADDR": "smtp.your-domain.de",
+				"NTFY_SMTP_SENDER_USER": "no-reply@de",
+				"NTFY_SMTP_SENDER_PASS": "password",
+				"NTFY_SMTP_SENDER_FROM": "no-reply@de",
+				"NTFY_KEEPALIVE_INTERVAL": "5m",
+				"NTFY_MANAGER_INTERVAL": "5m",
+				"NTFY_VISITOR_MESSAGE_DAILY_LIMIT": "100",
+				"NTFY_VISITOR_ATTACHMENT_DAILY_BANDWIDTH_LIMIT": "1G",
+				"NTFY_UPSTREAM_ACCESS_TOKEN": "${{ inputs.upstreamAccessToken }}",
+				"NTFY_AUTH_DEFAULT_ACCESS": "read-write",
+				"NTFY_WEB_PUSH_PUBLIC_KEY": "${{ inputs.ntfyWebPushPublicKey }}",
+				"NTFY_WEB_PUSH_PRIVATE_KEY": "${{ inputs.ntfyWebPushPrivateKey }}",
+				"NTFY_WEB_PUSH_EMAIL_ADDRESS": "${{ inputs.ntfyWebPushEmailAddress }}"
+			},
+			"volumes": [
+				{
+					"name": "ntfy-cache",
+					"target": "/var/cache/ntfy"
+				},
+				{
+					"name": "ntfy-db",
+					"target": "/var/lib/ntfy"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "binwiederhier/ntfy@sha256:a1dde1f3210b68ac0c29e53298c96a988d06c320d1201d72f3e8e224d1a546f3",
+			"command": [
+				"serve"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "ntfyDomain"
+			}
+		}
+	]
+}

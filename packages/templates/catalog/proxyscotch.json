@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "proxyscotch",
+	"name": "Proxyscotch",
+	"description": "A simple proxy server created for https://hoppscotch.io - CORS proxy",
+	"category": "networking",
+	"tags": [
+		"proxy",
+		"hoppscotch",
+		"cors"
+	],
+	"docs": "https://github.com/hoppscotch/proxyscotch",
+	"version": "v0.1.4",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/proxyscotch.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "proxyscotchDomain",
+			"label": "Proxyscotch domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "tokenPassword",
+			"label": "Token password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "bannedOutputs",
+			"label": "Banned outputs",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "bannedDests",
+			"label": "Banned dests",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "proxyscotch",
+			"dependsOn": [],
+			"env": {
+				"PROXYSCOTCH_TOKEN": "${{ inputs.tokenPassword }}",
+				"PROXYSCOTCH_ALLOWED_ORIGINS": "*",
+				"PROXYSCOTCH_BANNED_OUTPUTS": "${{ inputs.bannedOutputs }}",
+				"PROXYSCOTCH_BANNED_DESTS": "${{ inputs.bannedDests }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "hoppscotch/proxyscotch:v0.1.4",
+			"ports": [],
+			"public": {
+				"port": 9159,
+				"domain": "proxyscotchDomain"
+			}
+		}
+	]
+}

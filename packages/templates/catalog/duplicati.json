@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "duplicati",
+	"name": "Duplicati",
+	"description": "Duplicati is a free, open-source backup solution that offers zero-trust, fully encrypted backups for your data",
+	"category": "storage",
+	"tags": [
+		"backup",
+		"self-hosted",
+		"simple",
+		"encryption"
+	],
+	"website": "https://duplicati.com/",
+	"docs": "https://docs.duplicati.com/",
+	"version": "2.3.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/duplicati",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "settingsEncryptionKey",
+			"label": "Settings encryption key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "duplicatiWebservicePassword",
+			"label": "Duplicati webservice password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "duplicati",
+			"dependsOn": [],
+			"env": {
+				"PUID": "0",
+				"PGID": "0",
+				"TZ": "Europe/Vienna",
+				"SETTINGS_ENCRYPTION_KEY": "${{ inputs.settingsEncryptionKey }}",
+				"DUPLICATI__WEBSERVICE_PASSWORD": "${{ inputs.duplicatiWebservicePassword }}",
+				"DUPLICATI__WEBSERVICE_ALLOWED_HOSTNAMES": "*"
+			},
+			"volumes": [
+				{
+					"name": "duplicati-config",
+					"target": "/config"
+				},
+				{
+					"name": "files-backups",
+					"target": "/backups"
+				},
+				{
+					"name": "files-source",
+					"target": "/source"
+				},
+				{
+					"name": "files-restore",
+					"target": "/restore"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/duplicati:2.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8200"
+				]
+			},
+			"public": {
+				"port": 8200,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	],
+	"logo": "logos/duplicati.webp"
+}

@@ -1,0 +1,40 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`planTemplate siblings reach each other by template name on the environment network 1`] = `
+[
+  {
+    "env": [
+      "POSTGRES_PASSWORD=pw-24",
+      "POSTGRES_USER=notes",
+    ],
+    "name": "ls-svc-db0000000000000000000000",
+    "networks": [
+      {
+        "Aliases": [
+          "db",
+        ],
+        "Target": "net-env",
+      },
+    ],
+  },
+  {
+    "env": [
+      "DATABASE_URL=postgres://notes:pw-24@db:5432/notes",
+      "PUBLIC_URL=https://notes.example.com",
+      "TZ=UTC",
+    ],
+    "name": "ls-svc-app000000000000000000000",
+    "networks": [
+      {
+        "Aliases": [
+          "app",
+        ],
+        "Target": "net-env",
+      },
+      {
+        "Target": "net-ingress",
+      },
+    ],
+  },
+]
+`;

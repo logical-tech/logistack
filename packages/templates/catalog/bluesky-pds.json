@@ -1,0 +1,124 @@
+{
+	"schema": 1,
+	"id": "bluesky-pds",
+	"name": "Bluesky Pds",
+	"description": "Bluesky PDS (Personal Data Server)",
+	"category": "devtools",
+	"tags": [
+		"bluesky",
+		"pds",
+		"platform"
+	],
+	"logo": "logos/bluesky-pds.svg",
+	"docs": "https://github.com/bluesky-social/pds",
+	"version": "0.4.182",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/bluesky-pds.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "pdsDomain",
+			"label": "Pds domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jwtsecretHex",
+			"label": "Jwtsecret key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "pdsAdminEmail",
+			"label": "Pds admin email",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "rotationkeyHex",
+			"label": "Rotationkey key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "pdsEmailFromAddress",
+			"label": "Pds email from address",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "pdsEmailSmtpUrl",
+			"label": "Pds email SMTP URL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "pdsDataDirectory",
+			"label": "Pds data directory",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "pds",
+			"dependsOn": [],
+			"env": {
+				"PDS_HOSTNAME": "${{ inputs.pdsDomain }}",
+				"PDS_JWT_SECRET": "${{ inputs.jwtsecretHex }}",
+				"PDS_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"PDS_ADMIN_EMAIL": "${{ inputs.pdsAdminEmail }}",
+				"PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX": "${{ inputs.rotationkeyHex }}",
+				"PDS_DATA_DIRECTORY": "/pds",
+				"PDS_BLOBSTORE_DISK_LOCATION": "/pds/blocks",
+				"PDS_BLOB_UPLOAD_LIMIT": "104857600",
+				"PDS_DID_PLC_URL": "https://plc.directory",
+				"PDS_EMAIL_FROM_ADDRESS": "${{ inputs.pdsEmailFromAddress }}",
+				"PDS_EMAIL_SMTP_URL": "${{ inputs.pdsEmailSmtpUrl }}",
+				"PDS_BSKY_APP_VIEW_URL": "https://api.bsky.app",
+				"PDS_BSKY_APP_VIEW_DID": "did:web:api.bsky.app",
+				"PDS_REPORT_SERVICE_URL": "https://mod.bsky.app/xrpc/com.atproto.moderation.createReport",
+				"PDS_REPORT_SERVICE_DID": "did:plc:ar7c4by46qjdydhdevvrndac",
+				"PDS_CRAWLERS": "https://bsky.network",
+				"LOG_ENABLED": "true"
+			},
+			"volumes": [
+				{
+					"name": "pds-data",
+					"target": "/pds"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/bluesky-social/pds:0.4.182",
+			"command": [
+				"sh",
+				"-c",
+				"\n  set -euo pipefail\n  echo \"Installing required packages and pdsadmin...\"\n  apk add --no-cache openssl curl bash jq coreutils gnupg util-linux-misc >/dev/null\n  curl -o /usr/local/bin/pdsadmin.sh https://raw.githubusercontent.com/bluesky-social/pds/main/pdsadmin.sh\n  chmod 700 /usr/local/bin/pdsadmin.sh\n  ln -sf /usr/local/bin/pdsadmin.sh /usr/local/bin/pdsadmin\n  echo \"Creating an empty pds.env file so pdsadmin works...\"\n  touch ${{ inputs.pdsDataDirectory }}/pds.env\n  echo \"Launching PDS, enjoy!...\"\n  exec node --enable-source-maps index.js\n"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--spider",
+					"http://127.0.0.1:3000/xrpc/_health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "pdsDomain"
+			}
+		}
+	]
+}

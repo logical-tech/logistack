@@ -1,0 +1,142 @@
+{
+	"schema": 1,
+	"id": "louez",
+	"name": "Louez",
+	"description": "Open-source equipment rental platform: a branded booking storefront with live availability, plus a back office for reservations, customers, PDF contracts and revenue statistics. Ships with its database and a private image store, and installs its own schema on first boot.",
+	"category": "other",
+	"tags": [
+		"rental",
+		"booking",
+		"reservations",
+		"inventory",
+		"ecommerce",
+		"business"
+	],
+	"logo": "logos/louez.svg",
+	"website": "https://louez.io/",
+	"docs": "https://github.com/Synapsr/Louez#readme",
+	"version": "2.1.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/louez",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "minioPassword",
+			"label": "Minio password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "louez",
+			"dependsOn": [
+				"mysql",
+				"minio"
+			],
+			"env": {
+				"LOUEZ_MODE": "standalone",
+				"DATABASE_URL": "mysql://louez:${{ inputs.dbPassword }}@${{ services.mysql.host }}:3306/louez",
+				"AUTH_URL": "https://${{ inputs.mainDomain }}",
+				"AUTH_TRUST_HOST": "true",
+				"NEXT_PUBLIC_APP_URL": "https://${{ inputs.mainDomain }}",
+				"NEXT_PUBLIC_APP_DOMAIN": "${{ inputs.mainDomain }}",
+				"S3_ENDPOINT": "http://${{ services.minio.host }}:9000",
+				"S3_REGION": "us-east-1",
+				"S3_BUCKET": "louez",
+				"S3_ACCESS_KEY_ID": "louez",
+				"S3_SECRET_ACCESS_KEY": "${{ inputs.minioPassword }}",
+				"S3_PUBLIC_URL": "/files"
+			},
+			"volumes": [
+				{
+					"name": "louez-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "synapsr/louez:2.1.0",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "louez",
+				"MYSQL_USER": "louez",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8.4"
+		},
+		{
+			"name": "minio",
+			"dependsOn": [],
+			"env": {
+				"MINIO_ROOT_USER": "louez",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "minio-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "minio/minio:RELEASE.2025-09-07T16-13-09Z",
+			"command": [
+				"mkdir -p /data/louez && exec minio server /data"
+			],
+			"entrypoint": [
+				"/bin/sh",
+				"-c"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -sf http://localhost:9000/minio/health/live || exit 1"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

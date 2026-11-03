@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "dumbbudget",
+	"name": "DumbBudget",
+	"description": "DumbBudget is a simple, self-hosted budget tracking service with PIN protection and no database required.",
+	"category": "finance",
+	"tags": [
+		"budget",
+		"finance",
+		"self-hosted",
+		"simple"
+	],
+	"logo": "logos/dumbbudget.svg",
+	"website": "https://dumbware.io/DumbBudget",
+	"docs": "https://github.com/DumbWareio/DumbBudget/blob/main/README.md",
+	"version": "sha256:e845d989765c",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/dumbbudget",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dumbbudgetPin",
+			"label": "Dumbbudget pin",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "dumbbudget",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "dumbbudget-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "dumbwareio/dumbbudget@sha256:e845d989765caceb07b48986764e6b06871d6788a749e7857bfbbea0ae4db5fc",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

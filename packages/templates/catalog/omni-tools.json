@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "omni-tools",
+	"name": "Omni-Tools",
+	"description": "Omni-Tools is a collection of useful tools in a single self-hosted web application.",
+	"category": "other",
+	"tags": [
+		"tools",
+		"utilities",
+		"collection",
+		"self-hosted"
+	],
+	"logo": "logos/omni-tools.png",
+	"website": "https://github.com/iib0011/omni-tools",
+	"docs": "https://github.com/iib0011/omni-tools",
+	"version": "sha256:99e21d937dbe",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/omni-tools",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "omni-tools",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "iib0011/omni-tools@sha256:99e21d937dbe5ff86f00ac06ce17b5507a81911fa8d781f9b244b4067350e1a7",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

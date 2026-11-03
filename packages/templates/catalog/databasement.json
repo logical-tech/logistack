@@ -1,0 +1,81 @@
+{
+	"schema": 1,
+	"id": "databasement",
+	"name": "Databasement",
+	"description": "Self-hosted database backup manager with a web UI. Schedule, backup, and restore MySQL, PostgreSQL, MariaDB, Microsoft SQL Server, MongoDB, SQLite, Firebird and Redis to S3, SFTP, Samba or local storage. SSH tunnel support.",
+	"category": "storage",
+	"tags": [
+		"backup",
+		"database",
+		"mysql",
+		"postgres",
+		"mongodb"
+	],
+	"logo": "logos/databasement.png",
+	"website": "https://david-crty.github.io/databasement/",
+	"docs": "https://david-crty.github.io/databasement/self-hosting/docker",
+	"version": "1.8.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/databasement",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "appKey",
+			"label": "App key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "databasement",
+			"dependsOn": [],
+			"env": {
+				"APP_KEY": "base64:${{ inputs.appKey }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
+				"DB_CONNECTION": "sqlite",
+				"DB_DATABASE": "/data/database.sqlite",
+				"ENABLE_QUEUE_WORKER": "true",
+				"TRUSTED_PROXIES": "*",
+				"LOG_CHANNEL": "stderr",
+				"APP_DISPLAY_TIMEZONE": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "databasement-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "davidcrty/databasement:1.8.4",
+			"ports": [
+				{
+					"target": 2226,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:2226/health"
+				]
+			},
+			"public": {
+				"port": 2226,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

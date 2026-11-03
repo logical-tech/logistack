@@ -1,0 +1,114 @@
+{
+	"schema": 1,
+	"id": "azuracast",
+	"name": "AzuraCast",
+	"description": "AzuraCast is a self-hosted, all-in-one web radio management suite. Easily manage your online radio stations with a powerful web interface.",
+	"category": "media",
+	"tags": [
+		"radio",
+		"streaming",
+		"media",
+		"broadcasting",
+		"music",
+		"entertainment"
+	],
+	"logo": "logos/azuracast.png",
+	"website": "https://www.azuracast.com/",
+	"docs": "https://docs.azuracast.com/",
+	"version": "sha256:7d9150a3c61b",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/azuracast",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "azuracast",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"LANG": "en_US.UTF-8",
+				"AZURACAST_DC_REVISION": "1",
+				"MYSQL_HOST": "${{ services.mariadb.host }}",
+				"MYSQL_PORT": "3306",
+				"MYSQL_USER": "azuracast",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DATABASE": "azuracast"
+			},
+			"volumes": [
+				{
+					"name": "azuracast-station-data",
+					"target": "/var/azuracast/stations"
+				},
+				{
+					"name": "azuracast-data",
+					"target": "/var/azuracast/www_tmp"
+				},
+				{
+					"name": "azuracast-uploads",
+					"target": "/var/azuracast/uploads"
+				},
+				{
+					"name": "azuracast-backups",
+					"target": "/var/azuracast/backups"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/azuracast/azuracast@sha256:7d9150a3c61b8599514c24eef98ac8fabaf983c9c8fc241a3d3d2a5c659a1f04",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}",
+				"MYSQL_DATABASE": "azuracast",
+				"MYSQL_USER": "azuracast",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11.4",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

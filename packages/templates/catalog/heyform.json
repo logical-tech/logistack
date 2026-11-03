@@ -1,0 +1,146 @@
+{
+	"schema": 1,
+	"id": "heyform",
+	"name": "Heyform",
+	"description": "Allows anyone to create engaging conversational forms for surveys, questionnaires, quizzes, and polls. No coding skills required.",
+	"category": "productivity",
+	"tags": [
+		"form",
+		"builder",
+		"forms",
+		"survey",
+		"quiz",
+		"open source",
+		"self-hosted",
+		"docker"
+	],
+	"logo": "logos/heyform.svg",
+	"docs": "https://docs.heyform.net/open-source/self-hosting",
+	"version": "sha256:6acd228065ec",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/heyform.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "heyformDomain",
+			"label": "Heyform domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "sessionSecret",
+			"label": "Session secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "formSecret",
+			"label": "Form secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "keydbPassword",
+			"label": "Keydb password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "heyform",
+			"dependsOn": [
+				"mongo",
+				"keydb"
+			],
+			"env": {
+				"APP_HOMEPAGE_URL": "https://${{ inputs.heyformDomain }}",
+				"SESSION_KEY": "${{ inputs.sessionSecret }}",
+				"FORM_ENCRYPTION_KEY": "${{ inputs.formSecret }}",
+				"MONGO_URI": "mongodb://${{ services.mongo.host }}:27017/heyform",
+				"REDIS_HOST": "${{ services.keydb.host }}",
+				"REDIS_PORT": "6379",
+				"REDIS_PASSWORD": "${{ inputs.keydbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "heyform-assets",
+					"target": "/app/static/upload"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "heyform/community-edition@sha256:6acd228065ec2adbcae9e751d9876a9b7b9db0bbc44657a25b83a4822822d1e1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:9157 || exit 1"
+				]
+			},
+			"public": {
+				"port": 9157,
+				"domain": "heyformDomain"
+			}
+		},
+		{
+			"name": "mongo",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "heyform-mongo-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "percona/percona-server-mongodb@sha256:5ebe2eebde8ee5b957bf6a0d84d1e1c801ca9c815013571dec16f022cea8d60a",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"echo 'ok' > /dev/null 2>&1"
+				]
+			}
+		},
+		{
+			"name": "keydb",
+			"dependsOn": [],
+			"env": {
+				"KEYDB_PASSWORD": "${{ inputs.keydbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "heyform-keydb-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "eqalpha/keydb@sha256:6537505c42355ca1f571276bddf83f5b750f760f07b2a185a676481791e388ac",
+			"command": [
+				"keydb-server",
+				"--appendonly",
+				"yes"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"keydb-cli --pass ${KEYDB_PASSWORD} ping"
+				]
+			}
+		}
+	]
+}

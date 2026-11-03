@@ -1,0 +1,97 @@
+{
+	"schema": 1,
+	"id": "emqx-enterprise",
+	"name": "Emqx Enterprise",
+	"description": "Open-source MQTT broker for IoT, IIoT, and connected vehicles.",
+	"category": "networking",
+	"tags": [
+		"mqtt",
+		"broker",
+		"iot",
+		"messaging",
+		"emqx",
+		"iiot"
+	],
+	"logo": "logos/emqx-enterprise.svg",
+	"docs": "https://www.emqx.io/docs/en/latest/deploy/install-docker.html",
+	"version": "6.2.2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/emqx-enterprise.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "emqxDomain",
+			"label": "Emqx domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "emqxPassword",
+			"label": "Emqx password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "emqx",
+			"dependsOn": [],
+			"env": {
+				"EMQX_DASHBOARD__DEFAULT_PASSWORD": "${{ inputs.emqxPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "emqx-data",
+					"target": "/opt/emqx/data"
+				},
+				{
+					"name": "emqx-log",
+					"target": "/opt/emqx/log"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "emqx/emqx-enterprise:6.2.2",
+			"ports": [
+				{
+					"target": 1883,
+					"published": 1883,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 8083,
+					"published": 8083,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 8084,
+					"published": 8084,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 8883,
+					"published": 8883,
+					"protocol": "tcp",
+					"mode": "host"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/opt/emqx/bin/emqx",
+					"ctl",
+					"status"
+				]
+			},
+			"public": {
+				"port": 18083,
+				"domain": "emqxDomain"
+			}
+		}
+	]
+}

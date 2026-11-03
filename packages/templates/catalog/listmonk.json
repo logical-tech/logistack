@@ -1,0 +1,135 @@
+{
+	"schema": 1,
+	"id": "listmonk",
+	"name": "Listmonk",
+	"description": "Self-hosted newsletter and mailing list manager",
+	"category": "communication",
+	"tags": [
+		"newsletter",
+		"mailing list",
+		"self-hosted",
+		"open source",
+		"email",
+		"mailing-list"
+	],
+	"logo": "logos/listmonk.svg",
+	"website": "https://listmonk.app/",
+	"docs": "https://listmonk.app/",
+	"version": "v6.0.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/listmonk.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "listmonkDomain",
+			"label": "Listmonk domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "listmonk",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"LISTMONK_app__address": "0.0.0.0:9000",
+				"LISTMONK_db__host": "${{ services.postgres.host }}",
+				"LISTMONK_db__database": "listmonk",
+				"LISTMONK_db__user": "${{ inputs.postgresUser }}",
+				"LISTMONK_db__password": "${{ inputs.postgresPassword }}",
+				"LISTMONK_db__port": "5432",
+				"TZ": "Etc/UTC"
+			},
+			"volumes": [
+				{
+					"name": "listmonk-data",
+					"target": "/listmonk/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "listmonk/listmonk:v6.0.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:9000"
+				]
+			},
+			"public": {
+				"port": 9000,
+				"domain": "listmonkDomain"
+			}
+		},
+		{
+			"name": "listmonk-initial-database-setup",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"LISTMONK_db__host": "${{ services.postgres.host }}",
+				"LISTMONK_db__database": "listmonk",
+				"LISTMONK_db__user": "${{ inputs.postgresUser }}",
+				"LISTMONK_db__password": "${{ inputs.postgresPassword }}",
+				"LISTMONK_db__port": "5432"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "listmonk/listmonk:v6.0.0",
+			"command": [
+				"./listmonk",
+				"--install",
+				"--yes",
+				"--idempotent"
+			],
+			"ports": [],
+			"restart": "none"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "listmonk",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		}
+	]
+}

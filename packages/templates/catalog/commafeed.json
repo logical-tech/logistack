@@ -1,0 +1,56 @@
+{
+	"schema": 1,
+	"id": "commafeed",
+	"name": "CommaFeed",
+	"description": "CommaFeed is an open-source feed reader and news aggregator, designed to be lightweight and extensible, with PostgreSQL as its database.",
+	"category": "communication",
+	"tags": [
+		"feed-reader",
+		"news-aggregator",
+		"rss"
+	],
+	"logo": "logos/commafeed.svg",
+	"website": "https://www.commafeed.com/",
+	"docs": "https://github.com/Athou/commafeed/wiki",
+	"version": "latest-h2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/commafeed",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "commafeed",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "files-commafeed-data",
+					"target": "/commafeed/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "athou/commafeed:latest-h2",
+			"ports": [
+				{
+					"target": 8082,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8082,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

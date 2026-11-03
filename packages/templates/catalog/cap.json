@@ -1,0 +1,162 @@
+{
+	"schema": 1,
+	"id": "cap",
+	"name": "Cap",
+	"description": "Cap is the open source alternative to Loom. Lightweight, powerful, and cross-platform. Record and share in seconds.",
+	"category": "media",
+	"tags": [
+		"cap",
+		"loom",
+		"open",
+		"source",
+		"low",
+		"code"
+	],
+	"logo": "logos/cap.svg",
+	"docs": "https://cap.so/",
+	"version": "sha256:8ee4cbd3fd87",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/cap.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "capDomain",
+			"label": "Cap domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "databaseencryptionkeyPassword",
+			"label": "Databaseencryptionkey password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "nextauthsecretPassword",
+			"label": "Nextauthsecret password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "capAwsAccessKey",
+			"label": "Cap AWS access key",
+			"type": "text"
+		},
+		{
+			"key": "capAwsSecretKey",
+			"label": "Cap AWS secret key",
+			"type": "text"
+		},
+		{
+			"key": "capAwsBucket",
+			"label": "Cap AWS bucket",
+			"type": "text"
+		},
+		{
+			"key": "capAwsRegion",
+			"label": "Cap AWS region",
+			"type": "text"
+		},
+		{
+			"key": "s3PublicEndpoint",
+			"label": "S3 public endpoint",
+			"type": "text"
+		},
+		{
+			"key": "s3InternalEndpoint",
+			"label": "S3 internal endpoint",
+			"type": "text"
+		},
+		{
+			"key": "capAwsEndpoint",
+			"label": "Cap AWS endpoint",
+			"type": "text"
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "cap-web",
+			"dependsOn": [
+				"cap-db"
+			],
+			"env": {
+				"DATABASE_URL": "mysql://${{ inputs.mysqlUser }}:${{ inputs.mysqlPassword }}@${{ services.cap-db.host }}:3306/planetscale",
+				"WEB_URL": "https://${{ inputs.capDomain }}",
+				"NEXTAUTH_URL": "https://${{ inputs.capDomain }}",
+				"DATABASE_ENCRYPTION_KEY": "${{ inputs.databaseencryptionkeyPassword }}",
+				"NEXTAUTH_SECRET": "${{ inputs.nextauthsecretPassword }}",
+				"CAP_AWS_ACCESS_KEY": "${{ inputs.capAwsAccessKey }}",
+				"CAP_AWS_SECRET_KEY": "${{ inputs.capAwsSecretKey }}",
+				"CAP_AWS_BUCKET": "${{ inputs.capAwsBucket }}",
+				"CAP_AWS_REGION": "${{ inputs.capAwsRegion }}",
+				"S3_PUBLIC_ENDPOINT": "${{ inputs.s3PublicEndpoint }}",
+				"S3_INTERNAL_ENDPOINT": "${{ inputs.s3InternalEndpoint }}",
+				"NEXT_RUNTIME": "nodejs",
+				"S3_PATH_STYLE": "true",
+				"CAP_AWS_ENDPOINT": "${{ inputs.capAwsEndpoint }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/capsoftware/cap-web@sha256:8ee4cbd3fd87f88f538831aed06c954c525db9c2426a62abeaf0ca307c5e1ce9",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "capDomain"
+			}
+		},
+		{
+			"name": "cap-db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DATABASE": "planetscale",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
+				"MYSQL_ALLOW_EMPTY_PASSWORD": "yes"
+			},
+			"volumes": [
+				{
+					"name": "cap-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mysql:8.0",
+			"command": [
+				"--max_connections=1000",
+				"--default-authentication-plugin=mysql_native_password"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mysqladmin",
+					"ping",
+					"-h",
+					"127.0.0.1"
+				]
+			}
+		}
+	]
+}

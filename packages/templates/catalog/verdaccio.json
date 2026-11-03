@@ -1,0 +1,65 @@
+{
+	"schema": 1,
+	"id": "verdaccio",
+	"name": "Verdaccio",
+	"description": "A lightweight Node.js private proxy registry",
+	"category": "other",
+	"tags": [
+		"node-js",
+		"package-repository",
+		"npm"
+	],
+	"logo": "logos/verdaccio.svg",
+	"website": "https://www.verdaccio.org/",
+	"docs": "https://www.verdaccio.org/docs/what-is-verdaccio",
+	"version": "6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/verdaccio",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "verdaccio",
+			"dependsOn": [],
+			"env": {
+				"VERDACCIO_PORT": "4873"
+			},
+			"volumes": [
+				{
+					"name": "verdaccio-storage",
+					"target": "/verdaccio/storage"
+				},
+				{
+					"name": "verdaccio-plugins",
+					"target": "/verdaccio/plugins"
+				},
+				{
+					"name": "files-conf",
+					"target": "/verdaccio/conf"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "verdaccio/verdaccio:6",
+			"ports": [
+				{
+					"target": 4873,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 4873,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

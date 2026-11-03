@@ -1,0 +1,125 @@
+{
+	"schema": 1,
+	"id": "cachkey",
+	"name": "Cachkey",
+	"description": "Cachkey is an open-source, self-hosted manager for secrets and environment variables: encrypted values, per-environment access for your team, a CLI and a read-only API for servers and CI.",
+	"category": "security",
+	"tags": [
+		"security",
+		"secrets",
+		"self-hosted"
+	],
+	"logo": "logos/cachkey.svg",
+	"website": "https://github.com/Joyboy-dy/cachkey",
+	"docs": "https://github.com/Joyboy-dy/cachkey/tree/main/docs",
+	"version": "0.2.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/cachkey",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "secret",
+			"length": 32,
+			"charset": "hex"
+		},
+		{
+			"key": "betterAuthSecret",
+			"label": "Better auth secret",
+			"type": "base64",
+			"bytes": 48
+		},
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "base64",
+			"bytes": 32
+		}
+	],
+	"services": [
+		{
+			"name": "cachkey",
+			"dependsOn": [
+				"cachkey-api"
+			],
+			"env": {
+				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"API_INTERNAL_URL": "http://${{ services.cachkey-api.host }}:3001"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/joyboy-dy/cachkey-web:0.2.0",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "cachkey-api",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"DATABASE_URL": "postgresql://cachkey:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/cachkey",
+				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
+				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"EMAIL_PROVIDER": "smtp",
+				"EMAIL_FROM": "Cachkey <no-reply@example.com>",
+				"SMTP_HOST": "",
+				"SMTP_PORT": "587",
+				"SMTP_SECURE": "false",
+				"SMTP_USER": "",
+				"SMTP_PASSWORD": "",
+				"RESEND_API_KEY": ""
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/joyboy-dy/cachkey-api:0.2.0",
+			"ports": [
+				{
+					"target": 3001,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "cachkey",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "cachkey"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		}
+	]
+}

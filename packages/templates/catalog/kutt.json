@@ -1,0 +1,74 @@
+{
+	"schema": 1,
+	"id": "kutt",
+	"name": "Kutt",
+	"description": "Kutt is a modern URL shortener with support for custom domains. Create and edit links, view statistics, manage users, and more.",
+	"category": "other",
+	"tags": [
+		"link-shortener",
+		"link-sharing"
+	],
+	"logo": "logos/kutt.png",
+	"website": "https://kutt.it/",
+	"docs": "https://github.com/thedevs-network/kutt#kuttit",
+	"version": "sha256:4e7bde38a99f",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kutt",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "kutt",
+			"dependsOn": [],
+			"env": {
+				"DB_FILENAME": "/var/lib/kutt/data.sqlite",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"DEFAULT_DOMAIN": "${{ inputs.mainDomain }}",
+				"TRUST_PROXY": "false",
+				"DISALLOW_ANONYMOUS_LINKS": "true",
+				"CUSTOM_DOMAIN_USE_HTTPS": "true",
+				"MAIL_ENABLED": "false",
+				"MAIL_HOST": "''",
+				"MAIL_PORT": "'22'",
+				"MAIL_SECURE": "true",
+				"MAIL_USER": "''",
+				"MAIL_FROM": "''",
+				"MAIL_PASSWORD": "''",
+				"CONTACT_EMAIL": "''"
+			},
+			"volumes": [
+				{
+					"name": "kutt-db-data",
+					"target": "/var/lib/kutt"
+				},
+				{
+					"name": "kutt-custom",
+					"target": "/kutt/custom"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "kutt/kutt@sha256:4e7bde38a99face7667f3b9f6aad72d570b3c59b5f04c2db24955ee1e23cbe97",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

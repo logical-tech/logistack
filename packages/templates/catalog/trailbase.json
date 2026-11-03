@@ -1,0 +1,53 @@
+{
+	"schema": 1,
+	"id": "trailbase",
+	"name": "Trailbase",
+	"description": "A blazingly fast Rust/SQLite/Wasmtime app server with type-safe APIs",
+	"category": "devtools",
+	"tags": [
+		"trailbase",
+		"backend",
+		"saas",
+		"mobile",
+		"api",
+		"database"
+	],
+	"logo": "logos/trailbase.svg",
+	"website": "https://trailbase.io/",
+	"docs": "https://trailbase.io/",
+	"version": "0.22.6",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/trailbase.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "trailbaseDomain",
+			"label": "Trailbase domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "trailbase",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "trailbase-data",
+					"target": "/app/traildepot"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "trailbase/trailbase:0.22.6",
+			"ports": [],
+			"public": {
+				"port": 4000,
+				"domain": "trailbaseDomain"
+			}
+		}
+	]
+}

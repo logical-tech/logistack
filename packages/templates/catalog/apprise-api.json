@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "apprise-api",
+	"name": "Apprise API",
+	"description": "Apprise API provides a simple interface for sending notifications to almost all of the most popular notification services available to us today.",
+	"category": "devtools",
+	"tags": [
+		"notifications",
+		"api"
+	],
+	"website": "https://github.com/caronc/apprise-api",
+	"docs": "https://github.com/caronc/apprise-api/wiki",
+	"version": "sha256:9aa26811ca48",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/apprise-api",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "apprise-api",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "linuxserver/apprise-api@sha256:9aa26811ca489c4b450575bdc6dda6c4033f83d6383629854c5486a79b164ed8",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

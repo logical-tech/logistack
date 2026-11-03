@@ -1,0 +1,74 @@
+{
+	"schema": 1,
+	"id": "babybuddy",
+	"name": "BabyBuddy",
+	"description": "BabyBuddy is a comprehensive, user-friendly platform designed to help parents and caregivers manage essential details about their child's growth and development. It provides tools for tracking feedings, sleep schedules, diaper changes, and milestones.",
+	"category": "productivity",
+	"tags": [
+		"parenting",
+		"tracking",
+		"family",
+		"baby",
+		"parents",
+		"health",
+		"growth",
+		"activities"
+	],
+	"logo": "logos/babybuddy.png",
+	"website": "https://babybuddy.app/",
+	"docs": "https://docs.baby-buddy.net/",
+	"version": "2.7.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/babybuddy",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "babybuddy",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "UTC",
+				"CSRF_TRUSTED_ORIGINS": "https://${{ inputs.mainDomain }}",
+				"TIME_ZONE": "America/New_York",
+				"SECRET_KEY": "${{ inputs.secretKey }}"
+			},
+			"volumes": [
+				{
+					"name": "config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "linuxserver/babybuddy:2.7.0",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

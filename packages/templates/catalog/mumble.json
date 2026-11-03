@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "mumble",
+	"name": "Mumble",
+	"description": "Mumble is an open-source, low-latency, high-quality voice chat software primarily intended for use while gaming.",
+	"category": "communication",
+	"tags": [
+		"voice-chat",
+		"communication",
+		"gaming",
+		"voip"
+	],
+	"logo": "logos/mumble.png",
+	"website": "https://www.mumble.info/",
+	"docs": "https://www.mumble.info/documentation/",
+	"version": "sha256:018ad3515932",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/mumble",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "superuserPassword",
+			"label": "Superuser password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "mumble-server",
+			"dependsOn": [],
+			"env": {
+				"MUMBLE_SUPERUSER_PASSWORD": "${{ inputs.superuserPassword }}",
+				"MUMBLE_CONFIG_WELCOMETEXT": "Welcome to Mumble Server! Low-latency voice chat.",
+				"MUMBLE_CONFIG_USERS": "50"
+			},
+			"volumes": [
+				{
+					"name": "mumble-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mumblevoip/mumble-server@sha256:018ad3515932e513d8fdc970df918373a2664c4da32b09a89a4aaee28eb7507a",
+			"ports": [
+				{
+					"target": 64738,
+					"protocol": "tcp"
+				},
+				{
+					"target": 64738,
+					"protocol": "udp"
+				}
+			],
+			"restart": "any"
+		}
+	]
+}

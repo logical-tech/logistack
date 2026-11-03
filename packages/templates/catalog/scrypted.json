@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "scrypted",
+	"name": "Scrypted",
+	"description": "Scrypted is a home automation platform that integrates with various smart home devices and provides NVR capabilities for video surveillance.",
+	"category": "other",
+	"tags": [
+		"home-automation",
+		"nvr",
+		"smart-home",
+		"surveillance"
+	],
+	"logo": "logos/scrypted.png",
+	"website": "https://www.scrypted.app/",
+	"docs": "https://docs.scrypted.app/",
+	"version": "sha256:e78b4fcecdd6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/scrypted",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "scryptedWebhookUpdateAuthorization",
+			"label": "Scrypted webhook update authorization",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "scrypted",
+			"dependsOn": [],
+			"env": {
+				"SCRYPTED_WEBHOOK_UPDATE_AUTHORIZATION": "${{ inputs.scryptedWebhookUpdateAuthorization }}",
+				"SCRYPTED_WEBHOOK_UPDATE": "http://${{ inputs.mainDomain }}:10444/v1/update"
+			},
+			"volumes": [
+				{
+					"name": "files-scrypted-volume",
+					"target": "/server/volume"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/koush/scrypted@sha256:e78b4fcecdd6c61acaaf22b50ccef303c738da58cc0be57afdb116521df52296",
+			"ports": [],
+			"public": {
+				"port": 11080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

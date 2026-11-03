@@ -1,0 +1,190 @@
+{
+	"schema": 1,
+	"id": "prefect",
+	"name": "Prefect",
+	"description": "Prefect is an open-source workflow orchestration platform for building, scheduling, monitoring, and managing data pipelines and Python workflows.",
+	"category": "automation",
+	"tags": [
+		"automation",
+		"workflow",
+		"data",
+		"orchestration",
+		"data-pipeline",
+		"python",
+		"data-processing",
+		"data-integration",
+		"etl"
+	],
+	"logo": "logos/prefect.svg",
+	"website": "https://www.prefect.io/",
+	"docs": "https://docs.prefect.io/",
+	"version": "3.7.5-python3.12",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/prefect",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "authPassword",
+			"label": "Auth password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "prefect",
+			"dependsOn": [
+				"prefect-postgres",
+				"prefect-redis"
+			],
+			"env": {
+				"PREFECT_API_DATABASE_CONNECTION_URL": "postgresql+asyncpg://prefect:${{ inputs.postgresPassword }}@${{ services.prefect-postgres.host }}:5432/prefect",
+				"PREFECT_SERVER_API_HOST": "0.0.0.0",
+				"PREFECT_SERVER_UI_API_URL": "https://${{ inputs.mainDomain }}/api",
+				"PREFECT_MESSAGING_BROKER": "prefect_redis.messaging",
+				"PREFECT_MESSAGING_CACHE": "prefect_redis.messaging",
+				"PREFECT_REDIS_MESSAGING_HOST": "${{ services.prefect-redis.host }}",
+				"PREFECT_REDIS_MESSAGING_PORT": "6379",
+				"PREFECT_REDIS_MESSAGING_DB": "0",
+				"USE_AUTH": "False",
+				"PREFECT_AUTH_USER": "admin",
+				"PREFECT_AUTH_PASSWORD": "${{ inputs.authPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "prefecthq/prefect:3.7.5-python3.12",
+			"command": [
+				"sh",
+				"-c",
+				"case \"$USE_AUTH\" in\n  [Tt]rue|1|[Yy]es) export PREFECT_SERVER_API_AUTH_STRING=\"$PREFECT_AUTH_USER:$PREFECT_AUTH_PASSWORD\"; export PREFECT_API_AUTH_STRING=\"$PREFECT_AUTH_USER:$PREFECT_AUTH_PASSWORD\"; echo \"Prefect basic auth enabled\" ;;\nesac\nexec prefect server start --no-services\n"
+			],
+			"ports": [
+				{
+					"target": 4200,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"python",
+					"-c",
+					"import urllib.request as u; u.urlopen('http://localhost:4200/api/health', timeout=1)"
+				]
+			},
+			"public": {
+				"port": 4200,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "prefect-services",
+			"dependsOn": [
+				"prefect"
+			],
+			"env": {
+				"PREFECT_API_DATABASE_CONNECTION_URL": "postgresql+asyncpg://prefect:${{ inputs.postgresPassword }}@${{ services.prefect-postgres.host }}:5432/prefect",
+				"PREFECT_MESSAGING_BROKER": "prefect_redis.messaging",
+				"PREFECT_MESSAGING_CACHE": "prefect_redis.messaging",
+				"PREFECT_REDIS_MESSAGING_HOST": "${{ services.prefect-redis.host }}",
+				"PREFECT_REDIS_MESSAGING_PORT": "6379",
+				"PREFECT_REDIS_MESSAGING_DB": "0",
+				"USE_AUTH": "False",
+				"PREFECT_AUTH_USER": "admin",
+				"PREFECT_AUTH_PASSWORD": "${{ inputs.authPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "prefecthq/prefect:3.7.5-python3.12",
+			"command": [
+				"sh",
+				"-c",
+				"case \"$USE_AUTH\" in\n  [Tt]rue|1|[Yy]es) export PREFECT_SERVER_API_AUTH_STRING=\"$PREFECT_AUTH_USER:$PREFECT_AUTH_PASSWORD\"; export PREFECT_API_AUTH_STRING=\"$PREFECT_AUTH_USER:$PREFECT_AUTH_PASSWORD\"; echo \"Prefect basic auth enabled\" ;;\nesac\nexec prefect server services start\n"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "prefect-worker",
+			"dependsOn": [
+				"prefect"
+			],
+			"env": {
+				"PREFECT_API_URL": "http://${{ services.prefect.host }}:4200/api",
+				"USE_AUTH": "False",
+				"PREFECT_AUTH_USER": "admin",
+				"PREFECT_AUTH_PASSWORD": "${{ inputs.authPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "prefecthq/prefect:3.7.5-python3.12",
+			"command": [
+				"sh",
+				"-c",
+				"case \"$USE_AUTH\" in\n  [Tt]rue|1|[Yy]es) export PREFECT_API_AUTH_STRING=\"$PREFECT_AUTH_USER:$PREFECT_AUTH_PASSWORD\"; echo \"Prefect basic auth enabled\" ;;\nesac\nexec prefect worker start --pool local-pool\n"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "prefect-postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "prefect",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "prefect"
+			},
+			"volumes": [
+				{
+					"name": "prefect-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "14-alpine"
+		},
+		{
+			"name": "prefect-redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "prefect-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7.2-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,164 @@
+{
+	"schema": 1,
+	"id": "peertube",
+	"name": "Peertube",
+	"description": "Free, open-source and decentralized video platform.",
+	"category": "media",
+	"tags": [
+		"video",
+		"fediverse",
+		"activitypub",
+		"youtube",
+		"streaming",
+		"self-hosted"
+	],
+	"logo": "logos/peertube.svg",
+	"docs": "https://docs.joinpeertube.org/install/docker",
+	"version": "v8.2.4",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/peertube.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "peertubeDomain",
+			"label": "Peertube domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "peertubesecretHex",
+			"label": "Peertubesecret key",
+			"type": "secret",
+			"length": 32,
+			"charset": "hex"
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "peertubeAdminEmail",
+			"label": "Peertube admin email",
+			"type": "text"
+		}
+	],
+	"services": [
+		{
+			"name": "peertube",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"PEERTUBE_WEBSERVER_HOSTNAME": "${{ inputs.peertubeDomain }}",
+				"PEERTUBE_WEBSERVER_PORT": "443",
+				"PEERTUBE_WEBSERVER_HTTPS": "true",
+				"PEERTUBE_TRUST_PROXY": "[\"127.0.0.1\", \"loopback\", \"172.16.0.0/12\"]",
+				"PEERTUBE_SECRET": "${{ inputs.peertubesecretHex }}",
+				"PEERTUBE_DB_HOSTNAME": "${{ services.postgres.host }}",
+				"PEERTUBE_DB_USERNAME": "${{ inputs.postgresqlUser }}",
+				"PEERTUBE_DB_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"PEERTUBE_DB_NAME": "peertube",
+				"PEERTUBE_DB_SSL": "false",
+				"PEERTUBE_REDIS_HOSTNAME": "${{ services.redis.host }}",
+				"PEERTUBE_SMTP_HOSTNAME": "${{ services.postfix.host }}",
+				"PEERTUBE_SMTP_PORT": "25",
+				"PEERTUBE_SMTP_FROM": "noreply@${{ inputs.peertubeDomain }}",
+				"PEERTUBE_SMTP_TLS": "false",
+				"PEERTUBE_SMTP_DISABLE_STARTTLS": "false",
+				"PEERTUBE_ADMIN_EMAIL": "${{ inputs.peertubeAdminEmail }}"
+			},
+			"volumes": [
+				{
+					"name": "peertube-data",
+					"target": "/data"
+				},
+				{
+					"name": "peertube-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "chocobozzz/peertube:v8.2.4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:9000/api/v1/ping"
+				]
+			},
+			"public": {
+				"port": 9000,
+				"domain": "peertubeDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_DB": "peertube"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:8-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postfix",
+			"dependsOn": [],
+			"env": {
+				"POSTFIX_myhostname": "${{ inputs.peertubeDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "mwader/postfix-relay:1.2.17",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

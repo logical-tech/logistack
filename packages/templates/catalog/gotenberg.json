@@ -1,0 +1,73 @@
+{
+	"schema": 1,
+	"id": "gotenberg",
+	"name": "Gotenberg",
+	"description": "Gotenberg is a Docker-powered stateless API for PDF files.",
+	"category": "devtools",
+	"tags": [
+		"api",
+		"backend",
+		"pdf",
+		"tool",
+		"tools"
+	],
+	"website": "https://gotenberg.dev/",
+	"docs": "https://gotenberg.dev/docs/getting-started/introduction",
+	"version": "sha256:13672f317b44",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/gotenberg.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "gotenbergDomain",
+			"label": "Gotenberg domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "gotenbergUser",
+			"label": "Gotenberg user",
+			"type": "username"
+		},
+		{
+			"key": "gotenbergPassword",
+			"label": "Gotenberg password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "gotenberg",
+			"dependsOn": [],
+			"env": {
+				"GOTENBERG_API_BASIC_AUTH_USERNAME": "${{ inputs.gotenbergUser }}",
+				"GOTENBERG_API_BASIC_AUTH_PASSWORD": "${{ inputs.gotenbergPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "gotenberg/gotenberg@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5",
+			"command": [
+				"gotenberg",
+				"--api-enable-basic-auth",
+				"--api-disable-health-check-logging"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000/health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "gotenbergDomain"
+			}
+		}
+	]
+}

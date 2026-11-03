@@ -1,0 +1,160 @@
+{
+	"schema": 1,
+	"id": "directus",
+	"name": "Directus",
+	"description": "Directus is an open-source headless CMS that adds an API and admin app to your SQL database.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"directus",
+		"database",
+		"sql"
+	],
+	"website": "https://directus.io/",
+	"docs": "https://directus.com/docs/",
+	"version": "12.1.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/directus",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "directusSecret",
+			"label": "Directus secret",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		}
+	],
+	"services": [
+		{
+			"name": "directus",
+			"dependsOn": [
+				"database",
+				"cache"
+			],
+			"env": {
+				"SECRET": "${{ inputs.directusSecret }}",
+				"DB_CLIENT": "pg",
+				"DB_HOST": "${{ services.database.host }}",
+				"DB_PORT": "5432",
+				"DB_DATABASE": "directus",
+				"DB_USER": "directus",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"CACHE_ENABLED": "true",
+				"CACHE_AUTO_PURGE": "true",
+				"CACHE_STORE": "redis",
+				"REDIS": "redis://${{ services.cache.host }}:6379",
+				"WEBSOCKETS_ENABLED": "true",
+				"PUBLIC_URL": "https://${{ inputs.mainDomain }}",
+				"LICENSE_KEY": "",
+				"ADMIN_EMAIL": "${{ inputs.adminEmail }}",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"STORAGE_LOCATIONS": "local",
+				"STORAGE_LOCAL_DRIVER": "local",
+				"STORAGE_LOCAL_ROOT": "/directus/uploads"
+			},
+			"volumes": [
+				{
+					"name": "directus-uploads",
+					"target": "/directus/uploads"
+				},
+				{
+					"name": "directus-extensions",
+					"target": "/directus/extensions"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "directus/directus:12.1.1",
+			"ports": [
+				{
+					"target": 8055,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --spider -q http://127.0.0.1:8055/server/ping || exit 1"
+				]
+			},
+			"public": {
+				"port": 8055,
+				"domain": "mainDomain"
+			}
+		},
+		{
+			"name": "database",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "directus",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "directus"
+			},
+			"volumes": [
+				{
+					"name": "directus-database",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgis/postgis:13-master",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready --host=localhost --username=$POSTGRES_USER"
+				]
+			}
+		},
+		{
+			"name": "cache",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:6",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"[ $(redis-cli ping) = 'PONG' ]"
+				]
+			}
+		}
+	],
+	"logo": "logos/directus.svg"
+}

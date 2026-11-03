@@ -1,0 +1,82 @@
+{
+	"schema": 1,
+	"id": "gowa",
+	"name": "Gowa",
+	"description": "Golang WhatsApp - Built with Go for efficient memory use",
+	"category": "communication",
+	"tags": [
+		"whatsapp",
+		"golang",
+		"multidevice",
+		"api",
+		"go-whatsapp"
+	],
+	"docs": "https://github.com/aldinokemal/go-whatsapp-web-multidevice",
+	"version": "sha256:caec634771e3",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/gowa.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "gowaDomain",
+			"label": "Gowa domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "gowaUser",
+			"label": "Gowa user",
+			"type": "username"
+		},
+		{
+			"key": "gowaPassword",
+			"label": "Gowa password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "whatsappWebhook",
+			"label": "Whatsapp webhook",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "whatsappWebhookSecret",
+			"label": "Whatsapp webhook secret",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "gowa",
+			"dependsOn": [],
+			"env": {
+				"SERVICE_USER_GOWA": "${{ inputs.gowaUser }}",
+				"SERVICE_PASSWORD_GOWA": "${{ inputs.gowaPassword }}",
+				"APP_BASIC_AUTH": "${{ inputs.gowaUser }}:${{ inputs.gowaPassword }}",
+				"APP_PORT": "3000",
+				"APP_DEBUG": "false",
+				"APP_ACCOUNT_VALIDATION": "false",
+				"WHATSAPP_WEBHOOK": "${{ inputs.whatsappWebhook }}",
+				"WHATSAPP_WEBHOOK_SECRET": "${{ inputs.whatsappWebhookSecret }}"
+			},
+			"volumes": [
+				{
+					"name": "gowa-data",
+					"target": "/app/storages"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "aldinokemal2104/go-whatsapp-web-multidevice@sha256:caec634771e3a60b55f0651a70594593d63fb9ae751492260608b81ee4fd4abf",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "gowaDomain"
+			}
+		}
+	]
+}

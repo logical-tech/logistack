@@ -1,0 +1,170 @@
+{
+	"schema": 1,
+	"id": "tela",
+	"name": "tela",
+	"description": "Self-hostable, markdown-native team wiki with live collaboration, full-text and semantic search, WebDAV sync, public spaces, Slidev decks, PDF export, and a built-in MCP server so AI agents are first-class editors.",
+	"category": "productivity",
+	"tags": [
+		"wiki",
+		"documentation",
+		"knowledge-base",
+		"markdown",
+		"collaboration",
+		"ai"
+	],
+	"logo": "logos/tela.png",
+	"website": "https://telawiki.com/",
+	"docs": "https://telawiki.com/public/spaces/16",
+	"version": "0.7.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/tela",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "pgPassword",
+			"label": "Pg password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "shareSecret",
+			"label": "Share secret",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "apiKeySecret",
+			"label": "API key secret",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "proxy",
+			"dependsOn": [
+				"backend",
+				"frontend"
+			],
+			"env": {
+				"TELA_SITE_ADDRESS": ":80",
+				"TELA_UPSTREAM_BACKEND": "${{ services.backend.host }}:8080",
+				"TELA_UPSTREAM_FRONTEND": "${{ services.frontend.host }}:80"
+			},
+			"volumes": [
+				{
+					"name": "caddy-data",
+					"target": "/data"
+				},
+				{
+					"name": "caddy-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/zcag/tela-proxy:0.7.0",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "backend",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"TELA_PUBLIC_BASE_URL": "https://${{ inputs.mainDomain }}",
+				"TELA_DATABASE_URL": "postgres://tela:${{ inputs.pgPassword }}@${{ services.postgres.host }}:5432/tela?sslmode=disable",
+				"TELA_SHARE_SECRET": "${{ inputs.shareSecret }}",
+				"TELA_API_KEY_SECRET": "${{ inputs.apiKeySecret }}",
+				"TELA_DECK_URL": "http://${{ services.deck.host }}:3344",
+				"TELA_GOTENBERG_URL": "http://${{ services.gotenberg.host }}:3000",
+				"TELA_PDF_RENDER_BASE_URL": "http://${{ services.proxy.host }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/zcag/tela-backend:0.7.0",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "frontend",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/zcag/tela-frontend:0.7.0",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "tela",
+				"POSTGRES_PASSWORD": "${{ inputs.pgPassword }}",
+				"POSTGRES_DB": "tela"
+			},
+			"volumes": [
+				{
+					"name": "pgdata",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "pgvector/pgvector:pg17",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U tela -d tela"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "deck",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "deckcache",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/zcag/tela-deck:0.7.0",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "gotenberg",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "gotenberg/gotenberg:8",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

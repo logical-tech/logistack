@@ -1,0 +1,49 @@
+{
+	"schema": 1,
+	"id": "crawlab-worker",
+	"name": "Crawlab (Worker)",
+	"description": "Crawlab worker node for distributed web crawling. Connects to an existing Crawlab master node via gRPC.",
+	"category": "other",
+	"tags": [
+		"crawler",
+		"scraping",
+		"distributed",
+		"self-hosted"
+	],
+	"logo": "logos/crawlab-worker.jpg",
+	"website": "https://crawlab.cn/",
+	"docs": "https://docs.crawlab.cn/",
+	"version": "sha256:a0f72ac7325a",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/crawlab-worker",
+		"license": "MIT"
+	},
+	"inputs": [],
+	"services": [
+		{
+			"name": "crawlab-worker",
+			"dependsOn": [],
+			"env": {
+				"CRAWLAB_NODE_MASTER": "N",
+				"CRAWLAB_GRPC_ADDRESS": "<master_node_ip>:9666",
+				"CRAWLAB_FS_FILER_URL": "http://<master_node_ip>:8080/api/filer"
+			},
+			"volumes": [
+				{
+					"name": "crawlab-worker-data",
+					"target": "/root/.crawlab"
+				},
+				{
+					"name": "crawlab-worker-app",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "crawlabteam/crawlab@sha256:a0f72ac7325ad97dd9452f56871b0c0bc90225021abbd7857f447fc14fd68abb",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

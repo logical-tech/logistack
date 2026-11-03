@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "homepage",
+	"name": "Homepage",
+	"description": "Homepage is a customizable dashboard and start page for your apps and services.",
+	"category": "productivity",
+	"tags": [
+		"dashboard",
+		"startpage",
+		"self-hosted",
+		"productivity",
+		"homepage"
+	],
+	"logo": "logos/homepage.png",
+	"website": "https://gethomepage.dev/",
+	"docs": "https://gethomepage.dev/installation/",
+	"version": "1.13.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/homepage",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "homepage",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "files-homepage-config",
+					"target": "/app/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/gethomepage/homepage:v1.13.1",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

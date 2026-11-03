@@ -1,0 +1,705 @@
+{
+	"schema": 1,
+	"id": "palworld",
+	"name": "Palworld",
+	"description": "",
+	"category": "media",
+	"tags": [],
+	"version": "v1.4.6",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/palworld.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "tz",
+			"label": "Tz",
+			"type": "text"
+		},
+		{
+			"key": "puid",
+			"label": "Puid",
+			"type": "text"
+		},
+		{
+			"key": "pgid",
+			"label": "Pgid",
+			"type": "text"
+		},
+		{
+			"key": "multithreading",
+			"label": "Multithreading",
+			"type": "text"
+		},
+		{
+			"key": "players",
+			"label": "Players",
+			"type": "text"
+		},
+		{
+			"key": "serverName",
+			"label": "Server name",
+			"type": "text"
+		},
+		{
+			"key": "serverDescription",
+			"label": "Server description",
+			"type": "text"
+		},
+		{
+			"key": "serverPassword",
+			"label": "Server password",
+			"type": "text"
+		},
+		{
+			"key": "community",
+			"label": "Community",
+			"type": "text"
+		},
+		{
+			"key": "publicPort",
+			"label": "Public port",
+			"type": "text"
+		},
+		{
+			"key": "port",
+			"label": "Port",
+			"type": "text"
+		},
+		{
+			"key": "queryPort",
+			"label": "Query port",
+			"type": "text"
+		},
+		{
+			"key": "updateOnBoot",
+			"label": "Update on boot",
+			"type": "text"
+		},
+		{
+			"key": "rconEnabled",
+			"label": "Rcon enabled",
+			"type": "text"
+		},
+		{
+			"key": "rconPort",
+			"label": "Rcon port",
+			"type": "text"
+		},
+		{
+			"key": "backupEnabled",
+			"label": "Backup enabled",
+			"type": "text"
+		},
+		{
+			"key": "deleteOldBackups",
+			"label": "Delete old backups",
+			"type": "text"
+		},
+		{
+			"key": "oldBackupDays",
+			"label": "Old backup days",
+			"type": "text"
+		},
+		{
+			"key": "backupCronExpression",
+			"label": "Backup cron expression",
+			"type": "text"
+		},
+		{
+			"key": "autoUpdateEnabled",
+			"label": "Auto update enabled",
+			"type": "text"
+		},
+		{
+			"key": "autoUpdateCronExpression",
+			"label": "Auto update cron expression",
+			"type": "text"
+		},
+		{
+			"key": "autoUpdateWarnMinutes",
+			"label": "Auto update warn minutes",
+			"type": "text"
+		},
+		{
+			"key": "autoRebootEnabled",
+			"label": "Auto reboot enabled",
+			"type": "text"
+		},
+		{
+			"key": "autoRebootEvenIfPlayersOnline",
+			"label": "Auto reboot even if players online",
+			"type": "text"
+		},
+		{
+			"key": "autoRebootWarnMinutes",
+			"label": "Auto reboot warn minutes",
+			"type": "text"
+		},
+		{
+			"key": "autoRebootCronExpression",
+			"label": "Auto reboot cron expression",
+			"type": "text"
+		},
+		{
+			"key": "autoPauseEnabled",
+			"label": "Auto pause enabled",
+			"type": "text"
+		},
+		{
+			"key": "autoPauseTimeoutEst",
+			"label": "Auto pause timeout est",
+			"type": "text"
+		},
+		{
+			"key": "autoPauseLog",
+			"label": "Auto pause log",
+			"type": "text"
+		},
+		{
+			"key": "autoPauseDebug",
+			"label": "Auto pause debug",
+			"type": "text"
+		},
+		{
+			"key": "enablePlayerLogging",
+			"label": "Enable player logging",
+			"type": "text"
+		},
+		{
+			"key": "playerLoggingPollPeriod",
+			"label": "Player logging poll period",
+			"type": "text"
+		},
+		{
+			"key": "difficulty",
+			"label": "Difficulty",
+			"type": "text"
+		},
+		{
+			"key": "randomizerSeed",
+			"label": "Randomizer seed",
+			"type": "text"
+		},
+		{
+			"key": "daytimeSpeedrate",
+			"label": "Daytime speedrate",
+			"type": "text"
+		},
+		{
+			"key": "nighttimeSpeedrate",
+			"label": "Nighttime speedrate",
+			"type": "text"
+		},
+		{
+			"key": "expRate",
+			"label": "Exp rate",
+			"type": "text"
+		},
+		{
+			"key": "palCaptureRate",
+			"label": "Pal capture rate",
+			"type": "text"
+		},
+		{
+			"key": "palSpawnNumRate",
+			"label": "Pal spawn num rate",
+			"type": "text"
+		},
+		{
+			"key": "palDamageRateAttack",
+			"label": "Pal damage rate attack",
+			"type": "text"
+		},
+		{
+			"key": "palDamageRateDefense",
+			"label": "Pal damage rate defense",
+			"type": "text"
+		},
+		{
+			"key": "playerDamageRateAttack",
+			"label": "Player damage rate attack",
+			"type": "text"
+		},
+		{
+			"key": "playerDamageRateDefense",
+			"label": "Player damage rate defense",
+			"type": "text"
+		},
+		{
+			"key": "playerStomachDecreaseRate",
+			"label": "Player stomach decrease rate",
+			"type": "text"
+		},
+		{
+			"key": "playerStaminaDecreaseRate",
+			"label": "Player stamina decrease rate",
+			"type": "text"
+		},
+		{
+			"key": "playerAutoHpRegenRate",
+			"label": "Player auto hp regen rate",
+			"type": "text"
+		},
+		{
+			"key": "playerAutoHpRegenRateInSleep",
+			"label": "Player auto hp regen rate in sleep",
+			"type": "text"
+		},
+		{
+			"key": "palStomachDecreaseRate",
+			"label": "Pal stomach decrease rate",
+			"type": "text"
+		},
+		{
+			"key": "palStaminaDecreaseRate",
+			"label": "Pal stamina decrease rate",
+			"type": "text"
+		},
+		{
+			"key": "palAutoHpRegenRate",
+			"label": "Pal auto hp regen rate",
+			"type": "text"
+		},
+		{
+			"key": "palAutoHpRegenRateInSleep",
+			"label": "Pal auto hp regen rate in sleep",
+			"type": "text"
+		},
+		{
+			"key": "buildObjectHpRate",
+			"label": "Build object hp rate",
+			"type": "text"
+		},
+		{
+			"key": "buildObjectDamageRate",
+			"label": "Build object damage rate",
+			"type": "text"
+		},
+		{
+			"key": "buildObjectDeteriorationDamageRate",
+			"label": "Build object deterioration damage rate",
+			"type": "text"
+		},
+		{
+			"key": "collectionDropRate",
+			"label": "Collection drop rate",
+			"type": "text"
+		},
+		{
+			"key": "collectionObjectHpRate",
+			"label": "Collection object hp rate",
+			"type": "text"
+		},
+		{
+			"key": "collectionObjectRespawnSpeedRate",
+			"label": "Collection object respawn speed rate",
+			"type": "text"
+		},
+		{
+			"key": "enemyDropItemRate",
+			"label": "Enemy drop item rate",
+			"type": "text"
+		},
+		{
+			"key": "deathPenalty",
+			"label": "Death penalty",
+			"type": "text"
+		},
+		{
+			"key": "enablePlayerToPlayerDamage",
+			"label": "Enable player to player damage",
+			"type": "text"
+		},
+		{
+			"key": "enableFriendlyFire",
+			"label": "Enable friendly fire",
+			"type": "text"
+		},
+		{
+			"key": "enableInvaderEnemy",
+			"label": "Enable invader enemy",
+			"type": "text"
+		},
+		{
+			"key": "activeUnko",
+			"label": "Active unko",
+			"type": "text"
+		},
+		{
+			"key": "enableAimAssistPad",
+			"label": "Enable aim assist pad",
+			"type": "text"
+		},
+		{
+			"key": "enableAimAssistKeyboard",
+			"label": "Enable aim assist keyboard",
+			"type": "text"
+		},
+		{
+			"key": "dropItemMaxNum",
+			"label": "Drop item max num",
+			"type": "text"
+		},
+		{
+			"key": "dropItemMaxNumUnko",
+			"label": "Drop item max num unko",
+			"type": "text"
+		},
+		{
+			"key": "baseCampMaxNum",
+			"label": "Base camp max num",
+			"type": "text"
+		},
+		{
+			"key": "baseCampWorkerMaxNum",
+			"label": "Base camp worker max num",
+			"type": "text"
+		},
+		{
+			"key": "dropItemAliveMaxHours",
+			"label": "Drop item alive max hours",
+			"type": "text"
+		},
+		{
+			"key": "autoResetGuildNoOnlinePlayers",
+			"label": "Auto reset guild no online players",
+			"type": "text"
+		},
+		{
+			"key": "autoResetGuildTimeNoOnlinePlayers",
+			"label": "Auto reset guild time no online players",
+			"type": "text"
+		},
+		{
+			"key": "guildPlayerMaxNum",
+			"label": "Guild player max num",
+			"type": "text"
+		},
+		{
+			"key": "baseCampMaxNumInGuild",
+			"label": "Base camp max num in guild",
+			"type": "text"
+		},
+		{
+			"key": "palEggDefaultHatchingTime",
+			"label": "Pal egg default hatching time",
+			"type": "text"
+		},
+		{
+			"key": "workSpeedRate",
+			"label": "Work speed rate",
+			"type": "text"
+		},
+		{
+			"key": "autoSaveSpan",
+			"label": "Auto save span",
+			"type": "text"
+		},
+		{
+			"key": "isMultiplay",
+			"label": "Is multiplay",
+			"type": "text"
+		},
+		{
+			"key": "isPvp",
+			"label": "Is pvp",
+			"type": "text"
+		},
+		{
+			"key": "hardcore",
+			"label": "Hardcore",
+			"type": "text"
+		},
+		{
+			"key": "palLost",
+			"label": "Pal lost",
+			"type": "text"
+		},
+		{
+			"key": "canPickupOtherGuildDeathPenaltyDrop",
+			"label": "Can pickup other guild death penalty drop",
+			"type": "text"
+		},
+		{
+			"key": "enableNonLoginPenalty",
+			"label": "Enable non login penalty",
+			"type": "text"
+		},
+		{
+			"key": "enableFastTravel",
+			"label": "Enable fast travel",
+			"type": "text"
+		},
+		{
+			"key": "isStartLocationSelectByMap",
+			"label": "Is start location select by map",
+			"type": "text"
+		},
+		{
+			"key": "existPlayerAfterLogout",
+			"label": "Exist player after logout",
+			"type": "text"
+		},
+		{
+			"key": "enableDefenseOtherGuildPlayer",
+			"label": "Enable defense other guild player",
+			"type": "text"
+		},
+		{
+			"key": "invisibleOtherGuildBaseCampAreaFx",
+			"label": "Invisible other guild base camp area fx",
+			"type": "text"
+		},
+		{
+			"key": "buildAreaLimit",
+			"label": "Build area limit",
+			"type": "text"
+		},
+		{
+			"key": "itemWeightRate",
+			"label": "Item weight rate",
+			"type": "text"
+		},
+		{
+			"key": "coopPlayerMaxNum",
+			"label": "Coop player max num",
+			"type": "text"
+		},
+		{
+			"key": "useauth",
+			"label": "Useauth",
+			"type": "text"
+		},
+		{
+			"key": "banListUrl",
+			"label": "Ban list URL",
+			"type": "text"
+		},
+		{
+			"key": "restApiEnabled",
+			"label": "Rest API enabled",
+			"type": "text"
+		},
+		{
+			"key": "restApiPort",
+			"label": "Rest API port",
+			"type": "text"
+		},
+		{
+			"key": "showPlayerList",
+			"label": "Show player list",
+			"type": "text"
+		},
+		{
+			"key": "enablePredatorBossPal",
+			"label": "Enable predator boss pal",
+			"type": "text"
+		},
+		{
+			"key": "maxBuildingLimitNum",
+			"label": "Max building limit num",
+			"type": "text"
+		},
+		{
+			"key": "serverReplicatePawnCullDistance",
+			"label": "Server replicate pawn cull distance",
+			"type": "text"
+		},
+		{
+			"key": "serverReplicatePawnCullDistanceInBaseCamp",
+			"label": "Server replicate pawn cull distance in base camp",
+			"type": "text"
+		},
+		{
+			"key": "crossplayPlatforms",
+			"label": "Crossplay platforms",
+			"type": "text"
+		},
+		{
+			"key": "useBackupSaveData",
+			"label": "Use backup save data",
+			"type": "text"
+		},
+		{
+			"key": "useDepotDownloader",
+			"label": "Use depot downloader",
+			"type": "text"
+		},
+		{
+			"key": "installBetaInsider",
+			"label": "Install beta insider",
+			"type": "text"
+		},
+		{
+			"key": "allowGlobalPalboxExport",
+			"label": "Allow global palbox export",
+			"type": "text"
+		},
+		{
+			"key": "allowGlobalPalboxImport",
+			"label": "Allow global palbox import",
+			"type": "text"
+		},
+		{
+			"key": "equipmentDurabilityDamageRate",
+			"label": "Equipment durability damage rate",
+			"type": "text"
+		},
+		{
+			"key": "itemContainerForceMarkDirtyInterval",
+			"label": "Item container force mark dirty interval",
+			"type": "text"
+		}
+	],
+	"services": [
+		{
+			"name": "palworld",
+			"dependsOn": [],
+			"env": {
+				"TZ": "${{ inputs.tz }}",
+				"PUID": "${{ inputs.puid }}",
+				"PGID": "${{ inputs.pgid }}",
+				"MULTITHREADING": "${{ inputs.multithreading }}",
+				"MAX_PLAYERS": "${{ inputs.players }}",
+				"SERVER_NAME": "${{ inputs.serverName }}",
+				"SERVER_DESCRIPTION": "${{ inputs.serverDescription }}",
+				"SERVER_PASSWORD": "${{ inputs.serverPassword }}",
+				"ADMIN_PASSWORD": "adminPassword",
+				"COMMUNITY": "${{ inputs.community }}",
+				"PUBLIC_IP": "",
+				"PUBLIC_PORT": "${{ inputs.publicPort }}",
+				"PORT": "${{ inputs.port }}",
+				"QUERY_PORT": "${{ inputs.queryPort }}",
+				"UPDATE_ON_BOOT": "${{ inputs.updateOnBoot }}",
+				"RCON_ENABLED": "${{ inputs.rconEnabled }}",
+				"RCON_PORT": "${{ inputs.rconPort }}",
+				"BACKUP_ENABLED": "${{ inputs.backupEnabled }}",
+				"DELETE_OLD_BACKUPS": "${{ inputs.deleteOldBackups }}",
+				"OLD_BACKUP_DAYS": "${{ inputs.oldBackupDays }}",
+				"BACKUP_CRON_EXPRESSION": "${{ inputs.backupCronExpression }}",
+				"AUTO_UPDATE_ENABLED": "${{ inputs.autoUpdateEnabled }}",
+				"AUTO_UPDATE_CRON_EXPRESSION": "${{ inputs.autoUpdateCronExpression }}",
+				"AUTO_UPDATE_WARN_MINUTES": "${{ inputs.autoUpdateWarnMinutes }}",
+				"AUTO_REBOOT_ENABLED": "${{ inputs.autoRebootEnabled }}",
+				"AUTO_REBOOT_EVEN_IF_PLAYERS_ONLINE": "${{ inputs.autoRebootEvenIfPlayersOnline }}",
+				"AUTO_REBOOT_WARN_MINUTES": "${{ inputs.autoRebootWarnMinutes }}",
+				"AUTO_REBOOT_CRON_EXPRESSION": "${{ inputs.autoRebootCronExpression }}",
+				"AUTO_PAUSE_ENABLED": "${{ inputs.autoPauseEnabled }}",
+				"AUTO_PAUSE_TIMEOUT_EST": "${{ inputs.autoPauseTimeoutEst }}",
+				"AUTO_PAUSE_LOG": "${{ inputs.autoPauseLog }}",
+				"AUTO_PAUSE_DEBUG": "${{ inputs.autoPauseDebug }}",
+				"ENABLE_PLAYER_LOGGING": "${{ inputs.enablePlayerLogging }}",
+				"PLAYER_LOGGING_POLL_PERIOD": "${{ inputs.playerLoggingPollPeriod }}",
+				"DIFFICULTY": "${{ inputs.difficulty }}",
+				"RANDOMIZER_TYPE": "",
+				"RANDOMIZER_SEED": "${{ inputs.randomizerSeed }}",
+				"DAYTIME_SPEEDRATE": "${{ inputs.daytimeSpeedrate }}",
+				"NIGHTTIME_SPEEDRATE": "${{ inputs.nighttimeSpeedrate }}",
+				"EXP_RATE": "${{ inputs.expRate }}",
+				"PAL_CAPTURE_RATE": "${{ inputs.palCaptureRate }}",
+				"PAL_SPAWN_NUM_RATE": "${{ inputs.palSpawnNumRate }}",
+				"PAL_DAMAGE_RATE_ATTACK": "${{ inputs.palDamageRateAttack }}",
+				"PAL_DAMAGE_RATE_DEFENSE": "${{ inputs.palDamageRateDefense }}",
+				"PLAYER_DAMAGE_RATE_ATTACK": "${{ inputs.playerDamageRateAttack }}",
+				"PLAYER_DAMAGE_RATE_DEFENSE": "${{ inputs.playerDamageRateDefense }}",
+				"PLAYER_STOMACH_DECREASE_RATE": "${{ inputs.playerStomachDecreaseRate }}",
+				"PLAYER_STAMINA_DECREASE_RATE": "${{ inputs.playerStaminaDecreaseRate }}",
+				"PLAYER_AUTO_HP_REGEN_RATE": "${{ inputs.playerAutoHpRegenRate }}",
+				"PLAYER_AUTO_HP_REGEN_RATE_IN_SLEEP": "${{ inputs.playerAutoHpRegenRateInSleep }}",
+				"PAL_STOMACH_DECREASE_RATE": "${{ inputs.palStomachDecreaseRate }}",
+				"PAL_STAMINA_DECREASE_RATE": "${{ inputs.palStaminaDecreaseRate }}",
+				"PAL_AUTO_HP_REGEN_RATE": "${{ inputs.palAutoHpRegenRate }}",
+				"PAL_AUTO_HP_REGEN_RATE_IN_SLEEP": "${{ inputs.palAutoHpRegenRateInSleep }}",
+				"BUILD_OBJECT_HP_RATE": "${{ inputs.buildObjectHpRate }}",
+				"BUILD_OBJECT_DAMAGE_RATE": "${{ inputs.buildObjectDamageRate }}",
+				"BUILD_OBJECT_DETERIORATION_DAMAGE_RATE": "${{ inputs.buildObjectDeteriorationDamageRate }}",
+				"COLLECTION_DROP_RATE": "${{ inputs.collectionDropRate }}",
+				"COLLECTION_OBJECT_HP_RATE": "${{ inputs.collectionObjectHpRate }}",
+				"COLLECTION_OBJECT_RESPAWN_SPEED_RATE": "${{ inputs.collectionObjectRespawnSpeedRate }}",
+				"ENEMY_DROP_ITEM_RATE": "${{ inputs.enemyDropItemRate }}",
+				"DEATH_PENALTY": "${{ inputs.deathPenalty }}",
+				"ENABLE_PLAYER_TO_PLAYER_DAMAGE": "${{ inputs.enablePlayerToPlayerDamage }}",
+				"ENABLE_FRIENDLY_FIRE": "${{ inputs.enableFriendlyFire }}",
+				"ENABLE_INVADER_ENEMY": "${{ inputs.enableInvaderEnemy }}",
+				"ACTIVE_UNKO": "${{ inputs.activeUnko }}",
+				"ENABLE_AIM_ASSIST_PAD": "${{ inputs.enableAimAssistPad }}",
+				"ENABLE_AIM_ASSIST_KEYBOARD": "${{ inputs.enableAimAssistKeyboard }}",
+				"DROP_ITEM_MAX_NUM": "${{ inputs.dropItemMaxNum }}",
+				"DROP_ITEM_MAX_NUM_UNKO": "${{ inputs.dropItemMaxNumUnko }}",
+				"BASE_CAMP_MAX_NUM": "${{ inputs.baseCampMaxNum }}",
+				"BASE_CAMP_WORKER_MAX_NUM": "${{ inputs.baseCampWorkerMaxNum }}",
+				"DROP_ITEM_ALIVE_MAX_HOURS": "${{ inputs.dropItemAliveMaxHours }}",
+				"AUTO_RESET_GUILD_NO_ONLINE_PLAYERS": "${{ inputs.autoResetGuildNoOnlinePlayers }}",
+				"AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS": "${{ inputs.autoResetGuildTimeNoOnlinePlayers }}",
+				"GUILD_PLAYER_MAX_NUM": "${{ inputs.guildPlayerMaxNum }}",
+				"BASE_CAMP_MAX_NUM_IN_GUILD": "${{ inputs.baseCampMaxNumInGuild }}",
+				"PAL_EGG_DEFAULT_HATCHING_TIME": "${{ inputs.palEggDefaultHatchingTime }}",
+				"WORK_SPEED_RATE": "${{ inputs.workSpeedRate }}",
+				"AUTO_SAVE_SPAN": "${{ inputs.autoSaveSpan }}",
+				"IS_MULTIPLAY": "${{ inputs.isMultiplay }}",
+				"IS_PVP": "${{ inputs.isPvp }}",
+				"HARDCORE": "${{ inputs.hardcore }}",
+				"PAL_LOST": "${{ inputs.palLost }}",
+				"CAN_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP": "${{ inputs.canPickupOtherGuildDeathPenaltyDrop }}",
+				"ENABLE_NON_LOGIN_PENALTY": "${{ inputs.enableNonLoginPenalty }}",
+				"ENABLE_FAST_TRAVEL": "${{ inputs.enableFastTravel }}",
+				"IS_START_LOCATION_SELECT_BY_MAP": "${{ inputs.isStartLocationSelectByMap }}",
+				"EXIST_PLAYER_AFTER_LOGOUT": "${{ inputs.existPlayerAfterLogout }}",
+				"ENABLE_DEFENSE_OTHER_GUILD_PLAYER": "${{ inputs.enableDefenseOtherGuildPlayer }}",
+				"INVISIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX": "${{ inputs.invisibleOtherGuildBaseCampAreaFx }}",
+				"BUILD_AREA_LIMIT": "${{ inputs.buildAreaLimit }}",
+				"ITEM_WEIGHT_RATE": "${{ inputs.itemWeightRate }}",
+				"COOP_PLAYER_MAX_NUM": "${{ inputs.coopPlayerMaxNum }}",
+				"REGION": "",
+				"USEAUTH": "${{ inputs.useauth }}",
+				"BAN_LIST_URL": "${{ inputs.banListUrl }}",
+				"REST_API_ENABLED": "${{ inputs.restApiEnabled }}",
+				"REST_API_PORT": "${{ inputs.restApiPort }}",
+				"SHOW_PLAYER_LIST": "${{ inputs.showPlayerList }}",
+				"ENABLE_PREDATOR_BOSS_PAL": "${{ inputs.enablePredatorBossPal }}",
+				"MAX_BUILDING_LIMIT_NUM": "${{ inputs.maxBuildingLimitNum }}",
+				"SERVER_REPLICATE_PAWN_CULL_DISTANCE": "${{ inputs.serverReplicatePawnCullDistance }}",
+				"SERVER_REPLICATE_PAWN_CULL_DISTANCE_IN_BASE_CAMP": "${{ inputs.serverReplicatePawnCullDistanceInBaseCamp }}",
+				"CROSSPLAY_PLATFORMS": "${{ inputs.crossplayPlatforms }}",
+				"USE_BACKUP_SAVE_DATA": "${{ inputs.useBackupSaveData }}",
+				"USE_DEPOT_DOWNLOADER": "${{ inputs.useDepotDownloader }}",
+				"INSTALL_BETA_INSIDER": "${{ inputs.installBetaInsider }}",
+				"ALLOW_GLOBAL_PALBOX_EXPORT": "${{ inputs.allowGlobalPalboxExport }}",
+				"ALLOW_GLOBAL_PALBOX_IMPORT": "${{ inputs.allowGlobalPalboxImport }}",
+				"EQUIPMENT_DURABILITY_DAMAGE_RATE": "${{ inputs.equipmentDurabilityDamageRate }}",
+				"ITEM_CONTAINER_FORCE_MARK_DIRTY_INTERVAL": "${{ inputs.itemContainerForceMarkDirtyInterval }}",
+				"BOX64_DYNAREC_STRONGMEM": "",
+				"BOX64_DYNAREC_BIGBLOCK": "",
+				"BOX64_DYNAREC_SAFEFLAGS": "",
+				"BOX64_DYNAREC_FASTROUND": "",
+				"BOX64_DYNAREC_FASTNAN": "",
+				"BOX64_DYNAREC_X87DOUBLE": ""
+			},
+			"volumes": [
+				{
+					"name": "palworld-data",
+					"target": "/palworld"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "thijsvanloef/palworld-server-docker:v1.4.6",
+			"ports": [
+				{
+					"target": 8211,
+					"published": 8211,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 27015,
+					"published": 27015,
+					"protocol": "udp",
+					"mode": "host"
+				}
+			]
+		}
+	]
+}

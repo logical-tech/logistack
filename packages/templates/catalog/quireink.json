@@ -1,0 +1,57 @@
+{
+	"schema": 1,
+	"id": "quireink",
+	"name": "Quire Ink",
+	"description": "A self-hosted blog in one container: a real editor over Markdown with tables, footnotes and mathematics, scheduled publishing, newsletters over your own SMTP, comments with a built-in spam gate, cookie-free analytics, full-text search and a book reading mode. Importers bring a WordPress, Ghost, Substack or Medium blog across with its redirects and images. There is no database service to run and nothing is fetched from a third party: two SQLite files and an uploads folder are the whole of it. After the first start, open the container logs for the one-time link that claims the blog and creates your account.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"self-hosted",
+		"blog"
+	],
+	"logo": "logos/quireink.png",
+	"website": "https://quireink.com/",
+	"docs": "https://github.com/joiha-steven/quireink/blob/main/docs/self-host-docker.md",
+	"version": "2.2.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/quireink",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "quireink",
+			"dependsOn": [],
+			"env": {
+				"SITE_URL": "https://${{ inputs.mainDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "quireink-data",
+					"target": "/var/lib/quire/data"
+				},
+				{
+					"name": "quireink-uploads",
+					"target": "/var/lib/quire/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "quireink/quireink:2.2.1",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

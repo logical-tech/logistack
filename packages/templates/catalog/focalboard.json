@@ -1,0 +1,78 @@
+{
+	"schema": 1,
+	"id": "focalboard",
+	"name": "Focalboard",
+	"description": "Open source project management for technical teams",
+	"category": "other",
+	"tags": [
+		"kanban"
+	],
+	"website": "https://focalboard.com/",
+	"docs": "https://www.focalboard.com/docs/",
+	"version": "8.0.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/focalboard",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "focalboard",
+			"dependsOn": [],
+			"env": {
+				"VIRTUAL_HOST": "${{ inputs.mainDomain }}",
+				"VIRTUAL_PORT": "8000 # Do Not Alter",
+				"DB_TYPE": "postgres",
+				"DB_CONFIG": "postgres://focalboard:@${{ services.postgres.host }}:5432/?sslmode=disable"
+			},
+			"volumes": [
+				{
+					"name": "focalboarddata",
+					"target": "/opt/focalboard/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mattermost/focalboard:7.11.4",
+			"ports": [],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "focalboard",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "focalboard"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17"
+		}
+	]
+}

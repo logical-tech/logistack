@@ -1,0 +1,107 @@
+{
+	"schema": 1,
+	"id": "ryot",
+	"name": "Ryot",
+	"description": "Roll your own tracker! Ryot is a self-hosted platform for tracking various aspects of life such as media consumption, fitness activities, and more.",
+	"category": "productivity",
+	"tags": [
+		"rss",
+		"reader",
+		"self-hosted",
+		"automation",
+		"tracker",
+		"media",
+		"fitness",
+		"tracking"
+	],
+	"logo": "logos/ryot.svg",
+	"website": "https://ryot.io/",
+	"docs": "https://github.com/ignisda/ryot",
+	"version": "v10.3.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/ryot.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "ryotDomain",
+			"label": "Ryot domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresDb",
+			"label": "Postgres DB",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "ryotPassword",
+			"label": "Ryot password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "ryot",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}:5432/${{ inputs.postgresDb }}",
+				"SERVER_ADMIN_ACCESS_TOKEN": "${{ inputs.ryotPassword }}",
+				"TZ": "Europe/Amsterdam"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ignisda/ryot:v10.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8000/health"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "ryotDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "ryot-db",
+				"TZ": "Europe/Amsterdam"
+			},
+			"volumes": [
+				{
+					"name": "ryot-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

@@ -1,0 +1,111 @@
+{
+	"schema": 1,
+	"id": "booklore",
+	"name": "Booklore",
+	"description": "Booklore is an application for managing and serving book-related data, backed by a MariaDB database.",
+	"category": "database",
+	"tags": [
+		"books",
+		"library",
+		"database",
+		"mariadb"
+	],
+	"logo": "logos/booklore.png",
+	"website": "https://github.com/booklore-app/BookLore",
+	"docs": "https://github.com/booklore-app/BookLore/tree/develop/docs",
+	"version": "sha256:f92dae443c38",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/booklore",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "appPassword",
+			"label": "App password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "booklore",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"DATABASE_URL": "jdbc:mariadb://${{ services.mariadb.host }}:3306/booklore",
+				"DATABASE_USERNAME": "booklore",
+				"DATABASE_PASSWORD": "${{ inputs.appPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "booklore-data",
+					"target": "/app/data"
+				},
+				{
+					"name": "booklore-books",
+					"target": "/books"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/booklore-app/booklore@sha256:f92dae443c38098bf8348742465f6f3b17b619cb8f0e5c2cf195dcdfbb88eaeb",
+			"ports": [
+				{
+					"target": 6060,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 6060,
+				"domain": "mainDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Etc/UTC",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}",
+				"MYSQL_DATABASE": "booklore",
+				"MYSQL_USER": "booklore",
+				"MYSQL_PASSWORD": "${{ inputs.appPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mariadb-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/mariadb@sha256:7b4b9904c151bc50caf2ec9c5bc2213ceedc82c30eaf9ed2b0d47492ebffbe08",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mariadb-admin",
+					"ping",
+					"-h",
+					"localhost"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

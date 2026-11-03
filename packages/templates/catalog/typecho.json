@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "typecho",
+	"name": "Typecho",
+	"description": "Typecho æ˜¯ä¸€ä¸ªè½»é‡çº§çš„å¼€æºåšå®¢ç¨‹åºï¼ŒåŸºäºŽ PHP å¼€å‘ï¼Œæ”¯æŒå¤šç§æ•°æ®åº“ï¼Œç®€æ´è€Œå¼ºå¤§ã€‚",
+	"category": "cms",
+	"tags": [
+		"blog",
+		"cms",
+		"php"
+	],
+	"logo": "logos/typecho.png",
+	"website": "https://typecho.org/",
+	"docs": "http://docs.typecho.org/",
+	"version": "sha256:4af25c76919e",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/typecho",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "typecho",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"PHP_TZ": "Asia/Shanghai",
+				"PHP_MAX_EXECUTION_TIME": "600"
+			},
+			"volumes": [
+				{
+					"name": "typecho-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "80x86/typecho@sha256:4af25c76919efa862d59aeb3a2d9f2394ad3ef4b338037e8a2499c55011dbbf7",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "typecho",
+				"MYSQL_USER": "typecho",
+				"MYSQL_PASSWORD": "typecho_password",
+				"MYSQL_ROOT_PASSWORD": "root_password"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "5.7"
+		}
+	]
+}

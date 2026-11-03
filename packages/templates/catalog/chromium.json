@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "chromium",
+	"name": "Chromium",
+	"description": "Chromium is an open-source browser project that is designed to provide a safer, faster, and more stable way for all users to experience the web in a containerized environment.",
+	"category": "devtools",
+	"tags": [
+		"browser",
+		"development",
+		"web"
+	],
+	"logo": "logos/chromium.png",
+	"website": "https://docs.linuxserver.io/images/docker-chromium",
+	"docs": "https://docs.linuxserver.io/images/docker-chromium",
+	"version": "5f5dd27e-ls102",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/chromium",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "chromiumDomain",
+			"label": "Chromium domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "chromium",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/chromium:5f5dd27e-ls102",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "chromiumDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,116 @@
+{
+	"schema": 1,
+	"id": "movary",
+	"name": "Movary",
+	"description": "Movary is a self-hosted platform for tracking and managing your watched movies using TMDB.",
+	"category": "media",
+	"tags": [
+		"media",
+		"movies",
+		"movie-tracker",
+		"self-hosted",
+		"plex",
+		"jellyfin",
+		"emby",
+		"kodi",
+		"trakt",
+		"letterboxd",
+		"netflix",
+		"tmdb",
+		"statistics",
+		"rating"
+	],
+	"logo": "logos/movary.png",
+	"website": "https://movary.org/",
+	"docs": "https://docs.movary.org/",
+	"version": "sha256:71472991e9f8",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/movary",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "movary",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"TMDB_API_KEY": "",
+				"DATABASE_MODE": "mysql",
+				"DATABASE_MYSQL_HOST": "${{ services.mysql.host }}",
+				"DATABASE_MYSQL_NAME": "movary",
+				"DATABASE_MYSQL_USER": "movary_user",
+				"DATABASE_MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"APP_ENV": "production"
+			},
+			"volumes": [
+				{
+					"name": "movary-storage",
+					"target": "/app/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "leepeuker/movary@sha256:71472991e9f8a71428f3faf370e138b38d7903cff05c744c7350f44f4969ea6a",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "movary",
+				"MYSQL_USER": "movary_user",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}",
+				"MYSQL_INNODB_BUFFER_POOL_SIZE": "128M",
+				"MYSQL_INNODB_LOG_FILE_SIZE": "64M"
+			},
+			"volumes": [
+				{
+					"name": "movary-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mysql:8.0",
+			"command": [
+				"--default-authentication-plugin=mysql_native_password"
+			],
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

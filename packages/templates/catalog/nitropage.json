@@ -1,0 +1,78 @@
+{
+	"schema": 1,
+	"id": "nitropage",
+	"name": "Nitropage",
+	"description": "Nitropage is an extensible, visual website builder, offering a growing library of versatile building blocks, focal-point image cropping and sovereign font management.",
+	"category": "cms",
+	"tags": [
+		"nitropage",
+		"builder",
+		"editor",
+		"wysiwyg",
+		"cms",
+		"content",
+		"management"
+	],
+	"logo": "logos/nitropage.svg",
+	"docs": "https://nitropage.org/",
+	"version": "sqlite",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/nitropage.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "nitropageDomain",
+			"label": "Nitropage domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "saltSecret",
+			"label": "Salt secret",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
+		},
+		{
+			"key": "sessionPassword",
+			"label": "Session password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "nitropage",
+			"dependsOn": [],
+			"env": {
+				"NP_AUTH_SALT": "${{ inputs.saltSecret }}",
+				"NP_AUTH_PASSWORD": "${{ inputs.sessionPassword }}",
+				"DATABASE_URL": "file:../.data/dev.db"
+			},
+			"volumes": [
+				{
+					"name": "nitropage-data",
+					"target": "/app/.data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "nitropage/nitropage:sqlite",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000/admin"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "nitropageDomain"
+			}
+		}
+	]
+}

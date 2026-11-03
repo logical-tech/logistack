@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "changedetection",
+	"name": "Change Detection",
+	"description": "Changedetection.io is an intelligent tool designed to monitor changes on websites. Perfect for smart shoppers, data journalists, research engineers, data scientists, and security researchers.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"data",
+		"notifications",
+		"web",
+		"alert",
+		"monitor"
+	],
+	"logo": "logos/changedetection.png",
+	"website": "https://changedetection.io/",
+	"docs": "https://github.com/dgtlmoon/changedetection.io/wiki",
+	"version": "0.49",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/changedetection",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "changedetection",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "datastore",
+					"target": "/datastore"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/dgtlmoon/changedetection.io:0.49",
+			"ports": [
+				{
+					"target": 5000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 5000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

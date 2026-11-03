@@ -1,0 +1,89 @@
+{
+	"schema": 1,
+	"id": "flatnotes",
+	"name": "Flatnotes",
+	"description": "A self-hosted, modern note-taking web app that saves your notes as plain text Markdown files.",
+	"category": "productivity",
+	"tags": [
+		"notes",
+		"productivity",
+		"markdown",
+		"self-hosted"
+	],
+	"logo": "logos/flatnotes.png",
+	"website": "https://flatnotes.io/",
+	"docs": "https://github.com/dullage/flatnotes",
+	"version": "sha256:ca4b40ee7491",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/flatnotes",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "flatnotesUsername",
+			"label": "Flatnotes username",
+			"type": "username"
+		},
+		{
+			"key": "flatnotesPassword",
+			"label": "Flatnotes password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "flatnotes",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"FLATNOTES_AUTH_TYPE": "password",
+				"FLATNOTES_USERNAME": "${{ inputs.flatnotesUsername }}",
+				"FLATNOTES_PASSWORD": "${{ inputs.flatnotesPassword }}",
+				"FLATNOTES_SECRET_KEY": "${{ inputs.secretKey }}",
+				"FLATNOTES_SESSION_EXPIRY_DAYS": "30",
+				"FLATNOTES_TOTP_KEY": "",
+				"FLATNOTES_PATH_PREFIX": "",
+				"FLATNOTES_QUICK_ACCESS_HIDE": "false",
+				"FLATNOTES_QUICK_ACCESS_TITLE": "RECENTLY MODIFIED",
+				"FLATNOTES_QUICK_ACCESS_TERM": "*",
+				"FLATNOTES_QUICK_ACCESS_SORT": "lastModified",
+				"FLATNOTES_QUICK_ACCESS_LIMIT": "4"
+			},
+			"volumes": [
+				{
+					"name": "flatnotes-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "dullage/flatnotes@sha256:ca4b40ee7491aabf6b52bbb20ab140145cb96981d4b3fe96ab1e797ac6cd93e5",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,50 @@
+{
+	"schema": 1,
+	"id": "baserow",
+	"name": "Baserow",
+	"description": "Baserow is an open source database management tool that allows you to create and manage databases.",
+	"category": "database",
+	"tags": [
+		"database"
+	],
+	"logo": "logos/baserow.webp",
+	"website": "https://baserow.io/",
+	"docs": "https://baserow.io/docs/index",
+	"version": "1.25.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/baserow",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "baserow",
+			"dependsOn": [],
+			"env": {
+				"BASEROW_PUBLIC_URL": "http://${{ inputs.mainDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "baserow-data",
+					"target": "/baserow/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "baserow/baserow:1.25.2",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

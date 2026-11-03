@@ -1,0 +1,97 @@
+{
+	"schema": 1,
+	"id": "chevereto",
+	"name": "Chevereto",
+	"description": "Chevereto is a powerful, self-hosted image and video hosting platform designed for individuals, communities, and businesses. It allows users to upload, organize, and share media effortlessly.",
+	"category": "other",
+	"tags": [
+		"image-hosting",
+		"file-management",
+		"open-source",
+		"multi-user",
+		"private-albums"
+	],
+	"logo": "logos/chevereto.png",
+	"website": "https://chevereto.com/",
+	"docs": "https://v4-docs.chevereto.com/",
+	"version": "4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/chevereto",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "chevereto",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"CHEVERETO_DB_HOST": "${{ services.mysql.host }}",
+				"CHEVERETO_DB_USER": "mysql",
+				"CHEVERETO_DB_PASS": "${{ inputs.dbPassword }}",
+				"CHEVERETO_DB_PORT": "3306",
+				"CHEVERETO_DB_NAME": "chevereto",
+				"CHEVERETO_HOSTNAME": "${{ inputs.mainDomain }}",
+				"CHEVERETO_HOSTNAME_PATH": "/",
+				"CHEVERETO_HTTPS": "0",
+				"CHEVERETO_MAX_POST_SIZE": "2G",
+				"CHEVERETO_MAX_UPLOAD_SIZE": "2G"
+			},
+			"volumes": [
+				{
+					"name": "storage",
+					"target": "/var/www/html/images"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "chevereto/chevereto:4",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_DATABASE": "chevereto",
+				"MYSQL_USER": "mysql",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mysql",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8"
+		}
+	]
+}

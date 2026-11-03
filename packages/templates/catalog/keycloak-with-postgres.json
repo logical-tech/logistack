@@ -1,0 +1,130 @@
+{
+	"schema": 1,
+	"id": "keycloak-with-postgres",
+	"name": "Keycloak With Postgres",
+	"description": "Keycloak is an open-source Identity and Access Management tool.",
+	"category": "security",
+	"tags": [
+		"keycloak",
+		"identity",
+		"access",
+		"management",
+		"iam",
+		"authentication",
+		"authorization",
+		"security",
+		"oauth2",
+		"openid-connect",
+		"sso",
+		"single-sign-on",
+		"saml",
+		"rbac",
+		"ldap",
+		"jwt",
+		"social-login"
+	],
+	"logo": "logos/keycloak-with-postgres.svg",
+	"docs": "https://www.keycloak.org/",
+	"version": "26.1",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/keycloak-with-postgres.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "keycloakDomain",
+			"label": "Keycloak domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminUser",
+			"label": "Admin user",
+			"type": "username"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "databaseUser",
+			"label": "Database user",
+			"type": "username"
+		},
+		{
+			"key": "databasePassword",
+			"label": "Database password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "keycloak",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"TZ": "UTC",
+				"KC_BOOTSTRAP_ADMIN_USERNAME": "${{ inputs.adminUser }}",
+				"KC_BOOTSTRAP_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"KC_DB": "postgres",
+				"KC_DB_USERNAME": "${{ inputs.databaseUser }}",
+				"KC_DB_PASSWORD": "${{ inputs.databasePassword }}",
+				"KC_DB_URL_PORT": "5432",
+				"KC_DB_URL": "jdbc:postgresql://${{ services.postgres.host }}/keycloak",
+				"KC_HOSTNAME": "https://${{ inputs.keycloakDomain }}",
+				"KC_HTTP_ENABLED": "true",
+				"KC_HEALTH_ENABLED": "true",
+				"KC_PROXY_HEADERS": "xforwarded"
+			},
+			"volumes": [
+				{
+					"name": "keycloak-data",
+					"target": "/opt/keycloak/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "quay.io/keycloak/keycloak:26.1",
+			"command": [
+				"start"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost:9000\r\nConnection: close\r\n\r\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "keycloakDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.databaseUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.databasePassword }}",
+				"POSTGRES_DB": "keycloak"
+			},
+			"volumes": [
+				{
+					"name": "keycloak-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

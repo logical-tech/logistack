@@ -1,0 +1,151 @@
+{
+	"schema": 1,
+	"id": "sequin",
+	"name": "Sequin",
+	"description": "The fastest Postgres change data capture",
+	"category": "analytics",
+	"tags": [
+		"postgres",
+		"sync",
+		"data"
+	],
+	"logo": "logos/sequin.svg",
+	"docs": "https://sequinstream.com/docs/",
+	"version": "sha256:336759c1c632",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/sequin.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "sequinDomain",
+			"label": "Sequin domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "secretkeyKey",
+			"label": "Secretkey key",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "vaultkeyKey",
+			"label": "Vaultkey key",
+			"type": "base64",
+			"bytes": 32
+		}
+	],
+	"services": [
+		{
+			"name": "sequin",
+			"dependsOn": [
+				"redis",
+				"postgres"
+			],
+			"env": {
+				"SERVER_HOST": "${{ inputs.sequinDomain }}",
+				"PG_HOSTNAME": "${{ services.postgres.host }}",
+				"PG_DATABASE": "sequin-db",
+				"PG_PORT": "5432",
+				"PG_USERNAME": "${{ inputs.postgresUser }}",
+				"PG_PASSWORD": "${{ inputs.postgresPassword }}",
+				"PG_POOL_SIZE": "20",
+				"SECRET_KEY_BASE": "${{ inputs.secretkeyKey }}",
+				"VAULT_KEY": "${{ inputs.vaultkeyKey }}",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"CONFIG_FILE_PATH": "/config/playground.yml",
+				"FEATURE_ACCOUNT_SELF_SIGNUP": "false",
+				"SEQUIN_TELEMETRY_DISABLED": "false",
+				"CRASH_REPORTING_DISABLED": "false"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "sequin/sequin@sha256:336759c1c632ebdc87939bcea70b26b46df6593e666088e1bf29058209437d3e",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"http://localhost:7376/health"
+				]
+			},
+			"public": {
+				"port": 7376,
+				"domain": "sequinDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "sequin-db",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:16",
+			"command": [
+				"postgres",
+				"-c",
+				"wal_level=logical"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d sequin"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7",
+			"command": [
+				"redis-server",
+				"--port",
+				"6379"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,96 @@
+{
+	"schema": 1,
+	"id": "registry",
+	"name": "Docker Registry",
+	"description": "Distribution implementation for storing and distributing of Docker container images and artifacts.",
+	"category": "other",
+	"tags": [
+		"registry",
+		"docker",
+		"self-hosted"
+	],
+	"logo": "logos/registry.png",
+	"website": "https://hub.docker.com/_/registry",
+	"docs": "https://distribution.github.io/distribution/",
+	"version": "2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/registry",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "username",
+			"label": "Username",
+			"type": "username"
+		},
+		{
+			"key": "password",
+			"label": "Password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "registry",
+			"dependsOn": [],
+			"env": {
+				"USERNAME": "${{ inputs.username }}",
+				"PASSWORD": "${{ inputs.password }}",
+				"REGISTRY_AUTH": "htpasswd",
+				"REGISTRY_AUTH_HTPASSWD_REALM": "Registry Realm",
+				"REGISTRY_AUTH_HTPASSWD_PATH": "/auth/registry.password",
+				"REGISTRY_HTTP_RELATIVEURLS": "true"
+			},
+			"volumes": [
+				{
+					"name": "registry-data",
+					"target": "/var/lib/registry"
+				}
+			],
+			"files": [
+				{
+					"target": "/entrypoint.sh",
+					"content": "#!/usr/bin/env sh\n\nset -e \n\nif [ -z \"$USERNAME\" ] || [ -z \"$PASSWORD\" ]; then\n    echo \"Error: USERNAME and PASSWORD environment variables must be set\"\n    exit 1\nfi\n\napk add --no-cache apache2-utils\nmkdir -p \"$(dirname \"$REGISTRY_AUTH_HTPASSWD_PATH\")\"\nchmod 755 \"$(dirname \"$REGISTRY_AUTH_HTPASSWD_PATH\")\"\nhtpasswd -Bbc \"$REGISTRY_AUTH_HTPASSWD_PATH\" \"$USERNAME\" \"$PASSWORD\"\nregistry serve /etc/docker/registry/config.yml\n"
+				},
+				{
+					"target": "/etc/docker/registry/config.yml",
+					"content": "version: 0.1\n\nlog:\n  fields:\n    service: registry\nstorage:\n  cache:\n    blobdescriptor: inmemory\n  filesystem:\n    rootdirectory: /var/lib/registry\nhttp:\n  addr: :5000\n  headers:\n    X-Content-Type-Options: [nosniff]\nhealth:\n  storagedriver:\n    enabled: true\n    interval: 10s\n    threshold: 3\n"
+				}
+			],
+			"kind": "application",
+			"image": "registry:3",
+			"entrypoint": [
+				"sh",
+				"/entrypoint.sh"
+			],
+			"ports": [
+				{
+					"target": 5000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://localhost:5000/"
+				]
+			},
+			"public": {
+				"port": 5000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,180 @@
+{
+	"schema": 1,
+	"id": "directus-with-postgresql",
+	"name": "Directus With Postgresql",
+	"description": "Directus wraps databases with a dynamic API, and provides an intuitive app for managing its content.",
+	"category": "cms",
+	"tags": [
+		"directus",
+		"cms",
+		"database",
+		"sql"
+	],
+	"logo": "logos/directus-with-postgresql.svg",
+	"docs": "https://directus.io/",
+	"version": "11",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/directus-with-postgresql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "directusDomain",
+			"label": "Directus domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "keySecret",
+			"label": "Key secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "secretSecret",
+			"label": "Secret secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "corsOrigin",
+			"label": "Cors origin",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "directus",
+			"dependsOn": [
+				"postgresql",
+				"redis"
+			],
+			"env": {
+				"KEY": "${{ inputs.keySecret }}",
+				"SECRET": "${{ inputs.secretSecret }}",
+				"ADMIN_EMAIL": "admin@example.com",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"DB_CLIENT": "postgres",
+				"DB_HOST": "${{ services.postgresql.host }}",
+				"DB_PORT": "5432",
+				"DB_DATABASE": "directus",
+				"DB_USER": "${{ inputs.postgresqlUser }}",
+				"DB_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"REDIS_HOST": "${{ services.redis.host }}",
+				"REDIS_PORT": "6379",
+				"WEBSOCKETS_ENABLED": "true",
+				"CORS_ENABLED": "true",
+				"CORS_ORIGIN": "${{ inputs.corsOrigin }}",
+				"CORS_METHODS": "GET,POST,PATCH,DELETE,OPTIONS",
+				"CORS_ALLOWED_HEADERS": "Content-Type,Authorization",
+				"CORS_CREDENTIALS": "true"
+			},
+			"volumes": [
+				{
+					"name": "directus-uploads",
+					"target": "/directus/uploads"
+				},
+				{
+					"name": "directus-extensions",
+					"target": "/directus/extensions"
+				},
+				{
+					"name": "directus-templates",
+					"target": "/directus/templates"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "directus/directus:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8055/admin/login"
+				]
+			},
+			"public": {
+				"port": 8055,
+				"domain": "directusDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_DB": "directus"
+			},
+			"volumes": [
+				{
+					"name": "directus-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgis/postgis:16-3.4-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "directus-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"command": [
+				"redis-server",
+				"--appendonly",
+				"yes"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		}
+	]
+}

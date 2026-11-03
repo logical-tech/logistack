@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "sftpgo",
+	"name": "SFTPGo",
+	"description": "SFTPGo is a full-featured and highly configurable SFTP, HTTP/S, FTP/S, and WebDAV server.",
+	"category": "storage",
+	"tags": [
+		"sftp",
+		"files",
+		"webdav",
+		"sftpgo",
+		"ftp",
+		"file"
+	],
+	"logo": "logos/sftpgo.svg",
+	"website": "https://sftpgo.com/",
+	"docs": "https://docs.sftpgo.com/",
+	"version": "2.7.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/sftpgo",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "sftpgo",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "sftpgo-data",
+					"target": "/srv/sftpgo"
+				},
+				{
+					"name": "sftpgo-home",
+					"target": "/var/lib/sftpgo"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "drakkan/sftpgo:v2.7.3",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				},
+				{
+					"target": 2022,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

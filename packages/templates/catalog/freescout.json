@@ -1,0 +1,127 @@
+{
+	"schema": 1,
+	"id": "freescout",
+	"name": "Freescout",
+	"description": "FreeScout is the super lightweight and powerful free open source help desk and shared inbox written in PHP (Laravel framework).",
+	"category": "communication",
+	"tags": [
+		"helpdesk",
+		"support",
+		"ticketing",
+		"customer-support"
+	],
+	"logo": "logos/freescout.png",
+	"docs": "https://github.com/freescout-help-desk/freescout/wiki/",
+	"version": "2.2.21",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/freescout.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "freescoutDomain",
+			"label": "Freescout domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mariadbUser",
+			"label": "Mariadb user",
+			"type": "username"
+		},
+		{
+			"key": "mariadbPassword",
+			"label": "Mariadb password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rootPassword",
+			"label": "Root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "freescout",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"DB_TYPE": "mariadb",
+				"DB_HOST": "${{ services.mariadb.host }}",
+				"DB_PORT": "3306",
+				"DB_NAME": "freescout",
+				"DB_USER": "${{ inputs.mariadbUser }}",
+				"DB_PASS": "${{ inputs.mariadbPassword }}",
+				"APP_URL": "https://${{ inputs.freescoutDomain }}",
+				"ADMIN_EMAIL": "admin@example.com",
+				"ADMIN_PASS": "${{ inputs.adminPassword }}",
+				"FREESCOUT_APP_DEBUG": "false",
+				"TIMEZONE": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "freescout-data",
+					"target": "/data"
+				},
+				{
+					"name": "freescout-logs",
+					"target": "/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "nfrastack/freescout:2.2.21",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"busybox wget -qO /dev/null --header 'X-Forwarded-Proto: https' http://127.0.0.1/login || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "freescoutDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MARIADB_ROOT_PASSWORD": "${{ inputs.rootPassword }}",
+				"MARIADB_DATABASE": "freescout",
+				"MARIADB_USER": "${{ inputs.mariadbUser }}",
+				"MARIADB_PASSWORD": "${{ inputs.mariadbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb@sha256:f4054da26e3a9dd6c8b5cc97363e544408b15c0fb369d7359c25dc04826eb6e1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		}
+	]
+}

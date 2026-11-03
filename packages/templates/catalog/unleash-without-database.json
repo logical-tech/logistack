@@ -1,0 +1,78 @@
+{
+	"schema": 1,
+	"id": "unleash-without-database",
+	"name": "Unleash Without Database",
+	"description": "Open source feature flag management for enterprises.",
+	"category": "devtools",
+	"tags": [
+		"unleash",
+		"feature flags",
+		"feature toggles",
+		"ab testing",
+		"open source"
+	],
+	"logo": "logos/unleash-without-database.svg",
+	"docs": "https://docs.getunleash.io/",
+	"version": "sha256:025cd8b003a7",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/unleash-without-database.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "unleashDomain",
+			"label": "Unleash domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "unleashPassword",
+			"label": "Unleash password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "databaseUrl",
+			"label": "Database URL",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "unleash",
+			"dependsOn": [],
+			"env": {
+				"UNLEASH_URL": "https://${{ inputs.unleashDomain }}",
+				"UNLEASH_DEFAULT_ADMIN_PASSWORD": "${{ inputs.unleashPassword }}",
+				"DATABASE_URL": "${{ inputs.databaseUrl }}",
+				"DATABASE_SSL": "false",
+				"LOG_LEVEL": "warn",
+				"INIT_FRONTEND_API_TOKENS": "default:default:development.unleash-insecure-frontend-api-token",
+				"INIT_CLIENT_API_TOKENS": "default:development.unleash-insecure-api-token"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "unleashorg/unleash-server@sha256:025cd8b003a70cceb88427ca393c377ca6503a210d95fdee54d21610d51f7ed0",
+			"command": [
+				"node",
+				"index.js"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --no-verbose --tries=1 --spider http://127.0.0.1:4242/health || exit 1"
+				]
+			},
+			"public": {
+				"port": 4242,
+				"domain": "unleashDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,74 @@
+{
+	"schema": 1,
+	"id": "openhabittracker",
+	"name": "OpenHabitTracker",
+	"description": "Take notes, plan tasks and track habits - free, ad-free, open source, with all data on your own server. Native apps for Windows, Linux, Android, iOS and macOS sync to it.",
+	"category": "productivity",
+	"tags": [
+		"productivity",
+		"notes",
+		"tasks",
+		"habits",
+		"self-hosted"
+	],
+	"logo": "logos/openhabittracker.png",
+	"website": "https://openhabittracker.net/",
+	"version": "sha256:c040b1b7c961",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/openhabittracker",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "base64",
+			"bytes": 48
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "openhabittracker",
+			"dependsOn": [],
+			"env": {
+				"AppSettings__UserName": "admin",
+				"AppSettings__Email": "admin@example.com",
+				"AppSettings__Password": "${{ inputs.adminPassword }}",
+				"AppSettings__JwtSecret": "${{ inputs.jwtSecret }}"
+			},
+			"volumes": [
+				{
+					"name": "openhabittracker-data",
+					"target": "/app/.OpenHabitTracker"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "jinjinov/openhabittracker@sha256:c040b1b7c961554a6e60c2b84d916298056d9703f5e1da5b1e54b2720f14177b",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

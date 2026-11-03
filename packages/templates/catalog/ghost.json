@@ -1,0 +1,77 @@
+{
+	"schema": 1,
+	"id": "ghost",
+	"name": "Ghost",
+	"description": "Ghost is an open-source publishing platform for blogs, newsletters, and paid memberships.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"blog",
+		"content",
+		"management",
+		"system"
+	],
+	"logo": "logos/ghost.jpg",
+	"website": "https://ghost.org/",
+	"docs": "https://ghost.org/docs/",
+	"version": "6.0.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/ghost",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "ghost",
+			"dependsOn": [],
+			"env": {
+				"database__client": "mysql",
+				"database__connection__host": "${{ services.db.host }}",
+				"database__connection__user": "root",
+				"database__connection__password": "example",
+				"database__connection__database": "ghost",
+				"url": "http://${{ inputs.mainDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "ghost",
+					"target": "/var/lib/ghost/content"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghost:6-alpine",
+			"ports": [],
+			"public": {
+				"port": 2368,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "example"
+			},
+			"volumes": [
+				{
+					"name": "db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8.0"
+		}
+	]
+}

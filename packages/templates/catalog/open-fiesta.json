@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "open-fiesta",
+	"name": "Open Fiesta",
+	"description": "Open Fiesta is an open-source AI chat and inference UI, supporting multiple backends such as OpenRouter, Gemini, and Ollama.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"chatbot",
+		"inference",
+		"frontend"
+	],
+	"website": "https://github.com/jaainil/open-fiesta",
+	"docs": "https://github.com/jaainil/open-fiesta#readme",
+	"version": "sha256:404737ed2e4d",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/open-fiesta",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "ai-fiesta",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}",
+				"GEMINI_API_KEY": "${GEMINI_API_KEY}",
+				"UNSTABLE_INFERENCE_API_KEY": "${UNSTABLE_INFERENCE_API_KEY}",
+				"OLLAMA_URL": "${OLLAMA_URL}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/jaainil/open-fiesta-ghcr@sha256:404737ed2e4dd8a9bc1967edd35fd5b5b5e9f75042eba4a7b9de93936a1c851b",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

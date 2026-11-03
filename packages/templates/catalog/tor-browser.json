@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "tor-browser",
+	"name": "Tor Browser",
+	"description": "A Dockerized Tor Browser accessible via web VNC (noVNC) and VNC client.",
+	"category": "security",
+	"tags": [
+		"privacy",
+		"security",
+		"browser",
+		"tor"
+	],
+	"logo": "logos/tor-browser.png",
+	"website": "https://www.torproject.org/",
+	"docs": "https://hub.docker.com/r/domistyle/tor-browser",
+	"version": "sha256:0dd03f518271",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/tor-browser",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "tor",
+			"dependsOn": [],
+			"env": {
+				"DISPLAY_WIDTH": "1920",
+				"DISPLAY_HEIGHT": "1080",
+				"KEEP_APP_RUNNING": "1",
+				"TZ": "Europe/Vienna"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "domistyle/tor-browser@sha256:0dd03f518271f17e19e3c186a6a52f55e316ea189d8d001bb7820ad33fa300e9",
+			"ports": [
+				{
+					"target": 5800,
+					"protocol": "tcp"
+				},
+				{
+					"target": 5900,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 5800,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "calibre-web",
+	"name": "Calibre Web",
+	"description": "Calibre-web is a web app providing a clean interface for browsing, reading and downloading eBooks.",
+	"category": "media",
+	"tags": [
+		"calibre",
+		"calibre-web",
+		"ebook",
+		"library",
+		"epub",
+		"ereader",
+		"kindle",
+		"book",
+		"reader",
+		"ebooks",
+		"media",
+		"self-hosted"
+	],
+	"logo": "logos/calibre-web.svg",
+	"website": "https://github.com/janeczku/calibre-web",
+	"docs": "https://github.com/linuxserver/docker-calibre-web",
+	"version": "sha256:f9c692fba85a",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/calibre-web.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "calibreDomain",
+			"label": "Calibre domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "calibre-web",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Etc/UTC",
+				"DOCKER_MODS": "linuxserver/mods:universal-calibre"
+			},
+			"volumes": [
+				{
+					"name": "calibre-web-data",
+					"target": "/config"
+				},
+				{
+					"name": "calibre-library",
+					"target": "/books"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/calibre-web@sha256:f9c692fba85ade1ce71b98364b860f72855055a59198894cc8c2ea49fc98a840",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8083"
+				]
+			},
+			"public": {
+				"port": 8083,
+				"domain": "calibreDomain"
+			}
+		}
+	]
+}

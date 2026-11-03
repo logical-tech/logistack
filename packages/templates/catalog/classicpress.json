@@ -1,0 +1,93 @@
+{
+	"schema": 1,
+	"id": "classicpress",
+	"name": "ClassicPress",
+	"description": "ClassicPress is a community-led open source content management system for creators. It is a fork of WordPress 6.2 that preserves the TinyMCE classic editor as the default option.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"wordpress",
+		"content-management"
+	],
+	"website": "https://www.classicpress.net/",
+	"docs": "https://docs.classicpress.net/",
+	"version": "php8.3-apache",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/classicpress",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "classicpressDomain",
+			"label": "Classicpress domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "classicpress",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"WORDPRESS_DB_HOST": "${{ services.db.host }}",
+				"WORDPRESS_DB_USER": "wordpress",
+				"WORDPRESS_DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"WORDPRESS_DB_NAME": "wordpress"
+			},
+			"volumes": [
+				{
+					"name": "wordpress-data",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "classicpress/classicpress:php8.3-apache",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "classicpressDomain"
+			}
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "wordpress",
+				"MYSQL_USER": "wordpress",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.6",
+			"ports": []
+		}
+	]
+}

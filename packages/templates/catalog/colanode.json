@@ -1,0 +1,158 @@
+{
+	"schema": 1,
+	"id": "colanode",
+	"name": "Colanode Server",
+	"description": "Open-source and local-first Slack and Notion alternative that puts you in control of your data",
+	"category": "productivity",
+	"tags": [
+		"documentation",
+		"knowledge-base",
+		"collaboration"
+	],
+	"logo": "logos/colanode.svg",
+	"website": "https://colanode.com/",
+	"docs": "https://colanode.com/docs/",
+	"version": "v0.1.6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/colanode",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "colanode_user",
+				"POSTGRES_PASSWORD": "your_postgres_password",
+				"POSTGRES_DB": "colanode_db"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "pgvector/pgvector:pg17",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "valkey",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "valkey-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "valkey/valkey:8.1",
+			"command": [
+				"valkey-server",
+				"--requirepass",
+				"your_valkey_password"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "minio",
+			"dependsOn": [],
+			"env": {
+				"MINIO_ROOT_USER": "admin",
+				"MINIO_ROOT_PASSWORD": "your_minio_password",
+				"MINIO_BROWSER": "on",
+				"MINIO_DOMAIN": "minio",
+				"MINIO_ADDRESS": ":9000",
+				"MINIO_CONSOLE_ADDRESS": ":9001"
+			},
+			"volumes": [
+				{
+					"name": "minio-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "minio/minio:RELEASE.2025-04-08T15-41-24Z",
+			"command": [
+				"-c",
+				"mkdir -p /data/colanode-avatars /data/colanode-files && minio server /data --address \":9000\" --console-address \":9001\""
+			],
+			"entrypoint": [
+				"sh"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "server",
+			"dependsOn": [
+				"postgres",
+				"valkey",
+				"minio"
+			],
+			"env": {
+				"NODE_ENV": "production",
+				"PORT": "3000",
+				"SERVER_NAME": "My Colanode",
+				"SERVER_AVATAR": "https://colanode.com/assets/logo-black.png",
+				"SERVER_MODE": "standalone",
+				"ACCOUNT_VERIFICATION_TYPE": "automatic",
+				"ACCOUNT_OTP_TIMEOUT": "600",
+				"ACCOUNT_ALLOW_GOOGLE_LOGIN": "false",
+				"USER_STORAGE_LIMIT": "10737418240",
+				"USER_MAX_FILE_SIZE": "104857600",
+				"POSTGRES_URL": "postgres://colanode_user:your_postgres_password@${{ services.postgres.host }}:5432/colanode_db",
+				"REDIS_URL": "redis://:your_valkey_password@${{ services.valkey.host }}:6379/0",
+				"REDIS_DB": "0",
+				"REDIS_JOBS_QUEUE_NAME": "jobs",
+				"REDIS_JOBS_QUEUE_PREFIX": "colanode",
+				"REDIS_EVENTS_CHANNEL": "events",
+				"S3_AVATARS_ENDPOINT": "http://${{ services.minio.host }}:9000",
+				"S3_AVATARS_ACCESS_KEY": "admin",
+				"S3_AVATARS_SECRET_KEY": "your_minio_password",
+				"S3_AVATARS_BUCKET_NAME": "colanode-avatars",
+				"S3_AVATARS_REGION": "us-east-1",
+				"S3_AVATARS_FORCE_PATH_STYLE": "true",
+				"STORAGE_S3_ENDPOINT": "http://${{ services.minio.host }}:9000",
+				"STORAGE_S3_ACCESS_KEY": "admin",
+				"STORAGE_S3_SECRET_KEY": "your_minio_password",
+				"STORAGE_S3_BUCKET": "colanode-files",
+				"STORAGE_S3_REGION": "us-east-1",
+				"STORAGE_S3_FORCE_PATH_STYLE": "true",
+				"SMTP_ENABLED": "false",
+				"SMTP_HOST": "smtp.gmail.com",
+				"SMTP_PORT": "587",
+				"SMTP_USER": "your_smtp_username",
+				"SMTP_PASSWORD": "your_smtp_password",
+				"SMTP_EMAIL_FROM": "your_email@example.com",
+				"SMTP_EMAIL_FROM_NAME": "Colanode",
+				"AI_ENABLED": "false"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/colanode/server@sha256:7006cac874fd5a154425108b9c7e6d6d9d117933c3694820b1a4c28aeb10008c",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

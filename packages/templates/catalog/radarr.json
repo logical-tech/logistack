@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "radarr",
+	"name": "Radarr",
+	"description": "Radarr⁠ - A fork of Sonarr to work with movies à la Couchpotato.",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"movies"
+	],
+	"logo": "logos/radarr.svg",
+	"docs": "https://hub.docker.com/r/linuxserver/radarr",
+	"version": "sha256:ade5937813c6",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/radarr.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "radarrDomain",
+			"label": "Radarr domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "radarr",
+			"dependsOn": [],
+			"env": {
+				"_APP_URL": "https://${{ inputs.radarrDomain }}",
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "America/Toronto"
+			},
+			"volumes": [
+				{
+					"name": "radarr-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/radarr@sha256:ade5937813c6ae415b29db729386e53fea3ecf067a019849bafbe2d2a6ec02ba",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:7878/ping"
+				]
+			},
+			"public": {
+				"port": 7878,
+				"domain": "radarrDomain"
+			}
+		}
+	]
+}

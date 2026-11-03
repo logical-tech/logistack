@@ -1,0 +1,19 @@
+{
+	"name": "@logistack/agent",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bun --watch src/index.ts",
+		"build": "bun build --compile --minify src/index.ts --outfile dist/logistack-agent",
+		"typecheck": "tsc -p ."
+	},
+	"dependencies": {
+		"@logistack/contracts": "workspace:*",
+		"@logistack/docker": "workspace:*",
+		"zod": "4.6.7"
+	},
+	"devDependencies": {
+		"hono": "4.13.16"
+	}
+}

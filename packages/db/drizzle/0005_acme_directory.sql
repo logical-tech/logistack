@@ -1,0 +1,1 @@
+ALTER TABLE "instance_settings" ADD COLUMN "acme_directory" text DEFAULT 'letsencrypt' NOT NULL;

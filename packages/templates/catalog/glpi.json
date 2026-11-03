@@ -1,0 +1,103 @@
+{
+	"schema": 1,
+	"id": "glpi",
+	"name": "Glpi",
+	"description": "GLPI (Gestionnaire Libre de Parc Informatique) is a free, open-source IT Service Management (ITSM) platform used for IT asset management, helpdesk, and service desk operations.",
+	"category": "communication",
+	"tags": [
+		"helpdesk",
+		"ticketing",
+		"support",
+		"open-source"
+	],
+	"logo": "logos/glpi.svg",
+	"docs": "https://help.glpi-project.org/documentation",
+	"version": "11",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/glpi.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "glpiDomain",
+			"label": "Glpi domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rootPassword",
+			"label": "Root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "glpi",
+			"dependsOn": [
+				"glpi-db"
+			],
+			"env": {
+				"GLPI_DB_HOST": "${{ services.glpi-db.host }}",
+				"GLPI_DB_PORT": "3306",
+				"GLPI_DB_NAME": "glpi-db",
+				"GLPI_DB_USER": "${{ inputs.mysqlUser }}",
+				"GLPI_DB_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "glpi-data",
+					"target": "/var/glpi"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "glpi/glpi:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost/"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "glpiDomain"
+			}
+		},
+		{
+			"name": "glpi-db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.rootPassword }}",
+				"MYSQL_DATABASE": "glpi-db",
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8"
+		}
+	]
+}

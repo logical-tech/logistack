@@ -1,0 +1,77 @@
+{
+	"schema": 1,
+	"id": "timescaledb",
+	"name": "TimescaleDB",
+	"description": "TimescaleDB is an open-source time-series database packaged as a PostgreSQL extension, optimized for fast ingest and real-time analytics with standard SQL.",
+	"category": "database",
+	"tags": [
+		"database",
+		"postgresql",
+		"time-series",
+		"analytics",
+		"sql"
+	],
+	"logo": "logos/timescaledb.svg",
+	"website": "https://www.tigerdata.com/",
+	"docs": "https://docs.timescale.com/",
+	"version": "2.26.4-pg17",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/timescaledb",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "timescaledb",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "timescaledb",
+				"TIMESCALEDB_TELEMETRY": "off"
+			},
+			"volumes": [
+				{
+					"name": "timescaledb-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/docker-entrypoint-initdb.d/001_create_timescaledb.sql",
+					"content": "CREATE EXTENSION IF NOT EXISTS timescaledb;\n"
+				}
+			],
+			"kind": "application",
+			"image": "timescale/timescaledb:2.26.4-pg17",
+			"ports": [
+				{
+					"target": 5432,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U \"${POSTGRES_USER}\" -d \"${POSTGRES_DB}\""
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

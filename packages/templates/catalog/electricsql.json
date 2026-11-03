@@ -1,0 +1,75 @@
+{
+	"schema": 1,
+	"id": "electricsql",
+	"name": "Electricsql",
+	"description": "Sync shape-based subsets of your Postgres data over HTTP.",
+	"category": "devtools",
+	"tags": [
+		"electric",
+		"electricsql",
+		"realtime",
+		"sync",
+		"postgresql"
+	],
+	"logo": "logos/electricsql.svg",
+	"docs": "https://electric-sql.com/docs/guides/deployment",
+	"version": "1.4.2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/electricsql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "electricDomain",
+			"label": "Electric domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "databaseUrl",
+			"label": "Database URL",
+			"type": "text"
+		},
+		{
+			"key": "electricPassword",
+			"label": "Electric password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "electric",
+			"dependsOn": [],
+			"env": {
+				"DATABASE_URL": "${{ inputs.databaseUrl }}",
+				"ELECTRIC_SECRET": "${{ inputs.electricPassword }}",
+				"ELECTRIC_STORAGE_DIR": "/app/persistent",
+				"ELECTRIC_USAGE_REPORTING": "false"
+			},
+			"volumes": [
+				{
+					"name": "electric-data",
+					"target": "/app/persistent"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "electricsql/electric:1.4.2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000/v1/health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "electricDomain"
+			}
+		}
+	]
+}

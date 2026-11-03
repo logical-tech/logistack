@@ -1,0 +1,144 @@
+{
+	"schema": 1,
+	"id": "gramps-web",
+	"name": "Gramps Web",
+	"description": "Open Source Online Genealogy System.",
+	"category": "other",
+	"tags": [
+		"family",
+		"genealogy",
+		"personal"
+	],
+	"logo": "logos/gramps-web.svg",
+	"docs": "https://www.grampsweb.org/install_setup/setup/",
+	"version": "25.9.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/gramps-web.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "grampswebDomain",
+			"label": "Grampsweb domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "grampsweb",
+			"dependsOn": [
+				"grampsweb-redis"
+			],
+			"env": {
+				"GRAMPSWEB_TREE": "Gramps Web",
+				"GRAMPSWEB_CELERY_CONFIG__broker_url": "redis://${{ services.grampsweb-redis.host }}:6379/0",
+				"GRAMPSWEB_CELERY_CONFIG__result_backend": "redis://${{ services.grampsweb-redis.host }}:6379/0",
+				"GRAMPSWEB_RATELIMIT_STORAGE_URI": "redis://${{ services.grampsweb-redis.host }}:6379/1",
+				"GUNICORN_NUM_WORKERS": "2"
+			},
+			"volumes": [
+				{
+					"name": "gramps-users",
+					"target": "/app/users"
+				},
+				{
+					"name": "gramps-index",
+					"target": "/app/indexdir"
+				},
+				{
+					"name": "gramps-thumb-cache",
+					"target": "/app/thumbnail_cache"
+				},
+				{
+					"name": "gramps-cache",
+					"target": "/app/cache"
+				},
+				{
+					"name": "gramps-secret",
+					"target": "/app/secret"
+				},
+				{
+					"name": "gramps-db",
+					"target": "/root/.gramps/grampsdb"
+				},
+				{
+					"name": "gramps-media",
+					"target": "/app/media"
+				},
+				{
+					"name": "gramps-tmp",
+					"target": "/tmp"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/gramps-project/grampsweb:25.9.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -O - http://localhost:5000 > /dev/null 2>&1"
+				]
+			},
+			"public": {
+				"port": 5000,
+				"domain": "grampswebDomain"
+			}
+		},
+		{
+			"name": "grampsweb-celery",
+			"dependsOn": [
+				"grampsweb-redis"
+			],
+			"env": {
+				"GRAMPSWEB_TREE": "Gramps Web",
+				"GRAMPSWEB_CELERY_CONFIG__broker_url": "redis://${{ services.grampsweb-redis.host }}:6379/0",
+				"GRAMPSWEB_CELERY_CONFIG__result_backend": "redis://${{ services.grampsweb-redis.host }}:6379/0",
+				"GRAMPSWEB_RATELIMIT_STORAGE_URI": "redis://${{ services.grampsweb-redis.host }}:6379/1"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/gramps-project/grampsweb:25.9.0",
+			"command": [
+				"celery",
+				"-A",
+				"gramps_webapi.celery",
+				"worker",
+				"--loglevel=INFO",
+				"--concurrency=2"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"SECRET_KEY=\"$(cat secret/secret)\" celery -A gramps_webapi.celery status || exit 1"
+				]
+			}
+		},
+		{
+			"name": "grampsweb-redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "docker.io/library/redis:7.2.4-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"redis-cli ping | grep PONG"
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,72 @@
+{
+	"schema": 1,
+	"id": "mage-ai",
+	"name": "Mage Ai",
+	"description": "Build, run, and manage data pipelines for integrating and transforming data.",
+	"category": "automation",
+	"tags": [
+		"data",
+		"dbt",
+		"etl",
+		"pipelines"
+	],
+	"logo": "logos/mage-ai.svg",
+	"website": "https://mage.ai/",
+	"docs": "https://docs.mage.ai/",
+	"version": "0.9.78",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/mage-ai.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "mageaiDomain",
+			"label": "Mageai domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "mage-ai",
+			"dependsOn": [],
+			"env": {
+				"PROJECT_NAME": "default_project",
+				"USER_CODE_PATH": "/home/src/default_project",
+				"ENV": "production"
+			},
+			"volumes": [
+				{
+					"name": "mageai-data",
+					"target": "/home/src"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mageai/mageai:0.9.78",
+			"command": [
+				"mage",
+				"start",
+				"default_project"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-s",
+					"-f",
+					"-o",
+					"/dev/null",
+					"http://127.0.0.1:6789"
+				]
+			},
+			"public": {
+				"port": 6789,
+				"domain": "mageaiDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

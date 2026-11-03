@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "postgres-pgdog",
+	"name": "PostgreSQL with PgDog",
+	"description": "PostgreSQL database with PgDog connection pooler, load balancer, and horizontal scaling proxy. A modern alternative to PgBouncer with multi-threading support.",
+	"category": "database",
+	"tags": [
+		"database",
+		"postgresql",
+		"pooler",
+		"proxy",
+		"load-balancer"
+	],
+	"logo": "logos/postgres-pgdog.png",
+	"website": "https://pgdog.dev/",
+	"docs": "https://docs.pgdog.dev/",
+	"version": "0.1.26",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/postgres-pgdog",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "postgres-pgdog",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"RUST_LOG": "info"
+			},
+			"volumes": [],
+			"files": [
+				{
+					"target": "/pgdog/pgdog.toml",
+					"content": "[general]\nhost = \"0.0.0.0\"\nport = 6432\n\n[[databases]]\nname = \"postgres\"\nhost = \"postgres\"\nport = 5432\n"
+				},
+				{
+					"target": "/pgdog/users.toml",
+					"content": "[[users]]\nname = \"${{ inputs.postgresUser }}\"\ndatabase = \"postgres\"\npassword = \"${{ inputs.postgresPassword }}\"\n",
+					"secret": true
+				}
+			],
+			"kind": "application",
+			"image": "ghcr.io/pgdogdev/pgdog:v0.1.26",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d postgres"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

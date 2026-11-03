@@ -1,0 +1,106 @@
+{
+	"schema": 1,
+	"id": "alarik",
+	"name": "Alarik",
+	"description": "Alarik is a high-performance, S3-compatible object storage.",
+	"category": "storage",
+	"tags": [
+		"storage",
+		"s3",
+		"object-storage"
+	],
+	"website": "https://alarik.io/",
+	"docs": "https://alarik.io/docs",
+	"version": "sha256:e658728db18b",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/alarik",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "apiDomain",
+			"label": "API domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "consoleDomain",
+			"label": "Console domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "jwt",
+			"label": "JWT",
+			"type": "base64",
+			"bytes": 64
+		}
+	],
+	"services": [
+		{
+			"name": "alarik",
+			"dependsOn": [],
+			"env": {
+				"API_BASE_URL": "http://${{ inputs.apiDomain }}",
+				"CONSOLE_BASE_URL": "http://${{ inputs.consoleDomain }}",
+				"ADMIN_USERNAME": "alarik",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"JWT": "${{ inputs.jwt }}",
+				"ALLOW_ACCOUNT_CREATION": "false"
+			},
+			"volumes": [
+				{
+					"name": "alarik-storage",
+					"target": "/app/Storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/achtungsoftware/alarik@sha256:e658728db18b26921065d60a289551db7e15743dead1312ca8e654b3e9ea8d12",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "apiDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "console",
+			"dependsOn": [
+				"alarik"
+			],
+			"env": {
+				"NUXT_PUBLIC_API_BASE_URL": "http://${{ inputs.apiDomain }}",
+				"NUXT_PUBLIC_CONSOLE_BASE_URL": "http://${{ inputs.consoleDomain }}",
+				"NUXT_PUBLIC_ALLOW_ACCOUNT_CREATION": "false"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/achtungsoftware/alarik-console@sha256:8e2e7b593d71632533e7f32c2eefba7e4695f4c65a76d12319bb486fb3d2755f",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "consoleDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

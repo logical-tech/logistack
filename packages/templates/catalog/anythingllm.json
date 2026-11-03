@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "anythingllm",
+	"name": "AnythingLLM",
+	"description": "AnythingLLM is a private AI chat app for working with your own documents.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"llm",
+		"chatbot"
+	],
+	"website": "https://anythingllm.com/",
+	"docs": "https://docs.anythingllm.com/",
+	"version": "sha256:8f89878ae1e7",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/anythingllm",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "anythingllm",
+			"dependsOn": [],
+			"env": {
+				"STORAGE_DIR": "/app/server/storage"
+			},
+			"volumes": [
+				{
+					"name": "storage",
+					"target": "/app/server/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mintplexlabs/anythingllm@sha256:8f89878ae1e77117100c5fbe1f2853c51dfa839c7c78f522d7510c5bce6e3157",
+			"ports": [
+				{
+					"target": 3001,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3001,
+				"domain": "mainDomain"
+			},
+			"capAdd": [
+				"SYS_ADMIN"
+			],
+			"restart": "any"
+		}
+	]
+}

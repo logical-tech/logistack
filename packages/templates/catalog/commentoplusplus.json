@@ -1,0 +1,81 @@
+{
+	"schema": 1,
+	"id": "commentoplusplus",
+	"name": "Commento++",
+	"description": "Commento++ is a free, open-source application designed to provide a fast, lightweight comments box that you can embed in your static website. It offers features like Markdown support, Disqus import, voting, automated spam detection, moderation tools, sticky comments, thread locking, and OAuth login.",
+	"category": "cms",
+	"tags": [
+		"comments",
+		"website",
+		"open-source"
+	],
+	"logo": "logos/commentoplusplus.png",
+	"website": "https://commento.io/",
+	"docs": "https://commento.io/",
+	"version": "v1.8.7",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/commentoplusplus",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "domain",
+			"label": "Domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 16
+		}
+	],
+	"services": [
+		{
+			"name": "commentoplusplus",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"COMMENTO_ORIGIN": "http://${{ inputs.domain }}",
+				"COMMENTO_POSTGRES": "postgres://postgres:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/postgres?sslmode=disable",
+				"COMMENTO_ENABLE_WILDCARDS": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "caroga/commentoplusplus:v1.8.7",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "domain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "postgres",
+				"POSTGRES_USER": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "11"
+		}
+	]
+}

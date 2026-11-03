@@ -1,0 +1,83 @@
+{
+	"schema": 1,
+	"id": "soketi",
+	"name": "Soketi",
+	"description": "Soketi is your simple, fast, and resilient open-source WebSockets server.",
+	"category": "communication",
+	"tags": [
+		"websockets",
+		"open",
+		"source",
+		"messaging"
+	],
+	"logo": "logos/soketi.jpg",
+	"docs": "https://docs.soketi.app/",
+	"version": "1.6-16-debian",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/soketi.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "soketiDomain",
+			"label": "Soketi domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "soketiUser",
+			"label": "Soketi user",
+			"type": "username"
+		},
+		{
+			"key": "soketikeyKey",
+			"label": "Soketikey key",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "soketisecretKey",
+			"label": "Soketisecret key",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "defaultAppEnableClientMessages",
+			"label": "Default app enable client messages",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "soketi",
+			"dependsOn": [],
+			"env": {
+				"SOKETI_DEBUG": "0",
+				"SOKETI_DEFAULT_APP_ID": "${{ inputs.soketiUser }}",
+				"SOKETI_DEFAULT_APP_KEY": "${{ inputs.soketikeyKey }}",
+				"SOKETI_DEFAULT_APP_SECRET": "${{ inputs.soketisecretKey }}",
+				"SOKETI_PUSHER_SCHEME": "https",
+				"SOKETI_DEFAULT_APP_ENABLE_CLIENT_MESSAGES": "${{ inputs.defaultAppEnableClientMessages }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "quay.io/soketi/soketi:1.6-16-debian",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/6001' || exit 1"
+				]
+			},
+			"public": {
+				"port": 6001,
+				"domain": "soketiDomain"
+			}
+		}
+	]
+}

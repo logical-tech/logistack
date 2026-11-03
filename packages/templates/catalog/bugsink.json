@@ -1,0 +1,164 @@
+{
+	"schema": 1,
+	"id": "bugsink",
+	"name": "Bugsink",
+	"description": "Self-hosted Error Tracking.",
+	"category": "monitoring",
+	"tags": [
+		"python",
+		"error-tracking",
+		"django",
+		"mysql",
+		"hosting",
+		"self-hosted",
+		"development"
+	],
+	"logo": "logos/bugsink.svg",
+	"website": "https://www.bugsink.com/",
+	"docs": "https://www.bugsink.com/docs/",
+	"version": "sha256:a013fe0da745",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/bugsink.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "bugsinkDomain",
+			"label": "Bugsink domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "bugsinkPassword",
+			"label": "Bugsink password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "bugsinkAdminEmail",
+			"label": "Bugsink admin email",
+			"type": "text"
+		},
+		{
+			"key": "bugsinkPassword2",
+			"label": "Bugsink password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "emailHost",
+			"label": "Email host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "emailHostUser",
+			"label": "Email host user",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "emailHostPassword",
+			"label": "Email host password",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "defaultFromEmail",
+			"label": "Default from email",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
+				"MYSQL_DATABASE": "bugsink",
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "my-datavolume",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mysql@sha256:3819b2b23835c4a73c8b022fafc33c8095c0f81c929a8b7a84613d2fba6c52f5",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mysqladmin",
+					"ping",
+					"-h",
+					"127.0.0.1"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "web",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"SECRET_KEY": "${{ inputs.bugsinkPassword }}",
+				"CREATE_SUPERUSER": "${{ inputs.bugsinkAdminEmail }}:${{ inputs.bugsinkPassword2 }}",
+				"BASE_URL": "https://${{ inputs.bugsinkDomain }}",
+				"DATABASE_URL": "mysql://${{ inputs.mysqlUser }}:${{ inputs.mysqlPassword }}@${{ services.mysql.host }}:3306/bugsink",
+				"BEHIND_HTTPS_PROXY": "True",
+				"SITE_TITLE": "Bugsink",
+				"TIME_ZONE": "UTC",
+				"PHONEHOME": "False",
+				"EMAIL_HOST": "${{ inputs.emailHost }}",
+				"EMAIL_PORT": "587",
+				"EMAIL_HOST_USER": "${{ inputs.emailHostUser }}",
+				"EMAIL_HOST_PASSWORD": "${{ inputs.emailHostPassword }}",
+				"EMAIL_USE_TLS": "True",
+				"EMAIL_USE_SSL": "False",
+				"DEFAULT_FROM_EMAIL": "${{ inputs.defaultFromEmail }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "bugsink/bugsink@sha256:a013fe0da745b753d65f9816020d36f91620e6d1c62ac22d82463b3a6ec2d71e",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"python -c 'import requests; requests.get(\"http://localhost:8000/\").raise_for_status()'"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "bugsinkDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

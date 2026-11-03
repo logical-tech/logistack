@@ -1,0 +1,78 @@
+{
+	"schema": 1,
+	"id": "next-image-transformation",
+	"name": "Next Image Transformation",
+	"description": "Drop-in replacement for Vercel's Nextjs image optimization service.",
+	"category": "media",
+	"tags": [
+		"nextjs",
+		"image",
+		"transformation",
+		"service"
+	],
+	"logo": "logos/next-image-transformation.svg",
+	"docs": "https://github.com/coollabsio/next-image-transformation",
+	"version": "sha256:fd344a361f51",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/next-image-transformation.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "transformationDomain",
+			"label": "Transformation domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "next-image-transformation",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"ALLOWED_REMOTE_DOMAINS": "*",
+				"IMGPROXY_URL": "http://${{ services.imgproxy.host }}:8080"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/coollabsio/next-image-transformation@sha256:fd344a361f5110a8eb267583d27d70f5d4e84c1196826bf04fe44492a6dbe499",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:3000/health || exit 1"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "transformationDomain"
+			}
+		},
+		{
+			"name": "imgproxy",
+			"dependsOn": [],
+			"env": {
+				"IMGPROXY_ENABLE_WEBP_DETECTION": "true",
+				"IMGPROXY_JPEG_PROGRESSIVE": "true",
+				"IMGPROXY_USE_ETAG": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "darthsim/imgproxy@sha256:4dfe68cc26ea5cf010318d03818d4cd30f71fd33fa7e149c4be19adafc20c52e",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"imgproxy",
+					"health"
+				]
+			}
+		}
+	]
+}

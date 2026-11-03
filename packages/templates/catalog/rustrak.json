@@ -1,0 +1,83 @@
+{
+	"schema": 1,
+	"id": "rustrak",
+	"name": "Rustrak",
+	"description": "Self-hosted error tracking compatible with Sentry SDKs. Server only, written in Rust: 32 MB of memory at idle, with SQLite storage. No external database required.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"error-tracking",
+		"sentry",
+		"rust",
+		"observability"
+	],
+	"logo": "logos/rustrak.svg",
+	"website": "https://rustrak.github.io/rustrak/",
+	"docs": "https://rustrak.github.io/rustrak/getting-started/overview",
+	"version": "sha256:921e5871ff24",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/rustrak",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "sessionSecretKey",
+			"label": "Session secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "rustrak",
+			"dependsOn": [],
+			"env": {
+				"HOST": "0.0.0.0",
+				"PORT": "8080",
+				"RUST_LOG": "info",
+				"SSL_PROXY": "true",
+				"SESSION_SECRET_KEY": "${{ inputs.sessionSecretKey }}",
+				"CREATE_SUPERUSER": "${{ inputs.adminEmail }}:${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "rustrak-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "rustrak/rustrak-server@sha256:921e5871ff24e263a661e6dec0b0180fdbdbe02512e5f20d5a0c5ffcd19c9bbf",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

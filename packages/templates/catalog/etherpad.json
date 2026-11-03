@@ -1,0 +1,110 @@
+{
+	"schema": 1,
+	"id": "etherpad",
+	"name": "Etherpad",
+	"description": "Etherpad is a real-time collaborative text editor that allows multiple users to edit documents simultaneously.",
+	"category": "productivity",
+	"tags": [
+		"collaboration",
+		"text-editor",
+		"real-time"
+	],
+	"logo": "logos/etherpad.png",
+	"website": "https://etherpad.org/",
+	"docs": "https://github.com/ether/etherpad-lite/wiki",
+	"version": "sha256:eab672b563d4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/etherpad",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "app",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"NODE_ENV": "production",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"DB_CHARSET": "utf8mb4",
+				"DB_HOST": "${{ services.postgres.host }}",
+				"DB_NAME": "etherpad",
+				"DB_PASS": "${{ inputs.postgresPassword }}",
+				"DB_PORT": "5432",
+				"DB_TYPE": "postgres",
+				"DB_USER": "admin",
+				"DEFAULT_PAD_TEXT": " ",
+				"DISABLE_IP_LOGGING": "false",
+				"SOFFICE": "null",
+				"TRUST_PROXY": "true"
+			},
+			"volumes": [
+				{
+					"name": "files-plugins",
+					"target": "/opt/etherpad-lite/src/plugin_packages"
+				},
+				{
+					"name": "files-etherpad-var",
+					"target": "/opt/etherpad-lite/var"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "etherpad/etherpad@sha256:eab672b563d4355974f186de050ad203890a1ba6637cfff68764e5ad1bf9aca4",
+			"ports": [
+				{
+					"target": 9001,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 9001,
+				"domain": "mainDomain"
+			},
+			"user": "0:0",
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "etherpad",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "admin",
+				"PGDATA": "/var/lib/postgresql/data/pgdata"
+			},
+			"volumes": [
+				{
+					"name": "files-postgres-data",
+					"target": "/var/lib/postgresql/data/pgdata"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:15-alpine",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "goatcounter",
+	"name": "Goatcounter",
+	"description": "Lightweight web analytics platform.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"insights",
+		"privacy"
+	],
+	"logo": "logos/goatcounter.svg",
+	"website": "https://www.goatcounter.com/",
+	"docs": "https://www.goatcounter.com/help",
+	"version": "2.7",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/goatcounter.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "goatcounterDomain",
+			"label": "Goatcounter domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "goatcounter",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "goatcounter-data",
+					"target": "/home/goatcounter/goatcounter-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "arp242/goatcounter:2.7",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:8080/status >/dev/null 2>&1 || exit 1"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "goatcounterDomain"
+			}
+		}
+	]
+}

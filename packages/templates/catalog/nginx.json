@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "nginx",
+	"name": "Nginx",
+	"description": "Nginx is a high-performance web server and reverse proxy.",
+	"category": "other",
+	"tags": [
+		"webserver"
+	],
+	"logo": "logos/nginx.png",
+	"website": "https://nginx.org/",
+	"docs": "https://nginx.org/en/docs/",
+	"version": "sha256:5ab5b0b01097",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/nginx",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "nginx",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "nginx-config",
+					"target": "/etc/nginx"
+				},
+				{
+					"name": "nginx-html",
+					"target": "/usr/share/nginx/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "nginx@sha256:5ab5b0b01097420873a3f3330f44248e34a3c2a3e8d5ee30658aeae8cb7435da",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				},
+				{
+					"target": 443,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,126 @@
+{
+	"schema": 1,
+	"id": "infisical",
+	"name": "Infisical",
+	"description": "All-in-one platform to securely manage application configuration and secrets across your team and infrastructure.",
+	"category": "security",
+	"tags": [
+		"self-hosted",
+		"open-source",
+		"security",
+		"environment",
+		"secrets",
+		"infisical",
+		"database",
+		"configuration",
+		"secret",
+		"api",
+		"keys",
+		"auth",
+		"encryption"
+	],
+	"logo": "logos/infisical.jpg",
+	"website": "https://infisical.com/",
+	"docs": "https://infisical.com/docs/documentation/getting-started/introduction",
+	"version": "0.162.6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/infisical",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "secret",
+			"length": 32,
+			"charset": "hex"
+		},
+		{
+			"key": "authSecret",
+			"label": "Auth secret",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "backend",
+			"dependsOn": [
+				"db",
+				"redis"
+			],
+			"env": {
+				"NODE_ENV": "production",
+				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"AUTH_SECRET": "${{ inputs.authSecret }}",
+				"SITE_URL": "http://${{ inputs.mainDomain }}",
+				"DB_CONNECTION_URI": "postgres://infisical:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/infisical",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"SMTP_HOST": "",
+				"SMTP_PORT": "587",
+				"SMTP_FROM_ADDRESS": "",
+				"SMTP_FROM_NAME": "Infisical",
+				"SMTP_USERNAME": "",
+				"SMTP_PASSWORD": ""
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "infisical/infisical:v0.162.6",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-infisical-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7.4.1",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "infisical",
+				"POSTGRES_DB": "infisical"
+			},
+			"volumes": [
+				{
+					"name": "pg-infisical-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "14-alpine"
+		}
+	]
+}

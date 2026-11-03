@@ -1,0 +1,43 @@
+{
+	"schema": 1,
+	"id": "tailscale-exitnode",
+	"name": "Tailscale Exit nodes",
+	"description": "Tailscale ExitNode is a feature that lets you route your internet traffic through a specific device in your Tailscale network.",
+	"category": "other",
+	"tags": [
+		"network"
+	],
+	"logo": "logos/tailscale-exitnode.svg",
+	"website": "https://tailscale.com/",
+	"docs": "https://tailscale.com/kb/1408/quick-guide-exit-nodes",
+	"version": "1.0.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/tailscale-exitnode",
+		"license": "MIT"
+	},
+	"inputs": [],
+	"services": [
+		{
+			"name": "tailscale-exitnode",
+			"dependsOn": [],
+			"env": {
+				"TS_AUTHKEY": "",
+				"TS_EXTRA_ARGS": "--advertise-exit-node",
+				"TS_STATE_DIR": "/var/lib/tailscale",
+				"TS_USERSPACE": "true"
+			},
+			"volumes": [
+				{
+					"name": "tailscale-exitnode-data",
+					"target": "/var/lib/tailscale"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "tailscale/tailscale@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "trek",
+	"name": "TREK",
+	"description": "A minimalist, self-hosted trip planner with Kanban-style task boards, budgets, packing lists, interactive maps, real-time collaboration, and OIDC single sign-on.",
+	"category": "productivity",
+	"tags": [
+		"travel",
+		"planning",
+		"productivity"
+	],
+	"logo": "logos/trek.png",
+	"website": "https://github.com/mauriceboe/TREK",
+	"docs": "https://github.com/mauriceboe/TREK/wiki",
+	"version": "3.3.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/trek",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		}
+	],
+	"services": [
+		{
+			"name": "trek",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"PORT": "3000",
+				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"TZ": "UTC",
+				"LOG_LEVEL": "info",
+				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"ALLOWED_ORIGINS": "http://${{ inputs.mainDomain }}",
+				"ADMIN_EMAIL": "${{ inputs.adminEmail }}",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "trek-data",
+					"target": "/app/data"
+				},
+				{
+					"name": "trek-uploads",
+					"target": "/app/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mauriceboe/trek:3.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://localhost:3000/api/health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

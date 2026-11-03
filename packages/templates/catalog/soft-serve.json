@@ -1,0 +1,80 @@
+{
+	"schema": 1,
+	"id": "soft-serve",
+	"name": "Soft Serve",
+	"description": "Soft Serve is a self-hosted Git server with an SSH TUI, HTTP Git access, Git LFS support, and simple repository management.",
+	"category": "devtools",
+	"tags": [
+		"git",
+		"ssh",
+		"developer-tools",
+		"self-hosted"
+	],
+	"logo": "logos/soft-serve.svg",
+	"website": "https://charm.sh/",
+	"docs": "https://github.com/charmbracelet/soft-serve/blob/main/README.md",
+	"version": "v0.11.6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/soft-serve",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "soft-serve",
+			"dependsOn": [],
+			"env": {
+				"SOFT_SERVE_NAME": "Soft Serve",
+				"SOFT_SERVE_DATA_PATH": "/soft-serve",
+				"SOFT_SERVE_INITIAL_ADMIN_KEYS": "",
+				"SOFT_SERVE_SSH_LISTEN_ADDR": ":23231",
+				"SOFT_SERVE_SSH_PUBLIC_URL": "ssh://${{ inputs.mainDomain }}:23231",
+				"SOFT_SERVE_HTTP_LISTEN_ADDR": ":23232",
+				"SOFT_SERVE_HTTP_PUBLIC_URL": "http://${{ inputs.mainDomain }}",
+				"SOFT_SERVE_GIT_LISTEN_ADDR": ":9418",
+				"SOFT_SERVE_STATS_LISTEN_ADDR": ":23233",
+				"SOFT_SERVE_LOG_LEVEL": "info"
+			},
+			"volumes": [
+				{
+					"name": "soft-serve-data",
+					"target": "/soft-serve"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "charmcli/soft-serve:v0.11.6",
+			"ports": [
+				{
+					"target": 23231,
+					"protocol": "tcp"
+				},
+				{
+					"target": 23232,
+					"protocol": "tcp"
+				},
+				{
+					"target": 23233,
+					"protocol": "tcp"
+				},
+				{
+					"target": 9418,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 23232,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

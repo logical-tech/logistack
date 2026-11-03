@@ -1,0 +1,78 @@
+{
+	"schema": 1,
+	"id": "postgres-extensor",
+	"name": "PostgreSQL with 80+ Extensions",
+	"description": "The official PostgreSQL 18 image with 80+ tested extensions preinstalled: pgvector, PostGIS, TimescaleDB, pgmq, pg_cron, pg_duckdb, Apache AGE, pg_graphql and more. Multi-arch (amd64, arm64).",
+	"category": "database",
+	"tags": [
+		"database",
+		"postgres",
+		"postgresql",
+		"vector",
+		"pgvector",
+		"postgis",
+		"timescaledb",
+		"ai"
+	],
+	"logo": "logos/postgres-extensor.svg",
+	"website": "https://hub.docker.com/r/ruxwez/postgres",
+	"docs": "https://github.com/ruxwez/postgres/blob/main/.docs/included-extensions.md",
+	"version": "18-v1.1.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/postgres-extensor",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "postgres-extensor",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ruxwez/postgres:18-v1.1.0",
+			"command": [
+				"postgres",
+				"-c",
+				"shared_preload_libraries=pg_stat_statements,pg_cron",
+				"-c",
+				"cron.database_name=postgres",
+				"-c",
+				"max_worker_processes=32"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,580 @@
+{
+	"schema": 1,
+	"id": "plane",
+	"name": "Plane",
+	"description": "The open source project management tool",
+	"category": "productivity",
+	"tags": [
+		"plane",
+		"project-management",
+		"tool",
+		"open",
+		"source",
+		"api",
+		"nextjs",
+		"redis",
+		"postgresql",
+		"django",
+		"pm"
+	],
+	"logo": "logos/plane.svg",
+	"docs": "https://docs.plane.so/self-hosting/methods/docker-compose",
+	"version": "v1.3.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/plane.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "planeDomain",
+			"label": "Plane domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "livesecretPassword",
+			"label": "Livesecret password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "rabbitmqUser",
+			"label": "Rabbitmq user",
+			"type": "username"
+		},
+		{
+			"key": "rabbitmqPassword",
+			"label": "Rabbitmq password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "secretkeyPassword",
+			"label": "Secretkey password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "minioPassword",
+			"label": "Minio password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "minioUser",
+			"label": "Minio user",
+			"type": "username"
+		}
+	],
+	"services": [
+		{
+			"name": "proxy",
+			"dependsOn": [
+				"web",
+				"api",
+				"space",
+				"admin",
+				"live"
+			],
+			"env": {
+				"APP_DOMAIN": "https://${{ inputs.planeDomain }}",
+				"SITE_ADDRESS": ":80",
+				"FILE_SIZE_LIMIT": "5242880",
+				"BUCKET_NAME": "uploads"
+			},
+			"volumes": [
+				{
+					"name": "proxy-config",
+					"target": "/config"
+				},
+				{
+					"name": "proxy-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-proxy:v1.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:80"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "planeDomain"
+			}
+		},
+		{
+			"name": "web",
+			"dependsOn": [
+				"api",
+				"worker"
+			],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-frontend:v1.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://`hostname`:3000"
+				]
+			}
+		},
+		{
+			"name": "space",
+			"dependsOn": [
+				"api",
+				"worker",
+				"web"
+			],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-space:v1.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"echo",
+					"hey whats up"
+				]
+			}
+		},
+		{
+			"name": "admin",
+			"dependsOn": [
+				"api",
+				"web"
+			],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-admin:v1.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"echo",
+					"hey whats up"
+				]
+			}
+		},
+		{
+			"name": "live",
+			"dependsOn": [
+				"api",
+				"web"
+			],
+			"env": {
+				"LIVE_SERVER_SECRET_KEY": "${{ inputs.livesecretPassword }}",
+				"API_BASE_URL": "http://${{ services.api.host }}:8000",
+				"REDIS_URL": "redis://${{ services.plane-redis.host }}:6379/",
+				"REDIS_PORT": "6379",
+				"REDIS_HOST": "${{ services.plane-redis.host }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-live:v1.3.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"echo",
+					"hey whats up"
+				]
+			}
+		},
+		{
+			"name": "api",
+			"dependsOn": [
+				"plane-db",
+				"plane-redis",
+				"plane-mq"
+			],
+			"env": {
+				"LIVE_SERVER_SECRET_KEY": "${{ inputs.livesecretPassword }}",
+				"MINIO_ENDPOINT_SSL": "0",
+				"API_KEY_RATE_LIMIT": "60/minute",
+				"AMQP_URL": "amqp://${{ inputs.rabbitmqUser }}:${{ inputs.rabbitmqPassword }}@${{ services.plane-mq.host }}:5672/plane",
+				"SECRET_KEY": "${{ inputs.secretkeyPassword }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.plane-db.host }}/plane",
+				"USE_MINIO": "1",
+				"GUNICORN_WORKERS": "1",
+				"CORS_ALLOWED_ORIGINS": "http://localhost",
+				"DEBUG": "0",
+				"WEB_URL": "https://${{ inputs.planeDomain }}",
+				"APP_RELEASE": "v1.3.0",
+				"PGDATA": "/var/lib/postgresql/data",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_DB": "plane",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"PGDATABASE": "plane",
+				"PGHOST": "${{ services.plane-db.host }}",
+				"REDIS_URL": "redis://${{ services.plane-redis.host }}:6379/",
+				"REDIS_PORT": "6379",
+				"REDIS_HOST": "${{ services.plane-redis.host }}",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}",
+				"MINIO_ROOT_USER": "${{ inputs.minioUser }}",
+				"AWS_S3_BUCKET_NAME": "uploads",
+				"AWS_S3_ENDPOINT_URL": "http://${{ services.plane-minio.host }}:9000",
+				"AWS_SECRET_ACCESS_KEY": "${{ inputs.minioPassword }}",
+				"AWS_ACCESS_KEY_ID": "${{ inputs.minioUser }}",
+				"AWS_REGION": "",
+				"SITE_ADDRESS": ":80",
+				"BUCKET_NAME": "uploads",
+				"FILE_SIZE_LIMIT": "5242880",
+				"APP_DOMAIN": "https://${{ inputs.planeDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "logs-api",
+					"target": "/code/plane/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-backend:v1.3.0",
+			"command": [
+				"./bin/docker-entrypoint-api.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"echo",
+					"hey whats up"
+				]
+			}
+		},
+		{
+			"name": "worker",
+			"dependsOn": [
+				"api",
+				"plane-db",
+				"plane-redis",
+				"plane-mq"
+			],
+			"env": {
+				"LIVE_SERVER_SECRET_KEY": "${{ inputs.livesecretPassword }}",
+				"MINIO_ENDPOINT_SSL": "0",
+				"API_KEY_RATE_LIMIT": "60/minute",
+				"AMQP_URL": "amqp://${{ inputs.rabbitmqUser }}:${{ inputs.rabbitmqPassword }}@${{ services.plane-mq.host }}:5672/plane",
+				"SECRET_KEY": "${{ inputs.secretkeyPassword }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.plane-db.host }}/plane",
+				"USE_MINIO": "1",
+				"GUNICORN_WORKERS": "1",
+				"CORS_ALLOWED_ORIGINS": "http://localhost",
+				"DEBUG": "0",
+				"WEB_URL": "https://${{ inputs.planeDomain }}",
+				"APP_RELEASE": "v1.3.0",
+				"PGDATA": "/var/lib/postgresql/data",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_DB": "plane",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"PGDATABASE": "plane",
+				"PGHOST": "${{ services.plane-db.host }}",
+				"REDIS_URL": "redis://${{ services.plane-redis.host }}:6379/",
+				"REDIS_PORT": "6379",
+				"REDIS_HOST": "${{ services.plane-redis.host }}",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}",
+				"MINIO_ROOT_USER": "${{ inputs.minioUser }}",
+				"AWS_S3_BUCKET_NAME": "uploads",
+				"AWS_S3_ENDPOINT_URL": "http://${{ services.plane-minio.host }}:9000",
+				"AWS_SECRET_ACCESS_KEY": "${{ inputs.minioPassword }}",
+				"AWS_ACCESS_KEY_ID": "${{ inputs.minioUser }}",
+				"AWS_REGION": "",
+				"SITE_ADDRESS": ":80",
+				"BUCKET_NAME": "uploads",
+				"FILE_SIZE_LIMIT": "5242880",
+				"APP_DOMAIN": "https://${{ inputs.planeDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "logs-worker",
+					"target": "/code/plane/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-backend:v1.3.0",
+			"command": [
+				"./bin/docker-entrypoint-worker.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"echo",
+					"hey whats up"
+				]
+			}
+		},
+		{
+			"name": "beat-worker",
+			"dependsOn": [
+				"api",
+				"plane-db",
+				"plane-redis",
+				"plane-mq"
+			],
+			"env": {
+				"LIVE_SERVER_SECRET_KEY": "${{ inputs.livesecretPassword }}",
+				"MINIO_ENDPOINT_SSL": "0",
+				"API_KEY_RATE_LIMIT": "60/minute",
+				"AMQP_URL": "amqp://${{ inputs.rabbitmqUser }}:${{ inputs.rabbitmqPassword }}@${{ services.plane-mq.host }}:5672/plane",
+				"SECRET_KEY": "${{ inputs.secretkeyPassword }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.plane-db.host }}/plane",
+				"USE_MINIO": "1",
+				"GUNICORN_WORKERS": "1",
+				"CORS_ALLOWED_ORIGINS": "http://localhost",
+				"DEBUG": "0",
+				"WEB_URL": "https://${{ inputs.planeDomain }}",
+				"APP_RELEASE": "v1.3.0",
+				"PGDATA": "/var/lib/postgresql/data",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_DB": "plane",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"PGDATABASE": "plane",
+				"PGHOST": "${{ services.plane-db.host }}",
+				"REDIS_URL": "redis://${{ services.plane-redis.host }}:6379/",
+				"REDIS_PORT": "6379",
+				"REDIS_HOST": "${{ services.plane-redis.host }}",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}",
+				"MINIO_ROOT_USER": "${{ inputs.minioUser }}",
+				"AWS_S3_BUCKET_NAME": "uploads",
+				"AWS_S3_ENDPOINT_URL": "http://${{ services.plane-minio.host }}:9000",
+				"AWS_SECRET_ACCESS_KEY": "${{ inputs.minioPassword }}",
+				"AWS_ACCESS_KEY_ID": "${{ inputs.minioUser }}",
+				"AWS_REGION": "",
+				"SITE_ADDRESS": ":80",
+				"BUCKET_NAME": "uploads",
+				"FILE_SIZE_LIMIT": "5242880",
+				"APP_DOMAIN": "https://${{ inputs.planeDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "logs-beat-worker",
+					"target": "/code/plane/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-backend:v1.3.0",
+			"command": [
+				"./bin/docker-entrypoint-beat.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"echo",
+					"hey whats up"
+				]
+			}
+		},
+		{
+			"name": "migrator",
+			"dependsOn": [
+				"plane-db",
+				"plane-redis"
+			],
+			"env": {
+				"LIVE_SERVER_SECRET_KEY": "${{ inputs.livesecretPassword }}",
+				"MINIO_ENDPOINT_SSL": "0",
+				"API_KEY_RATE_LIMIT": "60/minute",
+				"AMQP_URL": "amqp://${{ inputs.rabbitmqUser }}:${{ inputs.rabbitmqPassword }}@${{ services.plane-mq.host }}:5672/plane",
+				"SECRET_KEY": "${{ inputs.secretkeyPassword }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.plane-db.host }}/plane",
+				"USE_MINIO": "1",
+				"GUNICORN_WORKERS": "1",
+				"CORS_ALLOWED_ORIGINS": "http://localhost",
+				"DEBUG": "0",
+				"WEB_URL": "https://${{ inputs.planeDomain }}",
+				"APP_RELEASE": "v1.3.0",
+				"PGDATA": "/var/lib/postgresql/data",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_DB": "plane",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"PGDATABASE": "plane",
+				"PGHOST": "${{ services.plane-db.host }}",
+				"REDIS_URL": "redis://${{ services.plane-redis.host }}:6379/",
+				"REDIS_PORT": "6379",
+				"REDIS_HOST": "${{ services.plane-redis.host }}",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}",
+				"MINIO_ROOT_USER": "${{ inputs.minioUser }}",
+				"AWS_S3_BUCKET_NAME": "uploads",
+				"AWS_S3_ENDPOINT_URL": "http://${{ services.plane-minio.host }}:9000",
+				"AWS_SECRET_ACCESS_KEY": "${{ inputs.minioPassword }}",
+				"AWS_ACCESS_KEY_ID": "${{ inputs.minioUser }}",
+				"AWS_REGION": "",
+				"SITE_ADDRESS": ":80",
+				"BUCKET_NAME": "uploads",
+				"FILE_SIZE_LIMIT": "5242880",
+				"APP_DOMAIN": "https://${{ inputs.planeDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "logs-migrator",
+					"target": "/code/plane/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "makeplane/plane-backend:v1.3.0",
+			"command": [
+				"./bin/docker-entrypoint-migrator.sh"
+			],
+			"ports": [],
+			"restart": "none"
+		},
+		{
+			"name": "plane-db",
+			"dependsOn": [],
+			"env": {
+				"PGDATA": "/var/lib/postgresql/data",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_DB": "plane",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"PGDATABASE": "plane",
+				"PGHOST": "${{ services.plane-db.host }}"
+			},
+			"volumes": [
+				{
+					"name": "pgdata",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:15.7-alpine",
+			"command": [
+				"postgres",
+				"-c",
+				"max_connections=1000"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		},
+		{
+			"name": "plane-redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redisdata",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "valkey/valkey:7.2.11-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		},
+		{
+			"name": "plane-mq",
+			"dependsOn": [],
+			"env": {
+				"RABBITMQ_VHOST": "plane",
+				"RABBITMQ_DEFAULT_VHOST": "plane",
+				"RABBITMQ_DEFAULT_PASS": "${{ inputs.rabbitmqPassword }}",
+				"RABBITMQ_DEFAULT_USER": "${{ inputs.rabbitmqUser }}",
+				"RABBITMQ_PORT": "5672",
+				"RABBITMQ_HOST": "${{ services.plane-mq.host }}"
+			},
+			"volumes": [
+				{
+					"name": "rabbitmq-data",
+					"target": "/var/lib/rabbitmq"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "rabbitmq:3.13.6-management-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"rabbitmq-diagnostics -q check_port_connectivity"
+				]
+			}
+		},
+		{
+			"name": "plane-minio",
+			"dependsOn": [],
+			"env": {
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}",
+				"MINIO_ROOT_USER": "${{ inputs.minioUser }}"
+			},
+			"volumes": [
+				{
+					"name": "uploads",
+					"target": "/export"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "pgsty/silo:RELEASE.2026-10-15T00-00-00Z",
+			"command": [
+				"server",
+				"/export",
+				"--console-address",
+				":9090"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mc",
+					"ready",
+					"local"
+				]
+			}
+		}
+	]
+}

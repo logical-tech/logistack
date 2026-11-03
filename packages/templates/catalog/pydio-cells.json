@@ -1,0 +1,95 @@
+{
+	"schema": 1,
+	"id": "pydio-cells",
+	"name": "Pydio Cells",
+	"description": "High-performance large file sharing, native no-code automation, and a collaboration-centric architecture that simplifies access control without compromising security or compliance.",
+	"category": "storage",
+	"tags": [
+		"storage"
+	],
+	"logo": "logos/pydio-cells.svg",
+	"docs": "https://docs.pydio.com/",
+	"version": "4.4",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/pydio-cells.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "cellsDomain",
+			"label": "Cells domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "cells",
+			"dependsOn": [],
+			"env": {
+				"CELLS_SITE_EXTERNAL": "https://${{ inputs.cellsDomain }}",
+				"CELLS_SITE_NO_TLS": "1"
+			},
+			"volumes": [
+				{
+					"name": "cells-data",
+					"target": "/var/cells"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "pydio/cells:4.4",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "cellsDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
+				"MYSQL_DATABASE": "cells",
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		}
+	]
+}

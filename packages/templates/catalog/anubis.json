@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "anubis",
+	"name": "Anubis",
+	"description": "Anubis is a bot protector, It will block bots from accessing your website.",
+	"category": "other",
+	"tags": [
+		"self-hosted",
+		"bot-protection"
+	],
+	"logo": "logos/anubis.webp",
+	"website": "https://anubis.techaro.lol/",
+	"docs": "https://anubis.techaro.lol/docs/",
+	"version": "sha256:5fcbce70ee61",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/anubis",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "anubis",
+			"dependsOn": [],
+			"env": {
+				"TARGET": "YOURLOCALHOST:PORT",
+				"BIND": ":8923",
+				"COOKIE_DOMAIN": "${{ inputs.mainDomain }}",
+				"DIFFICULTY": "5",
+				"OG_PASSTHROUGH": "true",
+				"OG_EXPIRY_TIME": "1h",
+				"OG_CACHE_CONSIDER_HOST": "true",
+				"SERVE_ROBOTS_TXT": "false"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/techarohq/anubis@sha256:5fcbce70ee6168be5b226d19bec90111d0acd0daf13028fa06b044cf3ebbbd5f",
+			"ports": [
+				{
+					"target": 8923,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8923,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,8006 @@
+[
+	{
+		"id": "9router",
+		"name": "9router",
+		"description": "Free AI coding gateway. Routes Claude Code, Codex, Cursor, Cline, Copilot requests to 40+ LLM providers with auto-fallback and token savings.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"gateway",
+			"routing",
+			"coding",
+			"llm",
+			"providers",
+			"proxy",
+			"developer-tools"
+		],
+		"logo": "logos/9router.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "ackee",
+		"name": "Ackee",
+		"description": "Ackee is a self-hosted analytics tool for your website.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"self-hosted"
+		],
+		"logo": "logos/ackee.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "activepieces",
+		"name": "Activepieces",
+		"description": "Open-source no-code business automation tool. An alternative to Zapier, Make.com, and Tray.",
+		"category": "automation",
+		"tags": [
+			"automation",
+			"workflow",
+			"no-code",
+			"no code",
+			"open source"
+		],
+		"logo": "logos/activepieces.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "actualbudget",
+		"name": "Actualbudget",
+		"description": "A local-first personal finance app.",
+		"category": "finance",
+		"tags": [
+			"budgeting",
+			"actual",
+			"finance",
+			"budget",
+			"money",
+			"expenses",
+			"income"
+		],
+		"logo": "logos/actualbudget.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "adguardhome",
+		"name": "AdGuard Home",
+		"description": "AdGuard Home is a network-wide ad and tracker blocker.",
+		"category": "security",
+		"tags": [
+			"privacy",
+			"security",
+			"dns",
+			"ad-blocking"
+		],
+		"logo": "logos/adguardhome.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "adminer",
+		"name": "Adminer",
+		"description": "Adminer is a lightweight, web-based database management tool.",
+		"category": "database",
+		"tags": [
+			"databases",
+			"developer-tools",
+			"mysql",
+			"postgresql"
+		],
+		"logo": "logos/adminer.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "adventurelog",
+		"name": "AdventureLog",
+		"description": "AdventureLog is an open-source activity tracker with maps, journaling, and Strava integration.",
+		"category": "database",
+		"tags": [
+			"activity",
+			"maps",
+			"django",
+			"react",
+			"postgres"
+		],
+		"logo": "logos/adventurelog.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "agent-zero",
+		"name": "Agent Zero",
+		"description": "Agent Zero is an open-source autonomous AI agent framework with memory and tool use capabilities.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"agent",
+			"automation"
+		],
+		"logo": "logos/agent-zero.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "akaunting",
+		"name": "Akaunting",
+		"description": "Akaunting is a self-hosted, open-source accounting app for small businesses.",
+		"category": "finance",
+		"tags": [
+			"finance",
+			"accounting",
+			"php",
+			"mariadb",
+			"self-hosted"
+		],
+		"logo": "logos/akaunting.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "alarik",
+		"name": "Alarik",
+		"description": "Alarik is a high-performance, S3-compatible object storage.",
+		"category": "storage",
+		"tags": [
+			"storage",
+			"s3",
+			"object-storage"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "alexandrie",
+		"name": "Alexandrie",
+		"description": "A powerful Markdown workspace designed for speed, clarity, and creativity.",
+		"category": "productivity",
+		"tags": [
+			"note-taking",
+			"markdown",
+			"knowledge-management",
+			"personal-wiki",
+			"productivity"
+		],
+		"logo": "logos/alexandrie.svg",
+		"source": "coolify",
+		"services": 4
+	},
+	{
+		"id": "alist",
+		"name": "AList",
+		"description": "ðŸ—‚ï¸A file list/WebDAV program that supports multiple storages, powered by Gin and Solidjs.",
+		"category": "storage",
+		"tags": [
+			"file",
+			"webdav",
+			"storage"
+		],
+		"logo": "logos/alist.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "alltube",
+		"name": "AllTube",
+		"description": "AllTube Download is an application designed to facilitate the downloading of videos from YouTube and other video sites. It provides an HTML GUI for…",
+		"category": "media",
+		"tags": [
+			"media",
+			"video",
+			"downloader"
+		],
+		"logo": "logos/alltube.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "anonupload",
+		"name": "AnonUpload",
+		"description": "AnonUpload is a secure, anonymous file sharing application that does not require a database. It is built with privacy as a priority, ensuring that the…",
+		"category": "storage",
+		"tags": [
+			"file-sharing",
+			"privacy"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "anse",
+		"name": "Anse",
+		"description": "Anse is an open-source alternative to ChatGPT web UI, supporting OpenAI-compatible APIs.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"chatbot",
+			"openai",
+			"ui"
+		],
+		"logo": "logos/anse.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "answer",
+		"name": "Answer",
+		"description": "Answer is an open-source Q&A platform for building a self-hosted question-and-answer service.",
+		"category": "other",
+		"tags": [
+			"q-and-a",
+			"self-hosted"
+		],
+		"logo": "logos/answer.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "anubis",
+		"name": "Anubis",
+		"description": "Anubis is a bot protector, It will block bots from accessing your website.",
+		"category": "other",
+		"tags": [
+			"self-hosted",
+			"bot-protection"
+		],
+		"logo": "logos/anubis.webp",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "anythingllm",
+		"name": "AnythingLLM",
+		"description": "AnythingLLM is a private AI chat app for working with your own documents.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"llm",
+			"chatbot"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "anytype",
+		"name": "Anytype",
+		"description": "Anytype is a private, offline-first app for notes and personal knowledge.",
+		"category": "other",
+		"tags": [
+			"note-taking",
+			"local-first",
+			"peer-to-peer"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "appflowy",
+		"name": "Appflowy",
+		"description": "AppFlowy is the AI collaborative workspace where you achieve more without losing control of your data.",
+		"category": "productivity",
+		"tags": [
+			"appflowy",
+			"notion",
+			"open-source",
+			"productivity",
+			"notes",
+			"ai",
+			"self-hosted"
+		],
+		"logo": "logos/appflowy.svg",
+		"source": "coolify",
+		"services": 10
+	},
+	{
+		"id": "apprise-api",
+		"name": "Apprise API",
+		"description": "Apprise API provides a simple interface for sending notifications to almost all of the most popular notification services available to us today.",
+		"category": "devtools",
+		"tags": [
+			"notifications",
+			"api"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "appsmith",
+		"name": "Appsmith",
+		"description": "Appsmith is a free and open source platform for building internal tools and applications.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"lowcode",
+			"nocode",
+			"no",
+			"low",
+			"platform"
+		],
+		"logo": "logos/appsmith.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "arangodb",
+		"name": "ArangoDB",
+		"description": "ArangoDB is a native multi-model database with flexible data models for documents, graphs, and key-values. Build high performance applications using a…",
+		"category": "database",
+		"tags": [
+			"database",
+			"graph-database",
+			"nosql"
+		],
+		"logo": "logos/arangodb.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "archivebox",
+		"name": "ArchiveBox",
+		"description": "ArchiveBox is a self-hosted internet archiving solution for saving websites, media, and documents.",
+		"category": "productivity",
+		"tags": [
+			"archive",
+			"bookmarks",
+			"web"
+		],
+		"logo": "logos/archivebox.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "audiobookshelf",
+		"name": "Audiobookshelf",
+		"description": "Self-hosted audiobook, ebook, and podcast server",
+		"category": "media",
+		"tags": [
+			"audiobooks",
+			"ebooks",
+			"podcasts",
+			"server",
+			"self-hosted"
+		],
+		"logo": "logos/audiobookshelf.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "authorizer",
+		"name": "Authorizer",
+		"description": "Authorizer is a powerful tool designed to simplify the process of user authentication and authorization in your applications. It allows you to build secure…",
+		"category": "security",
+		"tags": [
+			"authentication",
+			"authorization",
+			"security"
+		],
+		"logo": "logos/authorizer.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "azuracast",
+		"name": "AzuraCast",
+		"description": "AzuraCast is a self-hosted, all-in-one web radio management suite. Easily manage your online radio stations with a powerful web interface.",
+		"category": "media",
+		"tags": [
+			"radio",
+			"streaming",
+			"media",
+			"broadcasting",
+			"music",
+			"entertainment"
+		],
+		"logo": "logos/azuracast.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "babybuddy",
+		"name": "BabyBuddy",
+		"description": "BabyBuddy is a comprehensive, user-friendly platform designed to help parents and caregivers manage essential details about their child's growth and…",
+		"category": "productivity",
+		"tags": [
+			"parenting",
+			"tracking",
+			"family",
+			"baby",
+			"parents",
+			"health",
+			"growth",
+			"activities"
+		],
+		"logo": "logos/babybuddy.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "baikal",
+		"name": "Baikal",
+		"description": "Baikal is a lightweight, self-hosted CalDAV and CardDAV server that enables users to manage calendars and contacts efficiently. It provides a simple and…",
+		"category": "other",
+		"tags": [
+			"calendar",
+			"contacts",
+			"caldav",
+			"carddav"
+		],
+		"logo": "logos/baikal.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "barrage",
+		"name": "Barrage",
+		"description": "Barrage is a minimalistic Deluge WebUI app with full mobile support. It features a responsive mobile-first design, allowing you to manage your torrents with…",
+		"category": "other",
+		"tags": [
+			"torrents",
+			"deluge",
+			"mobile"
+		],
+		"logo": "logos/barrage.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "baserow",
+		"name": "Baserow",
+		"description": "Baserow is an open source database management tool that allows you to create and manage databases.",
+		"category": "database",
+		"tags": [
+			"database"
+		],
+		"logo": "logos/baserow.webp",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "bento-pdf",
+		"name": "Bento Pdf",
+		"description": "Process PDFs entirely in your browser. No uploads. No servers. Complete privacy.",
+		"category": "productivity",
+		"tags": [
+			"pdf",
+			"manipulation",
+			"web",
+			"tool"
+		],
+		"logo": "logos/bento-pdf.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "bentopdf",
+		"name": "BentoPDF",
+		"description": "BentoPDF is a lightweight PDF conversion microservice that exposes a simple HTTP API for generating PDFs.",
+		"category": "devtools",
+		"tags": [
+			"pdf",
+			"converter",
+			"api",
+			"utility"
+		],
+		"logo": "logos/bentopdf.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "bigcapital",
+		"name": "BigCapital",
+		"description": "BigCapital is a great open source alternative to QuickBooks. A comprehensive accounting and financial management system for businesses.",
+		"category": "finance",
+		"tags": [
+			"accounting",
+			"finance",
+			"bookkeeping",
+			"quickbooks",
+			"erp",
+			"business"
+		],
+		"logo": "logos/bigcapital.svg",
+		"source": "dokploy",
+		"services": 6
+	},
+	{
+		"id": "blinko",
+		"name": "Blinko",
+		"description": "Blinko is a modern web application for managing and organizing your digital content and workflows.",
+		"category": "productivity",
+		"tags": [
+			"productivity",
+			"organization",
+			"workflow",
+			"nextjs"
+		],
+		"logo": "logos/blinko.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "blogfactory",
+		"name": "BlogFactory",
+		"description": "Self-hosted control plane for AI-assisted content operations and human-approved CMS draft delivery.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"automation",
+			"content-management"
+		],
+		"logo": "logos/blogfactory.svg",
+		"source": "dokploy",
+		"services": 5
+	},
+	{
+		"id": "bluesky-pds",
+		"name": "Bluesky Pds",
+		"description": "Bluesky PDS (Personal Data Server)",
+		"category": "devtools",
+		"tags": [
+			"bluesky",
+			"pds",
+			"platform"
+		],
+		"logo": "logos/bluesky-pds.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "bonfire",
+		"name": "Bonfire",
+		"description": "Federated social networking toolkit for communities: customizable digital spaces with ActivityPub federation, flexible boundaries and moderation tools.",
+		"category": "other",
+		"tags": [
+			"social",
+			"fediverse",
+			"activitypub"
+		],
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "booklore",
+		"name": "Booklore",
+		"description": "Booklore is an application for managing and serving book-related data, backed by a MariaDB database.",
+		"category": "database",
+		"tags": [
+			"books",
+			"library",
+			"database",
+			"mariadb"
+		],
+		"logo": "logos/booklore.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "bookstack",
+		"name": "BookStack",
+		"description": "BookStack is a wiki platform for organizing documentation.",
+		"category": "productivity",
+		"tags": [
+			"documentation",
+			"self-hosted",
+			"free-and-open-source",
+			"mfa",
+			"dark-light-themes",
+			"searchable",
+			"connected",
+			"simple-interface",
+			"diagramms",
+			"notes"
+		],
+		"logo": "logos/bookstack.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "botpress",
+		"name": "Botpress",
+		"description": "Botpress is a platform for building conversational AI agents. It provides a simple and effective solution for building conversational AI agents from anywhere.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"self-hosted"
+		],
+		"logo": "logos/botpress.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "browserless",
+		"name": "Browserless",
+		"description": "A headless Chrome browser as a service.",
+		"category": "devtools",
+		"tags": [
+			"chrome",
+			"headless",
+			"browser",
+			"service",
+			"automation"
+		],
+		"logo": "logos/browserless.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "budget-board",
+		"name": "Budget Board",
+		"description": "Self-hosted budgeting app with a web UI and a server backed by PostgreSQL.",
+		"category": "finance",
+		"tags": [
+			"finance",
+			"postgres",
+			"self-hosted",
+			"docker",
+			"compose"
+		],
+		"logo": "logos/budget-board.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "bugsink",
+		"name": "Bugsink",
+		"description": "Self-hosted Error Tracking.",
+		"category": "monitoring",
+		"tags": [
+			"python",
+			"error-tracking",
+			"django",
+			"mysql",
+			"hosting",
+			"self-hosted",
+			"development"
+		],
+		"logo": "logos/bugsink.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "bulwark",
+		"name": "Bulwark",
+		"description": "Modern webmail platform",
+		"category": "communication",
+		"tags": [
+			"mail",
+			"webmail",
+			"jmap",
+			"email",
+			"messaging"
+		],
+		"logo": "logos/bulwark.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "bytebase",
+		"name": "Bytebase",
+		"description": "Bytebase is a database management tool that allows you to manage your databases with ease. It provides a simple and effective solution for managing your…",
+		"category": "database",
+		"tags": [
+			"database",
+			"self-hosted"
+		],
+		"logo": "logos/bytebase.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "bytestash",
+		"name": "ByteStash",
+		"description": "ByteStash is a self-hosted web application designed to store, organise, and manage your code snippets efficiently. With support for creating, editing, and…",
+		"category": "other",
+		"tags": [
+			"file-storage",
+			"self-hosted"
+		],
+		"logo": "logos/bytestash.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "cachkey",
+		"name": "Cachkey",
+		"description": "Cachkey is an open-source, self-hosted manager for secrets and environment variables: encrypted values, per-environment access for your team, a CLI and a…",
+		"category": "security",
+		"tags": [
+			"security",
+			"secrets",
+			"self-hosted"
+		],
+		"logo": "logos/cachkey.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "calcom",
+		"name": "Calcom",
+		"description": "Cal.com is a scheduling and booking tool and an alternative to Calendly. com as a Docker Compose service in a few clicks.",
+		"category": "other",
+		"tags": [
+			"scheduling",
+			"booking"
+		],
+		"logo": "logos/calcom.jpg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "calibre",
+		"name": "Calibre",
+		"description": "Calibre is a comprehensive e-book management tool designed to organize, convert, and read your e-book collection. It supports most of the major e-book…",
+		"category": "other",
+		"tags": [
+			"documents",
+			"e-commerce"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "calibre-web",
+		"name": "Calibre Web",
+		"description": "Calibre-web is a web app providing a clean interface for browsing, reading and downloading eBooks.",
+		"category": "media",
+		"tags": [
+			"calibre",
+			"calibre-web",
+			"ebook",
+			"library",
+			"epub",
+			"ereader",
+			"kindle",
+			"book",
+			"reader",
+			"ebooks",
+			"media",
+			"self-hosted"
+		],
+		"logo": "logos/calibre-web.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "cap",
+		"name": "Cap",
+		"description": "Cap is the open source alternative to Loom. Lightweight, powerful, and cross-platform. Record and share in seconds.",
+		"category": "media",
+		"tags": [
+			"cap",
+			"loom",
+			"open",
+			"source",
+			"low",
+			"code"
+		],
+		"logo": "logos/cap.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "cap-captcha",
+		"name": "Cap Captcha",
+		"description": "The self-hosted CAPTCHA for the modern web.",
+		"category": "security",
+		"tags": [
+			"captcha",
+			"security",
+			"privacy",
+			"proof-of-work"
+		],
+		"logo": "logos/cap-captcha.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "carbone",
+		"name": "Carbone",
+		"description": "Carbone is a high-performance, self-hosted document generation engine. It allows you to generate reports, invoices, and documents in various formats (e.g.,…",
+		"category": "automation",
+		"tags": [
+			"document-generation",
+			"automation",
+			"reporting",
+			"productivity"
+		],
+		"logo": "logos/carbone.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "casdoor",
+		"name": "Casdoor",
+		"description": "An open-source UI-first Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML, CAS, LDAP, SCIM,…",
+		"category": "security",
+		"tags": [
+			"authentication",
+			"authorization",
+			"oauth2",
+			"oidc",
+			"sso",
+			"saml",
+			"identity-management",
+			"access-management",
+			"security"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "celld",
+		"name": "Celld",
+		"description": "Self-hosted, distributed Durable Objects powered by Deno.",
+		"category": "devtools",
+		"tags": [
+			"deno",
+			"durable-objects",
+			"workers",
+			"sqlite",
+			"distributed",
+			"backend",
+			"serverless"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "certmate",
+		"name": "CertMate",
+		"description": "CertMate is an SSL certificate management system with a web UI and REST API. It automates issuing and renewing Let's Encrypt certificates via DNS-01…",
+		"category": "security",
+		"tags": [
+			"ssl",
+			"certificates",
+			"security",
+			"self-hosted"
+		],
+		"logo": "logos/certmate.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "changedetection",
+		"name": "Change Detection",
+		"description": "Changedetection.io is an intelligent tool designed to monitor changes on websites. Perfect for smart shoppers, data journalists, research engineers, data…",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"data",
+			"notifications",
+			"web",
+			"alert",
+			"monitor"
+		],
+		"logo": "logos/changedetection.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "chatto",
+		"name": "Chatto (single binary)",
+		"description": "A fully-featured real-time chat application for teams and communities. This template deploys the single Chatto binary with embedded NATS. Note:…",
+		"category": "communication",
+		"tags": [
+			"chat",
+			"communication",
+			"messaging",
+			"self-hosted"
+		],
+		"logo": "logos/chatto.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "checkmate",
+		"name": "Checkmate",
+		"description": "An open source server and websites monitoring application",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"server",
+			"uptime",
+			"healthcheck",
+			"self-hosted"
+		],
+		"logo": "logos/checkmate.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "chevereto",
+		"name": "Chevereto",
+		"description": "Chevereto is a powerful, self-hosted image and video hosting platform designed for individuals, communities, and businesses. It allows users to upload,…",
+		"category": "other",
+		"tags": [
+			"image-hosting",
+			"file-management",
+			"open-source",
+			"multi-user",
+			"private-albums"
+		],
+		"logo": "logos/chevereto.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "chiefonboarding",
+		"name": "Chief-Onboarding",
+		"description": "Chief-Onboarding is a comprehensive, self-hosted onboarding and employee management platform designed for businesses to streamline their onboarding processes.",
+		"category": "other",
+		"tags": [
+			"employee-onboarding",
+			"hr-management",
+			"task-tracking",
+			"role-based-access",
+			"document-management"
+		],
+		"logo": "logos/chiefonboarding.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "chroma",
+		"name": "Chroma",
+		"description": "Chroma is the open-source search and retrieval database for AI applications.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"vector-database",
+			"semantic-search",
+			"machine-learning",
+			"bm25",
+			"embeddings",
+			"llm"
+		],
+		"logo": "logos/chroma.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "chromium",
+		"name": "Chromium",
+		"description": "Chromium is an open-source browser project that is designed to provide a safer, faster, and more stable way for all users to experience the web in a…",
+		"category": "devtools",
+		"tags": [
+			"browser",
+			"development",
+			"web"
+		],
+		"logo": "logos/chromium.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "classicpress",
+		"name": "ClassicPress",
+		"description": "ClassicPress is a community-led open source content management system for creators. It is a fork of WordPress 6.2 that preserves the TinyMCE classic editor…",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"wordpress",
+			"content-management"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "classicpress-with-mariadb",
+		"name": "Classicpress With Mariadb",
+		"description": "A lightweight, stable, instantly familiar free open-source content management system, based on WordPress without the block editor (Gutenberg).",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management"
+		],
+		"logo": "logos/classicpress-with-mariadb.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "classicpress-with-mysql",
+		"name": "Classicpress With Mysql",
+		"description": "A lightweight, stable, instantly familiar free open-source content management system, based on WordPress without the block editor (Gutenberg).",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management"
+		],
+		"logo": "logos/classicpress-with-mysql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "classicpress-without-database",
+		"name": "Classicpress Without Database",
+		"description": "A lightweight, stable, instantly familiar free open-source content management system, based on WordPress without the block editor (Gutenberg).",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management"
+		],
+		"logo": "logos/classicpress-without-database.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "clickhouse",
+		"name": "ClickHouse",
+		"description": "ClickHouse is a fast, open-source columnar database built for real-time analytics.",
+		"category": "database",
+		"tags": [
+			"self-hosted",
+			"open-source",
+			"database",
+			"olap",
+			"analytics"
+		],
+		"logo": "logos/clickhouse.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "cloudbeaver",
+		"name": "Cloudbeaver",
+		"description": "CloudBeaver is a lightweight web application designed for comprehensive data management.",
+		"category": "devtools",
+		"tags": [
+			"dbeaver",
+			"data management",
+			"data",
+			"database",
+			"mysql",
+			"postgres",
+			"sqlite",
+			"sql",
+			"mongodb"
+		],
+		"logo": "logos/cloudbeaver.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "cockpit",
+		"name": "Cockpit",
+		"description": "Cockpit is a headless content platform designed to streamline the creation, connection, and delivery of content for creators, marketers, and developers. It…",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"content-management",
+			"api",
+			"cockpit",
+			"headless",
+			"database",
+			"nosql"
+		],
+		"logo": "logos/cockpit.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "code-server",
+		"name": "code-server",
+		"description": "code-server is a version of VS Code that runs in your browser.",
+		"category": "devtools",
+		"tags": [
+			"ide",
+			"development",
+			"vscode",
+			"self-hosted",
+			"code",
+			"editor",
+			"remote",
+			"collaboration"
+		],
+		"logo": "logos/code-server.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "codex-docs",
+		"name": "CodeX Docs",
+		"description": "CodeX is a comprehensive platform that brings together passionate engineers, designers, and specialists to create high-quality open-source projects. It…",
+		"category": "productivity",
+		"tags": [
+			"documentation",
+			"development",
+			"collaboration"
+		],
+		"logo": "logos/codex-docs.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "colanode",
+		"name": "Colanode Server",
+		"description": "Open-source and local-first Slack and Notion alternative that puts you in control of your data",
+		"category": "productivity",
+		"tags": [
+			"documentation",
+			"knowledge-base",
+			"collaboration"
+		],
+		"logo": "logos/colanode.svg",
+		"source": "dokploy",
+		"services": 4
+	},
+	{
+		"id": "commafeed",
+		"name": "CommaFeed",
+		"description": "CommaFeed is an open-source feed reader and news aggregator, designed to be lightweight and extensible, with PostgreSQL as its database.",
+		"category": "communication",
+		"tags": [
+			"feed-reader",
+			"news-aggregator",
+			"rss"
+		],
+		"logo": "logos/commafeed.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "commento",
+		"name": "Commento",
+		"description": "Commento is a comments widget designed to enhance the interaction on your website. It allows your readers to contribute to the discussion by upvoting…",
+		"category": "cms",
+		"tags": [
+			"comments",
+			"discussion",
+			"website"
+		],
+		"logo": "logos/commento.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "commentoplusplus",
+		"name": "Commento++",
+		"description": "Commento++ is a free, open-source application designed to provide a fast, lightweight comments box that you can embed in your static website. It offers…",
+		"category": "cms",
+		"tags": [
+			"comments",
+			"website",
+			"open-source"
+		],
+		"logo": "logos/commentoplusplus.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "conduit",
+		"name": "Conduit",
+		"description": "Conduit is a simple, fast and reliable chat server powered by Matrix",
+		"category": "communication",
+		"tags": [
+			"matrix",
+			"communication"
+		],
+		"logo": "logos/conduit.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "confluence",
+		"name": "Confluence",
+		"description": "Confluence is a powerful team collaboration and knowledge-sharing tool. It allows you to create, organize, and collaborate on content in a centralized…",
+		"category": "productivity",
+		"tags": [
+			"collaboration",
+			"documentation",
+			"productivity",
+			"project-management"
+		],
+		"logo": "logos/confluence.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "convertx",
+		"name": "Convertx",
+		"description": "A self-hosted online file converter. Supports over a thousand different formats.",
+		"category": "devtools",
+		"tags": [
+			"converter",
+			"file",
+			"documents",
+			"files",
+			"directories"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "cookie-cloud",
+		"name": "CookieCloud",
+		"description": "CookieCloud lets you sync and manage browser cookies across devices securely using a self-hosted backend.",
+		"category": "other",
+		"tags": [
+			"cookies",
+			"sync",
+			"selfhosted",
+			"privacy"
+		],
+		"logo": "logos/cookie-cloud.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "couchdb",
+		"name": "CouchDB",
+		"description": "CouchDB is a document-oriented NoSQL database that excels at replication and horizontal scaling.",
+		"category": "database",
+		"tags": [
+			"database",
+			"storage"
+		],
+		"logo": "logos/couchdb.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "crawlab-master",
+		"name": "Crawlab (Master)",
+		"description": "Crawlab is a distributed web crawler admin platform supporting multiple programming languages and frameworks. This template deploys the master node with…",
+		"category": "other",
+		"tags": [
+			"crawler",
+			"scraping",
+			"distributed",
+			"self-hosted"
+		],
+		"logo": "logos/crawlab-master.jpg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "crawlab-worker",
+		"name": "Crawlab (Worker)",
+		"description": "Crawlab worker node for distributed web crawling. Connects to an existing Crawlab master node via gRPC.",
+		"category": "other",
+		"tags": [
+			"crawler",
+			"scraping",
+			"distributed",
+			"self-hosted"
+		],
+		"logo": "logos/crawlab-worker.jpg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "cryptgeon",
+		"name": "Cryptgeon",
+		"description": "Secure note / file sharing service inspired by PrivNote.",
+		"category": "security",
+		"tags": [
+			"cryptgeon",
+			"secure",
+			"note",
+			"sharing",
+			"privnote",
+			"file"
+		],
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "cut",
+		"name": "Cut",
+		"description": "A tiny, self-hosted URL shortener — short links that are entirely yours, with per-link passwords, expiries, and click limits.",
+		"category": "other",
+		"tags": [
+			"url-shortener",
+			"links"
+		],
+		"logo": "logos/cut.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "cyberchef",
+		"name": "Cyberchef",
+		"description": "The Cyber Swiss Army Knife - a web app for encryption, encoding, compression and data analysis",
+		"category": "security",
+		"tags": [
+			"encryption",
+			"encoding",
+			"compression",
+			"data analysis",
+			"tools",
+			"development",
+			"security",
+			"data-analysis"
+		],
+		"logo": "logos/cyberchef.jpg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "cypht",
+		"name": "Cypht",
+		"description": "Lightweight open source webmail aggregator. Read and send mail from multiple IMAP, SMTP, JMAP and EWS accounts in one place.",
+		"category": "communication",
+		"tags": [
+			"self-hosted",
+			"email",
+			"webmail"
+		],
+		"logo": "logos/cypht.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "dagu",
+		"name": "Dagu",
+		"description": "Dagu is a self-contained workflow engine with a Web UI. Schedule and orchestrate jobs as DAGs defined in declarative YAML, with no DBMS required.",
+		"category": "automation",
+		"tags": [
+			"workflow",
+			"automation",
+			"scheduler",
+			"cron",
+			"devops"
+		],
+		"logo": "logos/dagu.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "dashy",
+		"name": "Dashy",
+		"description": "A self-hostable personal dashboard built for you. Includes status-checking, widgets, themes, icon packs, a UI editor and tons more!",
+		"category": "productivity",
+		"tags": [
+			"dashboard",
+			"personal",
+			"self-hostable",
+			"monitoring",
+			"self-hosted",
+			"homelab"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "databasement",
+		"name": "Databasement",
+		"description": "Self-hosted database backup manager with a web UI. Schedule, backup, and restore MySQL, PostgreSQL, MariaDB, Microsoft SQL Server, MongoDB, SQLite, Firebird…",
+		"category": "storage",
+		"tags": [
+			"backup",
+			"database",
+			"mysql",
+			"postgres",
+			"mongodb"
+		],
+		"logo": "logos/databasement.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "databasus",
+		"name": "Databasus",
+		"description": "Databasus is a free, open source and self-hosted tool to backup PostgreSQL, MySQL, and MongoDB.",
+		"category": "devtools",
+		"tags": [
+			"postgres",
+			"mysql",
+			"mongo",
+			"backup",
+			"s3"
+		],
+		"logo": "logos/databasus.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "dexio",
+		"name": "Dexio",
+		"description": "One wiki for all your agents. AI agents read and write linked markdown pages over MCP from any machine, and people see what they know in a web app: the link…",
+		"category": "ai",
+		"tags": [
+			"wiki",
+			"knowledge-base",
+			"markdown",
+			"mcp",
+			"ai",
+			"agents"
+		],
+		"logo": "logos/dexio.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "directory-lister",
+		"name": "Directory Lister",
+		"description": "Directory Lister is a simple PHP application that lists the contents of any web-accessible directory and allows navigation there within.",
+		"category": "other",
+		"tags": [
+			"file-manager",
+			"directory-listing",
+			"php"
+		],
+		"logo": "logos/directory-lister.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "directus",
+		"name": "Directus",
+		"description": "Directus is an open-source headless CMS that adds an API and admin app to your SQL database.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"directus",
+			"database",
+			"sql"
+		],
+		"logo": "logos/directus.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "directus-with-postgresql",
+		"name": "Directus With Postgresql",
+		"description": "Directus wraps databases with a dynamic API, and provides an intuitive app for managing its content.",
+		"category": "cms",
+		"tags": [
+			"directus",
+			"cms",
+			"database",
+			"sql"
+		],
+		"logo": "logos/directus-with-postgresql.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "docker-registry",
+		"name": "Docker Registry",
+		"description": "The Docker Registry lets you distribute Docker images.",
+		"category": "devtools",
+		"tags": [
+			"registry",
+			"images",
+			"docker"
+		],
+		"logo": "logos/docker-registry.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "docling",
+		"name": "Docling",
+		"description": "Convert documents (PDF, DOCX, PPTX, images, HTML) to Markdown, JSON, and more using AI-powered document processing.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"document",
+			"pdf",
+			"ocr",
+			"markdown",
+			"extraction",
+			"ibm",
+			"rag",
+			"nlp"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "docling-serve",
+		"name": "Docling Serve",
+		"description": "Running Docling as an API service for document processing and conversion with AI-powered capabilities.",
+		"category": "devtools",
+		"tags": [
+			"document-processing",
+			"api",
+			"ai",
+			"conversion",
+			"pdf",
+			"office"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "docmost",
+		"name": "Docmost",
+		"description": "Docmost is a collaborative wiki and documentation tool.",
+		"category": "productivity",
+		"tags": [
+			"self-hosted",
+			"open-source",
+			"manager",
+			"documentation",
+			"opensource",
+			"wiki",
+			"confluence",
+			"knowledge-base",
+			"notion",
+			"realtime-collaboration",
+			"notion-alternative"
+		],
+		"logo": "logos/docmost.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "documenso",
+		"name": "Documenso",
+		"description": "Document signing, finally open source",
+		"category": "productivity",
+		"tags": [
+			"signing",
+			"opensource",
+			"document",
+			"pdf",
+			"e-signature",
+			"digital-signature",
+			"document-signing",
+			"pdf-signing",
+			"docusign"
+		],
+		"logo": "logos/documenso.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "docuseal",
+		"name": "Docuseal",
+		"description": "Document Signing for Everyone free forever for individuals, extensible for businesses and developers. Open Source Alternative to DocuSign, PandaDoc and more.",
+		"category": "productivity",
+		"tags": [
+			"documentation",
+			"document-signing"
+		],
+		"logo": "logos/docuseal.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "docuseal-with-postgres",
+		"name": "Docuseal With Postgres",
+		"description": "Document Signing for Everyone free forever for individuals, extensible for businesses and developers. Open Source Alternative to DocuSign, PandaDoc and more.",
+		"category": "productivity",
+		"tags": [
+			"documentation"
+		],
+		"logo": "logos/docuseal-with-postgres.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "dokuwiki",
+		"name": "Dokuwiki",
+		"description": "A lightweight and easy-to-use wiki platform for creating and managing documentation and knowledge bases.",
+		"category": "cms",
+		"tags": [
+			"wiki",
+			"documentation",
+			"knowledge",
+			"base"
+		],
+		"logo": "logos/dokuwiki.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "dolibarr",
+		"name": "Dolibarr",
+		"description": "Dolibarr ERP & CRM is a modern software package that helps manage your organization's activities (contacts, quotes, invoices, orders, stocks, agenda, human…",
+		"category": "productivity",
+		"tags": [
+			"erp",
+			"crm",
+			"business",
+			"management",
+			"invoicing"
+		],
+		"logo": "logos/dolibarr.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "domain-locker",
+		"name": "Domain Locker",
+		"description": "Domain Locker is an open-source tool for tracking domain expirations and sending renewal reminders.",
+		"category": "monitoring",
+		"tags": [
+			"domains",
+			"monitoring",
+			"utilities",
+			"postgres"
+		],
+		"logo": "logos/domain-locker.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "doublezero",
+		"name": "Double Zero",
+		"description": "00 is a self hostable SES dashboard for sending and monitoring emails with AWS",
+		"category": "communication",
+		"tags": [
+			"email"
+		],
+		"logo": "logos/doublezero.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "drawnix",
+		"name": "Drawnix",
+		"description": "Drawnix is an application for generating and managing visual content, powered by pubuzhixing/drawnix Docker image.",
+		"category": "other",
+		"tags": [
+			"visualization",
+			"content-generation"
+		],
+		"logo": "logos/drawnix.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "drizzle-gateway",
+		"name": "Drizzle Gateway",
+		"description": "Free self-hosted Drizzle Studio on steroids",
+		"category": "devtools",
+		"tags": [
+			"drizzle",
+			"gateway",
+			"self-hosted",
+			"open-source",
+			"low-code",
+			"database"
+		],
+		"logo": "logos/drizzle-gateway.jpg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "drupal-with-postgresql",
+		"name": "Drupal With Postgresql",
+		"description": "Drupal is a free and open-source web content management system written in PHP and distributed under the GNU General Public License.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management",
+			"postgresql"
+		],
+		"logo": "logos/drupal-with-postgresql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "dumbassets",
+		"name": "DumbAssets",
+		"description": "DumbAssets is a simple, self-hosted asset tracking service with no database or authentication required.",
+		"category": "other",
+		"tags": [
+			"asset-tracking",
+			"self-hosted",
+			"simple"
+		],
+		"logo": "logos/dumbassets.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "dumbbudget",
+		"name": "DumbBudget",
+		"description": "DumbBudget is a simple, self-hosted budget tracking service with PIN protection and no database required.",
+		"category": "finance",
+		"tags": [
+			"budget",
+			"finance",
+			"self-hosted",
+			"simple"
+		],
+		"logo": "logos/dumbbudget.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "dumbpad",
+		"name": "DumbPad",
+		"description": "DumbPad is a simple, self-hosted notepad service with PIN protection and no database required.",
+		"category": "other",
+		"tags": [
+			"notepad",
+			"self-hosted",
+			"simple"
+		],
+		"logo": "logos/dumbpad.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "duplicati",
+		"name": "Duplicati",
+		"description": "Duplicati is a free, open-source backup solution that offers zero-trust, fully encrypted backups for your data",
+		"category": "storage",
+		"tags": [
+			"backup",
+			"self-hosted",
+			"simple",
+			"encryption"
+		],
+		"logo": "logos/duplicati.webp",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "easyappointments",
+		"name": "Easy!Appointments",
+		"description": "Easy!Appointments is a highly customizable web application that allows customers to book appointments with you via a sophisticated web interface.",
+		"category": "productivity",
+		"tags": [
+			"scheduling",
+			"appointments",
+			"booking",
+			"calendar",
+			"database"
+		],
+		"logo": "logos/easyappointments.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "electricsql",
+		"name": "Electricsql",
+		"description": "Sync shape-based subsets of your Postgres data over HTTP.",
+		"category": "devtools",
+		"tags": [
+			"electric",
+			"electricsql",
+			"realtime",
+			"sync",
+			"postgresql"
+		],
+		"logo": "logos/electricsql.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "emaki-video-starter",
+		"name": "Seedance 2.5 Video Generator",
+		"description": "One-page text-to-video and image-to-video web app on the Seedance 2.5 API from emaki. Set EMAKI_API_KEY; an access password is generated so only people you…",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"video-generation",
+			"text-to-video"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "emby",
+		"name": "Emby",
+		"description": "A media server software that allows you to organize, stream, and access your multimedia content effortlessly.",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"movies",
+			"tv",
+			"music"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "embystat",
+		"name": "Embystat",
+		"description": "EmbyStat is a web analytics tool, designed to provide insight into website traffic and user behavior.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"insights",
+			"statistics",
+			"web",
+			"traffic"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "emqx-enterprise",
+		"name": "Emqx Enterprise",
+		"description": "Open-source MQTT broker for IoT, IIoT, and connected vehicles.",
+		"category": "networking",
+		"tags": [
+			"mqtt",
+			"broker",
+			"iot",
+			"messaging",
+			"emqx",
+			"iiot"
+		],
+		"logo": "logos/emqx-enterprise.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "engram",
+		"name": "Engram",
+		"description": "Persistent memory sync server for AI coding agents (MCP).",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"memory",
+			"mcp",
+			"agents",
+			"self-hosted",
+			"postgres"
+		],
+		"logo": "logos/engram.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "enshrouded",
+		"name": "Enshrouded",
+		"description": "Enshrouded steam dedicated server.",
+		"category": "other",
+		"tags": [
+			"gaming"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "ente-photos-with-s3",
+		"name": "Ente Photos With S3",
+		"description": "Ente Photos is a fully open source, End to End Encrypted alternative to Google Photos and Apple Photos.",
+		"category": "media",
+		"tags": [
+			"photos",
+			"gallery",
+			"backup",
+			"encryption",
+			"privacy",
+			"self-hosted",
+			"google-photos",
+			"alternative"
+		],
+		"logo": "logos/ente-photos-with-s3.svg",
+		"source": "coolify",
+		"services": 5
+	},
+	{
+		"id": "etherpad",
+		"name": "Etherpad",
+		"description": "Etherpad is a real-time collaborative text editor that allows multiple users to edit documents simultaneously.",
+		"category": "productivity",
+		"tags": [
+			"collaboration",
+			"text-editor",
+			"real-time"
+		],
+		"logo": "logos/etherpad.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "evershop",
+		"name": "Evershop",
+		"description": "Your All-in-One open source ecommerce solution.",
+		"category": "other",
+		"tags": [
+			"e-commerce",
+			"shopping"
+		],
+		"logo": "logos/evershop.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "evolution-api",
+		"name": "Evolution Api",
+		"description": "Multi-platform messaging (whatsapp and more) integration API",
+		"category": "devtools",
+		"tags": [
+			"evolution-api",
+			"evo-api",
+			"evolution",
+			"whatsapp",
+			"api",
+			"postgres",
+			"redis"
+		],
+		"logo": "logos/evolution-api.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "evolutionapi",
+		"name": "Evolution API",
+		"description": "Evolution API is a robust platform dedicated to empowering small businesses with limited resources, going beyond a simple messaging solution via WhatsApp.",
+		"category": "devtools",
+		"tags": [
+			"api",
+			"whatsapp",
+			"messaging"
+		],
+		"logo": "logos/evolutionapi.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "evolutiongo",
+		"name": "Evolution GO",
+		"description": "Evolution Go is a high-performance implementation of the WhatsApp API, written in Go. Built with Go’s standard library and modern development practices, it…",
+		"category": "devtools",
+		"tags": [
+			"api",
+			"whatsapp",
+			"messaging"
+		],
+		"logo": "logos/evolutiongo.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "excalidraw",
+		"name": "Excalidraw",
+		"description": "Virtual whiteboard for sketching hand-drawn like diagrams",
+		"category": "productivity",
+		"tags": [
+			"canvas",
+			"diagrams",
+			"drawing",
+			"productivity",
+			"whiteboard"
+		],
+		"logo": "logos/excalidraw.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "executor",
+		"name": "Executor",
+		"description": "Self-hosted AI agent integrations and code execution server.",
+		"category": "devtools",
+		"tags": [
+			"executor",
+			"ai",
+			"agents",
+			"mcp",
+			"automation",
+			"development"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "falkordb",
+		"name": "FalkorDB",
+		"description": "A high-performance graph database for knowledge graphs, GraphRAG, agent memory, fraud detection and other relationship-heavy workloads. Includes the…",
+		"category": "database",
+		"tags": [
+			"database",
+			"graph-database",
+			"knowledge-graph",
+			"graphrag",
+			"ai",
+			"redis"
+		],
+		"logo": "logos/falkordb.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "faraday",
+		"name": "Faraday",
+		"description": "Faraday is a powerful, open-source, web-based vulnerability management tool.",
+		"category": "security",
+		"tags": [
+			"vulnerability",
+			"management",
+			"tool"
+		],
+		"logo": "logos/faraday.png",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "fider",
+		"name": "Fider",
+		"description": "Fider is an open-source feedback portal for collecting, discussing, and prioritizing feature requests.",
+		"category": "productivity",
+		"tags": [
+			"feedback",
+			"product",
+			"roadmap",
+			"self-hosted",
+			"user-feedback"
+		],
+		"logo": "logos/fider.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "filebrowser",
+		"name": "Filebrowser",
+		"description": "FileBrowser is a web-based file manager and file explorer with a user-friendly interface.",
+		"category": "storage",
+		"tags": [
+			"file-management",
+			"storage-access",
+			"data-organization",
+			"file-utilization",
+			"administration-tool",
+			"file-manager",
+			"storage"
+		],
+		"logo": "logos/filebrowser.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "filegator",
+		"name": "FileGator",
+		"description": "FileGator is a simple self-hosted web file manager with multi-user support.",
+		"category": "other",
+		"tags": [
+			"files",
+			"file-manager",
+			"self-hosted"
+		],
+		"logo": "logos/filegator.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "filestash",
+		"name": "Filestash",
+		"description": "Filestash is the enterprise-grade file manager connecting your storage with your identity provider and authorisations.",
+		"category": "other",
+		"tags": [
+			"file-manager",
+			"document-editor",
+			"self-hosted"
+		],
+		"logo": "logos/filestash.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "firefly",
+		"name": "Firefly",
+		"description": "A personal finances manager that can help you save money.",
+		"category": "finance",
+		"tags": [
+			"finance",
+			"money",
+			"personal",
+			"manager"
+		],
+		"logo": "logos/firefly.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "firefly-iii",
+		"name": "Firefly III",
+		"description": "Firefly III is a personal finance manager for tracking budgets and expenses.",
+		"category": "finance",
+		"tags": [
+			"finance",
+			"budgeting",
+			"self-hosted"
+		],
+		"logo": "logos/firefly-iii.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "firefox",
+		"name": "Firefox",
+		"description": "Fast, private, and self-hosted secure browser for browsing without limits.",
+		"category": "productivity",
+		"tags": [
+			"browser",
+			"web",
+			"privacy"
+		],
+		"logo": "logos/firefox.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "fivem",
+		"name": "FiveM Server",
+		"description": "A modded GTA V multiplayer server with optional txAdmin web interface for easy server management.",
+		"category": "other",
+		"tags": [
+			"gaming",
+			"gta",
+			"multiplayer",
+			"server"
+		],
+		"logo": "logos/fivem.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "fizzy",
+		"name": "Fizzy",
+		"description": "Kanban tracking tool for issues and ideas by 37signals",
+		"category": "productivity",
+		"tags": [
+			"kanban",
+			"project management",
+			"issues",
+			"rails",
+			"ruby",
+			"basecamp",
+			"37signals"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "flagsmith",
+		"name": "Flagsmith",
+		"description": "Flagsmith is an open-source feature flagging and remote config service.",
+		"category": "other",
+		"tags": [
+			"feature-flag",
+			"feature-management",
+			"feature-toggle",
+			"remote-configuration"
+		],
+		"logo": "logos/flagsmith.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "flaresolverr",
+		"name": "FlareSolverr",
+		"description": "FlareSolverr is a proxy server to bypass Cloudflare and DDoS-GUARD protection.",
+		"category": "networking",
+		"tags": [
+			"proxy",
+			"cloudflare",
+			"bypass",
+			"ddos-guard"
+		],
+		"logo": "logos/flaresolverr.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "flarum",
+		"name": "Flarum",
+		"description": "Flarum is a delightfully simple, modern forum software. It is fast, free, and easy to use with a clean and extensible architecture.",
+		"category": "other",
+		"tags": [
+			"forum",
+			"community",
+			"discussion",
+			"php"
+		],
+		"logo": "logos/flarum.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "flatnotes",
+		"name": "Flatnotes",
+		"description": "A self-hosted, modern note-taking web app that saves your notes as plain text Markdown files.",
+		"category": "productivity",
+		"tags": [
+			"notes",
+			"productivity",
+			"markdown",
+			"self-hosted"
+		],
+		"logo": "logos/flatnotes.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "flatnotes-totp",
+		"name": "Flatnotes (TOTP)",
+		"description": "Flatnotes with TOTP authentication enabled (username + password + one-time passcode).",
+		"category": "productivity",
+		"tags": [
+			"notes",
+			"productivity",
+			"markdown",
+			"self-hosted",
+			"totp",
+			"2fa"
+		],
+		"logo": "logos/flatnotes-totp.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "flowise",
+		"name": "Flowise",
+		"description": "Flowise is an open source low-code tool for developers to build customized LLM orchestration flows & AI agents.",
+		"category": "ai",
+		"tags": [
+			"lowcode",
+			"nocode",
+			"ai",
+			"llm",
+			"openai",
+			"anthropic",
+			"machine-learning",
+			"rag",
+			"agents",
+			"chatbot",
+			"api",
+			"team",
+			"bot",
+			"flows"
+		],
+		"logo": "logos/flowise.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "flowise-with-databases",
+		"name": "Flowise With Databases",
+		"description": "Flowise is an open source low-code tool for developers to build customized LLM orchestration flows & AI agents. Also deploys Redis, Postgres and other services.",
+		"category": "ai",
+		"tags": [
+			"lowcode",
+			"nocode",
+			"ai",
+			"llm",
+			"openai",
+			"anthropic",
+			"machine-learning",
+			"rag",
+			"agents",
+			"chatbot",
+			"api",
+			"team",
+			"bot",
+			"flows"
+		],
+		"logo": "logos/flowise-with-databases.png",
+		"source": "coolify",
+		"services": 4
+	},
+	{
+		"id": "fmd-server",
+		"name": "FMD Server",
+		"description": "A server to communicate with the FMD Android app, to locate and control your devices.",
+		"category": "security",
+		"tags": [
+			"phone",
+			"security",
+			"gps",
+			"location"
+		],
+		"logo": "logos/fmd-server.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "focalboard",
+		"name": "Focalboard",
+		"description": "Open source project management for technical teams",
+		"category": "other",
+		"tags": [
+			"kanban"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "forgejo",
+		"name": "Forgejo",
+		"description": "Forgejo is a self-hosted lightweight software forge. Easy to install and low maintenance, it just does the job.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight"
+		],
+		"logo": "logos/forgejo.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "forgejo-with-mariadb",
+		"name": "Forgejo With Mariadb",
+		"description": "Forgejo is a self-hosted lightweight software forge. Easy to install and low maintenance, it just does the job.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight",
+			"mariadb"
+		],
+		"logo": "logos/forgejo-with-mariadb.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "forgejo-with-mysql",
+		"name": "Forgejo With Mysql",
+		"description": "Forgejo is a self-hosted lightweight software forge. Easy to install and low maintenance, it just does the job.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight",
+			"mysql"
+		],
+		"logo": "logos/forgejo-with-mysql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "forgejo-with-postgresql",
+		"name": "Forgejo With Postgresql",
+		"description": "Forgejo is a self-hosted lightweight software forge. Easy to install and low maintenance, it just does the job.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight",
+			"postgresql"
+		],
+		"logo": "logos/forgejo-with-postgresql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "formbricks",
+		"name": "Formbricks",
+		"description": "Formbricks is an open-source survey platform for collecting user and customer feedback.",
+		"category": "analytics",
+		"tags": [
+			"forms",
+			"analytics"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "freellmapi",
+		"name": "FreeLLMAPI",
+		"description": "FreeLLMAPI aggregates free tiers from 29 LLM providers into a single OpenAI-compatible endpoint with smart routing, automatic failover, per-key rate…",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"proxy",
+			"llm",
+			"openai-compatible",
+			"developer-tools"
+		],
+		"logo": "logos/freellmapi.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "freescout",
+		"name": "Freescout",
+		"description": "FreeScout is the super lightweight and powerful free open source help desk and shared inbox written in PHP (Laravel framework).",
+		"category": "communication",
+		"tags": [
+			"helpdesk",
+			"support",
+			"ticketing",
+			"customer-support"
+		],
+		"logo": "logos/freescout.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "freshrss",
+		"name": "Freshrss",
+		"description": "A free, self-hostable feed aggregator.",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feed",
+			"feed-reader",
+			"news",
+			"self-hosted",
+			"aggregator",
+			"reader"
+		],
+		"logo": "logos/freshrss.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "freshrss-with-mariadb",
+		"name": "Freshrss With Mariadb",
+		"description": "A free, self-hostable feed aggregator.",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feed"
+		],
+		"logo": "logos/freshrss-with-mariadb.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "freshrss-with-mysql",
+		"name": "Freshrss With Mysql",
+		"description": "A free, self-hostable feed aggregator.",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feed"
+		],
+		"logo": "logos/freshrss-with-mysql.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "freshrss-with-postgresql",
+		"name": "Freshrss With Postgresql",
+		"description": "A free, self-hostable feed aggregator.",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feed"
+		],
+		"logo": "logos/freshrss-with-postgresql.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "garage",
+		"name": "Garage",
+		"description": "Garage is an S3-compatible distributed object storage service designed for self-hosting.",
+		"category": "storage",
+		"tags": [
+			"object",
+			"storage",
+			"server",
+			"s3",
+			"api",
+			"distributed",
+			"object-storage"
+		],
+		"logo": "logos/garage.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "gatus",
+		"name": "Gatus",
+		"description": "Gatus is an automated service health dashboard for monitoring HTTP, DNS, TCP, ICMP, and other endpoints.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"status-page",
+			"uptime",
+			"observability"
+		],
+		"logo": "logos/gatus.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "ghost",
+		"name": "Ghost",
+		"description": "Ghost is an open-source publishing platform for blogs, newsletters, and paid memberships.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management",
+			"system"
+		],
+		"logo": "logos/ghost.jpg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "gitea",
+		"name": "Gitea",
+		"description": "Gitea is a self-hosted, lightweight Git service, offering version control, collaboration, and code hosting.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight"
+		],
+		"logo": "logos/gitea.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "gitea-mirror",
+		"name": "Gitea Mirror",
+		"description": "Gitea Mirror is a modern web app for automatically mirroring repositories from GitHub to your self-hosted Gitea instance. It features a user-friendly…",
+		"category": "devtools",
+		"tags": [
+			"git",
+			"mirror",
+			"github",
+			"gitea",
+			"self-hosted",
+			"automation"
+		],
+		"logo": "logos/gitea-mirror.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "gitea-mysql",
+		"name": "Gitea (MySQL)",
+		"description": "Gitea bundled with MySQL 8.",
+		"category": "devtools",
+		"tags": [
+			"git",
+			"scm",
+			"mysql",
+			"developer-tools",
+			"self-hosted"
+		],
+		"logo": "logos/gitea-mysql.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "gitea-postgres",
+		"name": "Gitea (PostgreSQL)",
+		"description": "Gitea is a lightweight Git service for hosting code repositories.",
+		"category": "devtools",
+		"tags": [
+			"git",
+			"scm",
+			"postgres",
+			"developer-tools",
+			"self-hosted"
+		],
+		"logo": "logos/gitea-postgres.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "gitea-sqlite",
+		"name": "Gitea (SQLite)",
+		"description": "Self-hosted Git service using SQLite for a simple one-container setup.",
+		"category": "devtools",
+		"tags": [
+			"git",
+			"scm",
+			"developer-tools",
+			"self-hosted"
+		],
+		"logo": "logos/gitea-sqlite.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "gitea-with-mariadb",
+		"name": "Gitea With Mariadb",
+		"description": "Gitea is a self-hosted, lightweight Git service, offering version control, collaboration, and code hosting.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight",
+			"mariadb"
+		],
+		"logo": "logos/gitea-with-mariadb.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "gitea-with-mysql",
+		"name": "Gitea With Mysql",
+		"description": "Gitea is a self-hosted, lightweight Git service, offering version control, collaboration, and code hosting.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight",
+			"mysql"
+		],
+		"logo": "logos/gitea-with-mysql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "gitea-with-postgresql",
+		"name": "Gitea With Postgresql",
+		"description": "Gitea is a self-hosted, lightweight Git service, offering version control, collaboration, and code hosting.",
+		"category": "devtools",
+		"tags": [
+			"version control",
+			"collaboration",
+			"code",
+			"hosting",
+			"lightweight",
+			"postgresql"
+		],
+		"logo": "logos/gitea-with-postgresql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "gitingest",
+		"name": "Gitingest",
+		"description": "Gitingest is an application that supports Prometheus metrics, Sentry integration, and S3-backed storage.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"s3",
+			"monitoring",
+			"sentry",
+			"metrics"
+		],
+		"logo": "logos/gitingest.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "glance",
+		"name": "Glance",
+		"description": "A self-hosted dashboard that puts all your feeds in one place.",
+		"category": "productivity",
+		"tags": [
+			"dashboard",
+			"server",
+			"applications",
+			"interface",
+			"rrss"
+		],
+		"logo": "logos/glance.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "glpi",
+		"name": "Glpi",
+		"description": "GLPI (Gestionnaire Libre de Parc Informatique) is a free, open-source IT Service Management (ITSM) platform used for IT asset management, helpdesk, and…",
+		"category": "communication",
+		"tags": [
+			"helpdesk",
+			"ticketing",
+			"support",
+			"open-source"
+		],
+		"logo": "logos/glpi.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "go2rtc",
+		"name": "go2rtc",
+		"description": "Ultimate camera streaming application with support for dozens formats and protocols.",
+		"category": "media",
+		"tags": [
+			"streaming",
+			"webrtc",
+			"video",
+			"home-assistant"
+		],
+		"logo": "logos/go2rtc.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "goatcounter",
+		"name": "Goatcounter",
+		"description": "Lightweight web analytics platform.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"insights",
+			"privacy"
+		],
+		"logo": "logos/goatcounter.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "gotenberg",
+		"name": "Gotenberg",
+		"description": "Gotenberg is a Docker-powered stateless API for PDF files.",
+		"category": "devtools",
+		"tags": [
+			"api",
+			"backend",
+			"pdf",
+			"tool",
+			"tools"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "gotify",
+		"name": "Gotify",
+		"description": "Gotify is a simple server for sending and receiving self-hosted push notifications.",
+		"category": "communication",
+		"tags": [
+			"notifications",
+			"self-hosted",
+			"push",
+			"productivity",
+			"notification",
+			"collaboration"
+		],
+		"logo": "logos/gotify.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "gowa",
+		"name": "Gowa",
+		"description": "Golang WhatsApp - Built with Go for efficient memory use",
+		"category": "communication",
+		"tags": [
+			"whatsapp",
+			"golang",
+			"multidevice",
+			"api",
+			"go-whatsapp"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "grafana",
+		"name": "Grafana",
+		"description": "Grafana is an open-source dashboard tool for monitoring and visualizing data.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"grafana",
+			"analytics",
+			"dashboard"
+		],
+		"logo": "logos/grafana.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "grafana-with-postgresql",
+		"name": "Grafana With Postgresql",
+		"description": "Grafana is the open source analytics & monitoring solution for every database.",
+		"category": "monitoring",
+		"tags": [
+			"grafana",
+			"analytics",
+			"monitoring",
+			"dashboard"
+		],
+		"logo": "logos/grafana-with-postgresql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "gramps-web",
+		"name": "Gramps Web",
+		"description": "Open Source Online Genealogy System.",
+		"category": "other",
+		"tags": [
+			"family",
+			"genealogy",
+			"personal"
+		],
+		"logo": "logos/gramps-web.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "grimmory",
+		"name": "Grimmory",
+		"description": "Grimmory is a self-hosted application for managing your entire book collection in one place. Organize, read, annotate, sync across devices, and share…",
+		"category": "other",
+		"tags": [
+			"books",
+			"ebooks",
+			"library",
+			"reader"
+		],
+		"logo": "logos/grimmory.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "grimoire",
+		"name": "Grimoire",
+		"description": "Grimoire is a self-hosted bookmarking app designed for speed and simplicity.",
+		"category": "productivity",
+		"tags": [
+			"bookmarks",
+			"self-hosted",
+			"knowledge-management"
+		],
+		"logo": "logos/grimoire.webp",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "grist",
+		"name": "Grist",
+		"description": "Grist is a modern relational spreadsheet. It combines the flexibility of a spreadsheet with the robustness of a database.",
+		"category": "productivity",
+		"tags": [
+			"lowcode",
+			"nocode",
+			"spreadsheet",
+			"database",
+			"relational",
+			"productivity",
+			"self-hosted",
+			"data-management"
+		],
+		"logo": "logos/grist.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "grocy",
+		"name": "Grocy",
+		"description": "Grocy is a web-based household management and grocery list application.",
+		"category": "productivity",
+		"tags": [
+			"groceries",
+			"household",
+			"management",
+			"grocery",
+			"shopping"
+		],
+		"logo": "logos/grocy.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "healthchecks",
+		"name": "Healthchecks",
+		"description": "Healthchecks is an open-source cron job and background task monitoring service that alerts you when your scheduled jobs fail to check in. Registration is…",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"cron",
+			"alerting",
+			"status",
+			"performance",
+			"web",
+			"services",
+			"applications",
+			"real-time"
+		],
+		"logo": "logos/healthchecks.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "hedgedoc",
+		"name": "HedgeDoc",
+		"description": "HedgeDoc is a collaborative Markdown editor for teams that need real-time notes, documentation, and knowledge sharing.",
+		"category": "productivity",
+		"tags": [
+			"markdown",
+			"notes",
+			"documentation",
+			"collaboration",
+			"wiki"
+		],
+		"logo": "logos/hedgedoc.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "heimdall",
+		"name": "Heimdall",
+		"description": "Heimdall is a dashboard for managing and organizing your server applications.",
+		"category": "productivity",
+		"tags": [
+			"dashboard",
+			"server",
+			"applications",
+			"interface"
+		],
+		"logo": "logos/heimdall.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "hermes-agent",
+		"name": "Hermes Agent",
+		"description": "Hermes Agent - autonomous AI agent with persistent memory, scheduling, and built-in web dashboard.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"agent",
+			"llm",
+			"chatbot",
+			"hermes",
+			"openrouter",
+			"anthropic",
+			"openai"
+		],
+		"logo": "logos/hermes-agent.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "heyform",
+		"name": "Heyform",
+		"description": "Allows anyone to create engaging conversational forms for surveys, questionnaires, quizzes, and polls. No coding skills required.",
+		"category": "productivity",
+		"tags": [
+			"form",
+			"builder",
+			"forms",
+			"survey",
+			"quiz",
+			"open source",
+			"self-hosted",
+			"docker"
+		],
+		"logo": "logos/heyform.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "hi-events",
+		"name": "Hi.events",
+		"description": "Hi.Events is a self-hosted event management and ticket selling platform that allows you to create, manage and promote events easily.",
+		"category": "other",
+		"tags": [
+			"self-hosted",
+			"open-source",
+			"manager"
+		],
+		"logo": "logos/hi-events.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "hoarder",
+		"name": "Hoarder",
+		"description": "Hoarder is an open source \"Bookmark Everything\" app that uses AI for automatically tagging the content you throw at it.",
+		"category": "productivity",
+		"tags": [
+			"self-hosted",
+			"bookmarks",
+			"link-sharing"
+		],
+		"logo": "logos/hoarder.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "homarr",
+		"name": "Homarr",
+		"description": "Homarr is a dashboard for organizing and accessing all your apps from one place.",
+		"category": "monitoring",
+		"tags": [
+			"dashboard",
+			"monitoring"
+		],
+		"logo": "logos/homarr.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "homebox",
+		"name": "Homebox",
+		"description": "Homebox is the inventory and organization system built for the Home User.",
+		"category": "productivity",
+		"tags": [
+			"inventory",
+			"home",
+			"organize",
+			"organization",
+			"self-hosted"
+		],
+		"logo": "logos/homebox.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "homebridge",
+		"name": "Homebridge",
+		"description": "Homebridge is a tool that brings Apple HomeKit support to smart home devices that don't support it natively.",
+		"category": "other",
+		"tags": [
+			"iot",
+			"homekit",
+			"internet-of-things",
+			"self-hosted",
+			"server"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "homepage",
+		"name": "Homepage",
+		"description": "Homepage is a customizable dashboard and start page for your apps and services.",
+		"category": "productivity",
+		"tags": [
+			"dashboard",
+			"startpage",
+			"self-hosted",
+			"productivity",
+			"homepage"
+		],
+		"logo": "logos/homepage.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "honcho",
+		"name": "Honcho",
+		"description": "Honcho is a developer tool to build personalized AI agents with production-ready memory, dialectic reasoning, and stateful dialogue.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"memory",
+			"llm",
+			"agents",
+			"rag",
+			"postgres",
+			"pgvector",
+			"redis"
+		],
+		"logo": "logos/honcho.svg",
+		"source": "coolify",
+		"services": 4
+	},
+	{
+		"id": "hoppscotch",
+		"name": "Hoppscotch",
+		"description": "The Open Source API Development Platform",
+		"category": "devtools",
+		"tags": [
+			"api",
+			"development",
+			"platform",
+			"testing",
+			"postman-alternative",
+			"graphql"
+		],
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "hortusfox",
+		"name": "HortusFox",
+		"description": "HortusFox is an open source task and photo management app, designed for photographers and creatives to manage projects, tasks, and images effectively.",
+		"category": "productivity",
+		"tags": [
+			"productivity",
+			"photo",
+			"task-management",
+			"php",
+			"mariadb"
+		],
+		"logo": "logos/hortusfox.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "i18n-blog",
+		"name": "i18n Blog (Kuno)",
+		"description": "Kuno is an internationalized blogging platform with a backend built in Go and a frontend in Next.js.",
+		"category": "cms",
+		"tags": [
+			"blog",
+			"i18n",
+			"nextjs",
+			"go",
+			"web"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "ihatemoney",
+		"name": "I Hate Money",
+		"description": "I Hate Money is a web application for managing shared expenses among groups of people. It helps you track who owes what to whom, making it easy to split…",
+		"category": "finance",
+		"tags": [
+			"budget",
+			"finance",
+			"expense-sharing",
+			"self-hosted",
+			"money-management",
+			"group-finances"
+		],
+		"logo": "logos/ihatemoney.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "imgcompress",
+		"name": "Imgcompress",
+		"description": "Offline image compression, conversion, and AI background removal for Docker homelabs.",
+		"category": "media",
+		"tags": [
+			"compress",
+			"photo",
+			"server",
+			"metadata"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "imgproxy",
+		"name": "imgproxy",
+		"description": "imgproxy is a fast and secure image processing server, fronted by nginx with built-in response caching for repeated transformations.",
+		"category": "media",
+		"tags": [
+			"images",
+			"media",
+			"proxy",
+			"cdn",
+			"caching"
+		],
+		"logo": "logos/imgproxy.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "infisical",
+		"name": "Infisical",
+		"description": "All-in-one platform to securely manage application configuration and secrets across your team and infrastructure.",
+		"category": "security",
+		"tags": [
+			"self-hosted",
+			"open-source",
+			"security",
+			"environment",
+			"secrets",
+			"infisical",
+			"database",
+			"configuration",
+			"secret",
+			"api",
+			"keys",
+			"auth",
+			"encryption"
+		],
+		"logo": "logos/infisical.jpg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "influxdb",
+		"name": "InfluxDB",
+		"description": "InfluxDB 2.7 is the platform purpose-built to collect, store, process and visualize time series data.",
+		"category": "storage",
+		"tags": [
+			"self-hosted",
+			"open-source",
+			"storage",
+			"database",
+			"influxdb",
+			"time series",
+			"metrics",
+			"iot",
+			"monitoring",
+			"telegraf"
+		],
+		"logo": "logos/influxdb.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "inkvoice",
+		"name": "Inkvoice",
+		"description": "Open-source invoicing for freelancers and small teams: invoices, online payments (Stripe & PayPal), expenses, multi-currency and reports.",
+		"category": "finance",
+		"tags": [
+			"invoicing",
+			"billing",
+			"finance",
+			"self-hosted"
+		],
+		"logo": "logos/inkvoice.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "inngest",
+		"name": "Inngest",
+		"description": "Durable workflow engine for background jobs, queues and scheduled tasks.",
+		"category": "automation",
+		"tags": [
+			"queue",
+			"workflow",
+			"jobs",
+			"events",
+			"background",
+			"automation"
+		],
+		"logo": "logos/inngest.png",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "invoiceshelf",
+		"name": "InvoiceShelf",
+		"description": "InvoiceShelf is a self-hosted open source invoicing system for freelancers and small businesses.",
+		"category": "finance",
+		"tags": [
+			"invoice",
+			"business",
+			"finance"
+		],
+		"logo": "logos/invoiceshelf.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "it-tools",
+		"name": "It Tools",
+		"description": "IT Tools is a self-hosted solution for managing various IT tasks.",
+		"category": "devtools",
+		"tags": [
+			"it-tools",
+			"management",
+			"self-hosted",
+			"developer",
+			"tools"
+		],
+		"logo": "logos/it-tools.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "jean",
+		"name": "Jean",
+		"description": "Open-source desktop and server client for orchestrating AI coding agents.",
+		"category": "devtools",
+		"tags": [
+			"jean",
+			"ai",
+			"coding",
+			"agents",
+			"development",
+			"git",
+			"worktrees"
+		],
+		"logo": "logos/jean.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "jellyfin",
+		"name": "Jellyfin",
+		"description": "Jellyfin is a media server for hosting and streaming your media collection.",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"movies",
+			"tv",
+			"music"
+		],
+		"logo": "logos/jellyfin.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "jellyseerr",
+		"name": "Jellyseerr",
+		"description": "Jellyseerr is a media request manager for Jellyfin, Emby, and Plex.",
+		"category": "media",
+		"tags": [
+			"media",
+			"requests",
+			"jellyfin"
+		],
+		"logo": "logos/jellyseerr.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "jitsi",
+		"name": "Jitsi",
+		"description": "Self-hosted Jitsi Meet — open-source video conferencing platform",
+		"category": "productivity",
+		"tags": [
+			"jitsi",
+			"video",
+			"conference",
+			"webrtc",
+			"meeting",
+			"self-hosted",
+			"video-conferencing",
+			"meetings"
+		],
+		"logo": "logos/jitsi.svg",
+		"source": "coolify",
+		"services": 4
+	},
+	{
+		"id": "joomla",
+		"name": "Joomla",
+		"description": "Joomla is a flexible open-source content management system for building websites, portals, and online applications.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"website",
+			"php",
+			"mariadb"
+		],
+		"logo": "logos/joomla.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "joomla-with-mariadb",
+		"name": "Joomla With Mariadb",
+		"description": "Joomla! is the mobile-ready and user-friendly way to build your website. Choose from thousands of features and designs. Joomla! is free and open source.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management",
+			"mariadb"
+		],
+		"logo": "logos/joomla-with-mariadb.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "joplin",
+		"name": "Joplin",
+		"description": "Self-hosted sync server for Joplin",
+		"category": "productivity",
+		"tags": [
+			"joplin"
+		],
+		"logo": "logos/joplin.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "joplin-server",
+		"name": "Joplin Server",
+		"description": "Joplin Server is the sync backend for the Joplin note-taking app.",
+		"category": "productivity",
+		"tags": [
+			"notes",
+			"sync",
+			"productivity"
+		],
+		"logo": "logos/joplin-server.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "kanbn",
+		"name": "Kanbn",
+		"description": "The open-source project management alternative to Trello.",
+		"category": "productivity",
+		"tags": [
+			"collaboration",
+			"project-management",
+			"kanban-board",
+			"task-management"
+		],
+		"logo": "logos/kanbn.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "kaneo",
+		"name": "Kaneo",
+		"description": "Kaneo - an open source project management platform focused on simplicity and efficiency. Self-host it, customize it, make it yours.",
+		"category": "other",
+		"tags": [
+			"task-tracking"
+		],
+		"logo": "logos/kaneo.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "karakeep",
+		"name": "Karakeep",
+		"description": "A self-hostable bookmark-everything app (links, notes and images) with AI-based automatic tagging and full text search",
+		"category": "productivity",
+		"tags": [
+			"media",
+			"read-it-later",
+			"pocket-alternative",
+			"omnivore-alternative",
+			"instapaper-alternative",
+			"bookmarks",
+			"bookmark-manager",
+			"self-hosted",
+			"ai",
+			"search",
+			"notes",
+			"productivity"
+		],
+		"logo": "logos/karakeep.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "kavita",
+		"name": "Kavita",
+		"description": "Kavita is a digital library server for comics, manga, and ebooks.",
+		"category": "media",
+		"tags": [
+			"media",
+			"ebooks",
+			"comics",
+			"library"
+		],
+		"logo": "logos/kavita.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "kener",
+		"name": "Kener",
+		"description": "Kener is an open-source status page system for monitoring and alerting. It provides a modern interface for tracking service uptime and sending notifications.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"status-page",
+			"alerting",
+			"self-hosted"
+		],
+		"logo": "logos/kener.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "keycloak",
+		"name": "Keycloak",
+		"description": "Keycloak is an open-source identity and access management tool with single sign-on (SSO).",
+		"category": "security",
+		"tags": [
+			"authentication",
+			"identity",
+			"sso",
+			"oauth2",
+			"openid-connect",
+			"keycloak",
+			"access",
+			"management",
+			"iam",
+			"authorization",
+			"security",
+			"single-sign-on",
+			"saml",
+			"rbac",
+			"ldap",
+			"jwt",
+			"social-login"
+		],
+		"logo": "logos/keycloak.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "keycloak-with-postgres",
+		"name": "Keycloak With Postgres",
+		"description": "Keycloak is an open-source Identity and Access Management tool.",
+		"category": "security",
+		"tags": [
+			"keycloak",
+			"identity",
+			"access",
+			"management",
+			"iam",
+			"authentication",
+			"authorization",
+			"security",
+			"oauth2",
+			"openid-connect",
+			"sso",
+			"single-sign-on",
+			"saml",
+			"rbac",
+			"ldap",
+			"jwt",
+			"social-login"
+		],
+		"logo": "logos/keycloak-with-postgres.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "kimai",
+		"name": "Kimai",
+		"description": "Kimai is a time-tracking app for freelancers and teams.",
+		"category": "finance",
+		"tags": [
+			"invoice",
+			"business",
+			"finance",
+			"time-tracking",
+			"open-source"
+		],
+		"logo": "logos/kimai.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "kitchenowl",
+		"name": "KitchenOwl",
+		"description": "KitchenOwl is a self-hosted grocery list and recipe manager.",
+		"category": "other",
+		"tags": [
+			"self-hosted",
+			"recipes",
+			"grocery",
+			"personal"
+		],
+		"logo": "logos/kitchenowl.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "kokoro-web",
+		"name": "Kokoro Web",
+		"description": "Kokoro Web provides an interface for text-to-speech using advanced AI voice synthesis. It allows model caching and API integration with authentication.",
+		"category": "ai",
+		"tags": [
+			"text-to-speech",
+			"ai",
+			"voice",
+			"web"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "komari-monitor",
+		"name": "Komari Monitor",
+		"description": "A lightweight, self-hosted server monitoring tool for tracking server performance.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"self-hosted"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "kotonoba",
+		"name": "Kotonoba",
+		"description": "A high-performance, self-hosted, multi-tenant blog CMS built with Next.js 16, SQLite, Tailwind CSS v4, and Docker.",
+		"category": "cms",
+		"tags": [
+			"blog",
+			"i18n",
+			"nextjs",
+			"web"
+		],
+		"logo": "logos/kotonoba.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "kutt",
+		"name": "Kutt",
+		"description": "Kutt is a modern URL shortener with support for custom domains. Create and edit links, view statistics, manage users, and more.",
+		"category": "other",
+		"tags": [
+			"link-shortener",
+			"link-sharing"
+		],
+		"logo": "logos/kutt.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "kuukura",
+		"name": "kuukura",
+		"description": "kuukura is a self-hosted secrets vault for small teams: values are decrypted only on your server, reveals require a passkey, and every access is…",
+		"category": "security",
+		"tags": [
+			"security",
+			"secrets",
+			"self-hosted"
+		],
+		"logo": "logos/kuukura.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "labelstudio",
+		"name": "Labelstudio",
+		"description": "Label Studio is a multi-type data labeling and annotation tool with standardized output format",
+		"category": "ai",
+		"tags": [
+			"workflow",
+			"orchestration",
+			"data-pipeline",
+			"python",
+			"labelstudio",
+			"ai",
+			"elasticsearch",
+			"datasets",
+			"data",
+			"machine-learning",
+			"data-science",
+			"nlp",
+			"images",
+			"vision"
+		],
+		"logo": "logos/labelstudio.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "langflow",
+		"name": "Langflow",
+		"description": "Langflow is an open-source, Python-based, customizable framework for building AI applications.",
+		"category": "ai",
+		"tags": [
+			"langflow",
+			"ai",
+			"openai",
+			"gpt",
+			"llm",
+			"workflow",
+			"automation",
+			"open source",
+			"low code"
+		],
+		"logo": "logos/langflow.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "leantime",
+		"name": "Leantime",
+		"description": "Leantime is a goals focused project management system for non-project managers.",
+		"category": "productivity",
+		"tags": [
+			"project management",
+			"productivity",
+			"php",
+			"mysql",
+			"laravel",
+			"open source",
+			"project-management",
+			"self-hosted"
+		],
+		"logo": "logos/leantime.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "letterfeed",
+		"name": "Letterfeed",
+		"description": "Convert email newsletters into RSS feeds",
+		"category": "communication",
+		"tags": [
+			"email",
+			"self-hosted",
+			"productivity"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "lfsx",
+		"name": "LFSX",
+		"description": "Self-hosted Git LFS server that keeps large binaries off your forge's metered storage.",
+		"category": "devtools",
+		"tags": [
+			"git",
+			"developer-tools",
+			"storage",
+			"self-hosted"
+		],
+		"logo": "logos/lfsx.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "librechat",
+		"name": "Librechat",
+		"description": "Self-hosted, powerful, and privacy-focused chat UI for multiple AI models",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"chat",
+			"gpt",
+			"claude",
+			"palm",
+			"openai",
+			"azure",
+			"huggingface",
+			"anthropic",
+			"ollama",
+			"llm",
+			"chatbot",
+			"mit-license",
+			"byok",
+			"generative-ai"
+		],
+		"logo": "logos/librechat.svg",
+		"source": "coolify",
+		"services": 5
+	},
+	{
+		"id": "libredesk",
+		"name": "Libredesk",
+		"description": "Open source, self-hosted customer support desk. Single binary app.",
+		"category": "storage",
+		"tags": [
+			"storage",
+			"object-storage"
+		],
+		"logo": "logos/libredesk.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "libreoffice",
+		"name": "Libreoffice",
+		"description": "LibreOffice is a free and powerful office suite.",
+		"category": "productivity",
+		"tags": [
+			"office",
+			"document",
+			"spreadsheet",
+			"presentation",
+			"open-source"
+		],
+		"logo": "logos/libreoffice.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "librespeed",
+		"name": "Librespeed",
+		"description": "Self-hosted lightweight Speed Test.",
+		"category": "devtools",
+		"tags": [
+			"speedtest",
+			"internet-speed",
+			"networking",
+			"monitoring",
+			"self-hosted"
+		],
+		"logo": "logos/librespeed.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "libretranslate",
+		"name": "Libretranslate",
+		"description": "Free and open-source machine translation API, entirely self-hosted.",
+		"category": "ai",
+		"tags": [
+			"translate",
+			"api",
+			"translation",
+			"nlp",
+			"language"
+		],
+		"logo": "logos/libretranslate.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "lidarr",
+		"name": "Lidarr",
+		"description": "Lidarr - a music collection manager for Usenet and BitTorrent users",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"music",
+			"audio"
+		],
+		"logo": "logos/lidarr.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "limesurvey",
+		"name": "Limesurvey",
+		"description": "Simple, quick and anonymous online survey tool that's bursting with juicy insights.",
+		"category": "productivity",
+		"tags": [
+			"online survey",
+			"forms",
+			"no code",
+			"open source",
+			"questionnaire",
+			"survey"
+		],
+		"logo": "logos/limesurvey.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "linkding",
+		"name": "Linkding",
+		"description": "A self-hosted bookmark manager designed to be minimal, fast, and easy to set up.",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feed"
+		],
+		"logo": "logos/linkding.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "linkding-plus",
+		"name": "Linkding Plus",
+		"description": "A self-hosted bookmark manager designed to be minimal, fast, and easy to set up. (Includes feature for archiving websites as HTML snapshots)",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feed"
+		],
+		"logo": "logos/linkding-plus.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "linkstack",
+		"name": "LinkStack",
+		"description": "LinkStack is an open-source link-in-bio platform for sharing multiple links using a customizable landing page.",
+		"category": "cms",
+		"tags": [
+			"bio",
+			"personal",
+			"cms",
+			"php"
+		],
+		"logo": "logos/linkstack.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "linkwarden",
+		"name": "Linkwarden",
+		"description": "A self-hostable collaborative bookmark manager to collect, organize, and preserve web pages.",
+		"category": "productivity",
+		"tags": [
+			"bookmarks",
+			"collaboration",
+			"archive",
+			"links",
+			"self-hosted",
+			"link-sharing"
+		],
+		"logo": "logos/linkwarden.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "listmonk",
+		"name": "Listmonk",
+		"description": "Self-hosted newsletter and mailing list manager",
+		"category": "communication",
+		"tags": [
+			"newsletter",
+			"mailing list",
+			"self-hosted",
+			"open source",
+			"email",
+			"mailing-list"
+		],
+		"logo": "logos/listmonk.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "litellm",
+		"name": "Litellm",
+		"description": "Call all LLM APIs using the OpenAI format. Use Bedrock, Azure, OpenAI, Cohere, Anthropic, Ollama, Sagemaker, HuggingFace, Replicate, Groq (100+ LLMs)",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"qdrant",
+			"weaviate",
+			"langchain",
+			"openai",
+			"gpt",
+			"llm",
+			"lmops",
+			"anthropic",
+			"cohere",
+			"ollama",
+			"sagemaker",
+			"huggingface",
+			"replicate",
+			"groq",
+			"proxy",
+			"openai-compatible",
+			"monitoring"
+		],
+		"logo": "logos/litellm.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "lobe-chat",
+		"name": "Lobe Chat",
+		"description": "An open-source, modern-design AI chat framework.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"chat",
+			"openai",
+			"llm",
+			"chatbot",
+			"ia"
+		],
+		"logo": "logos/lobe-chat.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "logto",
+		"name": "Logto",
+		"description": "A comprehensive identity solution covering both the front and backend, complete with pre-built infrastructure and enterprise-grade solutions.",
+		"category": "security",
+		"tags": [
+			"logto",
+			"identity",
+			"login",
+			"authentication",
+			"oauth",
+			"oidc",
+			"openid"
+		],
+		"logo": "logos/logto.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "louez",
+		"name": "Louez",
+		"description": "Open-source equipment rental platform: a branded booking storefront with live availability, plus a back office for reservations, customers, PDF contracts…",
+		"category": "other",
+		"tags": [
+			"rental",
+			"booking",
+			"reservations",
+			"inventory",
+			"ecommerce",
+			"business"
+		],
+		"logo": "logos/louez.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "lowcoder",
+		"name": "Lowcoder",
+		"description": "Rapid business App Builder for Everyone",
+		"category": "devtools",
+		"tags": [
+			"low-code",
+			"no-code",
+			"development",
+			"lowcoder",
+			"openblocks",
+			"low",
+			"code",
+			"platform",
+			"open",
+			"source"
+		],
+		"logo": "logos/lowcoder.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "lubelogger",
+		"name": "LubeLogger",
+		"description": "LubeLogger is a self-hosted vehicle maintenance and fuel mileage tracker for managing service records, reminders, fuel logs, and vehicle expenses.",
+		"category": "other",
+		"tags": [
+			"vehicle",
+			"maintenance",
+			"fleet",
+			"self-hosted"
+		],
+		"logo": "logos/lubelogger.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "mage-ai",
+		"name": "Mage Ai",
+		"description": "Build, run, and manage data pipelines for integrating and transforming data.",
+		"category": "automation",
+		"tags": [
+			"data",
+			"dbt",
+			"etl",
+			"pipelines"
+		],
+		"logo": "logos/mage-ai.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "mailcatcher-ng",
+		"name": "MailCatcher NG",
+		"description": "MailCatcher NG runs a super simple SMTP server which catches any message sent to it to display in a web interface. Point your app's SMTP settings at…",
+		"category": "communication",
+		"tags": [
+			"email",
+			"smtp",
+			"development"
+		],
+		"logo": "logos/mailcatcher-ng.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "mailpit",
+		"name": "Mailpit",
+		"description": "Mailpit is a tiny, self-contained, and secure email & SMTP testing tool with API for developers.",
+		"category": "communication",
+		"tags": [
+			"email",
+			"smtp",
+			"mailpit",
+			"testing"
+		],
+		"logo": "logos/mailpit.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "marketing-dashboard",
+		"name": "Marketing Dashboard",
+		"description": "Self-hosted marketing operations dashboard for product-led growth, checkout analytics, paid media, SEO signals, and Stripe readiness.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"marketing",
+			"self-hosted",
+			"postgresql",
+			"nextjs"
+		],
+		"logo": "logos/marketing-dashboard.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "markup",
+		"name": "Markup",
+		"description": "Markup is a fast, keyboard-first markdown workspace with live preview, graph view, whiteboards, mind maps, and PostgreSQL-powered cloud sync.",
+		"category": "productivity",
+		"tags": [
+			"markdown",
+			"notes",
+			"editor",
+			"self-hosted"
+		],
+		"logo": "logos/markup.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "martin",
+		"name": "Martin",
+		"description": "Martin is a tile server able to generate and serve vector tiles on the fly from large PostGIS databases, PMTiles (local or remote), and MBTiles files,…",
+		"category": "devtools",
+		"tags": [
+			"postgis",
+			"vector",
+			"tiles"
+		],
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "matomo",
+		"name": "Matomo",
+		"description": "Matomo is an open-source web analytics platform that gives you full ownership of your data.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"metrics",
+			"privacy",
+			"self-hosted"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "mattermost",
+		"name": "Mattermost",
+		"description": "Mattermost is an open source, self-hosted Slack-alternative.",
+		"category": "communication",
+		"tags": [
+			"mattermost",
+			"slack",
+			"alternative"
+		],
+		"logo": "logos/mattermost.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "maxio",
+		"name": "MaxIO",
+		"description": "MaxIO is a lightweight, single-binary S3-compatible object storage server written in Rust",
+		"category": "storage",
+		"tags": [
+			"s3",
+			"storage",
+			"object-storage"
+		],
+		"logo": "logos/maxio.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "maybe",
+		"name": "Maybe",
+		"description": "Maybe is a self-hosted finance tracking application designed to simplify budgeting and expenses.",
+		"category": "finance",
+		"tags": [
+			"finance",
+			"self-hosted"
+		],
+		"logo": "logos/maybe.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "mazanoke",
+		"name": "MAZANOKE",
+		"description": "MAZANOKE is a modern, self-hosted image hosting and sharing platform. Upload, organize, and share your images with a clean and intuitive interface.",
+		"category": "storage",
+		"tags": [
+			"image-hosting",
+			"file-sharing",
+			"self-hosted",
+			"media",
+			"gallery"
+		],
+		"logo": "logos/mazanoke.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "mcpspan",
+		"name": "mcpspan",
+		"description": "mcpspan is open-source analytics for MCP servers: which tools agents call, how often they fail and why, which clients call them, and how fast they answer.…",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"monitoring",
+			"mcp"
+		],
+		"logo": "logos/mcpspan.svg",
+		"source": "dokploy",
+		"services": 4
+	},
+	{
+		"id": "mealie",
+		"name": "Mealie",
+		"description": "A recipe manager and meal planner.",
+		"category": "productivity",
+		"tags": [
+			"recipe manager",
+			"meal planner",
+			"cooking",
+			"food",
+			"recipes",
+			"shopping-list",
+			"meal-planning"
+		],
+		"logo": "logos/mealie.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "mediafetch",
+		"name": "MediaFetch",
+		"description": "A tiny, self-hosted web wrapper for yt-dlp to download video and audio. Optional basic auth.",
+		"category": "media",
+		"tags": [
+			"utilities",
+			"media",
+			"downloader"
+		],
+		"logo": "logos/mediafetch.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "mediawiki",
+		"name": "Mediawiki",
+		"description": "MediaWiki is a collaboration and documentation platform brought to you by a vibrant community.",
+		"category": "cms",
+		"tags": [
+			"wiki",
+			"collaboration",
+			"documentation"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "meilisearch",
+		"name": "Meilisearch",
+		"description": "Meilisearch is a free and open-source search engine that allows you to easily add search functionality to your web applications.",
+		"category": "productivity",
+		"tags": [
+			"search",
+			"engine",
+			"fulltext",
+			"full",
+			"text",
+			"meilisearch"
+		],
+		"logo": "logos/meilisearch.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "memos",
+		"name": "Memos",
+		"description": "An open-source, lightweight note-taking solution. The pain-less way to create your meaningful notes. Your Notes, Your Way.",
+		"category": "productivity",
+		"tags": [
+			"note-taking",
+			"microblog",
+			"social-network",
+			"markdown",
+			"productivity",
+			"notes",
+			"bookmarks"
+		],
+		"logo": "logos/memos.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "metamcp",
+		"name": "Metamcp",
+		"description": "MCP Aggregator, Orchestrator, Middleware, Gateway in one app",
+		"category": "ai",
+		"tags": [
+			"mcp",
+			"ai",
+			"sse",
+			"aggregator",
+			"orchestrator",
+			"middleware"
+		],
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "metube",
+		"name": "Metube",
+		"description": "A web GUI for youtube-dl with playlist support. It enables you to effortlessly download videos from YouTube and dozens of other sites.",
+		"category": "media",
+		"tags": [
+			"youtube",
+			"download",
+			"videos",
+			"playlist",
+			"downloader",
+			"media"
+		],
+		"logo": "logos/metube.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "miniflux",
+		"name": "Miniflux",
+		"description": "Miniflux is a minimalist and opinionated feed reader for self-hosted RSS and Atom subscriptions.",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feed-reader",
+			"news",
+			"miniflux",
+			"feed",
+			"self",
+			"hosted"
+		],
+		"logo": "logos/miniflux.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "misaka-danmu-server",
+		"name": "Misaka Danmu Server",
+		"description": "A self-hosted danmaku (bullet comments) server for live streaming and video platforms.",
+		"category": "media",
+		"tags": [
+			"streaming",
+			"danmaku",
+			"live"
+		],
+		"logo": "logos/misaka-danmu-server.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "mixpost",
+		"name": "Mixpost",
+		"description": "Mixpost is a robust and versatile social media management software, designed to streamline social media operations and enhance content marketing strategies.",
+		"category": "analytics",
+		"tags": [
+			"social media",
+			"marketing",
+			"content",
+			"management",
+			"automation",
+			"self-hosted",
+			"social-media",
+			"scheduling"
+		],
+		"logo": "logos/mixpost.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "moltbot",
+		"name": "Moltbot",
+		"description": "WhatsApp gateway CLI with Pi RPC agent - self-hosted AI-powered messaging platform",
+		"category": "ai",
+		"tags": [
+			"whatsapp",
+			"ai",
+			"messaging",
+			"chatbot",
+			"gateway",
+			"self-hosted",
+			"automation"
+		],
+		"logo": "logos/moltbot.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "morphos",
+		"name": "Morphos",
+		"description": "Morphos is a lightweight service for distributed operations and orchestration.",
+		"category": "other",
+		"tags": [
+			"server",
+			"orchestration",
+			"lightweight"
+		],
+		"logo": "logos/morphos.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "mosquitto",
+		"name": "Eclipse Mosquitto",
+		"description": "A lightweight, open-source MQTT broker for IoT and home automation with persistent messaging and WebSocket support.",
+		"category": "other",
+		"tags": [
+			"broker",
+			"iot",
+			"mqtt"
+		],
+		"logo": "logos/mosquitto.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "movary",
+		"name": "Movary",
+		"description": "Movary is a self-hosted platform for tracking and managing your watched movies using TMDB.",
+		"category": "media",
+		"tags": [
+			"media",
+			"movies",
+			"movie-tracker",
+			"self-hosted",
+			"plex",
+			"jellyfin",
+			"emby",
+			"kodi",
+			"trakt",
+			"letterboxd",
+			"netflix",
+			"tmdb",
+			"statistics",
+			"rating"
+		],
+		"logo": "logos/movary.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "mulesoft-esb",
+		"name": "MuleSoft ESB Runtime Community Edition",
+		"description": "MuleSoft ESB Runtime  is a lightweight, Java-based integration platform that allows you to easily integrate applications, data sources, and APIs. It…",
+		"category": "devtools",
+		"tags": [
+			"integration",
+			"api",
+			"esb",
+			"enterprise",
+			"java"
+		],
+		"logo": "logos/mulesoft-esb.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "mumble",
+		"name": "Mumble",
+		"description": "Mumble is an open-source, low-latency, high-quality voice chat software primarily intended for use while gaming.",
+		"category": "communication",
+		"tags": [
+			"voice-chat",
+			"communication",
+			"gaming",
+			"voip"
+		],
+		"logo": "logos/mumble.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "n8n",
+		"name": "N8n",
+		"description": "n8n is an extendable workflow automation tool.",
+		"category": "automation",
+		"tags": [
+			"n8n",
+			"workflow",
+			"automation",
+			"open",
+			"source",
+			"low",
+			"code"
+		],
+		"logo": "logos/n8n.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "n8n-with-postgres",
+		"name": "n8n with Postgres",
+		"description": "n8n is an open source low-code platform for automating workflows and integrations with PostgreSQL database for better performance and scalability.",
+		"category": "automation",
+		"tags": [
+			"automation",
+			"workflow",
+			"low-code",
+			"postgres"
+		],
+		"logo": "logos/n8n-with-postgres.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "n8n-with-postgresql",
+		"name": "N8n With Postgresql",
+		"description": "n8n is an extendable workflow automation tool.",
+		"category": "automation",
+		"tags": [
+			"n8n",
+			"workflow",
+			"automation",
+			"open",
+			"source",
+			"low",
+			"code"
+		],
+		"logo": "logos/n8n-with-postgresql.png",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "navi-music",
+		"name": "NaviMusic",
+		"description": "A Discord music bot that plays YouTube and Spotify tracks and playlists in voice channels.",
+		"category": "media",
+		"tags": [
+			"discord",
+			"music",
+			"bot"
+		],
+		"logo": "logos/navi-music.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "navidrome",
+		"name": "Navidrome",
+		"description": "Standalone server, that allows you to browse and listen to your music collection using a web browser or any Subsonic-compatible client.",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"music",
+			"subsonic",
+			"streaming",
+			"media-server",
+			"self-hosted",
+			"audio"
+		],
+		"logo": "logos/navidrome.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "networking-toolbox",
+		"name": "Networking Toolbox",
+		"description": "A collection of handy networking utilities by Lissy93, packaged as a self-hostable web app.",
+		"category": "networking",
+		"tags": [
+			"networking",
+			"tools",
+			"utilities",
+			"web"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "newapi",
+		"name": "Newapi",
+		"description": "The next-generation LLM gateway and AI asset management system supports multiple languages.",
+		"category": "devtools",
+		"tags": [
+			"api",
+			"openai",
+			"llm",
+			"api-gateway",
+			"api-management"
+		],
+		"logo": "logos/newapi.png",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "newt-pangolin",
+		"name": "Newt Pangolin",
+		"description": "Pangolin tunnels your services to the internet so you can access anything from anywhere.",
+		"category": "networking",
+		"tags": [
+			"wireguard",
+			"reverse-proxy",
+			"zero-trust-network-access",
+			"open source"
+		],
+		"logo": "logos/newt-pangolin.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "next-image-transformation",
+		"name": "Next Image Transformation",
+		"description": "Drop-in replacement for Vercel's Nextjs image optimization service.",
+		"category": "media",
+		"tags": [
+			"nextjs",
+			"image",
+			"transformation",
+			"service"
+		],
+		"logo": "logos/next-image-transformation.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "nextcloud",
+		"name": "Nextcloud",
+		"description": "NextCloud is a self-hosted, open-source platform that provides file storage, collaboration, and communication tools for seamless data management.",
+		"category": "storage",
+		"tags": [
+			"cloud",
+			"collaboration",
+			"communication",
+			"filestorage",
+			"data"
+		],
+		"logo": "logos/nextcloud.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "nextcloud-with-mariadb",
+		"name": "Nextcloud With Mariadb",
+		"description": "NextCloud is a self-hosted, open-source platform that provides file storage, collaboration, and communication tools for seamless data management.",
+		"category": "storage",
+		"tags": [
+			"cloud",
+			"collaboration",
+			"communication",
+			"filestorage",
+			"data"
+		],
+		"logo": "logos/nextcloud-with-mariadb.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "nextcloud-with-mysql",
+		"name": "Nextcloud With Mysql",
+		"description": "NextCloud is a self-hosted, open-source platform that provides file storage, collaboration, and communication tools for seamless data management.",
+		"category": "storage",
+		"tags": [
+			"cloud",
+			"collaboration",
+			"communication",
+			"filestorage",
+			"data"
+		],
+		"logo": "logos/nextcloud-with-mysql.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "nextcloud-with-postgres",
+		"name": "Nextcloud With Postgres",
+		"description": "NextCloud is a self-hosted, open-source platform that provides file storage, collaboration, and communication tools for seamless data management.",
+		"category": "storage",
+		"tags": [
+			"cloud",
+			"collaboration",
+			"communication",
+			"filestorage",
+			"data"
+		],
+		"logo": "logos/nextcloud-with-postgres.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "nexus",
+		"name": "Nexus",
+		"description": "Open source Universal Repository Manager (x86_64 version, official), default credentials: admin/admin123",
+		"category": "devtools",
+		"tags": [
+			"repository",
+			"manager",
+			"open source",
+			"docker",
+			"registry",
+			"container"
+		],
+		"logo": "logos/nexus.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "nexus-arm",
+		"name": "Nexus Arm",
+		"description": "Open source Universal Repository Manager (ARM version, community edition), default credentials: admin/admin123",
+		"category": "devtools",
+		"tags": [
+			"repository",
+			"manager",
+			"open source",
+			"docker",
+			"registry",
+			"container"
+		],
+		"logo": "logos/nexus-arm.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "nginx",
+		"name": "Nginx",
+		"description": "Nginx is a high-performance web server and reverse proxy.",
+		"category": "other",
+		"tags": [
+			"webserver"
+		],
+		"logo": "logos/nginx.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "nitropage",
+		"name": "Nitropage",
+		"description": "Nitropage is an extensible, visual website builder, offering a growing library of versatile building blocks, focal-point image cropping and sovereign font…",
+		"category": "cms",
+		"tags": [
+			"nitropage",
+			"builder",
+			"editor",
+			"wysiwyg",
+			"cms",
+			"content",
+			"management"
+		],
+		"logo": "logos/nitropage.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "nitropage-with-postgresql",
+		"name": "Nitropage With Postgresql",
+		"description": "Nitropage is an extensible, visual website builder, offering a growing library of versatile building blocks, focal-point image cropping and sovereign font…",
+		"category": "cms",
+		"tags": [
+			"nitropage",
+			"builder",
+			"editor",
+			"wysiwyg",
+			"cms",
+			"content",
+			"management"
+		],
+		"logo": "logos/nitropage-with-postgresql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "nocobase",
+		"name": "Nocobase",
+		"description": "NocoBase is the most extensible AI-powered no-code/low-code platform.",
+		"category": "devtools",
+		"tags": [
+			"nocode",
+			"lowcode",
+			"database",
+			"builder"
+		],
+		"logo": "logos/nocobase.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "nocodb",
+		"name": "Nocodb",
+		"description": "NocoDB is an open source Airtable alternative. Turns any MySQL, PostgreSQL, SQL Server, SQLite & MariaDB into a smart-spreadsheet.",
+		"category": "productivity",
+		"tags": [
+			"nocodb",
+			"airtable",
+			"mysql",
+			"postgresql",
+			"sqlserver",
+			"sqlite",
+			"mariadb",
+			"database",
+			"spreadsheet",
+			"low-code",
+			"nocode"
+		],
+		"logo": "logos/nocodb.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "nodelink",
+		"name": "NodeLink",
+		"description": "NodeLink is a lightweight Lavalink-compatible audio server built in Node.js for Discord music bots and real-time audio systems.",
+		"category": "media",
+		"tags": [
+			"audio",
+			"discord",
+			"lavalink",
+			"music"
+		],
+		"logo": "logos/nodelink.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "notifuse",
+		"name": "Notifuse",
+		"description": "Open-source newsletter and notification platform that empowers teams to create, send, and track communications at scale.",
+		"category": "communication",
+		"tags": [
+			"newsletter",
+			"email",
+			"communication",
+			"notifications"
+		],
+		"logo": "logos/notifuse.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "novu",
+		"name": "Novu",
+		"description": "Open-source notification infrastructure for multi-channel workflows — in-app Inbox, email, SMS, push, and chat — with a unified API and dashboard.",
+		"category": "communication",
+		"tags": [
+			"notifications",
+			"email",
+			"sms",
+			"push",
+			"inbox",
+			"self-hosted",
+			"api"
+		],
+		"logo": "logos/novu.png",
+		"source": "dokploy",
+		"services": 6
+	},
+	{
+		"id": "ntfy",
+		"name": "Ntfy",
+		"description": "ntfy is a simple HTTP-based pub-sub notification service. It allows you to send notifications to your phone or desktop via scripts from any computer, and/or…",
+		"category": "communication",
+		"tags": [
+			"ntfy",
+			"notification",
+			"push notification",
+			"pub-sub",
+			"notify",
+			"alerting",
+			"alerts",
+			"api",
+			"notifications",
+			"self-hosted"
+		],
+		"logo": "logos/ntfy.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "obscura",
+		"name": "Obscura Browser",
+		"description": "Headless browser for AI agents with authenticated remote MCP and Chrome DevTools Protocol endpoints.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"browser",
+			"automation",
+			"mcp",
+			"cdp"
+		],
+		"logo": "logos/obscura.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "obsidian-livesync",
+		"name": "Obsidian Livesync",
+		"description": "Self-hosted sync backend for Obsidian LiveSync plugin using CouchDB",
+		"category": "storage",
+		"tags": [
+			"obsidian",
+			"couchdb",
+			"sync",
+			"notes",
+			"markdown",
+			"database"
+		],
+		"logo": "logos/obsidian-livesync.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "odoo",
+		"name": "Odoo",
+		"description": "Odoo is a suite of open-source business apps that cover all your company needs.",
+		"category": "productivity",
+		"tags": [
+			"business",
+			"apps",
+			"crm",
+			"ecommerce",
+			"accounting",
+			"inventory",
+			"point of sale",
+			"project management",
+			"open-source"
+		],
+		"logo": "logos/odoo.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "odoo-17",
+		"name": "Odoo",
+		"description": "Odoo is a free and open source business management software that helps you manage your company's operations.",
+		"category": "other",
+		"tags": [
+			"erp"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "odoo-18",
+		"name": "Odoo",
+		"description": "Odoo is a free and open source business management software that helps you manage your company's operations.",
+		"category": "other",
+		"tags": [
+			"erp"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "odoo-19",
+		"name": "Odoo",
+		"description": "Odoo is a suite of business management apps, including ERP, CRM, and accounting.",
+		"category": "other",
+		"tags": [
+			"erp"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "ollama-chat-tone",
+		"name": "Ollama Chat Tone",
+		"description": "Self-contained Ollama chat client with local auth, streaming responses, and per-user conversations.",
+		"category": "ai",
+		"tags": [
+			"chatbot",
+			"ai",
+			"ollama",
+			"docker"
+		],
+		"logo": "logos/ollama-chat-tone.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "ollama-with-open-webui",
+		"name": "Ollama With Open Webui",
+		"description": "Ollama with Open Web UI integrates AI model deployment with a user-friendly interface.",
+		"category": "ai",
+		"tags": [
+			"ollama",
+			"ai",
+			"models",
+			"deployment",
+			"open-web-ui",
+			"integration"
+		],
+		"logo": "logos/ollama-with-open-webui.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "omni-tools",
+		"name": "Omni-Tools",
+		"description": "Omni-Tools is a collection of useful tools in a single self-hosted web application.",
+		"category": "other",
+		"tags": [
+			"tools",
+			"utilities",
+			"collection",
+			"self-hosted"
+		],
+		"logo": "logos/omni-tools.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "omniroute",
+		"name": "OmniRoute",
+		"description": "The Free AI Gateway - Never stop coding. Connect every AI tool to 177 providers — 50+ free — through one endpoint.  Auto-fallback. RTK + Caveman compression…",
+		"category": "ai",
+		"tags": [
+			"artificial-intelligence",
+			"gateway",
+			"generative-ai",
+			"llm",
+			"monitoring",
+			"routing"
+		],
+		"logo": "logos/omniroute.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "once-campfire",
+		"name": "Once Campfire",
+		"description": "Super simple group chat, without a subscription.",
+		"category": "communication",
+		"tags": [
+			"campfire",
+			"chat",
+			"communication",
+			"rails",
+			"once",
+			"basecamp",
+			"37signals"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "onedev",
+		"name": "Onedev",
+		"description": "Git server with CI/CD, kanban, and packages. Seamless integration. Unparalleled experience.",
+		"category": "devtools",
+		"tags": [
+			"git",
+			"scm",
+			"ci",
+			"cd",
+			"kanban",
+			"packages",
+			"devops",
+			"collaboration",
+			"code",
+			"repository",
+			"management"
+		],
+		"logo": "logos/onedev.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "ontime",
+		"name": "Ontime",
+		"description": "Ontime is browser-based application that manages event rundowns, scheduliing and cuing",
+		"category": "other",
+		"tags": [
+			"event"
+		],
+		"logo": "logos/ontime.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "open-design",
+		"name": "Open Design",
+		"description": "Open Design is a local-first, open-source design tool with native desktop apps, a large library of design systems, and an extensible plugin ecosystem that…",
+		"category": "other",
+		"tags": [
+			"design",
+			"self-hosted"
+		],
+		"logo": "logos/open-design.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "open-fiesta",
+		"name": "Open Fiesta",
+		"description": "Open Fiesta is an open-source AI chat and inference UI, supporting multiple backends such as OpenRouter, Gemini, and Ollama.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"chatbot",
+			"inference",
+			"frontend"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "open-webui",
+		"name": "Open Webui",
+		"description": "User-friendly AI Interface (Supports Ollama, OpenAI API, ...)",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"models",
+			"deployment",
+			"open-web-ui",
+			"integration"
+		],
+		"logo": "logos/open-webui.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "opencloud",
+		"name": "OpenCloud",
+		"description": "Open source cloud platform for secure file sync, sharing, and content collaboration",
+		"category": "storage",
+		"tags": [
+			"storage",
+			"cloud",
+			"files",
+			"productivity"
+		],
+		"logo": "logos/opencloud.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "opengist",
+		"name": "OpenGist",
+		"description": "OpenGist is a self-hosted pastebin alternative.",
+		"category": "other",
+		"tags": [
+			"pastebin",
+			"code",
+			"snippets",
+			"self-hosted"
+		],
+		"logo": "logos/opengist.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "openhabittracker",
+		"name": "OpenHabitTracker",
+		"description": "Take notes, plan tasks and track habits - free, ad-free, open source, with all data on your own server. Native apps for Windows, Linux, Android, iOS and…",
+		"category": "productivity",
+		"tags": [
+			"productivity",
+			"notes",
+			"tasks",
+			"habits",
+			"self-hosted"
+		],
+		"logo": "logos/openhabittracker.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "openinary",
+		"name": "Openinary",
+		"description": "Openinary is a self-hosted Cloudinary alternative.",
+		"category": "media",
+		"tags": [
+			"media",
+			"images",
+			"videos",
+			"cloudinary-alternative",
+			"developer-tools"
+		],
+		"logo": "logos/openinary.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "openlivery",
+		"name": "OpenLivery",
+		"description": "MIT-licensed WhatsApp AI agents for agencies, with separate client workspaces and branded portals in one self-hosted installation",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"chat",
+			"customer-support"
+		],
+		"logo": "logos/openlivery.png",
+		"source": "dokploy",
+		"services": 5
+	},
+	{
+		"id": "openlmnp",
+		"name": "OpenLMNP",
+		"description": "Self-hosted accounting for French furnished rentals (LMNP): depreciation schedules, ready-to-file 2031/2033 tax forms, FEC export and Airbnb CSV import.",
+		"category": "finance",
+		"tags": [
+			"finance",
+			"accounting",
+			"tax",
+			"rental"
+		],
+		"logo": "logos/openlmnp.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "openobserve",
+		"name": "Openobserve",
+		"description": "Cloud-native observability platform for logs, metrics, traces, RUM, errors and session replays — a 140x cheaper alternative to Elasticsearch, Splunk and…",
+		"category": "monitoring",
+		"tags": [
+			"logs",
+			"metrics",
+			"traces",
+			"observability",
+			"monitoring",
+			"opentelemetry",
+			"otel",
+			"elasticsearch",
+			"splunk",
+			"datadog",
+			"apm"
+		],
+		"logo": "logos/openobserve.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "openseo",
+		"name": "OpenSEO",
+		"description": "OpenSEO is an open source, self-hosted alternative to Semrush and Ahrefs for keyword research, rank tracking, backlinks, and site audits.",
+		"category": "analytics",
+		"tags": [
+			"seo",
+			"analytics",
+			"marketing"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "opensourcepos",
+		"name": "OpenSourcePOS",
+		"description": "OpenSourcePOS is a web-based point of sale system for managing sales, inventory, customers, and reports.",
+		"category": "other",
+		"tags": [
+			"pos",
+			"retail",
+			"inventory",
+			"sales",
+			"business"
+		],
+		"logo": "logos/opensourcepos.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "openspeedtest",
+		"name": "OpenSpeedTest",
+		"description": "OpenSpeedTest is a 100% browser-based HTML5 network performance estimation tool for accurately measuring network speed.",
+		"category": "monitoring",
+		"tags": [
+			"network",
+			"testing",
+			"performance",
+			"monitoring",
+			"bandwidth"
+		],
+		"logo": "logos/openspeedtest.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "opentodo",
+		"name": "OpenTodo",
+		"description": "Open-source, local-first task manager. Works offline and syncs every device from one small container.",
+		"category": "productivity",
+		"tags": [
+			"productivity",
+			"tasks",
+			"todo",
+			"self-hosted"
+		],
+		"logo": "logos/opentodo.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "orbit",
+		"name": "Orbit by Noveum",
+		"description": "Open-source task management with issues, projects, sprints, docs, files, realtime collaboration and an OAuth MCP endpoint.",
+		"category": "productivity",
+		"tags": [
+			"productivity",
+			"project-management",
+			"collaboration",
+			"mcp"
+		],
+		"source": "dokploy",
+		"services": 8
+	},
+	{
+		"id": "organizr",
+		"name": "Organizr",
+		"description": "Homelab Services Organizer",
+		"category": "productivity",
+		"tags": [
+			"tool"
+		],
+		"logo": "logos/organizr.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "oryx",
+		"name": "Oryx",
+		"description": "Oryx (formerly SRS Stack) is an all-in-one, open-source video streaming server with a web console. It ingests RTMP, WebRTC (WHIP) and SRT streams and plays…",
+		"category": "media",
+		"tags": [
+			"streaming",
+			"video",
+			"rtmp",
+			"webrtc",
+			"srt",
+			"hls",
+			"media-server"
+		],
+		"logo": "logos/oryx.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "otterwiki",
+		"name": "Otter Wiki",
+		"description": "An Otter Wiki is a simple, lightweight, and fast wiki engine built with Python and Flask. It provides a user-friendly interface for creating and managing…",
+		"category": "productivity",
+		"tags": [
+			"wiki",
+			"documentation",
+			"knowledge-base",
+			"markdown"
+		],
+		"logo": "logos/otterwiki.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "overseerr",
+		"name": "Overseerr",
+		"description": "Overseerr is a request management and media discovery tool built to work with your existing Plex ecosystem.",
+		"category": "media",
+		"tags": [
+			"media",
+			"request",
+			"plex",
+			"sonarr",
+			"radarr"
+		],
+		"logo": "logos/overseerr.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "owncast",
+		"name": "Owncast",
+		"description": "Owncast is a self-hosted live video streaming and chat server for use with existing broadcasting software.",
+		"category": "media",
+		"tags": [
+			"streaming",
+			"live-video",
+			"chat",
+			"broadcasting",
+			"self-hosted",
+			"rtmp"
+		],
+		"logo": "logos/owncast.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "owncloud-infinite-scale",
+		"name": "ownCloud Infinite Scale",
+		"description": "ownCloud Infinite Scale is a modern file sync and share platform with WebDAV and ownCloud client support.",
+		"category": "storage",
+		"tags": [
+			"storage",
+			"files",
+			"sync",
+			"webdav",
+			"collaboration"
+		],
+		"logo": "logos/owncloud-infinite-scale.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "pairdrop",
+		"name": "Pairdrop",
+		"description": "Pairdrop is a self-hosted file sharing and collaboration platform, offering secure file sharing and collaboration capabilities for efficient teamwork.",
+		"category": "productivity",
+		"tags": [
+			"file",
+			"sharing",
+			"collaboration",
+			"teamwork",
+			"file-sharing",
+			"p2p",
+			"web-app",
+			"self-hosted"
+		],
+		"logo": "logos/pairdrop.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "palmr",
+		"name": "Palmr",
+		"description": "Palmr the open-source, self-hosted alternative to WeTransfer. Share files securely, without tracking or limitations.",
+		"category": "storage",
+		"tags": [
+			"file-sharing",
+			"self-hosted",
+			"open-source"
+		],
+		"logo": "logos/palmr.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "palworld",
+		"name": "Palworld",
+		"description": "",
+		"category": "media",
+		"tags": [],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "paperclip",
+		"name": "Paperclip",
+		"description": "Paperclip is an open-source control plane for managing teams of AI agents, goals, budgets, tickets, and recurring work.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"agents",
+			"automation",
+			"self-hosted"
+		],
+		"logo": "logos/paperclip.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "paperless",
+		"name": "Paperless",
+		"description": "Paperless-ngx is a community-supported open-source document management system that transforms your physical documents into a searchable online archive so…",
+		"category": "productivity",
+		"tags": [],
+		"logo": "logos/paperless.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "paperless-ngx",
+		"name": "Paperless-ngx",
+		"description": "Paperless-ngx is a document management system that turns scanned paperwork into a searchable archive.",
+		"category": "productivity",
+		"tags": [
+			"documents",
+			"ocr",
+			"productivity",
+			"self-hosted"
+		],
+		"logo": "logos/paperless-ngx.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "parseable",
+		"name": "Parseable",
+		"description": "Fast observability and log analytics platform on object storage",
+		"category": "monitoring",
+		"tags": [
+			"observability",
+			"logging",
+			"analytics",
+			"monitoring"
+		],
+		"logo": "logos/parseable.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "passbolt",
+		"name": "Passbolt",
+		"description": "Passbolt Community Edition (CE) API. The JSON API for the open source password manager for teams!",
+		"category": "security",
+		"tags": [
+			"security",
+			"credentials",
+			"password-manager",
+			"open source",
+			"team-collaboration",
+			"encryption"
+		],
+		"logo": "logos/passbolt.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "pastefy",
+		"name": "Pastefy",
+		"description": "Pastefy is an open-source pastebin with support for syntax highlighting and OAuth2 authentication.",
+		"category": "productivity",
+		"tags": [
+			"pastebin",
+			"text-sharing",
+			"collaboration",
+			"oauth2"
+		],
+		"logo": "logos/pastefy.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "paymenter",
+		"name": "Paymenter",
+		"description": "Open-Source Billing, Built for Hosting",
+		"category": "finance",
+		"tags": [
+			"automation",
+			"billing",
+			"open source",
+			"payment",
+			"hosting",
+			"invoicing",
+			"business",
+			"client-management"
+		],
+		"logo": "logos/paymenter.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "peertube",
+		"name": "Peertube",
+		"description": "Free, open-source and decentralized video platform.",
+		"category": "media",
+		"tags": [
+			"video",
+			"fediverse",
+			"activitypub",
+			"youtube",
+			"streaming",
+			"self-hosted"
+		],
+		"logo": "logos/peertube.svg",
+		"source": "coolify",
+		"services": 4
+	},
+	{
+		"id": "pgadmin",
+		"name": "Pgadmin",
+		"description": "pgAdmin is a web-based database management tool for administering your PostgreSQL databases through a user-friendly interface.",
+		"category": "database",
+		"tags": [
+			"database management",
+			"database",
+			"postgres",
+			"admin"
+		],
+		"logo": "logos/pgadmin.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "pgbackweb",
+		"name": "Pgbackweb",
+		"description": "Effortless PostgreSQL backups with a user-friendly web interface!",
+		"category": "devtools",
+		"tags": [
+			"backup",
+			"postgresql",
+			"web-interface"
+		],
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "phpmyadmin",
+		"name": "Phpmyadmin",
+		"description": "phpMyAdmin is an open-source web interface for managing MySQL and MariaDB databases.",
+		"category": "database",
+		"tags": [
+			"database",
+			"database management"
+		],
+		"logo": "logos/phpmyadmin.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "pi-hole",
+		"name": "Pi Hole",
+		"description": "Network-wide Ad Blocking",
+		"category": "networking",
+		"tags": [
+			"ad-block",
+			"dns",
+			"sinkhole",
+			"ntp",
+			"dhcp"
+		],
+		"logo": "logos/pi-hole.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "pinchflat",
+		"name": "Pinchflat",
+		"description": "Pinchflat is a self-hosted YouTube downloader that allows you to download videos and playlists with a simple web interface.",
+		"category": "media",
+		"tags": [
+			"youtube",
+			"downloader",
+			"media"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "plane",
+		"name": "Plane",
+		"description": "The open source project management tool",
+		"category": "productivity",
+		"tags": [
+			"plane",
+			"project-management",
+			"tool",
+			"open",
+			"source",
+			"api",
+			"nextjs",
+			"redis",
+			"postgresql",
+			"django",
+			"pm"
+		],
+		"logo": "logos/plane.svg",
+		"source": "coolify",
+		"services": 13
+	},
+	{
+		"id": "plark",
+		"name": "Plark",
+		"description": "Self-hosted Website Builder",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"content-management",
+			"blog"
+		],
+		"logo": "logos/plark.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "plex",
+		"name": "Plex",
+		"description": "Plex organizes video, music and photos from personal media libraries and streams them to smart TVs, streaming boxes and mobile devices.",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"movies",
+			"tv",
+			"music"
+		],
+		"logo": "logos/plex.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "plunk",
+		"name": "Plunk",
+		"description": "Plunk, The Open-Source Email Platform for AWS",
+		"category": "communication",
+		"tags": [
+			"plunk",
+			"email",
+			"automation",
+			"aws"
+		],
+		"logo": "logos/plunk.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "pocket-id",
+		"name": "Pocket ID",
+		"description": "Pocket ID is a simple OpenID Connect and OAuth 2.0 provider that lets users authenticate to applications with passkeys.",
+		"category": "security",
+		"tags": [
+			"authentication",
+			"identity",
+			"sso",
+			"oidc",
+			"oauth2",
+			"passkeys",
+			"security",
+			"self-hosted",
+			"oauth",
+			"passkey",
+			"webauthn",
+			"openid"
+		],
+		"logo": "logos/pocket-id.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "pocket-id-with-postgresql",
+		"name": "Pocket Id With Postgresql",
+		"description": "A simple and secure OIDC provider with passkey authentication",
+		"category": "security",
+		"tags": [
+			"identity",
+			"oidc",
+			"oauth",
+			"passkey",
+			"webauthn",
+			"authentication",
+			"sso",
+			"openid",
+			"postgresql"
+		],
+		"logo": "logos/pocket-id-with-postgresql.png",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "pocketbase",
+		"name": "Pocketbase",
+		"description": "Open Source backend for your next SaaS and Mobile app in 1 file",
+		"category": "devtools",
+		"tags": [
+			"pocketbase",
+			"backend",
+			"saas",
+			"mobile",
+			"api",
+			"database"
+		],
+		"logo": "logos/pocketbase.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "podfetch",
+		"name": "PodFetch",
+		"description": "PodFetch is a sleek, self-hosted podcast manager that automatically downloads new episodes, offers a web UI for listening and managing podcasts, and…",
+		"category": "media",
+		"tags": [
+			"media"
+		],
+		"logo": "logos/podfetch.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "poke",
+		"name": "Poke",
+		"description": "Poke is an open-source, self-hosted alternative to YouTube. A privacy-focused video platform that allows you to watch and share videos without tracking.",
+		"category": "media",
+		"tags": [
+			"video",
+			"youtube-alternative",
+			"self-hosted",
+			"privacy",
+			"streaming"
+		],
+		"logo": "logos/poke.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "portabase",
+		"name": "Portabase",
+		"description": "Self-hosted database backup & monitoring platform",
+		"category": "storage",
+		"tags": [
+			"backup",
+			"database",
+			"monitoring",
+			"open-source",
+			"postgres",
+			"mysql",
+			"mariadb",
+			"mongodb",
+			"sqlite",
+			"firebird",
+			"valkey",
+			"redis",
+			"mssql",
+			"docker-volumes",
+			"s3",
+			"gcs",
+			"azure",
+			"google-drive",
+			"discord",
+			"telegram"
+		],
+		"logo": "logos/portabase.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "postgres-extensor",
+		"name": "PostgreSQL with 80+ Extensions",
+		"description": "The official PostgreSQL 18 image with 80+ tested extensions preinstalled: pgvector, PostGIS, TimescaleDB, pgmq, pg_cron, pg_duckdb, Apache AGE, pg_graphql…",
+		"category": "database",
+		"tags": [
+			"database",
+			"postgres",
+			"postgresql",
+			"vector",
+			"pgvector",
+			"postgis",
+			"timescaledb",
+			"ai"
+		],
+		"logo": "logos/postgres-extensor.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "postgres-pgadmin",
+		"name": "PostgreSQL + pgAdmin",
+		"description": "PostgreSQL 18 Alpine with pgAdmin 4 web UI, persistent volumes and healthchecks for easy database administration.",
+		"category": "database",
+		"tags": [
+			"database",
+			"postgres",
+			"postgresql",
+			"admin",
+			"pgadmin"
+		],
+		"logo": "logos/postgres-pgadmin.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "postgres-pgdog",
+		"name": "PostgreSQL with PgDog",
+		"description": "PostgreSQL database with PgDog connection pooler, load balancer, and horizontal scaling proxy. A modern alternative to PgBouncer with multi-threading support.",
+		"category": "database",
+		"tags": [
+			"database",
+			"postgresql",
+			"pooler",
+			"proxy",
+			"load-balancer"
+		],
+		"logo": "logos/postgres-pgdog.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "postgresus",
+		"name": "Postgresus",
+		"description": "Deprecated: the project was renamed to Databasus, use the Databasus template instead. Free, open source and self-hosted solution for automated PostgreSQL…",
+		"category": "database",
+		"tags": [
+			"postgres",
+			"backup",
+			"s3"
+		],
+		"logo": "logos/postgresus.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "prefect",
+		"name": "Prefect",
+		"description": "Prefect is an open-source workflow orchestration platform for building, scheduling, monitoring, and managing data pipelines and Python workflows.",
+		"category": "automation",
+		"tags": [
+			"automation",
+			"workflow",
+			"data",
+			"orchestration",
+			"data-pipeline",
+			"python",
+			"data-processing",
+			"data-integration",
+			"etl"
+		],
+		"logo": "logos/prefect.svg",
+		"source": "dokploy",
+		"services": 5
+	},
+	{
+		"id": "pretix",
+		"name": "Pretix",
+		"description": "Ticket shop application for conferences, festivals, concerts, tech events, shows, workshops, etc.",
+		"category": "other",
+		"tags": [
+			"ticketing",
+			"events",
+			"e-commerce"
+		],
+		"logo": "logos/pretix.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "privatebin",
+		"name": "PrivateBin",
+		"description": "PrivateBin is a minimalist, open-source online pastebin where the server has zero knowledge of pasted data.",
+		"category": "security",
+		"tags": [
+			"pastebin",
+			"privacy",
+			"self-hosted",
+			"text",
+			"sharing"
+		],
+		"logo": "logos/privatebin.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "privatepaste",
+		"name": "PrivatePaste",
+		"description": "Self-hosted clipboard sync: copy on one device, paste on your others, with an encrypted, searchable history and apps for Windows, macOS, Linux and Android.",
+		"category": "productivity",
+		"tags": [
+			"productivity",
+			"clipboard",
+			"sync"
+		],
+		"logo": "logos/privatepaste.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "prometheus",
+		"name": "Prometheus",
+		"description": "Prometheus is an open-source monitoring and alerting toolkit that collects metrics from your systems.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"alerting",
+			"metrics"
+		],
+		"logo": "logos/prometheus.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "prowlarr",
+		"name": "Prowlarr",
+		"description": "Prowlarr⁠ is a indexer manager/proxy built on the popular arr .net/reactjs base stack to integrate with your various PVR apps.",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"movies",
+			"tv",
+			"indexer",
+			"torrent",
+			"nzb",
+			"usenet"
+		],
+		"logo": "logos/prowlarr.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "proxyscotch",
+		"name": "Proxyscotch",
+		"description": "A simple proxy server created for https://hoppscotch.io - CORS proxy",
+		"category": "networking",
+		"tags": [
+			"proxy",
+			"hoppscotch",
+			"cors"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "prozesswerk",
+		"name": "Prozesswerk",
+		"description": "Describe business processes in plain language and get editable BPMN 2.0 diagrams. Self-hosted and model-agnostic — works with any OpenAI-compatible LLM.",
+		"category": "ai",
+		"tags": [
+			"bpmn",
+			"ai",
+			"automation",
+			"self-hosted"
+		],
+		"logo": "logos/prozesswerk.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "pterodactyl",
+		"name": "Pterodactyl",
+		"description": "A free, open-source game server management panel.",
+		"category": "other",
+		"tags": [
+			"self-hosted",
+			"open-source",
+			"management"
+		],
+		"logo": "logos/pterodactyl.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "pterodactyl-panel",
+		"name": "Pterodactyl Panel",
+		"description": "Pterodactyl is a free, open-source game server management panel",
+		"category": "media",
+		"tags": [
+			"game",
+			"game server",
+			"management",
+			"panel",
+			"minecraft"
+		],
+		"logo": "logos/pterodactyl-panel.png",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "pydio-cells",
+		"name": "Pydio Cells",
+		"description": "High-performance large file sharing, native no-code automation, and a collaboration-centric architecture that simplifies access control without compromising…",
+		"category": "storage",
+		"tags": [
+			"storage"
+		],
+		"logo": "logos/pydio-cells.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "pyrodactyl",
+		"name": "Pyrodactyl",
+		"description": "Pyrodactyl is the Pterodactyl-based game server panel that's faster, smaller, safer, and more accessible than Pelican.",
+		"category": "other",
+		"tags": [
+			"self-hosted",
+			"open-source",
+			"management"
+		],
+		"logo": "logos/pyrodactyl.png",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "qbittorrent",
+		"name": "Qbittorrent",
+		"description": "The qBittorrent project aims to provide an open-source software alternative to μTorrent.",
+		"category": "media",
+		"tags": [
+			"torrent",
+			"streaming",
+			"webui",
+			"download",
+			"file-sharing"
+		],
+		"logo": "logos/qbittorrent.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "qdrant",
+		"name": "Qdrant",
+		"description": "Qdrant is a vector similarity search engine that provides a production-ready service with a convenient API to store, search, and manage points (i.e.…",
+		"category": "database",
+		"tags": [
+			"ai",
+			"vector-database",
+			"semantic-search",
+			"machine-learning",
+			"bm25",
+			"embeddings",
+			"llm",
+			"vector-db",
+			"database",
+			"search"
+		],
+		"logo": "logos/qdrant.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "quant-ux",
+		"name": "Quant-UX",
+		"description": "Quant-UX is an open-source UX design and prototyping tool that allows you to create interactive prototypes, conduct user research, and analyze user behavior.",
+		"category": "analytics",
+		"tags": [
+			"design",
+			"ux",
+			"prototyping",
+			"user-research",
+			"analytics"
+		],
+		"logo": "logos/quant-ux.svg",
+		"source": "dokploy",
+		"services": 4
+	},
+	{
+		"id": "qui",
+		"name": "qui",
+		"description": "A fast, modern web interface for qBittorrent. Manage multiple qBittorrent instances from a single, lightweight application built by autobrr.",
+		"category": "media",
+		"tags": [
+			"torrent",
+			"qbittorrent",
+			"download",
+			"media",
+			"self-hosted"
+		],
+		"logo": "logos/qui.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "quireink",
+		"name": "Quire Ink",
+		"description": "A self-hosted blog in one container: a real editor over Markdown with tables, footnotes and mathematics, scheduled publishing, newsletters over your own…",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"self-hosted",
+			"blog"
+		],
+		"logo": "logos/quireink.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "radarr",
+		"name": "Radarr",
+		"description": "Radarr⁠ - A fork of Sonarr to work with movies à la Couchpotato.",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"movies"
+		],
+		"logo": "logos/radarr.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "rallly",
+		"name": "Rallly",
+		"description": "Rallly is an open-source scheduling and collaboration tool designed to make organizing events and meetings easier.",
+		"category": "productivity",
+		"tags": [
+			"scheduling",
+			"rallly",
+			"events",
+			"meeting",
+			"doodle"
+		],
+		"logo": "logos/rallly.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "reactive-resume",
+		"name": "Reactive Resume",
+		"description": "A one-of-a-kind resume builder that keeps your privacy in mind.",
+		"category": "productivity",
+		"tags": [
+			"reactive-resume",
+			"resume-builder",
+			"open-source",
+			"2fa"
+		],
+		"logo": "logos/reactive-resume.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "readeck",
+		"name": "Readeck",
+		"description": "Simple web application that lets you save the precious readable content of web pages you like and want to keep forever.",
+		"category": "productivity",
+		"tags": [
+			"read-it-later",
+			"pocket-alternative",
+			"omnivore-alternative",
+			"instapaper-alternative"
+		],
+		"logo": "logos/readeck.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "redis-insight",
+		"name": "Redis Insight",
+		"description": "Redis Insight lets you do both GUI- and CLI-based interactions in a fully-featured desktop GUI client.",
+		"category": "database",
+		"tags": [
+			"redis",
+			"gui",
+			"database",
+			"monitoring",
+			"analytics"
+		],
+		"logo": "logos/redis-insight.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "redmine",
+		"name": "Redmine",
+		"description": "Redmine is a flexible project management web application.",
+		"category": "productivity",
+		"tags": [
+			"redmine",
+			"project management"
+		],
+		"logo": "logos/redmine.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "reelsaw",
+		"name": "Reelsaw",
+		"description": "Reelsaw is a self-hosted, AI-powered video clipper: paste a YouTube link or upload a video and it transcribes it, asks a language model for the most…",
+		"category": "media",
+		"tags": [
+			"video",
+			"ai",
+			"self-hosted"
+		],
+		"logo": "logos/reelsaw.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "registry",
+		"name": "Docker Registry",
+		"description": "Distribution implementation for storing and distributing of Docker container images and artifacts.",
+		"category": "other",
+		"tags": [
+			"registry",
+			"docker",
+			"self-hosted"
+		],
+		"logo": "logos/registry.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "rivet-engine",
+		"name": "Rivet Engine",
+		"description": "Build and scale stateful workloads with long-lived processes",
+		"category": "devtools",
+		"tags": [
+			"stateful",
+			"actors",
+			"realtime",
+			"backend",
+			"serverless",
+			"postgresql"
+		],
+		"logo": "logos/rivet-engine.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "rocketchat",
+		"name": "Rocketchat",
+		"description": "Self-hosted, secure and highly customizable open-source communication platform for organizations with sophisticated security and privacy concerns.",
+		"category": "communication",
+		"tags": [
+			"rocketchat",
+			"chat",
+			"communication",
+			"privacy",
+			"mongodb",
+			"open",
+			"source"
+		],
+		"logo": "logos/rocketchat.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "rote",
+		"name": "Rote",
+		"description": "Rote is an open-source multi-platform personal note system featuring an open API, full data ownership, and effortless Docker deployment.",
+		"category": "productivity",
+		"tags": [
+			"notes",
+			"productivity",
+			"postgres",
+			"bun"
+		],
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "roundcube",
+		"name": "Roundcube",
+		"description": "Free and open source webmail software for the masses, written in PHP.",
+		"category": "communication",
+		"tags": [
+			"self-hosted",
+			"email",
+			"webmail"
+		],
+		"logo": "logos/roundcube.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "rss-bridge",
+		"name": "RSS-Bridge",
+		"description": "RSS-Bridge is a PHP project capable of generating Atom feeds for websites that don't have one.",
+		"category": "communication",
+		"tags": [
+			"rss",
+			"feeds",
+			"news",
+			"content"
+		],
+		"logo": "logos/rss-bridge.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "rustrak",
+		"name": "Rustrak",
+		"description": "Self-hosted error tracking compatible with Sentry SDKs. Server only, written in Rust: 32 MB of memory at idle, with SQLite storage. No external database…",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"error-tracking",
+			"sentry",
+			"rust",
+			"observability"
+		],
+		"logo": "logos/rustrak.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "rustrak-full",
+		"name": "Rustrak (Full Stack)",
+		"description": "Self-hosted error tracking compatible with Sentry SDKs. Full stack: Rust server, web dashboard and PostgreSQL.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"error-tracking",
+			"sentry",
+			"rust",
+			"observability",
+			"postgresql"
+		],
+		"logo": "logos/rustrak-full.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "rustrak-sqlite",
+		"name": "Rustrak (Full Stack SQLite)",
+		"description": "Self-hosted error tracking compatible with Sentry SDKs. Full stack with the Rust server, web dashboard and built-in SQLite storage. No external database…",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"error-tracking",
+			"sentry",
+			"rust",
+			"observability",
+			"sqlite"
+		],
+		"logo": "logos/rustrak-sqlite.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "rybbit",
+		"name": "Rybbit",
+		"description": "Open-source, privacy-first web analytics.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"web",
+			"privacy",
+			"self-hosted",
+			"clickhouse",
+			"postgres"
+		],
+		"logo": "logos/rybbit.svg",
+		"source": "coolify",
+		"services": 4
+	},
+	{
+		"id": "ryot",
+		"name": "Ryot",
+		"description": "Roll your own tracker! Ryot is a self-hosted platform for tracking various aspects of life such as media consumption, fitness activities, and more.",
+		"category": "productivity",
+		"tags": [
+			"rss",
+			"reader",
+			"self-hosted",
+			"automation",
+			"tracker",
+			"media",
+			"fitness",
+			"tracking"
+		],
+		"logo": "logos/ryot.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "scrypted",
+		"name": "Scrypted",
+		"description": "Scrypted is a home automation platform that integrates with various smart home devices and provides NVR capabilities for video surveillance.",
+		"category": "other",
+		"tags": [
+			"home-automation",
+			"nvr",
+			"smart-home",
+			"surveillance"
+		],
+		"logo": "logos/scrypted.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "seafile",
+		"name": "Seafile",
+		"description": "Seafile is an open-source file sync and sharing platform.",
+		"category": "storage",
+		"tags": [
+			"file-manager",
+			"file-sharing",
+			"storage"
+		],
+		"logo": "logos/seafile.svg",
+		"source": "dokploy",
+		"services": 4
+	},
+	{
+		"id": "searxng",
+		"name": "Searxng",
+		"description": "SearXNG is a free internet metasearch engine which aggregates results from more than 70 search services.",
+		"category": "productivity",
+		"tags": [
+			"search",
+			"google",
+			"engine",
+			"images",
+			"documents",
+			"rss",
+			"proxy",
+			"news",
+			"web",
+			"api",
+			"search-engine",
+			"metasearch",
+			"privacy",
+			"self-hosted",
+			"aggregator"
+		],
+		"logo": "logos/searxng.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "seaweedfs",
+		"name": "Seaweedfs",
+		"description": "SeaweedFS is a simple and highly scalable distributed file system. Compatible with S3, with an admin web interface.",
+		"category": "storage",
+		"tags": [
+			"object",
+			"storage",
+			"server",
+			"s3",
+			"api"
+		],
+		"logo": "logos/seaweedfs.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "senddock",
+		"name": "SendDock",
+		"description": "Open-source, self-hosted email marketing platform with BYO SMTP. Manage subscribers, templates, broadcasts, and scheduled campaigns from one place.",
+		"category": "communication",
+		"tags": [
+			"email",
+			"newsletter",
+			"mailing-list",
+			"marketing"
+		],
+		"logo": "logos/senddock.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "seq",
+		"name": "Seq",
+		"description": "Seq is a self-hosted search, analysis, and alerting server for structured application logs and events.",
+		"category": "monitoring",
+		"tags": [
+			"logging",
+			"observability",
+			"monitoring"
+		],
+		"logo": "logos/seq.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "sequin",
+		"name": "Sequin",
+		"description": "The fastest Postgres change data capture",
+		"category": "analytics",
+		"tags": [
+			"postgres",
+			"sync",
+			"data"
+		],
+		"logo": "logos/sequin.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "sessy",
+		"name": "Sessy",
+		"description": "Email observability platform for monitoring and analyzing email systems.",
+		"category": "monitoring",
+		"tags": [
+			"email",
+			"observability",
+			"monitoring",
+			"analytics"
+		],
+		"logo": "logos/sessy.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "sftpgo",
+		"name": "SFTPGo",
+		"description": "SFTPGo is a full-featured and highly configurable SFTP, HTTP/S, FTP/S, and WebDAV server.",
+		"category": "storage",
+		"tags": [
+			"sftp",
+			"files",
+			"webdav",
+			"sftpgo",
+			"ftp",
+			"file"
+		],
+		"logo": "logos/sftpgo.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "shiori",
+		"name": "Shiori",
+		"description": "Shiori is a simple self-hosted bookmark manager with offline archive support and a web interface.",
+		"category": "productivity",
+		"tags": [
+			"bookmarks",
+			"read-it-later",
+			"archiving",
+			"self-hosted"
+		],
+		"logo": "logos/shiori.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "shlink",
+		"name": "Shlink",
+		"description": "The definitive self-hosted URL shortener",
+		"category": "productivity",
+		"tags": [
+			"links",
+			"shortener",
+			"sharing",
+			"url",
+			"short",
+			"link"
+		],
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "silex",
+		"name": "Silex",
+		"description": "Silex is a free and open-source website builder for professional designers. It lets you create static websites visually with a drag-and-drop editor, custom…",
+		"category": "other",
+		"tags": [
+			"website-builder",
+			"no-code",
+			"static-site"
+		],
+		"logo": "logos/silex.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "silverbullet",
+		"name": "Silverbullet",
+		"description": "SilverBullet is a tool to develop, organize, and structure your personal knowledge and to make it universally accessible across all your devices.",
+		"category": "productivity",
+		"tags": [
+			"note-taking",
+			"markdown",
+			"pkm"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "siyuan",
+		"name": "Siyuan",
+		"description": "A privacy-first, self-hosted, fully open source personal knowledge management software, written in typescript and golang.",
+		"category": "productivity",
+		"tags": [
+			"note-taking",
+			"markdown",
+			"pkm"
+		],
+		"logo": "logos/siyuan.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "slash",
+		"name": "Slash",
+		"description": "An open source, self-hosted links shortener and sharing platform.",
+		"category": "productivity",
+		"tags": [
+			"links",
+			"shortener",
+			"sharing",
+			"url",
+			"short",
+			"link",
+			"bookmarks",
+			"link-shortener",
+			"self-hosted"
+		],
+		"logo": "logos/slash.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "snapp",
+		"name": "Snapp",
+		"description": "Snapp is a self-hosted screenshot sharing service with user management and authentication.",
+		"category": "security",
+		"tags": [
+			"screenshot",
+			"sharing",
+			"self-hosted",
+			"authentication"
+		],
+		"logo": "logos/snapp.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "snipe-it",
+		"name": "Snipe It",
+		"description": "Snipe-IT is an open-source asset management platform built for IT departments.",
+		"category": "productivity",
+		"tags": [
+			"inventory",
+			"open-source",
+			"asset-management",
+			"business",
+			"self-hosted"
+		],
+		"logo": "logos/snipe-it.webp",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "soft-serve",
+		"name": "Soft Serve",
+		"description": "Soft Serve is a self-hosted Git server with an SSH TUI, HTTP Git access, Git LFS support, and simple repository management.",
+		"category": "devtools",
+		"tags": [
+			"git",
+			"ssh",
+			"developer-tools",
+			"self-hosted"
+		],
+		"logo": "logos/soft-serve.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "soju",
+		"name": "Soju",
+		"description": "A user-friendly IRC bouncer with a modern web interface",
+		"category": "communication",
+		"tags": [
+			"irc",
+			"bouncer",
+			"chat",
+			"messaging",
+			"relay"
+		],
+		"logo": "logos/soju.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "soketi",
+		"name": "Soketi",
+		"description": "Soketi is your simple, fast, and resilient open-source WebSockets server.",
+		"category": "communication",
+		"tags": [
+			"websockets",
+			"open",
+			"source",
+			"messaging"
+		],
+		"logo": "logos/soketi.jpg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "solidping",
+		"name": "SolidPing",
+		"description": "Distributed, self-hostable uptime monitoring: 40 check types, multi-region workers, private agents, status pages, incidents and on-call escalation — in a…",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"uptime",
+			"status-page",
+			"observability",
+			"alerts"
+		],
+		"logo": "logos/solidping.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "sonarr",
+		"name": "Sonarr",
+		"description": "Sonarr⁠ (formerly NZBdrone) is a PVR for usenet and bittorrent users. It can monitor multiple RSS feeds for new episodes of your favorite shows and will…",
+		"category": "media",
+		"tags": [
+			"media",
+			"server",
+			"tv"
+		],
+		"logo": "logos/sonarr.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "spacetimedb",
+		"name": "SpacetimeDB",
+		"description": "SpacetimeDB is a relational database with a built-in server runtime. Clients connect directly to the database and run server-side logic (modules) inside it,…",
+		"category": "database",
+		"tags": [
+			"database",
+			"realtime",
+			"backend"
+		],
+		"logo": "logos/spacetimedb.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "sparkyfitness",
+		"name": "Sparkyfitness",
+		"description": "SparkyFitness is a comprehensive fitness tracking and management application designed to help users monitor their nutrition, exercise, and body…",
+		"category": "other",
+		"tags": [
+			"sparkyfitness",
+			"fitness",
+			"health",
+			"nutrition",
+			"exercise",
+			"body measurements"
+		],
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "speedtest-tracker",
+		"name": "Speedtest Tracker",
+		"description": "Speedtest Tracker runs scheduled internet speed tests and stores the results in a self-hosted dashboard.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"network",
+			"speedtest"
+		],
+		"logo": "logos/speedtest-tracker.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "stalwart",
+		"name": "Stalwart",
+		"description": "Stalwart Mail Server is an open-source mail server solution with JMAP, IMAP4, POP3, and SMTP support and a wide range of modern features. It is written in…",
+		"category": "communication",
+		"tags": [
+			"email",
+			"smtp",
+			"jmap",
+			"imap4",
+			"pop3",
+			"self-hosted",
+			"mail-server"
+		],
+		"logo": "logos/stalwart.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "statping-ng",
+		"name": "Statping-NG",
+		"description": "Statping-NG is an easy-to-use status page for monitoring websites and applications with beautiful metrics, analytics, and health checks.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"status-page"
+		],
+		"logo": "logos/statping-ng.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "statusnook",
+		"name": "Statusnook",
+		"description": "Effortlessly deploy a status page and start monitoring endpoints in minutes",
+		"category": "monitoring",
+		"tags": [
+			"go",
+			"html",
+			"monitoring",
+			"sqlite",
+			"self",
+			"hosted",
+			"status",
+			"page",
+			"htmx",
+			"smtp",
+			"slack"
+		],
+		"logo": "logos/statusnook.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "steedos",
+		"name": "Steedos",
+		"description": "Steedos is an open-source low-code platform and alternative to Salesforce, designed to help you build enterprise applications like CRM with clicks, not code.",
+		"category": "other",
+		"tags": [
+			"crm",
+			"low-code"
+		],
+		"logo": "logos/steedos.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "stirling",
+		"name": "Stirling PDF",
+		"description": "A locally hosted one-stop shop for all your PDF needs",
+		"category": "other",
+		"tags": [
+			"pdf",
+			"tools"
+		],
+		"logo": "logos/stirling.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "stirling-pdf",
+		"name": "Stirling Pdf",
+		"description": "Stirling is a powerful web based PDF manipulation tool",
+		"category": "productivity",
+		"tags": [
+			"pdf",
+			"manipulation",
+			"web",
+			"tool"
+		],
+		"logo": "logos/stirling-pdf.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "storyden",
+		"name": "Storyden",
+		"description": "With a fresh new take on traditional bulletin board forum software, Storyden is a modern, secure and extensible platform for building communities.",
+		"category": "other",
+		"tags": [
+			"forum",
+			"discussion",
+			"community",
+			"open-source"
+		],
+		"logo": "logos/storyden.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "strapi",
+		"name": "Strapi",
+		"description": "Open-source headless CMS to build powerful APIs with built-in content management.",
+		"category": "devtools",
+		"tags": [
+			"cms",
+			"headless",
+			"mysql",
+			"api",
+			"content-management"
+		],
+		"logo": "logos/strapi.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "struxa",
+		"name": "Struxa",
+		"description": "Struxa is a self-hosted, open-source server management panel — a modern, fully typed replacement for Pterodactyl.",
+		"category": "other",
+		"tags": [
+			"hosting",
+			"game-server",
+			"panel",
+			"self-hosted"
+		],
+		"logo": "logos/struxa.svg",
+		"source": "dokploy",
+		"services": 5
+	},
+	{
+		"id": "supertokens-with-mysql",
+		"name": "Supertokens With Mysql",
+		"description": "An open-source authentication solution that simplifies the implementation of secure user authentication and session management for web and mobile applications.",
+		"category": "security",
+		"tags": [
+			"supertokens",
+			"login",
+			"authentication",
+			"authorization",
+			"oauth",
+			"user-management",
+			"session-management",
+			"access-control",
+			"otp",
+			"magic-link",
+			"passwordless"
+		],
+		"logo": "logos/supertokens-with-mysql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "surrealdb",
+		"name": "SurrealDB",
+		"description": "SurrealDB is a native, open-source, multi-model database that lets you store and manage data across relational, document, graph, time-series, vector &…",
+		"category": "database",
+		"tags": [
+			"database",
+			"sql",
+			"surrealdb"
+		],
+		"logo": "logos/surrealdb.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "synapse",
+		"name": "Synapse",
+		"description": "Synapse is the reference homeserver implementation for Matrix, an open standard for secure, decentralised, real-time communication.",
+		"category": "communication",
+		"tags": [
+			"matrix",
+			"communication"
+		],
+		"logo": "logos/synapse.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "syncthing",
+		"name": "Syncthing",
+		"description": "Syncthing synchronizes files between two or more computers in real time.",
+		"category": "storage",
+		"tags": [
+			"filestorage",
+			"data",
+			"synchronization",
+			"file-sync",
+			"backup"
+		],
+		"logo": "logos/syncthing.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "systemprompt",
+		"name": "systemprompt",
+		"description": "Self-owned AI control plane: governance gateway for Claude, OpenAI, and Gemini with policy checks, audit trails, rate limits, and MCP orchestration.…",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"self-hosted"
+		],
+		"logo": "logos/systemprompt.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "tailscale-exitnode",
+		"name": "Tailscale Exit nodes",
+		"description": "Tailscale ExitNode is a feature that lets you route your internet traffic through a specific device in your Tailscale network.",
+		"category": "other",
+		"tags": [
+			"network"
+		],
+		"logo": "logos/tailscale-exitnode.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "tandoor-recipes",
+		"name": "Tandoor Recipes",
+		"description": "Tandoor Recipes is a self-hosted recipe manager, meal planner, and shopping list application.",
+		"category": "other",
+		"tags": [
+			"recipes",
+			"meal-planning",
+			"self-hosted"
+		],
+		"logo": "logos/tandoor-recipes.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "tela",
+		"name": "tela",
+		"description": "Self-hostable, markdown-native team wiki with live collaboration, full-text and semantic search, WebDAV sync, public spaces, Slidev decks, PDF export, and a…",
+		"category": "productivity",
+		"tags": [
+			"wiki",
+			"documentation",
+			"knowledge-base",
+			"markdown",
+			"collaboration",
+			"ai"
+		],
+		"logo": "logos/tela.png",
+		"source": "dokploy",
+		"services": 6
+	},
+	{
+		"id": "termix",
+		"name": "Termix",
+		"description": "All-in-One SSH & Remote Desktop management app.",
+		"category": "devtools",
+		"tags": [
+			"ssh",
+			"terminal",
+			"remote-desktop",
+			"rdp",
+			"vnc",
+			"server-management",
+			"remote-access"
+		],
+		"logo": "logos/termix.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "terraria-server",
+		"name": "Terraria Server",
+		"description": "Docker multi-arch Image for Terraria Server.",
+		"category": "media",
+		"tags": [
+			"terraria"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "tianji",
+		"name": "Tianji",
+		"description": "Tianji is a lightweight web analytic service and uptime monitoring tool.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"monitoring",
+			"web",
+			"uptime"
+		],
+		"logo": "logos/tianji.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "timescaledb",
+		"name": "TimescaleDB",
+		"description": "TimescaleDB is an open-source time-series database packaged as a PostgreSQL extension, optimized for fast ingest and real-time analytics with standard SQL.",
+		"category": "database",
+		"tags": [
+			"database",
+			"postgresql",
+			"time-series",
+			"analytics",
+			"sql"
+		],
+		"logo": "logos/timescaledb.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "tolgee",
+		"name": "Tolgee",
+		"description": "Tolgee is a localization management platform for developers and translators.",
+		"category": "productivity",
+		"tags": [
+			"localization",
+			"translation",
+			"management",
+			"platform",
+			"self-hosted",
+			"i18n",
+			"translations"
+		],
+		"logo": "logos/tolgee.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "tor-browser",
+		"name": "Tor Browser",
+		"description": "A Dockerized Tor Browser accessible via web VNC (noVNC) and VNC client.",
+		"category": "security",
+		"tags": [
+			"privacy",
+			"security",
+			"browser",
+			"tor"
+		],
+		"logo": "logos/tor-browser.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "trailbase",
+		"name": "Trailbase",
+		"description": "A blazingly fast Rust/SQLite/Wasmtime app server with type-safe APIs",
+		"category": "devtools",
+		"tags": [
+			"trailbase",
+			"backend",
+			"saas",
+			"mobile",
+			"api",
+			"database"
+		],
+		"logo": "logos/trailbase.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "transmission",
+		"name": "Transmission",
+		"description": "Fast, easy, and free BitTorrent client.",
+		"category": "media",
+		"tags": [
+			"bittorrent",
+			"torrent",
+			"peer-to-peer"
+		],
+		"logo": "logos/transmission.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "trek",
+		"name": "TREK",
+		"description": "A minimalist, self-hosted trip planner with Kanban-style task boards, budgets, packing lists, interactive maps, real-time collaboration, and OIDC single…",
+		"category": "productivity",
+		"tags": [
+			"travel",
+			"planning",
+			"productivity"
+		],
+		"logo": "logos/trek.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "triliumnext",
+		"name": "Triliumnext",
+		"description": "Build your personal knowledge base with TriliumNext Notes.",
+		"category": "productivity",
+		"tags": [
+			"self-hosted",
+			"notes",
+			"todo",
+			"organize",
+			"markdown",
+			"wiki"
+		],
+		"logo": "logos/triliumnext.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "trmnl-larapaper",
+		"name": "TRMNL LaraPaper",
+		"description": "LaraPaper is a self-hosted application (BYOS) to manage TRMNL e-ink devices.",
+		"category": "other",
+		"tags": [
+			"e-ink"
+		],
+		"logo": "logos/trmnl-larapaper.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "tuwunel",
+		"name": "Tuwunel",
+		"description": "High performance Matrix homeserver written in Rust. Official successor to conduwuit - a scalable, low-cost, enterprise-ready alternative to Synapse.",
+		"category": "communication",
+		"tags": [
+			"matrix",
+			"chat",
+			"messaging",
+			"rust"
+		],
+		"logo": "logos/tuwunel.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "typebot",
+		"name": "Typebot",
+		"description": "Typebot is an open-source chatbot builder platform.",
+		"category": "ai",
+		"tags": [
+			"chatbot",
+			"builder",
+			"open-source"
+		],
+		"logo": "logos/typebot.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "typecho",
+		"name": "Typecho",
+		"description": "Typecho æ˜¯ä¸€ä¸ªè½»é‡çº§çš„å¼€æºåšå®¢ç¨‹åºï¼ŒåŸºäºŽ PHP å¼€å‘ï¼Œæ”¯æŒå¤šç§æ•°æ®åº“ï¼Œç®€æ´è€Œå¼ºå¤§ã€‚",
+		"category": "cms",
+		"tags": [
+			"blog",
+			"cms",
+			"php"
+		],
+		"logo": "logos/typecho.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "typesense",
+		"name": "Typesense",
+		"description": "Typesense is a fast, open-source search engine for building modern search experiences.",
+		"category": "productivity",
+		"tags": [
+			"search",
+			"search-engine",
+			"search-api",
+			"elasticsearch-alternative"
+		],
+		"logo": "logos/typesense.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "umami",
+		"name": "Umami",
+		"description": "Umami is a simple website analytics tool and an alternative to Google Analytics.",
+		"category": "analytics",
+		"tags": [
+			"analytics",
+			"insights",
+			"privacy"
+		],
+		"logo": "logos/umami.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "unifi",
+		"name": "Unifi Network",
+		"description": "Unifi Network is an open-source enterprise network management platform for wireless networks.",
+		"category": "networking",
+		"tags": [
+			"self-hosted",
+			"networking"
+		],
+		"logo": "logos/unifi.webp",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "unleash",
+		"name": "Unleash",
+		"description": "Open-source feature management platform",
+		"category": "other",
+		"tags": [
+			"feature-flag",
+			"feature-management",
+			"feature-toggle",
+			"remote-configuration"
+		],
+		"logo": "logos/unleash.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "unleash-with-postgresql",
+		"name": "Unleash With Postgresql",
+		"description": "Open source feature flag management for enterprises.",
+		"category": "devtools",
+		"tags": [
+			"unleash",
+			"feature flags",
+			"feature toggles",
+			"ab testing",
+			"open source"
+		],
+		"logo": "logos/unleash-with-postgresql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "unleash-without-database",
+		"name": "Unleash Without Database",
+		"description": "Open source feature flag management for enterprises.",
+		"category": "devtools",
+		"tags": [
+			"unleash",
+			"feature flags",
+			"feature toggles",
+			"ab testing",
+			"open source"
+		],
+		"logo": "logos/unleash-without-database.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "unstructured",
+		"name": "Unstructured",
+		"description": "Unstructured provides a platform and tools to ingest and process unstructured documents for Retrieval Augmented Generation (RAG) and model fine-tuning.",
+		"category": "ai",
+		"tags": [
+			"workflow",
+			"orchestration",
+			"data-pipeline",
+			"python",
+			"data",
+			"machine-learning",
+			"data-science",
+			"nlp",
+			"unstructured",
+			"ocr",
+			"data-extraction"
+		],
+		"logo": "logos/unstructured.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "upsnap",
+		"name": "Upsnap",
+		"description": "Upsnap is a simple network device monitor and dashboard built on PocketBase.",
+		"category": "monitoring",
+		"tags": [
+			"network",
+			"monitoring",
+			"dashboard",
+			"self-hosted"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "uptime-kotlin",
+		"name": "Uptime Kotlin",
+		"description": "Uptime Kotlin is an open-source monitoring tool that tracks the uptime of your websites and services.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "uptime-kuma",
+		"name": "Uptime Kuma",
+		"description": "Uptime Kuma is a monitoring tool for tracking the status and performance of your applications in real-time.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"status",
+			"performance",
+			"web",
+			"services",
+			"applications",
+			"real-time"
+		],
+		"logo": "logos/uptime-kuma.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "uptime-kuma-with-mariadb",
+		"name": "Uptime Kuma With Mariadb",
+		"description": "Uptime Kuma is a monitoring tool for tracking the status and performance of your applications in real-time.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"status",
+			"performance",
+			"web",
+			"services",
+			"applications",
+			"real-time"
+		],
+		"logo": "logos/uptime-kuma-with-mariadb.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "uptime-kuma-with-mysql",
+		"name": "Uptime Kuma With Mysql",
+		"description": "Uptime Kuma is a monitoring tool for tracking the status and performance of your applications in real-time.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"status",
+			"performance",
+			"web",
+			"services",
+			"applications",
+			"real-time"
+		],
+		"logo": "logos/uptime-kuma-with-mysql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "usesend",
+		"name": "Usesend",
+		"description": "Usesend is an open-source alternative to Resend, Sendgrid, Mailgun and Postmark etc.",
+		"category": "communication",
+		"tags": [
+			"resend",
+			"mailer",
+			"marketing emails",
+			"transaction emails",
+			"self-hosting",
+			"postmark"
+		],
+		"logo": "logos/usesend.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "valkey",
+		"name": "Valkey",
+		"description": "Valkey is an open-source fork of Redis, backed by AWS and the Linux Foundation. It provides a high-performance, in-memory data structure store with Redis…",
+		"category": "database",
+		"tags": [
+			"database",
+			"cache",
+			"redis",
+			"in-memory"
+		],
+		"logo": "logos/valkey.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "vault",
+		"name": "Vault",
+		"description": "HashiCorp Vault securely stores and controls access to secrets.",
+		"category": "security",
+		"tags": [
+			"vault",
+			"hashicorp",
+			"secrets",
+			"security",
+			"encryption"
+		],
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "vaultwarden",
+		"name": "Vaultwarden",
+		"description": "Vaultwarden is a lightweight password manager that works with Bitwarden apps.",
+		"category": "security",
+		"tags": [
+			"open-source",
+			"password manager",
+			"security"
+		],
+		"logo": "logos/vaultwarden.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "velix-api",
+		"name": "Velix API",
+		"description": "Self-hosted WhatsApp API with multi-instance support, webhooks, n8n node, and Chatwoot integration.",
+		"category": "devtools",
+		"tags": [
+			"whatsapp",
+			"api",
+			"messaging",
+			"chatbot",
+			"automation"
+		],
+		"logo": "logos/velix-api.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "verdaccio",
+		"name": "Verdaccio",
+		"description": "A lightweight Node.js private proxy registry",
+		"category": "other",
+		"tags": [
+			"node-js",
+			"package-repository",
+			"npm"
+		],
+		"logo": "logos/verdaccio.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "versitygw",
+		"name": "VersityGW",
+		"description": "VersityGW is a high-performance S3-compatible gateway that exposes POSIX filesystems, ScoutFS, Azure Blob, or other S3 servers over the S3 API, with a…",
+		"category": "storage",
+		"tags": [
+			"s3",
+			"storage",
+			"gateway",
+			"object-storage"
+		],
+		"logo": "logos/versitygw.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "vert",
+		"name": "Vert",
+		"description": "The next-generation file converter. Open source, fully local and free forever.",
+		"category": "devtools",
+		"tags": [
+			"converter",
+			"file",
+			"documents",
+			"files",
+			"ffmpeg",
+			"wasm"
+		],
+		"logo": "logos/vert.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "victoriametrics",
+		"name": "VictoriaMetrics",
+		"description": "VictoriaMetrics is a fast, cost-effective, and scalable monitoring solution and time series database. It is a drop-in replacement for Prometheus.",
+		"category": "monitoring",
+		"tags": [
+			"monitoring",
+			"metrics",
+			"time-series",
+			"prometheus"
+		],
+		"logo": "logos/victoriametrics.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "vikunja-with-postgresql",
+		"name": "Vikunja With Postgresql",
+		"description": "The open-source, self-hostable to-do app. Organize everything, on all platforms.",
+		"category": "productivity",
+		"tags": [
+			"productivity",
+			"todo"
+		],
+		"logo": "logos/vikunja-with-postgresql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "wakapi",
+		"name": "Wakapi",
+		"description": "A minimalist, self-hosted WakaTime-compatible backend for coding statistics",
+		"category": "analytics",
+		"tags": [
+			"productivity",
+			"self-hosted",
+			"developer-tools",
+			"time-tracker",
+			"wakatime",
+			"wakatime-api",
+			"coding-statistics",
+			"statistics",
+			"timetracking",
+			"analytics"
+		],
+		"logo": "logos/wakapi.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "wallabag",
+		"name": "wallabag",
+		"description": "wallabag is a self-hosted read-it-later application for saving, classifying, and reading web articles.",
+		"category": "productivity",
+		"tags": [
+			"read-it-later",
+			"bookmarks",
+			"articles",
+			"self-hosted"
+		],
+		"logo": "logos/wallabag.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "wallos",
+		"name": "Wallos",
+		"description": "Wallos is a self-hosted subscription tracking application that helps you manage and monitor your subscriptions, providing insights into your spending habits.",
+		"category": "finance",
+		"tags": [
+			"finance",
+			"subscription",
+			"budgeting",
+			"expense-tracking",
+			"spending"
+		],
+		"logo": "logos/wallos.png",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "waxum",
+		"name": "Waxum",
+		"description": "Waxum is a WhatsApp REST API gateway written in Rust, shipped as a single native binary. Multi-session, multi-database (SQLite/Postgres/MySQL), 130+ REST…",
+		"category": "devtools",
+		"tags": [
+			"api",
+			"whatsapp",
+			"messaging",
+			"automation"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "weaviate",
+		"name": "Weaviate",
+		"description": "Weaviate is an open-source vector database that stores both objects and vectors, allowing for combining vector search with structured filtering.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"vector-database",
+			"semantic-search",
+			"machine-learning",
+			"bm25",
+			"embeddings",
+			"llm"
+		],
+		"logo": "logos/weaviate.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "web-check",
+		"name": "Web Check",
+		"description": "All-in-one OSINT tool for analysing any website",
+		"category": "monitoring",
+		"tags": [
+			"osint",
+			"website",
+			"analysis",
+			"website-analyzer",
+			"security",
+			"performance",
+			"seo"
+		],
+		"logo": "logos/web-check.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "whatomate",
+		"name": "Whatomate",
+		"description": "Modern, open-source WhatsApp Business Platform with real-time chat, chatbot automation, bulk campaigns, template management, and voice calling via Meta's…",
+		"category": "communication",
+		"tags": [
+			"communication",
+			"automation",
+			"crm"
+		],
+		"logo": "logos/whatomate.svg",
+		"source": "dokploy",
+		"services": 3
+	},
+	{
+		"id": "whoogle",
+		"name": "Whoogle",
+		"description": "Whoogle is a self-hosted, privacy-focused search engine front-end for accessing Google search results without tracking and data collection.",
+		"category": "productivity",
+		"tags": [
+			"privacy",
+			"search engine"
+		],
+		"logo": "logos/whoogle.png",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "wikijs",
+		"name": "Wiki.js",
+		"description": "The most powerful and extensible open source Wiki software.",
+		"category": "productivity",
+		"tags": [
+			"knowledge-base",
+			"self-hosted",
+			"documentation",
+			"wiki",
+			"collaboration"
+		],
+		"logo": "logos/wikijs.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "windshift",
+		"name": "Windshift",
+		"description": "Self-hosted work management platform with projects, tasks, sprints, and team collaboration.",
+		"category": "productivity",
+		"tags": [
+			"project-management",
+			"collaboration",
+			"productivity",
+			"self-hosted"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "wise-mcp",
+		"name": "Wise MCP (unofficial)",
+		"description": "Self-hosted MCP connector that lets Claude and ChatGPT read your Wise balances, card payments and transfers, and prepare transfers you approve twice.",
+		"category": "ai",
+		"tags": [
+			"ai",
+			"mcp",
+			"finance"
+		],
+		"logo": "logos/wise-mcp.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "wordpress",
+		"name": "Wordpress",
+		"description": "Wordpress is a free and open source content management system (CMS) for publishing and managing websites.",
+		"category": "cms",
+		"tags": [
+			"cms"
+		],
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "wordpress-with-mariadb",
+		"name": "Wordpress With Mariadb",
+		"description": "WordPress is open source software you can use to create a beautiful website, blog, or app.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management",
+			"mariadb"
+		],
+		"logo": "logos/wordpress-with-mariadb.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "wordpress-with-mysql",
+		"name": "Wordpress With Mysql",
+		"description": "WordPress is open source software you can use to create a beautiful website, blog, or app.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management",
+			"mysql"
+		],
+		"logo": "logos/wordpress-with-mysql.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "wordpress-without-database",
+		"name": "Wordpress Without Database",
+		"description": "WordPress is open source software you can use to create a beautiful website, blog, or app.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"blog",
+			"content",
+			"management"
+		],
+		"logo": "logos/wordpress-without-database.svg",
+		"source": "coolify",
+		"services": 1
+	},
+	{
+		"id": "wuzapi",
+		"name": "WuzAPI",
+		"description": "A RESTful API service for WhatsApp with multiple device support and concurrent sessions.",
+		"category": "devtools",
+		"tags": [
+			"api",
+			"whatsapp",
+			"messaging",
+			"automation"
+		],
+		"logo": "logos/wuzapi.png",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "yamtrack",
+		"name": "Yamtrack",
+		"description": "Yamtrack is a self hosted media tracker for movies, tv shows, anime, manga, video games and books.",
+		"category": "productivity",
+		"tags": [
+			"self-hosted",
+			"automation",
+			"tracker",
+			"media",
+			"movies",
+			"shows",
+			"anime",
+			"manga",
+			"games",
+			"books",
+			"comics",
+			"redis"
+		],
+		"logo": "logos/yamtrack.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "yamtrack-with-postgresql",
+		"name": "Yamtrack With Postgresql",
+		"description": "Yamtrack is a self hosted media tracker for movies, tv shows, anime, manga, video games and books.",
+		"category": "productivity",
+		"tags": [
+			"self-hosted",
+			"automation",
+			"tracker",
+			"media",
+			"movies",
+			"shows",
+			"anime",
+			"manga",
+			"games",
+			"books",
+			"comics"
+		],
+		"logo": "logos/yamtrack-with-postgresql.svg",
+		"source": "coolify",
+		"services": 3
+	},
+	{
+		"id": "yourls",
+		"name": "YOURLS",
+		"description": "YOURLS (Your Own URL Shortener) is a set of PHP scripts that will allow you to run your own URL shortening service (a la TinyURL or Bitly).",
+		"category": "other",
+		"tags": [
+			"url-shortener",
+			"php"
+		],
+		"logo": "logos/yourls.svg",
+		"source": "dokploy",
+		"services": 2
+	},
+	{
+		"id": "yt-dlp-webui",
+		"name": "yt-dlp-webui",
+		"description": "yt-dlp-webui is a web interface for yt-dlp, allowing you to download videos and audio from various platforms with a simple web UI.",
+		"category": "media",
+		"tags": [
+			"downloader",
+			"youtube",
+			"media",
+			"webui"
+		],
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "yuvomi",
+		"name": "Yuvomi",
+		"description": "Privacy-first, self-hosted family planner: tasks, calendar sync, shopping, meals, budget, health and more in one PWA. No cloud, no subscriptions, no tracking.",
+		"category": "productivity",
+		"tags": [
+			"open-source",
+			"family",
+			"productivity",
+			"calendar",
+			"tasks"
+		],
+		"logo": "logos/yuvomi.svg",
+		"source": "dokploy",
+		"services": 1
+	},
+	{
+		"id": "zero",
+		"name": "Zero",
+		"description": "Query-driven sync engine for TypeScript apps backed by Postgres.",
+		"category": "devtools",
+		"tags": [
+			"sync",
+			"realtime",
+			"postgres",
+			"typescript",
+			"local-first"
+		],
+		"logo": "logos/zero.svg",
+		"source": "coolify",
+		"services": 2
+	},
+	{
+		"id": "zipline",
+		"name": "Zipline",
+		"description": "A ShareX/file upload server that is easy to use, packed with features, and with an easy setup!",
+		"category": "storage",
+		"tags": [
+			"media-system",
+			"storage",
+			"zipline",
+			"file-sharing",
+			"upload",
+			"sharing"
+		],
+		"logo": "logos/zipline.png",
+		"source": "dokploy",
+		"services": 2
+	}
+]

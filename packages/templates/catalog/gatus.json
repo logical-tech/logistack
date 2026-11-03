@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "gatus",
+	"name": "Gatus",
+	"description": "Gatus is an automated service health dashboard for monitoring HTTP, DNS, TCP, ICMP, and other endpoints.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"status-page",
+		"uptime",
+		"observability"
+	],
+	"logo": "logos/gatus.svg",
+	"website": "https://gatus.io/",
+	"docs": "https://github.com/TwiN/gatus#configuration",
+	"version": "v5.36.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/gatus",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "gatus",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "gatus-data",
+					"target": "/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/config/config.yaml",
+					"content": "storage:\n  type: sqlite\n  path: /data/data.db\n\nui:\n  title: Gatus\n  header: Gatus\n\nendpoints:\n  - name: Example website\n    group: external\n    url: \"https://example.org/\"\n    interval: 5m\n    conditions:\n      - \"[STATUS] == 200\"\n      - \"[CERTIFICATE_EXPIRATION] > 48h\"\n"
+				}
+			],
+			"kind": "application",
+			"image": "ghcr.io/twin/gatus:v5.36.0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

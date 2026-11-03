@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "botpress",
+	"name": "Botpress",
+	"description": "Botpress is a platform for building conversational AI agents. It provides a simple and effective solution for building conversational AI agents from anywhere.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"self-hosted"
+	],
+	"logo": "logos/botpress.png",
+	"website": "https://botpress.com/",
+	"docs": "https://botpress.com/docs",
+	"version": "12.31.9",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/botpress",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "botpress",
+			"dependsOn": [
+				"botpress-db"
+			],
+			"env": {
+				"BP_HOST": "0.0.0.0",
+				"NODE_ENV": "production",
+				"PG_HOST": "${{ services.botpress-db.host }}",
+				"PG_PORT": "5432",
+				"PG_USER": "postgres",
+				"PG_PASSWORD": "${{ inputs.dbPassword }}",
+				"PG_SSL": "false",
+				"PORT": "80"
+			},
+			"volumes": [
+				{
+					"name": "data",
+					"target": "/botpress/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "botpress/server:12.31.9",
+			"ports": [
+				{
+					"target": 81,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 81,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "botpress-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "botpress"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15-alpine"
+		}
+	]
+}

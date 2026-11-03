@@ -1,0 +1,16 @@
+{
+	"name": "@logistack/templates",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./catalog/*": "./catalog/*"
+	},
+	"scripts": {
+		"typecheck": "tsc -p .",
+		"convert": "bun scripts/convert.ts"
+	},
+	"dependencies": {
+		"@logistack/contracts": "workspace:*"
+	}
+}

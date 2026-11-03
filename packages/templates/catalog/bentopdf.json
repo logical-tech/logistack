@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "bentopdf",
+	"name": "BentoPDF",
+	"description": "BentoPDF is a lightweight PDF conversion microservice that exposes a simple HTTP API for generating PDFs.",
+	"category": "devtools",
+	"tags": [
+		"pdf",
+		"converter",
+		"api",
+		"utility"
+	],
+	"logo": "logos/bentopdf.png",
+	"website": "https://bentopdf.com/",
+	"docs": "https://www.bentopdf.com/docs/",
+	"version": "sha-72d20bb",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/bentopdf",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "bentopdf",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/alam00000/bentopdf-simple:sha-72d20bb",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,222 @@
+{
+	"schema": 1,
+	"id": "litellm",
+	"name": "Litellm",
+	"description": "Call all LLM APIs using the OpenAI format. Use Bedrock, Azure, OpenAI, Cohere, Anthropic, Ollama, Sagemaker, HuggingFace, Replicate, Groq (100+ LLMs)",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"qdrant",
+		"weaviate",
+		"langchain",
+		"openai",
+		"gpt",
+		"llm",
+		"lmops",
+		"anthropic",
+		"cohere",
+		"ollama",
+		"sagemaker",
+		"huggingface",
+		"replicate",
+		"groq",
+		"proxy",
+		"openai-compatible",
+		"monitoring"
+	],
+	"logo": "logos/litellm.svg",
+	"website": "https://docs.litellm.ai/",
+	"docs": "https://docs.litellm.ai/",
+	"version": "main-stable",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/litellm.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "litellmDomain",
+			"label": "Litellm domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "masterkeyPassword",
+			"label": "Masterkey password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "uiUser",
+			"label": "UI user",
+			"type": "username"
+		},
+		{
+			"key": "uiPassword",
+			"label": "UI password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "openaiApiKey",
+			"label": "Openai API key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "openaiApiBase",
+			"label": "Openai API base",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "anthropicApiKey",
+			"label": "Anthropic API key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "anthropicApiBase",
+			"label": "Anthropic API base",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "voyageApiKey",
+			"label": "Voyage API key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "voyageApiBase",
+			"label": "Voyage API base",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "storeModelInDb",
+			"label": "Store model in DB",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "litellm",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"LITELLM_LOG": "ERROR",
+				"LITELLM_MODE": "PRODUCTION",
+				"LITELLM_MASTER_KEY": "${{ inputs.masterkeyPassword }}",
+				"UI_USERNAME": "${{ inputs.uiUser }}",
+				"UI_PASSWORD": "${{ inputs.uiPassword }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/litellm",
+				"REDIS_HOST": "${{ services.redis.host }}",
+				"REDIS_PORT": "6379",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "litellm",
+				"OPENAI_API_KEY": "${{ inputs.openaiApiKey }}",
+				"OPENAI_API_BASE": "${{ inputs.openaiApiBase }}",
+				"ANTHROPIC_API_KEY": "${{ inputs.anthropicApiKey }}",
+				"ANTHROPIC_API_BASE": "${{ inputs.anthropicApiBase }}",
+				"VOYAGE_API_KEY": "${{ inputs.voyageApiKey }}",
+				"VOYAGE_API_BASE": "${{ inputs.voyageApiBase }}",
+				"STORE_MODEL_IN_DB": "${{ inputs.storeModelInDb }}"
+			},
+			"volumes": [],
+			"files": [
+				{
+					"target": "/app/config.yaml",
+					"content": "general_settings:\n  proxy_batch_write_at: 60\n  store_prompts_in_spend_logs: false\n\nrouter_settings:\n  redis_host: os.environ/REDIS_HOST\n  redis_port: os.environ/REDIS_PORT\n  redis_password: os.environ/REDIS_PASSWORD\n  enable_pre_call_check: true\n\nlitellm_settings:\n  set_verbose: false\n  json_logs: true\n  log_raw_request_response: false\n  # turn_off_message_logging: false\n  # redact_user_api_key_info: false\n  service_callback: [\"prometheus_system\"]\n  drop_params: true\n  # max_budget: 100\n  # budget_duration: 30d\n  num_retries: 1\n  request_timeout: 120\n  telemetry: false\n  cache: true\n  cache_params:\n    type: redis\n    host: os.environ/REDIS_HOST\n    port: os.environ/REDIS_PORT\n    password: os.environ/REDIS_PASSWORD\n    namespace: \"litellm_cache\"\n    ttl: 600\n  success_callback:\n    # - \"langfuse\"\n    - \"prometheus\"\n  failure_callback:\n    # - \"langfuse\"\n    - \"prometheus\"\nmodel_list:\n  # OpenAI\n  - model_name: gpt-4\n    litellm_params:\n      model: openai/gpt-4\n      api_key: os.environ/OPENAI_API_KEY\n      api_base: os.environ/OPENAI_API_BASE\n  - model_name: gpt-4o\n    litellm_params:\n      model: openai/gpt-4o\n      api_key: os.environ/OPENAI_API_KEY\n      api_base: os.environ/OPENAI_API_BASE\n  - model_name: gpt-4o-mini\n    litellm_params:\n      model: openai/gpt-4o-mini\n      api_key: os.environ/OPENAI_API_KEY\n      api_base: os.environ/OPENAI_API_BASE\n  # Anthropic\n  - model_name: claude-3-haiku\n    litellm_params:\n      model: claude-3-haiku-20240307\n      api_key: \"os.environ/ANTHROPIC_API_KEY\"\n      api_base: \"os.environ/ANTHROPIC_API_BASE\"\n  - model_name: claude-3.5-sonnet\n    litellm_params:\n      model: claude-3-5-sonnet-20240620\n      api_key: \"os.environ/ANTHROPIC_API_KEY\"\n      api_base: \"os.environ/ANTHROPIC_API_BASE\"\n  # VoyageAI\n  - model_name: voyage-law-2\n    model_info:\n      output_vector_size: 1024\n    litellm_params:\n      model: voyage/voyage-law-2\n      api_key: \"os.environ/VOYAGE_API_KEY\"\n      api_base: \"os.environ/VOYAGE_API_BASE\"\n      # rpm: 300\n      # tpm: 1000000\n  - model_name: voyage-multilingual-2\n    model_info:\n      mode: embedding\n      max_tokens: 32000\n      max_input_tokens: 32000\n      output_vector_size: 1024\n    litellm_params:\n      model: voyage/voyage-multilingual-2\n      api_key: \"os.environ/VOYAGE_API_KEY\"\n      api_base: \"os.environ/VOYAGE_API_BASE\"\n      input_cost_per_token: 0.00000012\n      output_cost_per_token: 0\n      # rpm: 300\n      # tpm: 1000000\n"
+				}
+			],
+			"kind": "application",
+			"image": "ghcr.io/berriai/litellm-database:main-stable",
+			"command": [
+				"--config",
+				"/app/config.yaml",
+				"--port",
+				"4000",
+				"--num_workers",
+				"2",
+				"--run_gunicorn",
+				"--max_requests_before_restart",
+				"1000"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"python",
+					"-c",
+					"import urllib.request;urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness',timeout=5)"
+				]
+			},
+			"public": {
+				"port": 4000,
+				"domain": "litellmDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "litellm",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}"
+			},
+			"volumes": [
+				{
+					"name": "pg-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"command": [
+				"redis-server",
+				"--appendonly",
+				"yes"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		}
+	]
+}

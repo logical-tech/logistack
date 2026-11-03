@@ -1,0 +1,97 @@
+{
+	"schema": 1,
+	"id": "adguardhome",
+	"name": "AdGuard Home",
+	"description": "AdGuard Home is a network-wide ad and tracker blocker.",
+	"category": "security",
+	"tags": [
+		"privacy",
+		"security",
+		"dns",
+		"ad-blocking"
+	],
+	"logo": "logos/adguardhome.svg",
+	"website": "https://adguard.com/",
+	"docs": "https://github.com/AdguardTeam/AdGuardHome/wiki",
+	"version": "sha256:e2e1b48c832f",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/adguardhome",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "adguardhome",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "adguardhome-work",
+					"target": "/opt/adguardhome/work"
+				},
+				{
+					"name": "adguardhome-conf",
+					"target": "/opt/adguardhome/conf"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "adguard/adguardhome@sha256:e2e1b48c832f7705be915873f95de0d5114de573736441d7f2923a8a6293027c",
+			"ports": [
+				{
+					"target": 53,
+					"published": 53,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 53,
+					"published": 53,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 67,
+					"published": 67,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 68,
+					"published": 68,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 853,
+					"published": 853,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 853,
+					"published": 853,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 6060,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

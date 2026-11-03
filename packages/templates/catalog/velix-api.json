@@ -1,0 +1,114 @@
+{
+	"schema": 1,
+	"id": "velix-api",
+	"name": "Velix API",
+	"description": "Self-hosted WhatsApp API with multi-instance support, webhooks, n8n node, and Chatwoot integration.",
+	"category": "devtools",
+	"tags": [
+		"whatsapp",
+		"api",
+		"messaging",
+		"chatbot",
+		"automation"
+	],
+	"logo": "logos/velix-api.svg",
+	"website": "https://velix.dev/",
+	"docs": "https://github.com/paulolinder/velix-api#readme",
+	"version": "1.1.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/velix-api",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "velix-api",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://postgres:${{ inputs.dbPassword }}@${{ services.postgres.host }}:5432/velix?sslmode=disable",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"HTTP_PORT": "8080",
+				"APP_ENV": "production",
+				"LOG_LEVEL": "info",
+				"MEDIA_STORAGE_PATH": "/data/media",
+				"ENGINE_STORE_PATH": "/data/instances",
+				"ENGINE_AUTO_RECONNECT": "true",
+				"ENGINE_MAX_INSTANCES": "200",
+				"REGISTRATION_ENABLED": "false"
+			},
+			"volumes": [
+				{
+					"name": "velix-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/paulolinder/velix-api:1.1.0",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "velix",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

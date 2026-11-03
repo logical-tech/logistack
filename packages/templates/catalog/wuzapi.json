@@ -1,0 +1,100 @@
+{
+	"schema": 1,
+	"id": "wuzapi",
+	"name": "WuzAPI",
+	"description": "A RESTful API service for WhatsApp with multiple device support and concurrent sessions.",
+	"category": "devtools",
+	"tags": [
+		"api",
+		"whatsapp",
+		"messaging",
+		"automation"
+	],
+	"logo": "logos/wuzapi.png",
+	"website": "https://www.wuzapi.app/",
+	"docs": "https://github.com/asternic/wuzapi/blob/main/README.md",
+	"version": "v1.0.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/wuzapi",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminToken",
+			"label": "Admin token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "wuzapi-server",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"WUZAPI_ADMIN_TOKEN": "${{ inputs.adminToken }}",
+				"WUZAPI_GLOBAL_ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"DB_USER": "wuzapi",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"DB_NAME": "wuzapi",
+				"DB_HOST": "${{ services.db.host }}",
+				"DB_PORT": "5432",
+				"TZ": "UTC"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "asternic/wuzapi:sha-30c1805",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "wuzapi",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "wuzapi"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

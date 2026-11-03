@@ -1,0 +1,148 @@
+{
+	"schema": 1,
+	"id": "firefly-iii",
+	"name": "Firefly III",
+	"description": "Firefly III is a personal finance manager for tracking budgets and expenses.",
+	"category": "finance",
+	"tags": [
+		"finance",
+		"budgeting",
+		"self-hosted"
+	],
+	"logo": "logos/firefly-iii.svg",
+	"website": "https://www.firefly-iii.org/",
+	"docs": "https://docs.firefly-iii.org/",
+	"version": "6.6.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/firefly-iii",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "appKey",
+			"label": "App key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "siteOwner",
+			"label": "Site owner",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "cronToken",
+			"label": "Cron token",
+			"type": "secret",
+			"length": 32,
+			"charset": "hex"
+		}
+	],
+	"services": [
+		{
+			"name": "firefly-iii",
+			"dependsOn": [
+				"firefly-iii-db"
+			],
+			"env": {
+				"APP_KEY": "base64:${{ inputs.appKey }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
+				"TRUSTED_PROXIES": "**",
+				"TZ": "UTC",
+				"SITE_OWNER": "${{ inputs.siteOwner }}",
+				"DEFAULT_LANGUAGE": "en_US",
+				"DEFAULT_LOCALE": "equal",
+				"DB_CONNECTION": "mysql",
+				"DB_HOST": "${{ services.firefly-iii-db.host }}",
+				"DB_PORT": "3306",
+				"DB_DATABASE": "firefly",
+				"DB_USERNAME": "firefly",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"STATIC_CRON_TOKEN": "${{ inputs.cronToken }}"
+			},
+			"volumes": [
+				{
+					"name": "firefly-iii-upload",
+					"target": "/var/www/html/storage/upload"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "fireflyiii/core:version-6.6.3",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "firefly-iii-db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "firefly",
+				"MYSQL_USER": "firefly",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_RANDOM_ROOT_PASSWORD": "yes"
+			},
+			"volumes": [
+				{
+					"name": "firefly-iii-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11.8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "firefly-iii-cron",
+			"dependsOn": [
+				"firefly-iii"
+			],
+			"env": {
+				"TZ": "UTC",
+				"STATIC_CRON_TOKEN": "${{ inputs.cronToken }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "alpine:3.22",
+			"command": [
+				"sh",
+				"-c",
+				"apk add --no-cache tzdata wget && \\\n(ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true) && \\\necho \"0 3 * * * wget -qO- http://firefly-iii:8080/api/v1/cron/$STATIC_CRON_TOKEN; echo\" | crontab - && \\\ncrond -f -L /dev/stdout\n"
+			],
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

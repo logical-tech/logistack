@@ -1,0 +1,72 @@
+{
+	"schema": 1,
+	"id": "open-design",
+	"name": "Open Design",
+	"description": "Open Design is a local-first, open-source design tool with native desktop apps, a large library of design systems, and an extensible plugin ecosystem that runs across many coding agents.",
+	"category": "other",
+	"tags": [
+		"design",
+		"self-hosted"
+	],
+	"logo": "logos/open-design.svg",
+	"website": "https://open-design.ai/",
+	"docs": "https://open-design.ai/",
+	"version": "0.16.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/open-design",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "apiToken",
+			"label": "API token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "open-design",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"NODE_OPTIONS": "--max-old-space-size=192",
+				"OD_BIND_HOST": "0.0.0.0",
+				"OD_PORT": "7456",
+				"OD_API_TOKEN": "${{ inputs.apiToken }}",
+				"OD_ALLOWED_ORIGINS": "https://${{ inputs.mainDomain }},http://${{ inputs.mainDomain }}",
+				"OD_DISABLE_API_AUTH": "1"
+			},
+			"volumes": [
+				{
+					"name": "open-design-data",
+					"target": "/app/.od"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/nexu-io/od:0.16.1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"fetch('http://127.0.0.1:7456/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+				]
+			},
+			"public": {
+				"port": 7456,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,127 @@
+{
+	"schema": 1,
+	"id": "omniroute",
+	"name": "OmniRoute",
+	"description": "The Free AI Gateway - Never stop coding. Connect every AI tool to 177 providers — 50+ free — through one endpoint.  Auto-fallback. RTK + Caveman compression saves 15–95% tokens. Never hit limits. ~1.9B+ documented free tokens/month — up to ~2.5B in your first month with signup credits.",
+	"category": "ai",
+	"tags": [
+		"artificial-intelligence",
+		"gateway",
+		"generative-ai",
+		"llm",
+		"monitoring",
+		"routing"
+	],
+	"logo": "logos/omniroute.png",
+	"website": "https://github.com/diegosouzapw/OmniRoute",
+	"docs": "https://github.com/diegosouzapw/OmniRoute/wiki",
+	"version": "3.8.17",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/omniroute",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "apiKeySecret",
+			"label": "API key secret",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "initialPassword",
+			"label": "Initial password",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "storageEncryptionKey",
+			"label": "Storage encryption key",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "omniroute",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"PORT": "20128",
+				"DASHBOARD_PORT": "${PORT:-20128}",
+				"API_PORT": "20129",
+				"API_HOST": "0.0.0.0",
+				"HOSTNAME": "0.0.0.0",
+				"DATA_DIR": "/app/data",
+				"PATH": "/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+			},
+			"volumes": [
+				{
+					"name": "omniroute-prod-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "diegosouzapw/omniroute:3.8.17",
+			"ports": [
+				{
+					"target": 20128,
+					"protocol": "tcp"
+				},
+				{
+					"target": 20129,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 20128,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-prod-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:8.6.2-alpine",
+			"command": [
+				"redis-server",
+				"--save",
+				"60",
+				"1",
+				"--loglevel",
+				"warning"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

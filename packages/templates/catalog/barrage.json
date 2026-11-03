@@ -1,0 +1,75 @@
+{
+	"schema": 1,
+	"id": "barrage",
+	"name": "Barrage",
+	"description": "Barrage is a minimalistic Deluge WebUI app with full mobile support. It features a responsive mobile-first design, allowing you to manage your torrents with ease from any device.",
+	"category": "other",
+	"tags": [
+		"torrents",
+		"deluge",
+		"mobile"
+	],
+	"logo": "logos/barrage.png",
+	"website": "https://github.com/maulik9898/barrage",
+	"docs": "https://github.com/maulik9898/barrage/blob/main/README.md",
+	"version": "0.3.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/barrage",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "nextauthSecret",
+			"label": "Nextauth secret",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "delugePassword",
+			"label": "Deluge password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "barragePassword",
+			"label": "Barrage password",
+			"type": "password",
+			"length": 16
+		}
+	],
+	"services": [
+		{
+			"name": "barrage",
+			"dependsOn": [],
+			"env": {
+				"NEXTAUTH_SECRET": "${{ inputs.nextauthSecret }}",
+				"NEXTAUTH_URL": "http://",
+				"DELUGE_URL": "http://your-deluge-ip:8112",
+				"DELUGE_PASSWORD": "${{ inputs.delugePassword }}",
+				"BARRAGE_PASSWORD": "${{ inputs.barragePassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "maulik9898/barrage:0.3.0",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

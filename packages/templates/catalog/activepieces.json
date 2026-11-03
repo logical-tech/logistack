@@ -1,0 +1,137 @@
+{
+	"schema": 1,
+	"id": "activepieces",
+	"name": "Activepieces",
+	"description": "Open-source no-code business automation tool. An alternative to Zapier, Make.com, and Tray.",
+	"category": "automation",
+	"tags": [
+		"automation",
+		"workflow",
+		"no-code",
+		"no code",
+		"open source"
+	],
+	"logo": "logos/activepieces.svg",
+	"website": "https://www.activepieces.com/",
+	"docs": "https://www.activepieces.com/docs",
+	"version": "0.91.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/activepieces",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "apiKey",
+			"label": "API key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "activepieces",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"AP_ENGINE_EXECUTABLE_PATH": "dist/packages/engine/main.js",
+				"AP_API_KEY": "${{ inputs.apiKey }}",
+				"AP_ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"AP_JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"AP_ENVIRONMENT": "prod",
+				"AP_FRONTEND_URL": "https://${{ inputs.mainDomain }}",
+				"AP_WEBHOOK_TIMEOUT_SECONDS": "30",
+				"AP_TRIGGER_DEFAULT_POLL_INTERVAL": "5",
+				"AP_POSTGRES_DATABASE": "activepieces",
+				"AP_POSTGRES_HOST": "${{ services.postgres.host }}",
+				"AP_POSTGRES_PORT": "5432",
+				"AP_POSTGRES_USERNAME": "activepieces",
+				"AP_POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"AP_EXECUTION_MODE": "UNSANDBOXED",
+				"AP_REDIS_HOST": "${{ services.redis.host }}",
+				"AP_REDIS_PORT": "6379",
+				"AP_SANDBOX_RUN_TIME_SECONDS": "600",
+				"AP_TELEMETRY_ENABLED": "false",
+				"AP_TEMPLATES_SOURCE_URL": "https://cloud.activepieces.com/api/v1/flow-templates"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "activepieces/activepieces:0.91.2",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "activepieces",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "activepieces"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

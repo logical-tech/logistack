@@ -1,0 +1,117 @@
+{
+	"schema": 1,
+	"id": "flagsmith",
+	"name": "Flagsmith",
+	"description": "Flagsmith is an open-source feature flagging and remote config service.",
+	"category": "other",
+	"tags": [
+		"feature-flag",
+		"feature-management",
+		"feature-toggle",
+		"remote-configuration"
+	],
+	"logo": "logos/flagsmith.png",
+	"website": "https://www.flagsmith.com/",
+	"docs": "https://docs.flagsmith.com/",
+	"version": "2.177.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/flagsmith",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "databasePassword",
+			"label": "Database password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "djangoSecretKey",
+			"label": "Django secret key",
+			"type": "password",
+			"length": 8
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.databasePassword }}",
+				"POSTGRES_DB": "flagsmith"
+			},
+			"volumes": [
+				{
+					"name": "pgdata",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15.5-alpine"
+		},
+		{
+			"name": "flagsmith",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql://postgres:${{ inputs.databasePassword }}@${{ services.postgres.host }}:5432/flagsmith",
+				"USE_POSTGRES_FOR_ANALYTICS": "true",
+				"ENVIRONMENT": "production",
+				"DJANGO_ALLOWED_HOSTS": "*",
+				"FLAGSMITH_DOMAIN": "${{ inputs.mainDomain }}",
+				"DJANGO_SECRET_KEY": "${{ inputs.djangoSecretKey }}",
+				"TASK_RUN_METHOD": "TASK_PROCESSOR",
+				"PROMETHEUS_ENABLED": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "docker.flagsmith.com/flagsmith/flagsmith:2.177.1",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			}
+		},
+		{
+			"name": "flagsmith-task-processor",
+			"dependsOn": [
+				"flagsmith"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql://postgres:${{ inputs.databasePassword }}@${{ services.postgres.host }}:5432/flagsmith",
+				"USE_POSTGRES_FOR_ANALYTICS": "true",
+				"DJANGO_ALLOWED_HOSTS": "*",
+				"PROMETHEUS_ENABLED": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "docker.flagsmith.com/flagsmith/flagsmith:2.177.1",
+			"command": [
+				"run-task-processor"
+			],
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			]
+		}
+	]
+}

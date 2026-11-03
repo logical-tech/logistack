@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "librespeed",
+	"name": "Librespeed",
+	"description": "Self-hosted lightweight Speed Test.",
+	"category": "devtools",
+	"tags": [
+		"speedtest",
+		"internet-speed",
+		"networking",
+		"monitoring",
+		"self-hosted"
+	],
+	"website": "https://librespeed.org/",
+	"docs": "https://github.com/librespeed/speedtest",
+	"version": "sha256:a1bd2e1e95ab",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/librespeed.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "librespeedDomain",
+			"label": "Librespeed domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "librespeed",
+			"dependsOn": [],
+			"env": {
+				"MODE": "standalone",
+				"TELEMETRY": "false",
+				"DISTANCE": "km",
+				"WEBPORT": "82"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/librespeed/speedtest@sha256:a1bd2e1e95abb7a56b8671c0f174a359c5f0c57066562f3f45485205d32c54ea",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl 127.0.0.1:82 || exit 1"
+				]
+			},
+			"public": {
+				"port": 82,
+				"domain": "librespeedDomain"
+			}
+		}
+	],
+	"logo": "logos/librespeed.svg"
+}

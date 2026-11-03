@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "agent-zero",
+	"name": "Agent Zero",
+	"description": "Agent Zero is an open-source autonomous AI agent framework with memory and tool use capabilities.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"agent",
+		"automation"
+	],
+	"logo": "logos/agent-zero.svg",
+	"website": "https://www.agent-zero.ai/",
+	"docs": "https://www.agent-zero.ai/p/docs/",
+	"version": "v1.9",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/agent-zero",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "authLogin",
+			"label": "Auth login",
+			"type": "username"
+		},
+		{
+			"key": "authPassword",
+			"label": "Auth password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "agent-zero",
+			"dependsOn": [],
+			"env": {
+				"AUTH_LOGIN": "${{ inputs.authLogin }}",
+				"AUTH_PASSWORD": "${{ inputs.authPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "agent-zero-data",
+					"target": "/a0/usr"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "agent0ai/agent-zero:v1.9",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

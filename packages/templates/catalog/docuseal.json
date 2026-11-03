@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "docuseal",
+	"name": "Docuseal",
+	"description": "Document Signing for Everyone free forever for individuals, extensible for businesses and developers. Open Source Alternative to DocuSign, PandaDoc and more.",
+	"category": "productivity",
+	"tags": [
+		"documentation",
+		"document-signing"
+	],
+	"logo": "logos/docuseal.png",
+	"website": "https://www.docuseal.com/",
+	"docs": "https://www.docuseal.co/",
+	"version": "sha256:d3fb5bd51509",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/docuseal.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "docusealDomain",
+			"label": "Docuseal domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "docuseal",
+			"dependsOn": [],
+			"env": {
+				"HOST": "https://${{ inputs.docusealDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "docuseal-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docuseal/docuseal@sha256:d3fb5bd51509aac293e858c37e113882a70d5b97975fa44bfbf232bbfb17175d",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "docusealDomain"
+			}
+		}
+	]
+}

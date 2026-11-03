@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "convertx",
+	"name": "Convertx",
+	"description": "A self-hosted online file converter. Supports over a thousand different formats.",
+	"category": "devtools",
+	"tags": [
+		"converter",
+		"file",
+		"documents",
+		"files",
+		"directories"
+	],
+	"docs": "https://github.com/C4illin/ConvertX",
+	"version": "sha256:6259e0c1e063",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/convertx.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "convertxDomain",
+			"label": "Convertx domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "convertxjwtsecretPassword",
+			"label": "Convertxjwtsecret password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "convertx",
+			"dependsOn": [],
+			"env": {
+				"ACCOUNT_REGISTRATION": "false",
+				"HTTP_ALLOWED": "true",
+				"ALLOW_UNAUTHENTICATED": "false",
+				"AUTO_DELETE_EVERY_N_HOURS": "24",
+				"JWT_SECRET": "${{ inputs.convertxjwtsecretPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "convertx-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/c4illin/convertx@sha256:6259e0c1e063120b1ddbc6937372a83be58182b2c9dc82264f58e100907b3e51",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "convertxDomain"
+			}
+		}
+	]
+}

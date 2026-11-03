@@ -1,0 +1,48 @@
+{
+	"schema": 1,
+	"id": "mazanoke",
+	"name": "MAZANOKE",
+	"description": "MAZANOKE is a modern, self-hosted image hosting and sharing platform. Upload, organize, and share your images with a clean and intuitive interface.",
+	"category": "storage",
+	"tags": [
+		"image-hosting",
+		"file-sharing",
+		"self-hosted",
+		"media",
+		"gallery"
+	],
+	"logo": "logos/mazanoke.svg",
+	"website": "https://github.com/civilblur/mazanoke",
+	"docs": "https://github.com/civilblur/mazanoke",
+	"version": "sha256:ca83cddd90cd",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/mazanoke",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "mazanoke",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/civilblur/mazanoke@sha256:ca83cddd90cd1e4b43102884bf39025731a1c7569f3bbda9d6530de72528cbab",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

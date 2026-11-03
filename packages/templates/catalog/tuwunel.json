@@ -1,0 +1,69 @@
+{
+	"schema": 1,
+	"id": "tuwunel",
+	"name": "Tuwunel",
+	"description": "High performance Matrix homeserver written in Rust. Official successor to conduwuit - a scalable, low-cost, enterprise-ready alternative to Synapse.",
+	"category": "communication",
+	"tags": [
+		"matrix",
+		"chat",
+		"messaging",
+		"rust"
+	],
+	"logo": "logos/tuwunel.svg",
+	"website": "https://tuwunel.chat/",
+	"docs": "https://matrix-construct.github.io/tuwunel/",
+	"version": "v1.5.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/tuwunel",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "registrationToken",
+			"label": "Registration token",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "tuwunel",
+			"dependsOn": [],
+			"env": {
+				"TUWUNEL_SERVER_NAME": "${{ inputs.mainDomain }}",
+				"TUWUNEL_ALLOW_REGISTRATION": "false",
+				"TUWUNEL_REGISTRATION_TOKEN": "${{ inputs.registrationToken }}",
+				"TUWUNEL_ADDRESS": "0.0.0.0",
+				"TUWUNEL_PORT": "6167"
+			},
+			"volumes": [
+				{
+					"name": "tuwunel-data",
+					"target": "/var/lib/tuwunel"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/matrix-construct/tuwunel:v1.5.0",
+			"ports": [
+				{
+					"target": 6167,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 6167,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

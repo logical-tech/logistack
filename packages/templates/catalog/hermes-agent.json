@@ -1,0 +1,104 @@
+{
+	"schema": 1,
+	"id": "hermes-agent",
+	"name": "Hermes Agent",
+	"description": "Hermes Agent - autonomous AI agent with persistent memory, scheduling, and built-in web dashboard.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"agent",
+		"llm",
+		"chatbot",
+		"hermes",
+		"openrouter",
+		"anthropic",
+		"openai"
+	],
+	"logo": "logos/hermes-agent.png",
+	"docs": "https://github.com/NousResearch/hermes-agent",
+	"version": "v2026.8.3",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/hermes-agent.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "hermesagentDomain",
+			"label": "Hermesagent domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "hermesagentUser",
+			"label": "Hermesagent user",
+			"type": "username"
+		},
+		{
+			"key": "hermesagentPassword",
+			"label": "Hermesagent password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "hermesagentSecret",
+			"label": "Hermesagent secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		}
+	],
+	"services": [
+		{
+			"name": "hermes-agent",
+			"dependsOn": [],
+			"env": {
+				"HERMES_DASHBOARD": "1",
+				"HERMES_DASHBOARD_HOST": "0.0.0.0",
+				"HERMES_DASHBOARD_PORT": "9119",
+				"HERMES_DASHBOARD_BASIC_AUTH_USERNAME": "${{ inputs.hermesagentUser }}",
+				"HERMES_DASHBOARD_BASIC_AUTH_PASSWORD": "${{ inputs.hermesagentPassword }}",
+				"HERMES_DASHBOARD_BASIC_AUTH_SECRET": "${{ inputs.hermesagentSecret }}",
+				"HERMES_HOME": "/opt/data",
+				"GATEWAY_ALLOW_ALL_USERS": "true",
+				"HERMES_REDACT_SECRETS": "true",
+				"HERMES_UID": "1000",
+				"HERMES_GID": "1000",
+				"HERMES_ENABLE_PROJECT_PLUGINS": "true",
+				"HERMES_ALLOW_PRIVATE_URLS": "false",
+				"FIRECRAWL_API_KEY": "",
+				"FIRECRAWL_API_URL": "https://api.firecrawl.dev",
+				"OPENROUTER_API_KEY": "",
+				"ANTHROPIC_API_KEY": "",
+				"OPENAI_API_KEY": "",
+				"GOOGLE_API_KEY": ""
+			},
+			"volumes": [
+				{
+					"name": "hermes-home",
+					"target": "/opt/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "nousresearch/hermes-agent:v2026.8.3",
+			"command": [
+				"gateway",
+				"run"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"test -d /opt/data || exit 1"
+				]
+			},
+			"public": {
+				"port": 9119,
+				"domain": "hermesagentDomain"
+			}
+		}
+	]
+}

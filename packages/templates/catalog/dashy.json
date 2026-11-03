@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "dashy",
+	"name": "Dashy",
+	"description": "A self-hostable personal dashboard built for you. Includes status-checking, widgets, themes, icon packs, a UI editor and tons more!",
+	"category": "productivity",
+	"tags": [
+		"dashboard",
+		"personal",
+		"self-hostable",
+		"monitoring",
+		"self-hosted",
+		"homelab"
+	],
+	"website": "https://dashy.to/",
+	"docs": "https://dashy.to/docs",
+	"version": "sha256:f803c008f1f1",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/dashy.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "dashyDomain",
+			"label": "Dashy domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "dashy",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "dashy-conf-yml",
+					"target": "/app/public/conf.yml"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lissy93/dashy@sha256:f803c008f1f17d62e7eded2e9149ba73513f929c97d60742cf6359c02d33e970",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:8080/"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "dashyDomain"
+			}
+		}
+	]
+}

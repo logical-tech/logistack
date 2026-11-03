@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "prozesswerk",
+	"name": "Prozesswerk",
+	"description": "Describe business processes in plain language and get editable BPMN 2.0 diagrams. Self-hosted and model-agnostic — works with any OpenAI-compatible LLM.",
+	"category": "ai",
+	"tags": [
+		"bpmn",
+		"ai",
+		"automation",
+		"self-hosted"
+	],
+	"logo": "logos/prozesswerk.svg",
+	"docs": "https://github.com/guidoesser/prozesswerk#readme",
+	"version": "1.0.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/prozesswerk",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "llmApiKey",
+			"label": "Llm API key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "prozesswerk",
+			"dependsOn": [],
+			"env": {
+				"LLM_API_KEY": "${{ inputs.llmApiKey }}",
+				"LLM_BASE_URL": "https://api.openai.com/v1",
+				"LLM_MODEL": "gpt-4o"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/guidoesser/prozesswerk:1.0.0",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

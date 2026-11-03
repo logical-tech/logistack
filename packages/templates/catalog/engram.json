@@ -1,0 +1,124 @@
+{
+	"schema": 1,
+	"id": "engram",
+	"name": "Engram",
+	"description": "Persistent memory sync server for AI coding agents (MCP).",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"memory",
+		"mcp",
+		"agents",
+		"self-hosted",
+		"postgres"
+	],
+	"logo": "logos/engram.png",
+	"docs": "https://github.com/Gentleman-Programming/engram",
+	"version": "1.20.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/engram.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "engramDomain",
+			"label": "Engram domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresDb",
+			"label": "Postgres DB",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "jwtsecretSecret",
+			"label": "Jwtsecret secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "cloudtokenPassword",
+			"label": "Cloudtoken password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "engram",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"ENGRAM_CLOUD_HOST": "0.0.0.0",
+				"ENGRAM_PORT": "8080",
+				"ENGRAM_DATABASE_URL": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}:5432/${{ inputs.postgresDb }}?sslmode=disable",
+				"ENGRAM_JWT_SECRET": "${{ inputs.jwtsecretSecret }}",
+				"ENGRAM_CLOUD_TOKEN": "${{ inputs.cloudtokenPassword }}",
+				"ENGRAM_CLOUD_ADMIN": "${{ inputs.adminPassword }}",
+				"ENGRAM_CLOUD_ALLOWED_PROJECTS": "*"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/gentleman-programming/engram:1.20.0",
+			"command": [
+				"cloud",
+				"serve"
+			],
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "engramDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "engram-db"
+			},
+			"volumes": [
+				{
+					"name": "engram-postgresql-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		}
+	]
+}

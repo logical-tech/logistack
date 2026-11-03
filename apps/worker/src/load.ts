@@ -1,0 +1,242 @@
+import type { ApplicationSpec, DatabaseSpec } from "@logistack/contracts";
+import {
+	type CompileMount,
+	decrypt,
+	dockerName,
+	type ResolvedEnvVar,
+	resolveEnv,
+} from "@logistack/core";
+import {
+	domain,
+	environment,
+	envVar,
+	gitProvider,
+	mount,
+	node,
+	project,
+	registry,
+	service,
+	sshKey,
+} from "@logistack/db";
+import type { RegistryAuth } from "@logistack/docker";
+import {
+	type GitProvider,
+	genericConfig,
+	gitProviders,
+	instantiate,
+} from "@logistack/providers";
+import { and, eq, or } from "drizzle-orm";
+import type { Ctx } from "./ctx.ts";
+
+export type ServiceRow = typeof service.$inferSelect;
+export type DomainRow = typeof domain.$inferSelect;
+
+export type ServiceContext = {
+	service: ServiceRow & { spec: ApplicationSpec | DatabaseSpec };
+	organizationId: string;
+	env: Record<string, ResolvedEnvVar>;
+	mounts: CompileMount[];
+	domains: DomainRow[];
+	registry: { host: string; flat: boolean; auth?: RegistryAuth } | null;
+	/** How the clone authenticates; absent for public https repositories. */
+	git?: GitAuth;
+	/** Swarm id of the node the service is pinned to, when the row names one. */
+	pinnedSwarmNodeId?: string;
+};
+
+export const svcName = (ctx: Ctx, serviceId: string) =>
+	`${ctx.cfg.LS_NAME_PREFIX}${dockerName("svc", serviceId)}`;
+export const envNetworkName = (ctx: Ctx, environmentId: string) =>
+	`${ctx.cfg.LS_NAME_PREFIX}${dockerName("env", environmentId)}`;
+
+/** `<registry>/<org>/<service>:<deploymentId>`; `ls-local/...` when the image never leaves this node. */
+export function imageRef(
+	ctx: Ctx,
+	sc: ServiceContext,
+	deploymentId: string,
+): string {
+	const org = sc.organizationId.toLowerCase().replace(/[^a-z0-9._-]/g, "-");
+	const host = sc.registry?.host ?? "ls-local";
+	const svc = svcName(ctx, sc.service.id);
+	return sc.registry?.flat
+		? `${host}/${org}-${svc}:${deploymentId}`
+		: `${host}/${org}/${svc}:${deploymentId}`;
+}
+
+export type GitAuth =
+	| { kind: "https"; url: string; username: string; password: string }
+	| { kind: "ssh"; url: string; privateKey: string; knownHosts?: string };
+
+/**
+ * Clone credentials from the provider: a fresh installation token for a GitHub App, the
+ * configured token otherwise, or the deploy key of a generic SSH remote.
+ */
+async function gitAuth(
+	ctx: Ctx,
+	gp: typeof gitProvider.$inferSelect,
+	repository: string,
+): Promise<GitAuth> {
+	const config = JSON.parse(await decrypt(ctx.masterKey, gp.configEncrypted));
+	if (gp.kind === "generic") {
+		const g = genericConfig.parse(config);
+		const [key] = await ctx.db
+			.select({ privateKeyEncrypted: sshKey.privateKeyEncrypted })
+			.from(sshKey)
+			.where(
+				and(
+					eq(sshKey.id, g.sshKeyId),
+					eq(sshKey.organizationId, gp.organizationId),
+				),
+			);
+		if (!key) throw new Error(`git provider ${gp.id}: its SSH key was removed`);
+		return {
+			kind: "ssh",
+			url: g.repoUrl,
+			privateKey: await decrypt(ctx.masterKey, key.privateKeyEncrypted),
+			...(g.knownHosts ? { knownHosts: g.knownHosts } : {}),
+		};
+	}
+	const provider = instantiate(gitProviders[gp.kind], config) as GitProvider;
+	// getCloneUrl embeds the credentials; they are split back out so they travel through env, never argv.
+	const u = new URL(await provider.getCloneUrl(repository));
+	const { username, password } = u;
+	u.username = "";
+	u.password = "";
+	return {
+		kind: "https",
+		url: u.href,
+		username: decodeURIComponent(username),
+		password: decodeURIComponent(password),
+	};
+}
+
+export async function loadService(
+	ctx: Ctx,
+	serviceId: string,
+): Promise<ServiceContext | null> {
+	const [row] = await ctx.db
+		.select({ service, organizationId: project.organizationId, project })
+		.from(service)
+		.innerJoin(environment, eq(environment.id, service.environmentId))
+		.innerJoin(project, eq(project.id, environment.projectId))
+		.where(eq(service.id, serviceId));
+	if (!row) return null;
+	const svc = row.service;
+	if (svc.spec.kind === "compose")
+		throw new Error(
+			`service ${svc.id}: compose services are not supported yet`,
+		);
+	const orgId = row.organizationId;
+	const open = (v: string) => decrypt(ctx.masterKey, v);
+
+	const vars = await ctx.db
+		.select()
+		.from(envVar)
+		.where(
+			or(
+				and(eq(envVar.scope, "organization"), eq(envVar.scopeId, orgId)),
+				and(eq(envVar.scope, "project"), eq(envVar.scopeId, row.project.id)),
+				and(
+					eq(envVar.scope, "environment"),
+					eq(envVar.scopeId, svc.environmentId),
+				),
+				and(eq(envVar.scope, "service"), eq(envVar.scopeId, svc.id)),
+			),
+		);
+	const env = resolveEnv(
+		await Promise.all(
+			vars.map(async (v) => ({
+				scope: v.scope,
+				key: v.key,
+				value: await open(v.valueEncrypted),
+				isSecret: v.isSecret,
+				isBuildTime: v.isBuildTime,
+			})),
+		),
+	);
+
+	const mounts = await Promise.all(
+		(await ctx.db.select().from(mount).where(eq(mount.serviceId, svc.id))).map(
+			async (m): Promise<CompileMount> => ({
+				id: m.id,
+				kind: m.kind,
+				target: m.target,
+				readOnly: m.readOnly,
+				...(m.contentEncrypted
+					? { content: await open(m.contentEncrypted) }
+					: {}),
+			}),
+		),
+	);
+
+	const domains = await ctx.db
+		.select()
+		.from(domain)
+		.where(eq(domain.serviceId, svc.id));
+
+	const [reg] = await ctx.db
+		.select()
+		.from(registry)
+		.where(
+			and(eq(registry.organizationId, orgId), eq(registry.isDefault, true)),
+		);
+	const host = reg?.url.replace(/^[a-z]+:\/\//, "").replace(/\/+$/, "");
+	const auth =
+		reg?.username && reg.passwordEncrypted
+			? {
+					username: reg.username,
+					password: await open(reg.passwordEncrypted),
+					serveraddress: host as string,
+				}
+			: undefined;
+
+	let git: GitAuth | undefined;
+	const spec = svc.spec;
+	if (
+		spec.kind === "application" &&
+		spec.source.type === "git" &&
+		spec.source.gitProviderId
+	) {
+		const [gp] = await ctx.db
+			.select()
+			.from(gitProvider)
+			.where(
+				and(
+					eq(gitProvider.id, spec.source.gitProviderId),
+					eq(gitProvider.organizationId, orgId),
+				),
+			);
+		if (!gp)
+			throw new Error(
+				`service ${svc.id}: git provider ${spec.source.gitProviderId} was removed`,
+			);
+		git = await gitAuth(ctx, gp, spec.source.repository);
+	}
+
+	let pinnedSwarmNodeId: string | undefined;
+	if (svc.nodeId) {
+		const [n] = await ctx.db
+			.select({ swarmNodeId: node.swarmNodeId })
+			.from(node)
+			.where(eq(node.id, svc.nodeId));
+		pinnedSwarmNodeId = n?.swarmNodeId;
+	}
+
+	return {
+		service: { ...svc, spec },
+		organizationId: orgId,
+		env,
+		mounts,
+		domains,
+		registry: host
+			? {
+					host,
+					// Docker Hub repositories are one level deep: <namespace>/<name>.
+					flat: reg?.kind === "dockerhub",
+					...(auth ? { auth } : {}),
+				}
+			: null,
+		...(git ? { git } : {}),
+		...(pinnedSwarmNodeId ? { pinnedSwarmNodeId } : {}),
+	};
+}

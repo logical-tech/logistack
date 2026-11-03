@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "lfsx",
+	"name": "LFSX",
+	"description": "Self-hosted Git LFS server that keeps large binaries off your forge's metered storage.",
+	"category": "devtools",
+	"tags": [
+		"git",
+		"developer-tools",
+		"storage",
+		"self-hosted"
+	],
+	"logo": "logos/lfsx.svg",
+	"website": "https://lfsx.dev/",
+	"docs": "https://lfsx.dev/docs/quickstart",
+	"version": "1.14.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/lfsx",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "lfsx",
+			"dependsOn": [],
+			"env": {
+				"LFSX_AUTH": "github"
+			},
+			"volumes": [
+				{
+					"name": "lfsx-data",
+					"target": "/var/lib/lfsx"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/ferrlabs/lfsx:1.14.1",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

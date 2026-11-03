@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "browserless",
+	"name": "Browserless",
+	"description": "A headless Chrome browser as a service.",
+	"category": "devtools",
+	"tags": [
+		"chrome",
+		"headless",
+		"browser",
+		"service",
+		"automation"
+	],
+	"logo": "logos/browserless.svg",
+	"website": "https://www.browserless.io/",
+	"docs": "https://docs.browserless.io/",
+	"version": "sha256:01e30cb07229",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/browserless.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "browserlessDomain",
+			"label": "Browserless domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "browserlessPassword",
+			"label": "Browserless password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "browserless",
+			"dependsOn": [],
+			"env": {
+				"TOKEN": "${{ inputs.browserlessPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/browserless/chromium@sha256:01e30cb07229a57b97b2c86d6a62ad4f6ba9845fc96f6907e2dc6c49c2d28460",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000/docs"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "browserlessDomain"
+			}
+		}
+	]
+}

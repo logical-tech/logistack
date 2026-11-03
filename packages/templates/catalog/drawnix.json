@@ -1,0 +1,45 @@
+{
+	"schema": 1,
+	"id": "drawnix",
+	"name": "Drawnix",
+	"description": "Drawnix is an application for generating and managing visual content, powered by pubuzhixing/drawnix Docker image.",
+	"category": "other",
+	"tags": [
+		"visualization",
+		"content-generation"
+	],
+	"logo": "logos/drawnix.png",
+	"website": "https://drawnix.com/",
+	"docs": "https://github.com/plait-board/drawnix/blob/develop/README_en.md#docker",
+	"version": "sha256:1faa5576e4bb",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/drawnix",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "drawnix",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "pubuzhixing/drawnix@sha256:1faa5576e4bb70fc6d78a0f0d9b406dd4db9f966a96c53d62ed05b7b02f31c43",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

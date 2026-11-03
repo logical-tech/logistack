@@ -1,0 +1,115 @@
+{
+	"schema": 1,
+	"id": "kimai",
+	"name": "Kimai",
+	"description": "Kimai is a time-tracking app for freelancers and teams.",
+	"category": "finance",
+	"tags": [
+		"invoice",
+		"business",
+		"finance",
+		"time-tracking",
+		"open-source"
+	],
+	"logo": "logos/kimai.svg",
+	"website": "https://www.kimai.org/",
+	"docs": "https://www.kimai.org/documentation",
+	"version": "2.31.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kimai",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "appSecret",
+			"label": "App secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "app",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"APP_ENV": "prod",
+				"DATABASE_URL": "mysql://kimai:${{ inputs.mysqlPassword }}@${{ services.db.host }}/kimai",
+				"TRUSTED_PROXIES": "localhost",
+				"APP_SECRET": "${{ inputs.appSecret }}",
+				"MAILER_FROM": "admin@kimai.local",
+				"MAILER_URL": "null://null",
+				"ADMINMAIL": "admin@kimai.local",
+				"ADMINPASS": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "kimai-data",
+					"target": "/opt/kimai/var"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "kimai/kimai2:apache-2.31.0",
+			"ports": [],
+			"public": {
+				"port": 8001,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "kimai",
+				"MYSQL_USER": "kimai",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.11",
+			"command": [
+				"--character-set-server=utf8mb4",
+				"--collation-server=utf8mb4_unicode_ci",
+				"--innodb-buffer-pool-size=256M",
+				"--innodb-flush-log-at-trx-commit=2"
+			],
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,84 @@
+{
+	"schema": 1,
+	"id": "openinary",
+	"name": "Openinary",
+	"description": "Openinary is a self-hosted Cloudinary alternative.",
+	"category": "media",
+	"tags": [
+		"media",
+		"images",
+		"videos",
+		"cloudinary-alternative",
+		"developer-tools"
+	],
+	"logo": "logos/openinary.svg",
+	"website": "https://openinary.dev/",
+	"docs": "https://docs.openinary.dev/",
+	"version": "sha256:4965e429ce5c",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/openinary",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "betterAuthSecret",
+			"label": "Better auth secret",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "openinary",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"MODE": "fullstack",
+				"NEXT_PUBLIC_API_BASE_URL": "/api",
+				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
+				"BETTER_AUTH_URL": "http://${{ inputs.mainDomain }}",
+				"ALLOWED_ORIGIN": "http://${{ inputs.mainDomain }}",
+				"DOCKER_CONTAINER": "true"
+			},
+			"volumes": [
+				{
+					"name": "cache-data",
+					"target": "/app/apps/api/cache"
+				},
+				{
+					"name": "public-files",
+					"target": "/app/apps/api/public"
+				},
+				{
+					"name": "db-data",
+					"target": "/app/data"
+				},
+				{
+					"name": "db-data-2",
+					"target": "/app/web-standalone/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "openinary/openinary@sha256:4965e429ce5ce12ef014826940aa7d83623bf266ad401fe6dd5b8371cbd5c42a",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

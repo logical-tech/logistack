@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "postgresus",
+	"name": "Postgresus",
+	"description": "Deprecated: the project was renamed to Databasus, use the Databasus template instead. Free, open source and self-hosted solution for automated PostgreSQL backups, frozen at its final release",
+	"category": "database",
+	"tags": [
+		"postgres",
+		"backup",
+		"s3"
+	],
+	"logo": "logos/postgresus.svg",
+	"website": "https://databasus.com/",
+	"docs": "https://databasus.com/",
+	"version": "v2.15.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/postgresus",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgresus",
+			"dependsOn": [],
+			"env": {
+				"TZ": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "postgresus-data",
+					"target": "/postgresus-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "rostislavdugin/postgresus:v2.15.3",
+			"ports": [
+				{
+					"target": 4005,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--no-verbose",
+					"--tries=1",
+					"--spider",
+					"http://localhost:4005"
+				]
+			},
+			"public": {
+				"port": 4005,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

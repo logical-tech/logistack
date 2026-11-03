@@ -1,0 +1,54 @@
+{
+	"schema": 1,
+	"id": "bento-pdf",
+	"name": "Bento Pdf",
+	"description": "Process PDFs entirely in your browser. No uploads. No servers. Complete privacy.",
+	"category": "productivity",
+	"tags": [
+		"pdf",
+		"manipulation",
+		"web",
+		"tool"
+	],
+	"logo": "logos/bento-pdf.png",
+	"docs": "https://bentopdf.com/docs",
+	"version": "v1.16.1",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/bento-pdf.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "bentopdfDomain",
+			"label": "Bentopdf domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "bento-pdf",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/alam00000/bentopdf:v1.16.1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8080"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "bentopdfDomain"
+			}
+		}
+	]
+}

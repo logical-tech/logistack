@@ -1,0 +1,55 @@
+{
+	"schema": 1,
+	"id": "gitingest",
+	"name": "Gitingest",
+	"description": "Gitingest is an application that supports Prometheus metrics, Sentry integration, and S3-backed storage.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"s3",
+		"monitoring",
+		"sentry",
+		"metrics"
+	],
+	"logo": "logos/gitingest.png",
+	"website": "https://gitingest.com/",
+	"docs": "https://github.com/coderamp-labs/gitingest#readme",
+	"version": "sha256:00a58a9ef18e",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/gitingest",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "gitingest",
+			"dependsOn": [],
+			"env": {
+				"ALLOWED_HOSTS": "${{ inputs.mainDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "elestio/gitingest@sha256:00a58a9ef18e105b4cdce5d023fcc9dc2bc6b9df618b1252b7d092997da3646c",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

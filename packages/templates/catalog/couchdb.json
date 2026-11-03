@@ -1,0 +1,69 @@
+{
+	"schema": 1,
+	"id": "couchdb",
+	"name": "CouchDB",
+	"description": "CouchDB is a document-oriented NoSQL database that excels at replication and horizontal scaling.",
+	"category": "database",
+	"tags": [
+		"database",
+		"storage"
+	],
+	"logo": "logos/couchdb.png",
+	"website": "https://couchdb.apache.org/",
+	"docs": "https://docs.couchdb.org/en/stable/",
+	"version": "sha256:bed314d10cdf",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/couchdb",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "couchdbUser",
+			"label": "Couchdb user",
+			"type": "username"
+		},
+		{
+			"key": "couchdbPassword",
+			"label": "Couchdb password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "couchdb",
+			"dependsOn": [],
+			"env": {
+				"COUCHDB_USER": "${{ inputs.couchdbUser }}",
+				"COUCHDB_PASSWORD": "${{ inputs.couchdbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "couchdb-data",
+					"target": "/opt/couchdb/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "couchdb@sha256:bed314d10cdf58c0fff63352db4c3f168df58a185a773c0e2295105375c5ef10",
+			"ports": [
+				{
+					"target": 5984,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 5984,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

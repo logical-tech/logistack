@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "it-tools",
+	"name": "It Tools",
+	"description": "IT Tools is a self-hosted solution for managing various IT tasks.",
+	"category": "devtools",
+	"tags": [
+		"it-tools",
+		"management",
+		"self-hosted",
+		"developer",
+		"tools"
+	],
+	"logo": "logos/it-tools.svg",
+	"website": "https://it-tools.tech/",
+	"docs": "https://github.com/corentinth/it-tools",
+	"version": "sha256:8b8128748339",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/it-tools.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "ittoolsDomain",
+			"label": "Ittools domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "it-tools",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "it-tools-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "corentinth/it-tools@sha256:8b8128748339583ca951af03dfe02a9a4d7363f61a216226fc28030731a5a61f",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:80"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "ittoolsDomain"
+			}
+		}
+	]
+}

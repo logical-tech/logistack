@@ -1,0 +1,56 @@
+{
+	"schema": 1,
+	"id": "plark",
+	"name": "Plark",
+	"description": "Self-hosted Website Builder",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"content-management",
+		"blog"
+	],
+	"logo": "logos/plark.svg",
+	"website": "https://plark.com/",
+	"docs": "https://plark.com/get-started",
+	"version": "sha256:b28fd19eec1f",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/plark",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "plark",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "plark-data",
+					"target": "/var/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "plarkinc/plark@sha256:b28fd19eec1f5bcc88865016aa230c7c7bbf51874f71d64f191d1d461f151e8d",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

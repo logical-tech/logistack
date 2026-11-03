@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "actualbudget",
+	"name": "Actualbudget",
+	"description": "A local-first personal finance app.",
+	"category": "finance",
+	"tags": [
+		"budgeting",
+		"actual",
+		"finance",
+		"budget",
+		"money",
+		"expenses",
+		"income"
+	],
+	"website": "https://actualbudget.org/",
+	"docs": "https://actualbudget.org/docs/install/docker",
+	"version": "sha256:06cf186569cf",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/actualbudget.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "actualDomain",
+			"label": "Actual domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "actual-server",
+			"dependsOn": [],
+			"env": {
+				"ACTUAL_LOGIN_METHOD": "password"
+			},
+			"volumes": [
+				{
+					"name": "actual-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "actualbudget/actual-server@sha256:06cf186569cf58d93e12659ff1a517b65b5b0ebee7050a3991d4bd8a1d398da6",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/5006' || exit 1"
+				]
+			},
+			"public": {
+				"port": 5006,
+				"domain": "actualDomain"
+			}
+		}
+	],
+	"logo": "logos/actualbudget.png"
+}

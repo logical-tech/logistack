@@ -1,0 +1,150 @@
+{
+	"schema": 1,
+	"id": "pocket-id-with-postgresql",
+	"name": "Pocket Id With Postgresql",
+	"description": "A simple and secure OIDC provider with passkey authentication",
+	"category": "security",
+	"tags": [
+		"identity",
+		"oidc",
+		"oauth",
+		"passkey",
+		"webauthn",
+		"authentication",
+		"sso",
+		"openid",
+		"postgresql"
+	],
+	"logo": "logos/pocket-id-with-postgresql.png",
+	"docs": "https://pocket-id.org/docs/setup/installation",
+	"version": "v1.13",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/pocket-id-with-postgresql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "pocketidDomain",
+			"label": "Pocketid domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "pocketidPassword",
+			"label": "Pocketid password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "maxmindLicenseKey",
+			"label": "Maxmind license key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpHost",
+			"label": "SMTP host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpFrom",
+			"label": "SMTP from",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpUser",
+			"label": "SMTP user",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpPassword",
+			"label": "SMTP password",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "pocket-id",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"APP_URL": "https://${{ inputs.pocketidDomain }}",
+				"TRUST_PROXY": "true",
+				"DB_PROVIDER": "postgres",
+				"DB_CONNECTION_STRING": "postgresql://${{ inputs.postgresqlUser }}:${{ inputs.postgresqlPassword }}@${{ services.postgresql.host }}:5432/pocketid",
+				"ENCRYPTION_KEY": "${{ inputs.pocketidPassword }}",
+				"KEYS_STORAGE": "database",
+				"MAXMIND_LICENSE_KEY": "${{ inputs.maxmindLicenseKey }}",
+				"SMTP_HOST": "${{ inputs.smtpHost }}",
+				"SMTP_PORT": "587",
+				"SMTP_FROM": "${{ inputs.smtpFrom }}",
+				"SMTP_USER": "${{ inputs.smtpUser }}",
+				"SMTP_PASSWORD": "${{ inputs.smtpPassword }}",
+				"SMTP_TLS": "starttls",
+				"SMTP_SKIP_CERT_VERIFY": "false",
+				"EMAIL_LOGIN_NOTIFICATION_ENABLED": "false",
+				"EMAIL_ONE_TIME_ACCESS_AS_ADMIN_ENABLED": "false",
+				"EMAIL_API_KEY_EXPIRATION_ENABLED": "false",
+				"PUID": "1000",
+				"PGID": "1000"
+			},
+			"volumes": [
+				{
+					"name": "pocket-id-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/pocket-id/pocket-id:v1.13",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/app/pocket-id",
+					"healthcheck"
+				]
+			},
+			"public": {
+				"port": 1411,
+				"domain": "pocketidDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_DB": "pocketid"
+			},
+			"volumes": [
+				{
+					"name": "pocket-id-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

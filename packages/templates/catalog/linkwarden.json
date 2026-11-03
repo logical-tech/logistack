@@ -1,0 +1,136 @@
+{
+	"schema": 1,
+	"id": "linkwarden",
+	"name": "Linkwarden",
+	"description": "A self-hostable collaborative bookmark manager to collect, organize, and preserve web pages.",
+	"category": "productivity",
+	"tags": [
+		"bookmarks",
+		"collaboration",
+		"archive",
+		"links",
+		"self-hosted",
+		"link-sharing"
+	],
+	"logo": "logos/linkwarden.svg",
+	"website": "https://linkwarden.app/",
+	"docs": "https://docs.linkwarden.app/self-hosting/setup",
+	"version": "v2.16.1",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/linkwarden.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "linkwardenDomain",
+			"label": "Linkwarden domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "linkwardennextauthPassword",
+			"label": "Linkwardennextauth password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "meiliPassword",
+			"label": "Meili password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "linkwarden",
+			"dependsOn": [
+				"postgresql",
+				"meilisearch"
+			],
+			"env": {
+				"NEXTAUTH_URL": "https://${{ inputs.linkwardenDomain }}/api/v1/auth",
+				"NEXTAUTH_SECRET": "${{ inputs.linkwardennextauthPassword }}",
+				"MEILI_MASTER_KEY": "${{ inputs.meiliPassword }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}:5432/linkwarden"
+			},
+			"volumes": [
+				{
+					"name": "linkwarden-data",
+					"target": "/data/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/linkwarden/linkwarden:v2.16.1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "linkwardenDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "linkwarden"
+			},
+			"volumes": [
+				{
+					"name": "postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "meilisearch",
+			"dependsOn": [],
+			"env": {
+				"MEILI_MASTER_KEY": "${{ inputs.meiliPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "meilisearch-data",
+					"target": "/meili_data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "getmeili/meilisearch:v1.12.8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:7700/health"
+				]
+			}
+		}
+	]
+}

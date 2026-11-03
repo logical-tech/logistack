@@ -1,0 +1,71 @@
+{
+	"schema": 1,
+	"id": "anse",
+	"name": "Anse",
+	"description": "Anse is an open-source alternative to ChatGPT web UI, supporting OpenAI-compatible APIs.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"chatbot",
+		"openai",
+		"ui"
+	],
+	"logo": "logos/anse.png",
+	"website": "https://anse.app/",
+	"docs": "https://github.com/ddiu8081/anse#readme",
+	"version": "sha256:fd9afc84b9e1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/anse",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "sitePassword",
+			"label": "Site password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "anse-demo",
+			"dependsOn": [],
+			"env": {
+				"OPENAI_API_KEY": "",
+				"OPENAI_API_BASE_URL": "https://api.openai.com",
+				"HEAD_SCRIPTS": "",
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"SITE_PASSWORD": "${{ inputs.sitePassword }}",
+				"OPENAI_API_MODEL": "gpt-4o-mini"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ddiu8081/anse@sha256:fd9afc84b9e1df02ca065170e72994b787e7d2ea881f22eda2fcd2c58e717164",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

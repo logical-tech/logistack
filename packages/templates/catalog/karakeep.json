@@ -1,0 +1,132 @@
+{
+	"schema": 1,
+	"id": "karakeep",
+	"name": "Karakeep",
+	"description": "A self-hostable bookmark-everything app (links, notes and images) with AI-based automatic tagging and full text search",
+	"category": "productivity",
+	"tags": [
+		"media",
+		"read-it-later",
+		"pocket-alternative",
+		"omnivore-alternative",
+		"instapaper-alternative",
+		"bookmarks",
+		"bookmark-manager",
+		"self-hosted",
+		"ai",
+		"search",
+		"notes",
+		"productivity"
+	],
+	"logo": "logos/karakeep.svg",
+	"website": "https://karakeep.app/",
+	"docs": "https://docs.karakeep.app/",
+	"version": "0.33.2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/karakeep.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "karakeepDomain",
+			"label": "Karakeep domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "karakeepnextauthPassword",
+			"label": "Karakeepnextauth password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "meiliPassword",
+			"label": "Meili password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "serviceOpenaiApiKey",
+			"label": "Service openai API key",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "web",
+			"dependsOn": [],
+			"env": {
+				"NEXTAUTH_URL": "https://${{ inputs.karakeepDomain }}",
+				"NEXTAUTH_SECRET": "${{ inputs.karakeepnextauthPassword }}",
+				"MEILI_MASTER_KEY": "${{ inputs.meiliPassword }}",
+				"MEILI_ADDR": "http://${{ services.meilisearch.host }}:7700",
+				"BROWSER_WEB_URL": "http://${{ services.chrome.host }}:9222",
+				"OPENAI_API_KEY": "${{ inputs.serviceOpenaiApiKey }}",
+				"DISABLE_SIGNUPS": "false",
+				"DATA_DIR": "/data"
+			},
+			"volumes": [
+				{
+					"name": "karakeep-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/karakeep-app/karakeep:0.33.2",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "karakeepDomain"
+			}
+		},
+		{
+			"name": "chrome",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/karakeep-app/karakeep-chrome:release",
+			"command": [
+				"--no-sandbox",
+				"--disable-gpu",
+				"--disable-dev-shm-usage",
+				"--hide-scrollbars",
+				"--disable-blink-features=AutomationControlled",
+				"--window-size=1440,900"
+			],
+			"ports": []
+		},
+		{
+			"name": "meilisearch",
+			"dependsOn": [],
+			"env": {
+				"MEILI_NO_ANALYTICS": "true",
+				"NEXTAUTH_SECRET": "${{ inputs.karakeepnextauthPassword }}",
+				"MEILI_MASTER_KEY": "${{ inputs.meiliPassword }}",
+				"NEXTAUTH_URL": "https://${{ inputs.karakeepDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "karakeep-meilisearch",
+					"target": "/meili_data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "getmeili/meilisearch:v1.41.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:7700/health"
+				]
+			}
+		}
+	]
+}

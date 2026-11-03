@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "unstructured",
+	"name": "Unstructured",
+	"description": "Unstructured provides a platform and tools to ingest and process unstructured documents for Retrieval Augmented Generation (RAG) and model fine-tuning.",
+	"category": "ai",
+	"tags": [
+		"workflow",
+		"orchestration",
+		"data-pipeline",
+		"python",
+		"data",
+		"machine-learning",
+		"data-science",
+		"nlp",
+		"unstructured",
+		"ocr",
+		"data-extraction"
+	],
+	"logo": "logos/unstructured.png",
+	"docs": "https://github.com/Unstructured-IO/unstructured-api?tab=readme-ov-file#--general-pre-processing-pipeline-for-documents",
+	"version": "sha256:fcd5230db2fb",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/unstructured.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "unstructuredDomain",
+			"label": "Unstructured domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "apikeyPassword",
+			"label": "Apikey password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "unstructured",
+			"dependsOn": [],
+			"env": {
+				"UNSTRUCTURED_API_KEY": "${{ inputs.apikeyPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "downloads.unstructured.io/unstructured-io/unstructured-api@sha256:fcd5230db2fbdf79ad8faeec8b6fff3cebf4cf30ccd79494bdba641bd62b2961",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://0.0.0.0:8000/healthcheck"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "unstructuredDomain"
+			}
+		}
+	]
+}

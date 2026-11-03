@@ -1,0 +1,166 @@
+{
+	"schema": 1,
+	"id": "honcho",
+	"name": "Honcho",
+	"description": "Honcho is a developer tool to build personalized AI agents with production-ready memory, dialectic reasoning, and stateful dialogue.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"memory",
+		"llm",
+		"agents",
+		"rag",
+		"postgres",
+		"pgvector",
+		"redis"
+	],
+	"logo": "logos/honcho.svg",
+	"docs": "https://honcho.dev/docs/v3/contributing/self-hosting",
+	"version": "v3.0.12",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/honcho.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "apiDomain",
+			"label": "API domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "llmOpenaiApiKey",
+			"label": "Llm openai API key",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "api",
+			"dependsOn": [
+				"database",
+				"redis"
+			],
+			"env": {
+				"DB_CONNECTION_URI": "postgresql+psycopg://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.database.host }}:5432/postgres",
+				"CACHE_URL": "redis://${{ services.redis.host }}:6379/0?suppress=true",
+				"CACHE_ENABLED": "true",
+				"LOG_LEVEL": "INFO",
+				"AUTH_USE_AUTH": "false",
+				"LLM_OPENAI_API_KEY": "${{ inputs.llmOpenaiApiKey }}",
+				"VECTOR_STORE_TYPE": "pgvector"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/plastic-labs/honcho:v3.0.12",
+			"entrypoint": [
+				"sh",
+				"docker/entrypoint.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/app/.venv/bin/python",
+					"-c",
+					"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "apiDomain"
+			}
+		},
+		{
+			"name": "deriver",
+			"dependsOn": [
+				"api",
+				"database",
+				"redis"
+			],
+			"env": {
+				"DB_CONNECTION_URI": "postgresql+psycopg://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.database.host }}:5432/postgres",
+				"CACHE_URL": "redis://${{ services.redis.host }}:6379/0?suppress=true",
+				"CACHE_ENABLED": "true",
+				"LOG_LEVEL": "INFO",
+				"AUTH_USE_AUTH": "false",
+				"LLM_OPENAI_API_KEY": "${{ inputs.llmOpenaiApiKey }}",
+				"VECTOR_STORE_TYPE": "pgvector"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/plastic-labs/honcho:v3.0.12",
+			"entrypoint": [
+				"/app/.venv/bin/python",
+				"-m",
+				"src.deriver"
+			],
+			"ports": []
+		},
+		{
+			"name": "database",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "postgres",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "honcho-pgdata",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "pgvector/pgvector:pg15",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "honcho-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:8.2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"redis-cli ping"
+				]
+			}
+		}
+	]
+}

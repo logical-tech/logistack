@@ -1,0 +1,73 @@
+{
+	"schema": 1,
+	"id": "gitea-sqlite",
+	"name": "Gitea (SQLite)",
+	"description": "Self-hosted Git service using SQLite for a simple one-container setup.",
+	"category": "devtools",
+	"tags": [
+		"git",
+		"scm",
+		"developer-tools",
+		"self-hosted"
+	],
+	"logo": "logos/gitea-sqlite.png",
+	"website": "https://gitea.io/",
+	"docs": "https://docs.gitea.com/",
+	"version": "1.24.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/gitea-sqlite",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "gitea",
+			"dependsOn": [],
+			"env": {
+				"USER_UID": "1000",
+				"USER_GID": "1000"
+			},
+			"volumes": [
+				{
+					"name": "gitea-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docker.gitea.com/gitea:1.24.4",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				},
+				{
+					"target": 22,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://localhost:3000/"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

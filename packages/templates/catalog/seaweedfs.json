@@ -1,0 +1,164 @@
+{
+	"schema": 1,
+	"id": "seaweedfs",
+	"name": "Seaweedfs",
+	"description": "SeaweedFS is a simple and highly scalable distributed file system. Compatible with S3, with an admin web interface.",
+	"category": "storage",
+	"tags": [
+		"object",
+		"storage",
+		"server",
+		"s3",
+		"api"
+	],
+	"logo": "logos/seaweedfs.svg",
+	"docs": "https://github.com/seaweedfs/seaweedfs",
+	"version": "4.41",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/seaweedfs.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "s3Domain",
+			"label": "S3 domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminDomain",
+			"label": "Admin domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "s3User",
+			"label": "S3 user",
+			"type": "username"
+		},
+		{
+			"key": "s3Password",
+			"label": "S3 password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "awsAccessKeyId",
+			"label": "AWS access key ID",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "awsSecretAccessKey",
+			"label": "AWS secret access key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "adminUser",
+			"label": "Admin user",
+			"type": "username"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "seaweedUserAdmin",
+			"label": "Seaweed user admin",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "seaweedPasswordAdmin",
+			"label": "Seaweed password admin",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "seaweedfs-master",
+			"dependsOn": [],
+			"env": {
+				"AWS_ACCESS_KEY_ID": "${{ inputs.s3User }}",
+				"AWS_SECRET_ACCESS_KEY": "${{ inputs.s3Password }}"
+			},
+			"volumes": [
+				{
+					"name": "seaweedfs-s3-data",
+					"target": "/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/base-config.json",
+					"content": "{\n  \"identities\": [\n    {\n      \"name\": \"anonymous\",\n      \"actions\": [\n        \"Read\"\n      ]\n    },\n    {\n      \"name\": \"admin\",\n      \"credentials\": [\n        {\n          \"accessKey\": \"env:AWS_ACCESS_KEY_ID\",\n          \"secretKey\": \"env:AWS_SECRET_ACCESS_KEY\"\n        }\n      ],\n      \"actions\": [\n        \"Admin\",\n        \"Read\",\n        \"ReadAcp\",\n        \"List\",\n        \"Tagging\",\n        \"Write\",\n        \"WriteAcp\"\n      ]\n    }\n  ]\n}\n"
+				}
+			],
+			"kind": "application",
+			"image": "chrislusf/seaweedfs:4.41",
+			"entrypoint": [
+				"sh",
+				"-c",
+				"\\\nsed \"s/env:AWS_ACCESS_KEY_ID/${{ inputs.awsAccessKeyId }}/g\" /base-config.json > /base1-config.json; \\\nsed \"s/env:AWS_SECRET_ACCESS_KEY/${{ inputs.awsSecretAccessKey }}/g\" /base1-config.json > /config.json; \\\nweed server -dir=/data -master.port=9333 -s3 -s3.port=8333 -s3.config=/config.json\\\n"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --spider -q http://0.0.0.0:8333; [ $? -le 8 ]"
+				]
+			},
+			"public": {
+				"port": 8333,
+				"domain": "s3Domain"
+			}
+		},
+		{
+			"name": "seaweedfs-admin",
+			"dependsOn": [
+				"seaweedfs-master"
+			],
+			"env": {
+				"SEAWEED_USER_ADMIN": "${{ inputs.adminUser }}",
+				"SEAWEED_PASSWORD_ADMIN": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "seaweedfs-admin-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "chrislusf/seaweedfs:4.41",
+			"command": [
+				"admin",
+				"-master=seaweedfs-master:9333",
+				"-adminUser=${{ inputs.seaweedUserAdmin }}",
+				"-adminPassword=${{ inputs.seaweedPasswordAdmin }}",
+				"-port=23646",
+				"-dataDir=/data"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --spider -q http://0.0.0.0:23646; [ $? -le 8 ]"
+				]
+			},
+			"public": {
+				"port": 23646,
+				"domain": "adminDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,90 @@
+{
+	"schema": 1,
+	"id": "pgbackweb",
+	"name": "Pgbackweb",
+	"description": "Effortless PostgreSQL backups with a user-friendly web interface!",
+	"category": "devtools",
+	"tags": [
+		"backup",
+		"postgresql",
+		"web-interface"
+	],
+	"docs": "https://github.com/eduardolat/pgbackweb",
+	"version": "sha256:cd902026c133",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/pgbackweb.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "pgbackwebDomain",
+			"label": "Pgbackweb domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "pgbackwebPassword",
+			"label": "Pgbackweb password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "pgbackweb",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"PBW_ENCRYPTION_KEY": "${{ inputs.pgbackwebPassword }}",
+				"PBW_POSTGRES_CONN_STRING": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/pgbackweb-db?sslmode=disable",
+				"TZ": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "pgbackweb-backups",
+					"target": "/backups"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "eduardolat/pgbackweb@sha256:cd902026c133fbd8b25fd2a8b5b1727dbac94ae4094e12c0321442af449cac5c",
+			"ports": [],
+			"public": {
+				"port": 8085,
+				"domain": "pgbackwebDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "pgbackweb-db"
+			},
+			"volumes": [
+				{
+					"name": "pgbackweb-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17"
+		}
+	]
+}

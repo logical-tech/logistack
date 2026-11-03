@@ -1,0 +1,196 @@
+{
+	"schema": 1,
+	"id": "alexandrie",
+	"name": "Alexandrie",
+	"description": "A powerful Markdown workspace designed for speed, clarity, and creativity.",
+	"category": "productivity",
+	"tags": [
+		"note-taking",
+		"markdown",
+		"knowledge-management",
+		"personal-wiki",
+		"productivity"
+	],
+	"logo": "logos/alexandrie.svg",
+	"docs": "https://github.com/Smaug6739/Alexandrie/tree/main/docs",
+	"version": "v8.10.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/alexandrie.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "frontendDomain",
+			"label": "Frontend domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "backendDomain",
+			"label": "Backend domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "rustfsDomain",
+			"label": "Rustfs domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "jwtPassword",
+			"label": "JWT password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rustfsUser",
+			"label": "Rustfs user",
+			"type": "username"
+		},
+		{
+			"key": "rustfsPassword",
+			"label": "Rustfs password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "frontend",
+			"dependsOn": [
+				"backend"
+			],
+			"env": {
+				"PORT": "8200",
+				"NUXT_PUBLIC_CONFIG_DISABLE_SIGNUP_PAGE": "false",
+				"NUXT_PUBLIC_CONFIG_DISABLE_LANDING_PAGE": "false",
+				"NUXT_PUBLIC_BASE_API": "https://${{ inputs.backendDomain }}",
+				"NUXT_PUBLIC_BASE_CDN": "https://${{ inputs.rustfsDomain }}",
+				"NUXT_PUBLIC_CDN_ENDPOINT": "/alexandrie/",
+				"NUXT_PUBLIC_BASE_URL": "https://${{ inputs.frontendDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/smaug6739/alexandrie-frontend:v8.10.0",
+			"ports": [],
+			"public": {
+				"port": 8200,
+				"domain": "frontendDomain"
+			}
+		},
+		{
+			"name": "backend",
+			"dependsOn": [
+				"mysql",
+				"rustfs"
+			],
+			"env": {
+				"BACKEND_PORT": "8201",
+				"GIN_MODE": "release",
+				"JWT_SECRET": "${{ inputs.jwtPassword }}",
+				"COOKIE_DOMAIN": "https://${{ inputs.frontendDomain }}",
+				"FRONTEND_URL": "https://${{ inputs.frontendDomain }}",
+				"ALLOW_UNSECURE": "false",
+				"DATABASE_HOST": "${{ services.mysql.host }}",
+				"DATABASE_PORT": "3306",
+				"DATABASE_NAME": "alexandrie-db",
+				"DATABASE_USER": "${{ inputs.mysqlUser }}",
+				"DATABASE_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MINIO_ENDPOINT": "${{ services.rustfs.host }}:9000",
+				"MINIO_PUBLIC_URL": "https://${{ inputs.rustfsDomain }}",
+				"MINIO_SECURE": "false",
+				"MINIO_ACCESSKEY": "${{ inputs.rustfsUser }}",
+				"MINIO_SECRETKEY": "${{ inputs.rustfsPassword }}",
+				"MINIO_BUCKET": "alexandrie",
+				"SMTP_HOST": "",
+				"SMTP_MAIL": "",
+				"SMTP_PASSWORD": ""
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/smaug6739/alexandrie-backend:v8.10.0",
+			"ports": [],
+			"public": {
+				"port": 8201,
+				"domain": "backendDomain"
+			}
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DATABASE": "alexandrie-db"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8.0"
+		},
+		{
+			"name": "rustfs",
+			"dependsOn": [],
+			"env": {
+				"RUSTFS_ACCESS_KEY": "${{ inputs.rustfsUser }}",
+				"RUSTFS_SECRET_KEY": "${{ inputs.rustfsPassword }}",
+				"RUSTFS_CONSOLE_ENABLE": "false",
+				"RUSTFS_LOG_LEVEL": "info"
+			},
+			"volumes": [
+				{
+					"name": "rustfs-data",
+					"target": "/data"
+				},
+				{
+					"name": "rustfs-logs",
+					"target": "/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "rustfs/rustfs:1.0.0-beta.8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"nc -z localhost 9000 || exit 1"
+				]
+			},
+			"public": {
+				"port": 9000,
+				"domain": "rustfsDomain"
+			}
+		}
+	]
+}

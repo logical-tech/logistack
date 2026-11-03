@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "heimdall",
+	"name": "Heimdall",
+	"description": "Heimdall is a dashboard for managing and organizing your server applications.",
+	"category": "productivity",
+	"tags": [
+		"dashboard",
+		"server",
+		"applications",
+		"interface"
+	],
+	"logo": "logos/heimdall.svg",
+	"docs": "https://github.com/linuxserver/Heimdall",
+	"version": "sha256:80c6a91e8d14",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/heimdall.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "heimdallDomain",
+			"label": "Heimdall domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "heimdall",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Europe/Madrid"
+			},
+			"volumes": [
+				{
+					"name": "heimdall-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/heimdall@sha256:80c6a91e8d14e7ac5b7461a0877b8db8bca659e62ddc944d1f37e5159e7efa55",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:80"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "heimdallDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,292 @@
+{
+	"schema": 1,
+	"id": "ente-photos-with-s3",
+	"name": "Ente Photos With S3",
+	"description": "Ente Photos is a fully open source, End to End Encrypted alternative to Google Photos and Apple Photos.",
+	"category": "media",
+	"tags": [
+		"photos",
+		"gallery",
+		"backup",
+		"encryption",
+		"privacy",
+		"self-hosted",
+		"google-photos",
+		"alternative"
+	],
+	"logo": "logos/ente-photos-with-s3.svg",
+	"docs": "https://help.ente.io/self-hosting/installation/compose",
+	"version": "613c6a96390d7a624cf30b946955705d632423cc",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/ente-photos-with-s3.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "museumDomain",
+			"label": "Museum domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "webDomain",
+			"label": "Web domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "minioDomain",
+			"label": "Minio domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "minioUser",
+			"label": "Minio user",
+			"type": "username"
+		},
+		{
+			"key": "minioPassword",
+			"label": "Minio password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "hashKey",
+			"label": "Hash key",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "jwtKey",
+			"label": "JWT key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "enteSmtpUsername",
+			"label": "Ente SMTP username",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "enteSmtpPassword",
+			"label": "Ente SMTP password",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "enteSmtpEmail",
+			"label": "Ente SMTP email",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "enteSmtpSenderName",
+			"label": "Ente SMTP sender name",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "minioServerUrl",
+			"label": "Minio server URL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "minioBrowserRedirectUrl",
+			"label": "Minio browser redirect URL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "minioCorsUrls",
+			"label": "Minio cors urls",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "museum",
+			"dependsOn": [
+				"postgres",
+				"minio"
+			],
+			"env": {
+				"ENTE_DB_HOST": "${{ services.postgres.host }}",
+				"ENTE_DB_PORT": "5432",
+				"ENTE_DB_NAME": "ente_db",
+				"ENTE_DB_USER": "${{ inputs.postgresUser }}",
+				"ENTE_DB_PASSWORD": "${{ inputs.postgresPassword }}",
+				"ENTE_HTTP_USE_TLS": "false",
+				"ENTE_S3_ARE_LOCAL_BUCKETS": "false",
+				"ENTE_S3_USE_PATH_STYLE_URLS": "true",
+				"ENTE_S3_B2_EU_CEN_KEY": "${{ inputs.minioUser }}",
+				"ENTE_S3_B2_EU_CEN_SECRET": "${{ inputs.minioPassword }}",
+				"ENTE_S3_B2_EU_CEN_ENDPOINT": "${{ inputs.minioDomain }}",
+				"ENTE_S3_B2_EU_CEN_REGION": "eu-central-2",
+				"ENTE_S3_B2_EU_CEN_BUCKET": "b2-eu-cen",
+				"ENTE_KEY_ENCRYPTION": "${{ inputs.encryptionKey }}",
+				"ENTE_KEY_HASH": "${{ inputs.hashKey }}",
+				"ENTE_JWT_SECRET": "${{ inputs.jwtKey }}",
+				"ENTE_INTERNAL_ADMIN": "1580559962386438",
+				"ENTE_INTERNAL_DISABLE_REGISTRATION": "false",
+				"ENTE_SMTP_HOST": "smtp.gmail.com",
+				"ENTE_SMTP_PORT": "587",
+				"ENTE_SMTP_USERNAME": "${{ inputs.enteSmtpUsername }}",
+				"ENTE_SMTP_PASSWORD": "${{ inputs.enteSmtpPassword }}",
+				"ENTE_SMTP_EMAIL": "${{ inputs.enteSmtpEmail }}",
+				"ENTE_SMTP_SENDER_NAME": "${{ inputs.enteSmtpSenderName }}",
+				"ENTE_SMTP_ENCRYPTION": "tls"
+			},
+			"volumes": [
+				{
+					"name": "museum-data",
+					"target": "/data"
+				},
+				{
+					"name": "museum-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/ente-io/server:613c6a96390d7a624cf30b946955705d632423cc",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--spider",
+					"http://127.0.0.1:8080/ping"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "museumDomain"
+			}
+		},
+		{
+			"name": "web",
+			"dependsOn": [],
+			"env": {
+				"ENTE_API_ORIGIN": "https://${{ inputs.museumDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/ente-io/web:ca03165f5e7f2a50105e6e40019c17ae6cdd934f",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"--fail",
+					"http://localhost:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "webDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "ente_db"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15-alpine"
+		},
+		{
+			"name": "minio",
+			"dependsOn": [],
+			"env": {
+				"MINIO_SERVER_URL": "${{ inputs.minioServerUrl }}",
+				"MINIO_BROWSER_REDIRECT_URL": "${{ inputs.minioBrowserRedirectUrl }}",
+				"MINIO_ROOT_USER": "${{ inputs.minioUser }}",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "minio-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "pgsty/silo:RELEASE.2026-10-15T00-00-00Z",
+			"command": [
+				"server",
+				"/data",
+				"--console-address",
+				":9001"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mc",
+					"ready",
+					"local"
+				]
+			},
+			"public": {
+				"port": 9000,
+				"domain": "minioDomain"
+			}
+		},
+		{
+			"name": "minio-init",
+			"dependsOn": [
+				"minio"
+			],
+			"env": {
+				"MINIO_ROOT_USER": "${{ inputs.minioUser }}",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}",
+				"MINIO_CORS_URLS": "https://${{ inputs.museumDomain }},https://${{ inputs.webDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "pgsty/silo:RELEASE.2026-10-15T00-00-00Z",
+			"entrypoint": [
+				"/bin/sh",
+				"-c",
+				"\n  echo \"MINIO_CORS_URLS: ${MINIO_CORS_URLS}\";\n  sleep 5;\n  until mc alias set minio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do\n    echo 'Waiting for MinIO...';\n    sleep 2;\n  done;\n  mc admin config set minio api cors_allow_origin='${{ inputs.minioCorsUrls }}' || true;\n  mc mb minio/b2-eu-cen --ignore-existing;\n  mc mb minio/wasabi-eu-central-2-v3 --ignore-existing;\n  mc mb minio/scw-eu-fr-v3 --ignore-existing;\n  echo 'MinIO buckets and CORS configured';\n"
+			],
+			"ports": [],
+			"restart": "on-failure"
+		}
+	]
+}

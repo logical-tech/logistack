@@ -1,0 +1,123 @@
+{
+	"schema": 1,
+	"id": "pterodactyl",
+	"name": "Pterodactyl",
+	"description": "A free, open-source game server management panel.",
+	"category": "other",
+	"tags": [
+		"self-hosted",
+		"open-source",
+		"management"
+	],
+	"logo": "logos/pterodactyl.png",
+	"website": "https://pterodactyl.io/",
+	"docs": "https://pterodactyl.io/project/introduction.html",
+	"version": "sha256:cd7cda1727f1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/pterodactyl",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "database",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "panel",
+				"MYSQL_USER": "pterodactyl",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "pterodb",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.5",
+			"command": [
+				"--default-authentication-plugin=mysql_native_password"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "cache",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:alpine",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "panel",
+			"dependsOn": [],
+			"env": {
+				"APP_ENV": "production",
+				"APP_ENVIRONMENT_ONLY": "false",
+				"CACHE_DRIVER": "redis",
+				"SESSION_DRIVER": "redis",
+				"QUEUE_DRIVER": "redis",
+				"REDIS_HOST": "${{ services.cache.host }}",
+				"DB_HOST": "${{ services.database.host }}",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"DB_PORT": "3306",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}",
+				"DB_CONNECTION": "mysql"
+			},
+			"volumes": [
+				{
+					"name": "pterovar",
+					"target": "/app/var"
+				},
+				{
+					"name": "pteronginx",
+					"target": "/etc/nginx/http.d"
+				},
+				{
+					"name": "pterocerts",
+					"target": "/etc/letsencrypt"
+				},
+				{
+					"name": "pterologs",
+					"target": "/app/storage/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/pterodactyl/panel@sha256:cd7cda1727f110cee375ed52a95adfe73065548576715e7b92f8c899558271e3",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

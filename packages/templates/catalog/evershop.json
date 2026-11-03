@@ -1,0 +1,77 @@
+{
+	"schema": 1,
+	"id": "evershop",
+	"name": "Evershop",
+	"description": "Your All-in-One open source ecommerce solution.",
+	"category": "other",
+	"tags": [
+		"e-commerce",
+		"shopping"
+	],
+	"logo": "logos/evershop.svg",
+	"website": "https://evershop.io/",
+	"docs": "https://evershop.io/docs/development/getting-started/introduction",
+	"version": "sha256:2acdcd7ed59f",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/evershop",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "evershop-app",
+			"dependsOn": [
+				"database"
+			],
+			"env": {
+				"DB_HOST": "${{ services.database.host }}",
+				"DB_PORT": "5432",
+				"DB_PASSWORD": "postgres",
+				"DB_USER": "postgres",
+				"DB_NAME": "evershop"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "evershop/evershop@sha256:2acdcd7ed59f45eaf1f36b529665ea38f556406571af0a287cf83d54f23f96ed",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "database",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "postgres",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_DB": "evershop"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		}
+	]
+}

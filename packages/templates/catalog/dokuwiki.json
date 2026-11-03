@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "dokuwiki",
+	"name": "Dokuwiki",
+	"description": "A lightweight and easy-to-use wiki platform for creating and managing documentation and knowledge bases.",
+	"category": "cms",
+	"tags": [
+		"wiki",
+		"documentation",
+		"knowledge",
+		"base"
+	],
+	"logo": "logos/dokuwiki.png",
+	"docs": "https://www.dokuwiki.org/",
+	"version": "sha256:fac142ae9f7d",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/dokuwiki.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "dokuwikiDomain",
+			"label": "Dokuwiki domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "dokuwiki",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Europe/Madrid"
+			},
+			"volumes": [
+				{
+					"name": "dokuwiki-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/dokuwiki@sha256:fac142ae9f7df5d3457037bc8bb668f8bfc6a6b9e02d5d1a5743bf1d030f9a10",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:80"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "dokuwikiDomain"
+			}
+		}
+	]
+}

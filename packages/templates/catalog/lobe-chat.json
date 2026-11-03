@@ -1,0 +1,72 @@
+{
+	"schema": 1,
+	"id": "lobe-chat",
+	"name": "Lobe Chat",
+	"description": "An open-source, modern-design AI chat framework.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"chat",
+		"openai",
+		"llm",
+		"chatbot",
+		"ia"
+	],
+	"website": "https://chat-preview.lobehub.com/",
+	"docs": "https://github.com/lobehub/lobe-chat?tab=readme-ov-file#b-deploying-with-docker",
+	"version": "1.135.5",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/lobe-chat.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "lobechatDomain",
+			"label": "Lobechat domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "openaiApiKey",
+			"label": "Openai API key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "accesscodePassword",
+			"label": "Accesscode password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "lobe-chat",
+			"dependsOn": [],
+			"env": {
+				"OPENAI_API_KEY": "${{ inputs.openaiApiKey }}",
+				"OPENAI_PROXY_URL": "https://api.openai.com/v1",
+				"ACCESS_CODE": "${{ inputs.accesscodePassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "lobehub/lobe-chat:1.135.5",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://localhost:3210/ || exit 1"
+				]
+			},
+			"public": {
+				"port": 3210,
+				"domain": "lobechatDomain"
+			}
+		}
+	],
+	"logo": "logos/lobe-chat.png"
+}

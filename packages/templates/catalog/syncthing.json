@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "syncthing",
+	"name": "Syncthing",
+	"description": "Syncthing synchronizes files between two or more computers in real time.",
+	"category": "storage",
+	"tags": [
+		"filestorage",
+		"data",
+		"synchronization",
+		"file-sync",
+		"backup"
+	],
+	"logo": "logos/syncthing.svg",
+	"website": "https://syncthing.net/",
+	"docs": "https://syncthing.net/",
+	"version": "sha256:5c1276a65549",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/syncthing.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "syncthingDomain",
+			"label": "Syncthing domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "syncthing",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Etc/UTC"
+			},
+			"volumes": [
+				{
+					"name": "syncthing-config",
+					"target": "/config"
+				},
+				{
+					"name": "syncthing-data1",
+					"target": "/data1"
+				},
+				{
+					"name": "syncthing-data2",
+					"target": "/data2"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/syncthing@sha256:5c1276a655498fb9774e22e42ceeb5279eb2d7c46e3c209ce8285a7b0bae4925",
+			"ports": [
+				{
+					"target": 22000,
+					"published": 22000,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 22000,
+					"published": 22000,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 21027,
+					"published": 21027,
+					"protocol": "udp",
+					"mode": "host"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:8384/"
+				]
+			},
+			"public": {
+				"port": 8384,
+				"domain": "syncthingDomain"
+			}
+		}
+	]
+}

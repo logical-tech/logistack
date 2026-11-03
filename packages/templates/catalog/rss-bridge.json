@@ -1,0 +1,57 @@
+{
+	"schema": 1,
+	"id": "rss-bridge",
+	"name": "RSS-Bridge",
+	"description": "RSS-Bridge is a PHP project capable of generating Atom feeds for websites that don't have one.",
+	"category": "communication",
+	"tags": [
+		"rss",
+		"feeds",
+		"news",
+		"content"
+	],
+	"logo": "logos/rss-bridge.png",
+	"website": "https://rss-bridge.github.io/rss-bridge/",
+	"docs": "https://rss-bridge.github.io/rss-bridge/General/Project_goals.html",
+	"version": "sha256:655da7086bac",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/rss-bridge",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "rss-bridge",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "rssbridge-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "rssbridge/rss-bridge@sha256:655da7086bac287e8b0ae0a5291a8035c30e762978a8bd49501e81bf2f0e1233",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

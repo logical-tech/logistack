@@ -1,0 +1,57 @@
+{
+	"schema": 1,
+	"id": "web-check",
+	"name": "Web Check",
+	"description": "All-in-one OSINT tool for analysing any website",
+	"category": "monitoring",
+	"tags": [
+		"osint",
+		"website",
+		"analysis",
+		"website-analyzer",
+		"security",
+		"performance",
+		"seo"
+	],
+	"logo": "logos/web-check.png",
+	"website": "https://github.com/lissy93/web-check",
+	"docs": "https://github.com/lissy93/web-check",
+	"version": "sha256:56e2e8573d07",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/web-check.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "webcheckDomain",
+			"label": "Webcheck domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "web-check",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "lissy93/web-check@sha256:56e2e8573d0771302077a366ebcae10a71e5ba6aa37764597f8d7a19c1b7cb0d",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:3000/"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "webcheckDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,110 @@
+{
+	"schema": 1,
+	"id": "healthchecks",
+	"name": "Healthchecks",
+	"description": "Healthchecks is an open-source cron job and background task monitoring service that alerts you when your scheduled jobs fail to check in. Registration is closed by default: create the first admin by running ./manage.py createsuperuser in the healthchecks container terminal.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"cron",
+		"alerting",
+		"status",
+		"performance",
+		"web",
+		"services",
+		"applications",
+		"real-time"
+	],
+	"logo": "logos/healthchecks.svg",
+	"website": "https://healthchecks.io/",
+	"docs": "https://healthchecks.io/docs/self_hosted_docker/",
+	"version": "v4.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/healthchecks",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "healthchecks",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DEBUG": "False",
+				"DB": "postgres",
+				"DB_HOST": "${{ services.db.host }}",
+				"DB_PORT": "5432",
+				"DB_NAME": "healthchecks",
+				"DB_USER": "healthchecks",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"SITE_ROOT": "https://${{ inputs.mainDomain }}",
+				"SITE_NAME": "Healthchecks",
+				"ALLOWED_HOSTS": "${{ inputs.mainDomain }}",
+				"PING_ENDPOINT": "https://${{ inputs.mainDomain }}/ping/",
+				"REGISTRATION_OPEN": "False",
+				"DEFAULT_FROM_EMAIL": "healthchecks@${{ inputs.mainDomain }}",
+				"EMAIL_HOST": "",
+				"EMAIL_PORT": "587",
+				"EMAIL_HOST_USER": "",
+				"EMAIL_HOST_PASSWORD": "",
+				"EMAIL_USE_TLS": "True"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "healthchecks/healthchecks:v4.4",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "healthchecks",
+				"POSTGRES_USER": "healthchecks",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "healthchecks-db",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

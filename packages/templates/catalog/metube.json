@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "metube",
+	"name": "Metube",
+	"description": "A web GUI for youtube-dl with playlist support. It enables you to effortlessly download videos from YouTube and dozens of other sites.",
+	"category": "media",
+	"tags": [
+		"youtube",
+		"download",
+		"videos",
+		"playlist",
+		"downloader",
+		"media"
+	],
+	"website": "https://github.com/alexta69/metube",
+	"docs": "https://github.com/alexta69/metube",
+	"version": "sha256:a97f455f4b56",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/metube.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "metubeDomain",
+			"label": "Metube domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "metube",
+			"dependsOn": [],
+			"env": {
+				"UID": "1000",
+				"GID": "1000"
+			},
+			"volumes": [
+				{
+					"name": "metube-downloads",
+					"target": "/downloads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/alexta69/metube@sha256:a97f455f4b56044debe1a5ce31ff01a9cb20e9e36322ba04f8dd2bb0539b9ec7",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8081"
+				]
+			},
+			"public": {
+				"port": 8081,
+				"domain": "metubeDomain"
+			}
+		}
+	],
+	"logo": "logos/metube.png"
+}

@@ -1,0 +1,158 @@
+{
+	"schema": 1,
+	"id": "mixpost",
+	"name": "Mixpost",
+	"description": "Mixpost is a robust and versatile social media management software, designed to streamline social media operations and enhance content marketing strategies.",
+	"category": "analytics",
+	"tags": [
+		"social media",
+		"marketing",
+		"content",
+		"management",
+		"automation",
+		"self-hosted",
+		"social-media",
+		"scheduling"
+	],
+	"logo": "logos/mixpost.svg",
+	"website": "https://mixpost.app/",
+	"docs": "https://docs.mixpost.app/lite",
+	"version": "sha256:c54aa7b1c0c9",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/mixpost.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "mixpostDomain",
+			"label": "Mixpost domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mixpostSecret",
+			"label": "Mixpost secret",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "mixpost",
+			"dependsOn": [
+				"mysql",
+				"redis"
+			],
+			"env": {
+				"APP_NAME": "Mixpost",
+				"APP_KEY": "${{ inputs.mixpostSecret }}",
+				"APP_DEBUG": "false",
+				"APP_DOMAIN": "https://${{ inputs.mixpostDomain }}",
+				"APP_URL": "https://${{ inputs.mixpostDomain }}",
+				"DB_DATABASE": "mixpost_db",
+				"DB_USERNAME": "${{ inputs.mysqlUser }}",
+				"DB_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"SSL_EMAIL": "user@example.com",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mixpost-storage",
+					"target": "/var/www/html/storage/app"
+				},
+				{
+					"name": "mixpost-logs",
+					"target": "/var/www/html/storage/logs"
+				}
+			],
+			"files": [
+				{
+					"target": "/usr/local/bin/coolify-start.sh",
+					"content": "#!/bin/sh\n# start.sh always creates admin@example.com with the password \"changeme\".\n# Replace that password with ADMIN_PASSWORD once, while it is still the default.\n(\n  for i in $(seq 1 60); do\n    sleep 5\n    result=$(php /var/www/html/artisan tinker --no-ansi --execute='$u = Inovector\\MixpostAuth\\MixpostAuth::getUserClass()::where(\"email\", \"admin@example.com\")->first(); if (! $u) { echo \"wait\"; } elseif (Illuminate\\Support\\Facades\\Hash::check(\"changeme\", $u->password)) { $u->password = bcrypt(getenv(\"ADMIN_PASSWORD\")); $u->save(); echo \"done\"; } else { echo \"done\"; }' 2>/dev/null)\n    [ \"$result\" = \"done\" ] && break\n  done\n) &\nexec /usr/local/bin/start.sh\n"
+				}
+			],
+			"kind": "application",
+			"image": "inovector/mixpost@sha256:c54aa7b1c0c920488974c3418d98a53cf762241f46a50808ef1e8e8171435be0",
+			"entrypoint": [
+				"/usr/local/bin/coolify-start.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -fsS -o /dev/null http://127.0.0.1/mixpost/login || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "mixpostDomain"
+			}
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "mixpost_db",
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mixpost-mysql",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mysql/mysql-server:8.0",
+			"ports": []
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"--raw",
+					"incr",
+					"ping"
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "linkstack",
+	"name": "LinkStack",
+	"description": "LinkStack is an open-source link-in-bio platform for sharing multiple links using a customizable landing page.",
+	"category": "cms",
+	"tags": [
+		"bio",
+		"personal",
+		"cms",
+		"php"
+	],
+	"logo": "logos/linkstack.svg",
+	"website": "https://linkstack.org/",
+	"docs": "https://docs.linkstack.org/",
+	"version": "sha256:2920f70e15ae",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/linkstack",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "linkstack",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"TZ": "Europe/Berlin",
+				"SERVER_ADMIN": "${{ inputs.adminEmail }}",
+				"HTTP_SERVER_NAME": "${{ inputs.mainDomain }}",
+				"HTTPS_SERVER_NAME": "${{ inputs.mainDomain }}",
+				"LOG_LEVEL": "info",
+				"PHP_MEMORY_LIMIT": "256M",
+				"UPLOAD_MAX_FILESIZE": "8M"
+			},
+			"volumes": [
+				{
+					"name": "linkstack-data",
+					"target": "/htdocs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "linkstackorg/linkstack@sha256:2920f70e15ae01a9d943cc90b96fc6198f6ac79260491deabf96103c42d49357",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8"
+		}
+	]
+}

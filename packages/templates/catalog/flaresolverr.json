@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "flaresolverr",
+	"name": "FlareSolverr",
+	"description": "FlareSolverr is a proxy server to bypass Cloudflare and DDoS-GUARD protection.",
+	"category": "networking",
+	"tags": [
+		"proxy",
+		"cloudflare",
+		"bypass",
+		"ddos-guard"
+	],
+	"logo": "logos/flaresolverr.png",
+	"website": "https://github.com/FlareSolverr/FlareSolverr",
+	"docs": "https://github.com/FlareSolverr/FlareSolverr",
+	"version": "sha256:c80ae007ce2c",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/flaresolverr",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "flaresolverr",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767",
+			"ports": [
+				{
+					"target": 8191,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8191,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

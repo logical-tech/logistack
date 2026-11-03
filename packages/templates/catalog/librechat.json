@@ -1,0 +1,267 @@
+{
+	"schema": 1,
+	"id": "librechat",
+	"name": "Librechat",
+	"description": "Self-hosted, powerful, and privacy-focused chat UI for multiple AI models",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"chat",
+		"gpt",
+		"claude",
+		"palm",
+		"openai",
+		"azure",
+		"huggingface",
+		"anthropic",
+		"ollama",
+		"llm",
+		"chatbot",
+		"mit-license",
+		"byok",
+		"generative-ai"
+	],
+	"logo": "logos/librechat.svg",
+	"website": "https://librechat.ai/",
+	"docs": "https://docs.librechat.ai/install/configuration/dotenv.html",
+	"version": "6ecd1b510faaa593ad954fb6276c18e5f12a8e53",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/librechat.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "librechatDomain",
+			"label": "Librechat domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mongoUser",
+			"label": "Mongo user",
+			"type": "username"
+		},
+		{
+			"key": "mongoPassword",
+			"label": "Mongo password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "meiliPassword",
+			"label": "Meili password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtPassword",
+			"label": "JWT password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtPassword2",
+			"label": "JWT password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "credsPassword",
+			"label": "Creds password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "credsPassword2",
+			"label": "Creds password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "librechat",
+			"dependsOn": [
+				"mongodb",
+				"meilisearch",
+				"vectordb",
+				"rag-api"
+			],
+			"env": {
+				"DOMAIN_CLIENT": "https://${{ inputs.librechatDomain }}",
+				"DOMAIN_SERVER": "https://${{ inputs.librechatDomain }}",
+				"HOST": "0.0.0.0",
+				"PORT": "3080",
+				"MONGO_URI": "mongodb://${{ inputs.mongoUser }}:${{ inputs.mongoPassword }}@${{ services.mongodb.host }}:27017/librechat?authSource=admin",
+				"MEILI_HOST": "http://${{ services.meilisearch.host }}:7700",
+				"MEILI_MASTER_KEY": "${{ inputs.meiliPassword }}",
+				"RAG_PORT": "8000",
+				"RAG_API_URL": "http://${{ services.rag-api.host }}:8000",
+				"JWT_SECRET": "${{ inputs.jwtPassword }}",
+				"JWT_REFRESH_SECRET": "${{ inputs.jwtPassword2 }}",
+				"APP_TITLE": "LibreChat",
+				"ALLOW_EMAIL_LOGIN": "true",
+				"ALLOW_REGISTRATION": "true",
+				"ALLOW_SOCIAL_LOGIN": "false",
+				"ALLOW_SOCIAL_REGISTRATION": "false",
+				"ALLOW_PASSWORD_RESET": "false",
+				"ALLOW_UNVERIFIED_EMAIL_LOGIN": "true",
+				"CREDS_KEY": "${{ inputs.credsPassword }}",
+				"CREDS_IV": "${{ inputs.credsPassword2 }}",
+				"ANTHROPIC_API_KEY": "user_provided",
+				"GOOGLE_KEY": "user_provided",
+				"OPENAI_API_KEY": "user_provided",
+				"ASSISTANTS_API_KEY": "user_provided",
+				"DEBUG_LOGGING": "false",
+				"DEBUG_OPENAI": "false",
+				"DEBUG_PLUGINS": "false",
+				"NO_INDEX": "true"
+			},
+			"volumes": [
+				{
+					"name": "librechat-images",
+					"target": "/app/client/public/images"
+				},
+				{
+					"name": "librechat-logs",
+					"target": "/app/api/logs"
+				},
+				{
+					"name": "librechat-uploads",
+					"target": "/app/uploads"
+				}
+			],
+			"files": [
+				{
+					"target": "/app/librechat.yaml",
+					"content": "version: 1.2.8\n"
+				}
+			],
+			"kind": "application",
+			"image": "ghcr.io/danny-avila/librechat-dev-api:6ecd1b510faaa593ad954fb6276c18e5f12a8e53",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--no-verbose",
+					"--tries=1",
+					"--spider",
+					"http://127.0.0.1:3080/health"
+				]
+			},
+			"public": {
+				"port": 3080,
+				"domain": "librechatDomain"
+			}
+		},
+		{
+			"name": "mongodb",
+			"dependsOn": [],
+			"env": {
+				"MONGO_INITDB_ROOT_USERNAME": "${{ inputs.mongoUser }}",
+				"MONGO_INITDB_ROOT_PASSWORD": "${{ inputs.mongoPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mongodb-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mongo",
+			"version": "8"
+		},
+		{
+			"name": "meilisearch",
+			"dependsOn": [],
+			"env": {
+				"MEILI_MASTER_KEY": "${{ inputs.meiliPassword }}",
+				"MEILI_NO_ANALYTICS": "false",
+				"MEILI_ENV": "production",
+				"MEILI_HOST": "http://${{ services.meilisearch.host }}:7700"
+			},
+			"volumes": [
+				{
+					"name": "meilisearch-data",
+					"target": "/meili_data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "getmeili/meilisearch:v1.35.1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:7700/health"
+				]
+			}
+		},
+		{
+			"name": "vectordb",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "rag",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_HOST_AUTH_METHOD": "trust"
+			},
+			"volumes": [
+				{
+					"name": "vectordb-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ankane/pgvector:v0.5.1",
+			"ports": []
+		},
+		{
+			"name": "rag-api",
+			"dependsOn": [
+				"vectordb"
+			],
+			"env": {
+				"POSTGRES_DB": "rag",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"DB_HOST": "${{ services.vectordb.host }}",
+				"DB_USER": "${{ inputs.postgresUser }}",
+				"DB_PASSWORD": "${{ inputs.postgresPassword }}",
+				"DB_NAME": "rag",
+				"RAG_PORT": "8000",
+				"RAG_OPENAI_API_KEY": "user_provided"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/danny-avila/librechat-rag-api-dev-lite:v0.7.3",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"python",
+					"-c",
+					"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+				]
+			}
+		}
+	]
+}

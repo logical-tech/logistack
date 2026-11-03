@@ -1,0 +1,79 @@
+{
+	"schema": 1,
+	"id": "plex",
+	"name": "Plex",
+	"description": "Plex organizes video, music and photos from personal media libraries and streams them to smart TVs, streaming boxes and mobile devices.",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"movies",
+		"tv",
+		"music"
+	],
+	"logo": "logos/plex.svg",
+	"docs": "https://docs.linuxserver.io/images/docker-plex/",
+	"version": "sha256:0c2f1122a427",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/plex.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "plexDomain",
+			"label": "Plex domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "plexClaim",
+			"label": "Plex claim",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "plex",
+			"dependsOn": [],
+			"env": {
+				"_APP_URL": "https://${{ inputs.plexDomain }}",
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "America/Toronto",
+				"PLEX_CLAIM": "${{ inputs.plexClaim }}"
+			},
+			"volumes": [
+				{
+					"name": "plex-config",
+					"target": "/config"
+				},
+				{
+					"name": "plex-tv",
+					"target": "/tv"
+				},
+				{
+					"name": "plex-movies",
+					"target": "/movies"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/plex@sha256:0c2f1122a4275efeea953a9882359f3809b27279d3c3022392e8e610a2eccc67",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:32400/identity"
+				]
+			},
+			"public": {
+				"port": 32400,
+				"domain": "plexDomain"
+			}
+		}
+	]
+}

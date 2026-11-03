@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "carbone",
+	"name": "Carbone",
+	"description": "Carbone is a high-performance, self-hosted document generation engine. It allows you to generate reports, invoices, and documents in various formats (e.g., PDF, DOCX, XLSX) using JSON data and template-based rendering.",
+	"category": "automation",
+	"tags": [
+		"document-generation",
+		"automation",
+		"reporting",
+		"productivity"
+	],
+	"logo": "logos/carbone.png",
+	"website": "https://carbone.io/",
+	"docs": "https://carbone.io/documentation/design/overview/getting-started.html",
+	"version": "4.25.5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/carbone",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "carboneKey",
+			"label": "Carbone key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "carbone",
+			"dependsOn": [],
+			"env": {
+				"CARBONE_EE_LICENSE": "${{ inputs.carboneKey }}",
+				"CARBONE_EE_STUDIO": "true"
+			},
+			"volumes": [
+				{
+					"name": "template",
+					"target": "/app/template"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "carbone/carbone-ee:full-4.25.5",
+			"ports": [
+				{
+					"target": 4000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 4000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

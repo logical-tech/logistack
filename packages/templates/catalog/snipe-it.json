@@ -1,0 +1,133 @@
+{
+	"schema": 1,
+	"id": "snipe-it",
+	"name": "Snipe It",
+	"description": "Snipe-IT is an open-source asset management platform built for IT departments.",
+	"category": "productivity",
+	"tags": [
+		"inventory",
+		"open-source",
+		"asset-management",
+		"business",
+		"self-hosted"
+	],
+	"logo": "logos/snipe-it.webp",
+	"website": "https://snipeitapp.com/",
+	"docs": "https://snipe-it.readme.io/docs/introduction",
+	"version": "v8.8.3",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/snipe-it.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "snipeitDomain",
+			"label": "Snipeit domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "appkeyKey",
+			"label": "Appkey key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mariadbUser",
+			"label": "Mariadb user",
+			"type": "username"
+		},
+		{
+			"key": "mariadbPassword",
+			"label": "Mariadb password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rootPassword",
+			"label": "Root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "app",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"APP_ENV": "production",
+				"APP_DEBUG": "false",
+				"APP_KEY": "base64:${{ inputs.appkeyKey }}",
+				"APP_URL": "https://${{ inputs.snipeitDomain }}",
+				"APP_TIMEZONE": "UTC",
+				"APP_LOCALE": "en-US",
+				"DB_CONNECTION": "mysql",
+				"DB_HOST": "${{ services.mariadb.host }}",
+				"DB_PORT": "3306",
+				"DB_DATABASE": "snipeit",
+				"DB_USERNAME": "${{ inputs.mariadbUser }}",
+				"DB_PASSWORD": "${{ inputs.mariadbPassword }}",
+				"MAIL_MAILER": "smtp",
+				"MAIL_HOST": "null",
+				"MAIL_PORT": "1025",
+				"MAIL_USERNAME": "null",
+				"MAIL_PASSWORD": "null",
+				"MAIL_FROM_ADDR": "you@example.com",
+				"MAIL_FROM_NAME": "Snipe-IT"
+			},
+			"volumes": [
+				{
+					"name": "storage",
+					"target": "/var/lib/snipeit"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "snipe/snipe-it:v8.8.3",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost/health"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "snipeitDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "snipeit",
+				"MYSQL_USER": "${{ inputs.mariadbUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mariadbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.rootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11.8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		}
+	]
+}

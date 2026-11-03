@@ -1,0 +1,72 @@
+{
+	"schema": 1,
+	"id": "pgadmin",
+	"name": "Pgadmin",
+	"description": "pgAdmin is a web-based database management tool for administering your PostgreSQL databases through a user-friendly interface.",
+	"category": "database",
+	"tags": [
+		"database management",
+		"database",
+		"postgres",
+		"admin"
+	],
+	"logo": "logos/pgadmin.svg",
+	"website": "https://www.pgadmin.org/",
+	"docs": "https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html",
+	"version": "sha256:3591b3d02910",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/pgadmin.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "pgadminDomain",
+			"label": "Pgadmin domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "pgadminDefaultEmail",
+			"label": "Pgadmin default email",
+			"type": "text"
+		},
+		{
+			"key": "pgadminDefaultPassword",
+			"label": "Pgadmin default password",
+			"type": "text"
+		}
+	],
+	"services": [
+		{
+			"name": "pgadmin",
+			"dependsOn": [],
+			"env": {
+				"PGADMIN_DEFAULT_EMAIL": "${{ inputs.pgadminDefaultEmail }}",
+				"PGADMIN_DEFAULT_PASSWORD": "${{ inputs.pgadminDefaultPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "pgadmin-data",
+					"target": "/var/lib/pgadmin"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "dpage/pgadmin4@sha256:3591b3d02910dcd817dec6fcaa681c278ba6966945283dd0ea0042731c330c83",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://localhost:80/login"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "pgadminDomain"
+			}
+		}
+	]
+}

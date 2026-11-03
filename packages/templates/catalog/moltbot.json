@@ -1,0 +1,93 @@
+{
+	"schema": 1,
+	"id": "moltbot",
+	"name": "Moltbot",
+	"description": "WhatsApp gateway CLI with Pi RPC agent - self-hosted AI-powered messaging platform",
+	"category": "ai",
+	"tags": [
+		"whatsapp",
+		"ai",
+		"messaging",
+		"chatbot",
+		"gateway",
+		"self-hosted",
+		"automation"
+	],
+	"logo": "logos/moltbot.svg",
+	"website": "https://molt.bot/",
+	"docs": "https://docs.molt.bot/",
+	"version": "2026.1.25",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/moltbot",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "gatewayToken",
+			"label": "Gateway token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "moltbotGatewayDomain",
+			"label": "Moltbot gateway domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "moltbot-gateway",
+			"dependsOn": [],
+			"env": {
+				"HOME": "/home/node",
+				"TERM": "xterm-256color",
+				"CLAWDBOT_GATEWAY_TOKEN": "${{ inputs.gatewayToken }}",
+				"CLAUDE_AI_SESSION_KEY": "",
+				"CLAUDE_WEB_SESSION_KEY": "",
+				"CLAUDE_WEB_COOKIE": "",
+				"CLAWDBOT_GATEWAY_URL": "ws://0.0.0.0:18789",
+				"OPENROUTER_API_KEY": "YOUR-API-KEY"
+			},
+			"volumes": [
+				{
+					"name": "moltbot-config",
+					"target": "/home/node/.clawdbot"
+				},
+				{
+					"name": "moltbot-workspace",
+					"target": "/home/node/clawd"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/moltbot/clawdbot:2026.1.24-1",
+			"command": [
+				"node",
+				"dist/index.js",
+				"gateway",
+				"--bind",
+				"auto",
+				"--port",
+				"18789",
+				"--allow-unconfigured"
+			],
+			"ports": [
+				{
+					"target": 18789,
+					"protocol": "tcp"
+				},
+				{
+					"target": 18790,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 18789,
+				"domain": "moltbotGatewayDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

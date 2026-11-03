@@ -1,0 +1,169 @@
+{
+	"schema": 1,
+	"id": "leantime",
+	"name": "Leantime",
+	"description": "Leantime is a goals focused project management system for non-project managers.",
+	"category": "productivity",
+	"tags": [
+		"project management",
+		"productivity",
+		"php",
+		"mysql",
+		"laravel",
+		"open source",
+		"project-management",
+		"self-hosted"
+	],
+	"logo": "logos/leantime.svg",
+	"website": "https://leantime.io/",
+	"docs": "https://leantime.io/",
+	"version": "sha256:57ceab3bf418",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/leantime.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "leantimeDomain",
+			"label": "Leantime domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqldbUser",
+			"label": "Mysqldb user",
+			"type": "username"
+		},
+		{
+			"key": "mysqldbPassword",
+			"label": "Mysqldb password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "saltPassword",
+			"label": "Salt password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "leantime",
+			"dependsOn": [
+				"mysql",
+				"redis"
+			],
+			"env": {
+				"LEAN_APP_URL": "https://${{ inputs.leantimeDomain }}",
+				"LEAN_DB_HOST": "${{ services.mysql.host }}",
+				"LEAN_DB_USER": "${{ inputs.mysqldbUser }}",
+				"LEAN_DB_PASSWORD": "${{ inputs.mysqldbPassword }}",
+				"LEAN_DB_DATABASE": "leantime-db",
+				"LEAN_SESSION_PASSWORD": "${{ inputs.saltPassword }}",
+				"LEAN_SESSION_EXPIRATION": "28800",
+				"LEAN_USE_REDIS": "true",
+				"LEAN_REDIS_HOST": "${{ services.redis.host }}",
+				"LEAN_REDIS_PORT": "6379",
+				"LEAN_REDIS_SCHEME": "tcp"
+			},
+			"volumes": [
+				{
+					"name": "public-userfiles",
+					"target": "/var/www/html/public/userfiles"
+				},
+				{
+					"name": "userfiles",
+					"target": "/var/www/html/userfiles"
+				},
+				{
+					"name": "plugins",
+					"target": "/var/www/html/app/Plugins"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "leantime/leantime@sha256:57ceab3bf418e3314195037bd3733e521b6481e6407f7af0256093c3a340b99f",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8080"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "leantimeDomain"
+			}
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
+				"MYSQL_USER": "${{ inputs.mysqldbUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqldbPassword }}",
+				"MYSQL_DATABASE": "leantime-db"
+			},
+			"volumes": [
+				{
+					"name": "leantime-mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mysql:8.4",
+			"command": [
+				"--character-set-server=UTF8MB4",
+				"--collation-server=UTF8MB4_unicode_ci"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mysqladmin",
+					"ping",
+					"-h",
+					"localhost"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "leantime-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"command": [
+				"redis-server",
+				"--appendonly",
+				"yes"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		}
+	]
+}

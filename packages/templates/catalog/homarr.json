@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "homarr",
+	"name": "Homarr",
+	"description": "Homarr is a dashboard for organizing and accessing all your apps from one place.",
+	"category": "monitoring",
+	"tags": [
+		"dashboard",
+		"monitoring"
+	],
+	"logo": "logos/homarr.png",
+	"website": "https://homarr.dev/",
+	"docs": "https://homarr.dev/docs/getting-started/installation/docker",
+	"version": "sha256:2844201f11ce",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/homarr",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "homarr",
+			"dependsOn": [],
+			"env": {
+				"SECRET_ENCRYPTION_KEY": "${{ inputs.secretKey }}"
+			},
+			"volumes": [
+				{
+					"name": "homarr-appdata",
+					"target": "/appdata"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/homarr-labs/homarr@sha256:2844201f11ce28b98183728dea2261de2b4fd8ed5480a4eef0b7977cc1a08dc0",
+			"ports": [
+				{
+					"target": 7575,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 7575,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

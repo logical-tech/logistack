@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "linkding",
+	"name": "Linkding",
+	"description": "A self-hosted bookmark manager designed to be minimal, fast, and easy to set up.",
+	"category": "communication",
+	"tags": [
+		"rss",
+		"feed"
+	],
+	"logo": "logos/linkding.svg",
+	"docs": "https://linkding.link/",
+	"version": "sha256:e35cb50e0581",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/linkding.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "linkdingDomain",
+			"label": "Linkding domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "linkdingUser",
+			"label": "Linkding user",
+			"type": "username"
+		},
+		{
+			"key": "linkdingPassword",
+			"label": "Linkding password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "linkding",
+			"dependsOn": [],
+			"env": {
+				"LD_SUPERUSER_NAME": "${{ inputs.linkdingUser }}",
+				"LD_SUPERUSER_PASSWORD": "${{ inputs.linkdingPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "linkding-data",
+					"target": "/etc/linkding/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "sissbruecker/linkding@sha256:e35cb50e0581178f245125ffaa909c565416c94c9f22ace305a7d234a4345522",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/9090' || exit 1"
+				]
+			},
+			"public": {
+				"port": 9090,
+				"domain": "linkdingDomain"
+			}
+		}
+	]
+}

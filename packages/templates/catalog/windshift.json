@@ -1,0 +1,99 @@
+{
+	"schema": 1,
+	"id": "windshift",
+	"name": "Windshift",
+	"description": "Self-hosted work management platform with projects, tasks, sprints, and team collaboration.",
+	"category": "productivity",
+	"tags": [
+		"project-management",
+		"collaboration",
+		"productivity",
+		"self-hosted"
+	],
+	"website": "https://windshift.sh/",
+	"docs": "https://windshift.sh/docs",
+	"version": "v0.8.8",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/windshift",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "ssoSecret",
+			"label": "SSO secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "windshift",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"BASE_URL": "https://${{ inputs.mainDomain }}",
+				"PORT": "8080",
+				"USE_PROXY": "true",
+				"SSO_SECRET": "${{ inputs.ssoSecret }}",
+				"ATTACHMENT_PATH": "/data/attachments",
+				"DB_TYPE": "postgres",
+				"POSTGRES_HOST": "${{ services.db.host }}",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_USER": "windshift",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "windshift",
+				"LOG_LEVEL": "info",
+				"LOG_FORMAT": "json"
+			},
+			"volumes": [
+				{
+					"name": "windshift-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/windshiftapp/windshift:v0.8.8",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "windshift",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "windshift"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17.4"
+		}
+	]
+}

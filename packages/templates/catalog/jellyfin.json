@@ -1,0 +1,72 @@
+{
+	"schema": 1,
+	"id": "jellyfin",
+	"name": "Jellyfin",
+	"description": "Jellyfin is a media server for hosting and streaming your media collection.",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"movies",
+		"tv",
+		"music"
+	],
+	"logo": "logos/jellyfin.svg",
+	"docs": "https://jellyfin.org/",
+	"version": "10.11.8",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/jellyfin.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "jellyfinDomain",
+			"label": "Jellyfin domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "jellyfin",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Europe/Madrid",
+				"JELLYFIN_PublishedServerUrl": "https://${{ inputs.jellyfinDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "jellyfin-config",
+					"target": "/config"
+				},
+				{
+					"name": "jellyfin-tvshows",
+					"target": "/data/tvshows"
+				},
+				{
+					"name": "jellyfin-movies",
+					"target": "/data/movies"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/jellyfin:10.11.8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8096"
+				]
+			},
+			"public": {
+				"port": 8096,
+				"domain": "jellyfinDomain"
+			}
+		}
+	]
+}

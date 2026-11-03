@@ -1,0 +1,73 @@
+{
+	"schema": 1,
+	"id": "silex",
+	"name": "Silex",
+	"description": "Silex is a free and open-source website builder for professional designers. It lets you create static websites visually with a drag-and-drop editor, custom CSS and JavaScript, and publish them anywhere.",
+	"category": "other",
+	"tags": [
+		"website-builder",
+		"no-code",
+		"static-site"
+	],
+	"logo": "logos/silex.png",
+	"website": "https://www.silex.me/",
+	"docs": "https://docs.silex.me/",
+	"version": "3.7.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/silex",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "sessionSecret",
+			"label": "Session secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "silex",
+			"dependsOn": [],
+			"env": {
+				"SILEX_URL": "http://${{ inputs.mainDomain }}",
+				"SILEX_SESSION_SECRET": "${{ inputs.sessionSecret }}",
+				"STORAGE_CONNECTORS": "fs",
+				"HOSTING_CONNECTORS": "fs,download",
+				"SILEX_FS_ROOT": "/silex/silex/storage",
+				"SILEX_FS_HOSTING_ROOT": "/silex/silex/hosting"
+			},
+			"volumes": [
+				{
+					"name": "silex-storage",
+					"target": "/silex/silex/storage"
+				},
+				{
+					"name": "silex-hosting",
+					"target": "/silex/silex/hosting"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "silexlabs/silex:3.7.0",
+			"ports": [
+				{
+					"target": 6805,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 6805,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

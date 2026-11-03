@@ -1,0 +1,71 @@
+{
+	"schema": 1,
+	"id": "maxio",
+	"name": "MaxIO",
+	"description": "MaxIO is a lightweight, single-binary S3-compatible object storage server written in Rust",
+	"category": "storage",
+	"tags": [
+		"s3",
+		"storage",
+		"object-storage"
+	],
+	"logo": "logos/maxio.svg",
+	"website": "https://github.com/coollabsio/maxio",
+	"docs": "https://github.com/coollabsio/maxio/blob/main/README.md",
+	"version": "0.2.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/maxio",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "maxioAccessKey",
+			"label": "Maxio access key",
+			"type": "password",
+			"length": 20
+		},
+		{
+			"key": "maxioSecretKey",
+			"label": "Maxio secret key",
+			"type": "password",
+			"length": 20
+		},
+		{
+			"key": "maxioDomain",
+			"label": "Maxio domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "maxio",
+			"dependsOn": [],
+			"env": {
+				"MAXIO_ACCESS_KEY": "${{ inputs.maxioAccessKey }}",
+				"MAXIO_SECRET_KEY": "${{ inputs.maxioSecretKey }}"
+			},
+			"volumes": [
+				{
+					"name": "maxio-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/coollabsio/maxio:0.2.1",
+			"ports": [
+				{
+					"target": 9000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 9000,
+				"domain": "maxioDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

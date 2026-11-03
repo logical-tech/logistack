@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "storyden",
+	"name": "Storyden",
+	"description": "With a fresh new take on traditional bulletin board forum software, Storyden is a modern, secure and extensible platform for building communities.",
+	"category": "other",
+	"tags": [
+		"forum",
+		"discussion",
+		"community",
+		"open-source"
+	],
+	"logo": "logos/storyden.png",
+	"website": "https://www.storyden.org/",
+	"docs": "https://www.storyden.org/docs/introduction",
+	"version": "sha256:a28477af32ce",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/storyden",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "storyden",
+			"dependsOn": [],
+			"env": {
+				"PUBLIC_WEB_ADDRESS": "http://${{ inputs.mainDomain }}",
+				"PUBLIC_API_ADDRESS": "http://${{ inputs.mainDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "storyden-data",
+					"target": "/storyden/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/southclaws/storyden@sha256:a28477af32cebf7252e14a76f93b1cfd6c48c335031f5a5eeb3301d404330c3d",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

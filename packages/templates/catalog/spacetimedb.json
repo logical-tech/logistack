@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "spacetimedb",
+	"name": "SpacetimeDB",
+	"description": "SpacetimeDB is a relational database with a built-in server runtime. Clients connect directly to the database and run server-side logic (modules) inside it, making it ideal for real-time multiplayer games, chat and collaborative applications without a separate backend.",
+	"category": "database",
+	"tags": [
+		"database",
+		"realtime",
+		"backend"
+	],
+	"logo": "logos/spacetimedb.png",
+	"website": "https://spacetimedb.com/",
+	"docs": "https://spacetimedb.com/docs",
+	"version": "v2.6.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/spacetimedb",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "spacetimedb",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "spacetimedb-data",
+					"target": "/home/spacetime"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "clockworklabs/spacetime:v2.6.1",
+			"command": [
+				"start"
+			],
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

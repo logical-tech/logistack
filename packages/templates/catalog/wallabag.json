@@ -1,0 +1,134 @@
+{
+	"schema": 1,
+	"id": "wallabag",
+	"name": "wallabag",
+	"description": "wallabag is a self-hosted read-it-later application for saving, classifying, and reading web articles.",
+	"category": "productivity",
+	"tags": [
+		"read-it-later",
+		"bookmarks",
+		"articles",
+		"self-hosted"
+	],
+	"logo": "logos/wallabag.svg",
+	"website": "https://wallabag.org/",
+	"docs": "https://doc.wallabag.org/",
+	"version": "2.6.14",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/wallabag",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "appSecret",
+			"label": "App secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "wallabag",
+			"dependsOn": [
+				"wallabag-db",
+				"wallabag-redis"
+			],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}",
+				"SYMFONY__ENV__DATABASE_DRIVER": "pdo_mysql",
+				"SYMFONY__ENV__DATABASE_HOST": "${{ services.wallabag-db.host }}",
+				"SYMFONY__ENV__DATABASE_PORT": "3306",
+				"SYMFONY__ENV__DATABASE_NAME": "wallabag",
+				"SYMFONY__ENV__DATABASE_USER": "wallabag",
+				"SYMFONY__ENV__DATABASE_PASSWORD": "${{ inputs.dbPassword }}",
+				"SYMFONY__ENV__DATABASE_CHARSET": "utf8mb4",
+				"SYMFONY__ENV__DATABASE_TABLE_PREFIX": "wallabag_",
+				"SYMFONY__ENV__MAILER_DSN": "smtp://127.0.0.1",
+				"SYMFONY__ENV__FROM_EMAIL": "wallabag@example.com",
+				"SYMFONY__ENV__DOMAIN_NAME": "http://${{ inputs.mainDomain }}",
+				"SYMFONY__ENV__SERVER_NAME": "${{ services.wallabag.host }}",
+				"SYMFONY__ENV__SECRET": "${{ inputs.appSecret }}",
+				"SYMFONY__ENV__REDIS_HOST": "${{ services.wallabag-redis.host }}"
+			},
+			"volumes": [
+				{
+					"name": "wallabag-images",
+					"target": "/var/www/wallabag/web/assets/images"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "wallabag/wallabag:2.6.14",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "wallabag-db",
+			"dependsOn": [],
+			"env": {
+				"MARIADB_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "wallabag-db-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mariadb",
+			"version": "11.4"
+		},
+		{
+			"name": "wallabag-redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "wallabag-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

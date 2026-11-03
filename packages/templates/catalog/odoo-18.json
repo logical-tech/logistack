@@ -1,0 +1,80 @@
+{
+	"schema": 1,
+	"id": "odoo-18",
+	"name": "Odoo",
+	"description": "Odoo is a free and open source business management software that helps you manage your company's operations.",
+	"category": "other",
+	"tags": [
+		"erp"
+	],
+	"website": "https://odoo.com/",
+	"docs": "https://www.odoo.com/documentation/",
+	"version": "18.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/odoo_18",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "web",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"HOST": "${{ services.db.host }}",
+				"USER": "odoo",
+				"PASSWORD": "odoo"
+			},
+			"volumes": [
+				{
+					"name": "odoo-web-data",
+					"target": "/var/lib/odoo"
+				},
+				{
+					"name": "files-config",
+					"target": "/etc/odoo"
+				},
+				{
+					"name": "files-addons",
+					"target": "/mnt/extra-addons"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "odoo:18.0",
+			"ports": [],
+			"public": {
+				"port": 8069,
+				"domain": "mainDomain"
+			}
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "postgres",
+				"POSTGRES_USER": "odoo",
+				"POSTGRES_PASSWORD": "odoo"
+			},
+			"volumes": [
+				{
+					"name": "odoo-db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17"
+		}
+	]
+}

@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "valkey",
+	"name": "Valkey",
+	"description": "Valkey is an open-source fork of Redis, backed by AWS and the Linux Foundation. It provides a high-performance, in-memory data structure store with Redis compatibility.",
+	"category": "database",
+	"tags": [
+		"database",
+		"cache",
+		"redis",
+		"in-memory"
+	],
+	"logo": "logos/valkey.svg",
+	"website": "https://valkey.io/",
+	"docs": "https://github.com/valkey-io/valkey",
+	"version": "8.1.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/valkey",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "valkeyPassword",
+			"label": "Valkey password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "valkey",
+			"dependsOn": [],
+			"env": {
+				"VALKEY_PASSWORD": "${{ inputs.valkeyPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "valkey-data",
+					"target": "/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/etc/valkey/valkey.conf",
+					"content": "# Valkey configuration file\n# For more information, see: https://github.com/valkey-io/valkey\n\n# Network\nbind 0.0.0.0\nport 6379\nprotected-mode yes\n\n# General\ndaemonize no\nsupervised no\npidfile /data/valkey.pid\nloglevel notice\nlogfile \"\"\n\n# Snapshotting\nsave 900 1\nsave 300 10\nsave 60 10000\nstop-writes-on-bgsave-error yes\nrdbcompression yes\nrdbchecksum yes\ndbfilename dump.rdb\ndir /data\n\n# Replication\nreplica-serve-stale-data yes\nreplica-read-only yes\n\n# Security\nrequirepass ${{ inputs.valkeyPassword }}\n\n# Memory management\nmaxmemory-policy noeviction\n\n# Append only file\nappendonly yes\nappendfilename \"appendonly.aof\"\nappendfsync everysec\nno-appendfsync-on-rewrite no\nauto-aof-rewrite-percentage 100\nauto-aof-rewrite-min-size 64mb\n",
+					"secret": true
+				}
+			],
+			"kind": "application",
+			"image": "valkey/valkey:8.1.4",
+			"command": [
+				"valkey-server",
+				"/etc/valkey/valkey.conf"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"valkey-cli -a \"$VALKEY_PASSWORD\" ping | grep PONG"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

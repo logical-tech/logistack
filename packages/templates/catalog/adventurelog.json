@@ -1,0 +1,139 @@
+{
+	"schema": 1,
+	"id": "adventurelog",
+	"name": "AdventureLog",
+	"description": "AdventureLog is an open-source activity tracker with maps, journaling, and Strava integration.",
+	"category": "database",
+	"tags": [
+		"activity",
+		"maps",
+		"django",
+		"react",
+		"postgres"
+	],
+	"logo": "logos/adventurelog.svg",
+	"website": "https://adventurelog.app/",
+	"docs": "https://adventurelog.app/docs/intro/adventurelog_overview.html",
+	"version": "sha256:7f48c8692d67",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/adventurelog",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 12
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "backendDomain",
+			"label": "Backend domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "frontendDomain",
+			"label": "Frontend domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "web",
+			"dependsOn": [
+				"server"
+			],
+			"env": {
+				"PUBLIC_SERVER_URL": "${{ inputs.backendDomain }}",
+				"ORIGIN": "http://${{ inputs.frontendDomain }}",
+				"BODY_SIZE_LIMIT": "Infinity"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/seanmorley15/adventurelog-frontend@sha256:7f48c8692d6777facd63268fb9ac553db68bfc3141163ec8e888c1fbbe7fc7ab",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "frontendDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "adventure",
+				"POSTGRES_USER": "adventure",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgis/postgis:16-3.5",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "server",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"PGHOST": "${{ services.db.host }}",
+				"POSTGRES_DB": "adventure",
+				"POSTGRES_USER": "adventure",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"DJANGO_ADMIN_USERNAME": "admin",
+				"DJANGO_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"DJANGO_ADMIN_EMAIL": "${{ inputs.adminEmail }}",
+				"DEBUG": "False",
+				"CSRF_TRUSTED_ORIGINS": "http://${{ inputs.backendDomain }},http://${{ inputs.frontendDomain }}",
+				"FRONTEND_URL": "http://${{ inputs.frontendDomain }}",
+				"PUBLIC_URL": "http://${{ inputs.backendDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "adventurelog-media",
+					"target": "/code/media"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/seanmorley15/adventurelog-backend@sha256:84845e38ccf4487fbca6b580f19dd8a6c65669bf384ea7463ab018ca8a47c0dc",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "backendDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

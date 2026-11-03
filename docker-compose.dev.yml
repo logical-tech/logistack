@@ -1,0 +1,18 @@
+# Local dev infra only. Production uses install/stack.yml.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: logistack
+      POSTGRES_PASSWORD: logistack
+      POSTGRES_DB: logistack
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:6380:6379"]
+    volumes: [redisdata:/data]
+volumes:
+  pgdata:
+  redisdata:

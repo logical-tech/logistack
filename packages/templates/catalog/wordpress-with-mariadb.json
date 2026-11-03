@@ -1,0 +1,111 @@
+{
+	"schema": 1,
+	"id": "wordpress-with-mariadb",
+	"name": "Wordpress With Mariadb",
+	"description": "WordPress is open source software you can use to create a beautiful website, blog, or app.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"blog",
+		"content",
+		"management",
+		"mariadb"
+	],
+	"logo": "logos/wordpress-with-mariadb.svg",
+	"docs": "https://wordpress.org/",
+	"version": "sha256:1f59452d2cee",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/wordpress-with-mariadb.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "wordpressDomain",
+			"label": "Wordpress domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "wordpressUser",
+			"label": "Wordpress user",
+			"type": "username"
+		},
+		{
+			"key": "wordpressPassword",
+			"label": "Wordpress password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rootPassword",
+			"label": "Root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "wordpress",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"WORDPRESS_DB_HOST": "${{ services.mariadb.host }}",
+				"WORDPRESS_DB_USER": "${{ inputs.wordpressUser }}",
+				"WORDPRESS_DB_PASSWORD": "${{ inputs.wordpressPassword }}",
+				"WORDPRESS_DB_NAME": "wordpress"
+			},
+			"volumes": [
+				{
+					"name": "wordpress-files",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "wordpress@sha256:1f59452d2ceed177ad383d17b3a6a7a5c8225d89e34adb36880af8603ac244c2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "wordpressDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.rootPassword }}",
+				"MYSQL_DATABASE": "wordpress",
+				"MYSQL_USER": "${{ inputs.wordpressUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.wordpressPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		}
+	]
+}

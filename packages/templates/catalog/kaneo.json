@@ -1,0 +1,99 @@
+{
+	"schema": 1,
+	"id": "kaneo",
+	"name": "Kaneo",
+	"description": "Kaneo - an open source project management platform focused on simplicity and efficiency. Self-host it, customize it, make it yours.",
+	"category": "other",
+	"tags": [
+		"task-tracking"
+	],
+	"logo": "logos/kaneo.png",
+	"website": "https://kaneo.app/",
+	"docs": "https://kaneo.app/docs/",
+	"version": "2.35.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kaneo",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "authSecret",
+			"label": "Auth secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "kaneo",
+				"POSTGRES_USER": "kaneo",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "kaneo",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"KANEO_CLIENT_URL": "http://${{ inputs.mainDomain }}",
+				"AUTH_SECRET": "${{ inputs.authSecret }}",
+				"DATABASE_URL": "postgresql://kaneo:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/kaneo"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/usekaneo/kaneo:2.35.0",
+			"ports": [
+				{
+					"target": 5173,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-Y",
+					"off",
+					"--no-verbose",
+					"--tries=1",
+					"--spider",
+					"http://127.0.0.1:5173/api/health"
+				]
+			},
+			"public": {
+				"port": 5173,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

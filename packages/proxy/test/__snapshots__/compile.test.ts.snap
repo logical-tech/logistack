@@ -1,0 +1,356 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`full config snapshot 1`] = `
+{
+  "admin": {
+    "listen": "0.0.0.0:2019",
+  },
+  "apps": {
+    "http": {
+      "grace_period": "10s",
+      "http_port": 80,
+      "https_port": 443,
+      "servers": {
+        "http": {
+          "listen": [
+            ":80",
+          ],
+          "logs": {
+            "default_logger_name": "ls-access",
+          },
+          "routes": [
+            {
+              "@id": "ls-https-redirect",
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "headers": {
+                    "Location": [
+                      "https://{http.request.host}{http.request.uri}",
+                    ],
+                  },
+                  "status_code": 308,
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "*.preview.example.com",
+                    "api.example.net",
+                    "app.example.com",
+                    "ls.example.com",
+                    "shop.example.org",
+                    "www.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-d6",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-e5:80",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "legacy.internal.test",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-not-found-http",
+              "handle": [
+                {
+                  "body": "<!doctype html><html><head><meta charset="utf-8"><title>Not found</title></head><body style="font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;color:#555"><div><h1>404</h1><p>No application is configured for this address.</p></div></body></html>",
+                  "handler": "static_response",
+                  "headers": {
+                    "Content-Type": [
+                      "text/html; charset=utf-8",
+                    ],
+                  },
+                  "status_code": 404,
+                },
+              ],
+              "terminal": true,
+            },
+          ],
+        },
+        "https": {
+          "automatic_https": {
+            "disable_redirects": true,
+          },
+          "listen": [
+            ":443",
+          ],
+          "logs": {
+            "default_logger_name": "ls-access",
+          },
+          "routes": [
+            {
+              "@id": "ls-dashboard",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "logistack-api:3000",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "ls.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-d7",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-f6:80",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "api.example.net",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-d2",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-b2:3000",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "app.example.com",
+                  ],
+                  "path": [
+                    "/api",
+                    "/api/*",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-d1",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-a1:8080",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "app.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-d4",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-d4:80",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "shop.example.org",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-d5",
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "headers": {
+                    "Location": [
+                      "https://app.example.com{http.request.uri}",
+                    ],
+                  },
+                  "status_code": 308,
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "www.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-d3",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-c3:80",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "*.preview.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-not-found-https",
+              "handle": [
+                {
+                  "body": "<!doctype html><html><head><meta charset="utf-8"><title>Not found</title></head><body style="font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;color:#555"><div><h1>404</h1><p>No application is configured for this address.</p></div></body></html>",
+                  "handler": "static_response",
+                  "headers": {
+                    "Content-Type": [
+                      "text/html; charset=utf-8",
+                    ],
+                  },
+                  "status_code": 404,
+                },
+              ],
+              "terminal": true,
+            },
+          ],
+        },
+      },
+    },
+    "tls": {
+      "automation": {
+        "policies": [
+          {
+            "issuers": [
+              {
+                "ca": "https://acme-v02.api.letsencrypt.org/directory",
+                "challenges": {
+                  "dns": {
+                    "provider": {
+                      "api_token": "cf-token",
+                      "name": "cloudflare",
+                    },
+                  },
+                },
+                "email": "ops@example.com",
+                "module": "acme",
+              },
+            ],
+            "subjects": [
+              "*.preview.example.com",
+              "api.example.net",
+            ],
+          },
+          {
+            "issuers": [
+              {
+                "ca": "https://acme-v02.api.letsencrypt.org/directory",
+                "email": "ops@example.com",
+                "module": "acme",
+              },
+            ],
+          },
+        ],
+      },
+      "certificates": {
+        "load_pem": [
+          {
+            "certificate": "CERT-PEM",
+            "key": "KEY-PEM",
+            "tags": [
+              "ls-cert-c1",
+            ],
+          },
+        ],
+      },
+    },
+  },
+  "logging": {
+    "logs": {
+      "access": {
+        "encoder": {
+          "format": "json",
+        },
+        "include": [
+          "http.log.access.ls-access",
+        ],
+        "writer": {
+          "output": "stdout",
+        },
+      },
+      "default": {
+        "encoder": {
+          "format": "json",
+        },
+        "exclude": [
+          "http.log.access.ls-access",
+        ],
+        "writer": {
+          "output": "stderr",
+        },
+      },
+    },
+  },
+  "storage": {
+    "address": [
+      "ls-redis:6379",
+    ],
+    "db": 2,
+    "key_prefix": "logistack/caddy",
+    "module": "redis",
+    "password": "s3cret",
+    "tls_enabled": false,
+  },
+}
+`;

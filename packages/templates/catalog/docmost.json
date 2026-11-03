@@ -1,0 +1,114 @@
+{
+	"schema": 1,
+	"id": "docmost",
+	"name": "Docmost",
+	"description": "Docmost is a collaborative wiki and documentation tool.",
+	"category": "productivity",
+	"tags": [
+		"self-hosted",
+		"open-source",
+		"manager",
+		"documentation",
+		"opensource",
+		"wiki",
+		"confluence",
+		"knowledge-base",
+		"notion",
+		"realtime-collaboration",
+		"notion-alternative"
+	],
+	"logo": "logos/docmost.png",
+	"website": "https://docmost.com/",
+	"docs": "https://docmost.com/docs/",
+	"version": "0.4.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/docmost",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "appSecret",
+			"label": "App secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "docmost",
+			"dependsOn": [
+				"db",
+				"redis"
+			],
+			"env": {
+				"APP_URL": "http://${{ inputs.mainDomain }}:3000",
+				"APP_SECRET": "${{ inputs.appSecret }}",
+				"DATABASE_URL": "postgresql://docmost:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/docmost?schema=public",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379"
+			},
+			"volumes": [
+				{
+					"name": "docmost",
+					"target": "/app/data/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docmost/docmost:0.4.1",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "docmost",
+				"POSTGRES_USER": "docmost",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-docmost-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-docmost-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7.2-alpine",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

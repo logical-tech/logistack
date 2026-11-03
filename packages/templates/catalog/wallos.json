@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "wallos",
+	"name": "Wallos",
+	"description": "Wallos is a self-hosted subscription tracking application that helps you manage and monitor your subscriptions, providing insights into your spending habits.",
+	"category": "finance",
+	"tags": [
+		"finance",
+		"subscription",
+		"budgeting",
+		"expense-tracking",
+		"spending"
+	],
+	"logo": "logos/wallos.png",
+	"website": "https://wallosapp.com/",
+	"docs": "https://github.com/ellite/wallos?tab=readme-ov-file#getting-started",
+	"version": "sha256:78b73a32ae24",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/wallos",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "wallos",
+			"dependsOn": [],
+			"env": {
+				"TZ": "Europe/Paris"
+			},
+			"volumes": [
+				{
+					"name": "wallos-db",
+					"target": "/var/www/html/db"
+				},
+				{
+					"name": "wallos-logos",
+					"target": "/var/www/html/images/uploads/logos"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "bellamy/wallos@sha256:78b73a32ae24bcca67d6f4b96ca76fe29ee8da5e8df1769df1e612a4e776c904",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

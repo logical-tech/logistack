@@ -1,0 +1,94 @@
+{
+	"schema": 1,
+	"id": "homebox",
+	"name": "Homebox",
+	"description": "Homebox is the inventory and organization system built for the Home User.",
+	"category": "productivity",
+	"tags": [
+		"inventory",
+		"home",
+		"organize",
+		"organization",
+		"self-hosted"
+	],
+	"logo": "logos/homebox.svg",
+	"website": "https://homebox.software/",
+	"docs": "https://github.com/sysadminsmedia/homebox",
+	"version": "sha256:9d0b64776c69",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/homebox.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "homeboxDomain",
+			"label": "Homebox domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "hboxMailerHost",
+			"label": "Hbox mailer host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "hboxMailerUsername",
+			"label": "Hbox mailer username",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "hboxMailerPassword",
+			"label": "Hbox mailer password",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "hboxMailerFrom",
+			"label": "Hbox mailer from",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "homebox",
+			"dependsOn": [],
+			"env": {
+				"HBOX_OPTIONS_ALLOW_REGISTRATION": "false",
+				"HBOX_LOG_LEVEL": "info",
+				"HBOX_LOG_FORMAT": "text",
+				"HBOX_WEB_MAX_UPLOAD_SIZE": "10",
+				"HBOX_MAILER_HOST": "${{ inputs.hboxMailerHost }}",
+				"HBOX_MAILER_PORT": "587",
+				"HBOX_MAILER_USERNAME": "${{ inputs.hboxMailerUsername }}",
+				"HBOX_MAILER_PASSWORD": "${{ inputs.hboxMailerPassword }}",
+				"HBOX_MAILER_FROM": "${{ inputs.hboxMailerFrom }}"
+			},
+			"volumes": [
+				{
+					"name": "homebox-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/sysadminsmedia/homebox@sha256:9d0b64776c694f018c0ca06faf52105a33ca376024f46bb58e6ab0e2b728bb61",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --method=GET -qO- http://localhost:7745/api/v1/status > /dev/null || exit 1"
+				]
+			},
+			"public": {
+				"port": 7745,
+				"domain": "homeboxDomain"
+			}
+		}
+	]
+}

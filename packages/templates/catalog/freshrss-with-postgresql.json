@@ -1,0 +1,98 @@
+{
+	"schema": 1,
+	"id": "freshrss-with-postgresql",
+	"name": "Freshrss With Postgresql",
+	"description": "A free, self-hostable feed aggregator.",
+	"category": "communication",
+	"tags": [
+		"rss",
+		"feed"
+	],
+	"logo": "logos/freshrss-with-postgresql.png",
+	"docs": "https://freshrss.org/index.html",
+	"version": "sha256:af4438522954",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/freshrss-with-postgresql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "freshrssDomain",
+			"label": "Freshrss domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "freshrss",
+			"dependsOn": [
+				"freshrss-db"
+			],
+			"env": {
+				"CRON_MIN": "1,31",
+				"POSTGRES_DB": "freshrss",
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_HOST": "${{ services.freshrss-db.host }}"
+			},
+			"volumes": [
+				{
+					"name": "freshrss-data",
+					"target": "/var/www/FreshRSS/data"
+				},
+				{
+					"name": "freshrss-extensions",
+					"target": "/var/www/FreshRSS/extensions"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "freshrss/freshrss@sha256:af44385229541bee24aa9148d0ff8f3b40e095373c63a2c0f74e09a27d3c59df",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/80' || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "freshrssDomain"
+			}
+		},
+		{
+			"name": "freshrss-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_DB": "freshrss"
+			},
+			"volumes": [
+				{
+					"name": "freshrss-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		}
+	]
+}

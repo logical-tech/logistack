@@ -1,0 +1,122 @@
+{
+	"schema": 1,
+	"id": "newapi",
+	"name": "Newapi",
+	"description": "The next-generation LLM gateway and AI asset management system supports multiple languages.",
+	"category": "devtools",
+	"tags": [
+		"api",
+		"openai",
+		"llm",
+		"api-gateway",
+		"api-management"
+	],
+	"logo": "logos/newapi.png",
+	"docs": "https://docs.newapi.pro/en/getting-started/",
+	"version": "v0.9.2.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/newapi.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "newApiDomain",
+			"label": "New API domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "sessionSecretSecret",
+			"label": "Session secret secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		}
+	],
+	"services": [
+		{
+			"name": "new-api",
+			"dependsOn": [
+				"postgresql",
+				"redis"
+			],
+			"env": {
+				"SQL_DSN": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}:5432/newapi?sslmode=disable&TimeZone=Asia/Shanghai",
+				"REDIS_CONN_STRING": "redis://${{ services.redis.host }}:6379",
+				"TZ": "Asia/Shanghai",
+				"SESSION_SECRET": "${{ inputs.sessionSecretSecret }}",
+				"ERROR_LOG_ENABLED": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "calciumion/new-api:v0.9.2.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' | awk -F: '{print $2}'"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "newApiDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "newapi"
+			},
+			"volumes": [
+				{
+					"name": "postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"PING"
+				]
+			}
+		}
+	]
+}

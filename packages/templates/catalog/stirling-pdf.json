@@ -1,0 +1,72 @@
+{
+	"schema": 1,
+	"id": "stirling-pdf",
+	"name": "Stirling Pdf",
+	"description": "Stirling is a powerful web based PDF manipulation tool",
+	"category": "productivity",
+	"tags": [
+		"pdf",
+		"manipulation",
+		"web",
+		"tool"
+	],
+	"logo": "logos/stirling-pdf.png",
+	"docs": "https://github.com/Stirling-Tools/Stirling-PDF",
+	"version": "sha256:c6872dd056b0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/stirling-pdf.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "spdfDomain",
+			"label": "Spdf domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "stirling-pdf",
+			"dependsOn": [],
+			"env": {
+				"DOCKER_ENABLE_SECURITY": "false"
+			},
+			"volumes": [
+				{
+					"name": "stirling-training-data",
+					"target": "/usr/share/tesseract-ocr/5/tessdata"
+				},
+				{
+					"name": "stirling-configs",
+					"target": "/configs"
+				},
+				{
+					"name": "stirling-custom-files",
+					"target": "/customFiles"
+				},
+				{
+					"name": "stirling-logs",
+					"target": "/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "stirlingtools/stirling-pdf@sha256:c6872dd056b0046a14c5de1e9970283e7f1e1ff685bb08090c6b37a231127d31",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl --fail --silent http://127.0.0.1:8080/api/v1/info/status | grep -q \"UP\" || exit 1"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "spdfDomain"
+			}
+		}
+	]
+}

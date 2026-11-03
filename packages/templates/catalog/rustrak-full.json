@@ -1,0 +1,138 @@
+{
+	"schema": 1,
+	"id": "rustrak-full",
+	"name": "Rustrak (Full Stack)",
+	"description": "Self-hosted error tracking compatible with Sentry SDKs. Full stack: Rust server, web dashboard and PostgreSQL.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"error-tracking",
+		"sentry",
+		"rust",
+		"observability",
+		"postgresql"
+	],
+	"logo": "logos/rustrak-full.svg",
+	"website": "https://rustrak.github.io/rustrak/",
+	"docs": "https://rustrak.github.io/rustrak/getting-started/overview",
+	"version": "sha256:3ad590dde4cf",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/rustrak-full",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "sessionSecretKey",
+			"label": "Session secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "apiDomain",
+			"label": "API domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "rustrak-server",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"HOST": "0.0.0.0",
+				"PORT": "8080",
+				"RUST_LOG": "info",
+				"SSL_PROXY": "true",
+				"DATABASE_URL": "postgres://rustrak:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/rustrak",
+				"SESSION_SECRET_KEY": "${{ inputs.sessionSecretKey }}",
+				"CREATE_SUPERUSER": "${{ inputs.adminEmail }}:${{ inputs.adminPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "rustrak/rustrak-server:postgres",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "apiDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "rustrak-ui",
+			"dependsOn": [
+				"rustrak-server"
+			],
+			"env": {
+				"RUSTRAK_API_URL": "https://${{ inputs.apiDomain }}",
+				"HOSTNAME": "0.0.0.0"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "rustrak/rustrak-ui@sha256:3ad590dde4cf4361da08e91ed897184f7d699284e6dc02202e717378efefc230",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "rustrak",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "rustrak"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

@@ -1,0 +1,94 @@
+{
+	"schema": 1,
+	"id": "once-campfire",
+	"name": "Once Campfire",
+	"description": "Super simple group chat, without a subscription.",
+	"category": "communication",
+	"tags": [
+		"campfire",
+		"chat",
+		"communication",
+		"rails",
+		"once",
+		"basecamp",
+		"37signals"
+	],
+	"docs": "https://github.com/basecamp/once-campfire",
+	"version": "sha256:6047ae70017c",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/once-campfire.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "campfireDomain",
+			"label": "Campfire domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "campfireSecret",
+			"label": "Campfire secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "vapidPublicKey",
+			"label": "Vapid public key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "vapidPrivateKey",
+			"label": "Vapid private key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "sentryDsn",
+			"label": "Sentry dsn",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "campfire",
+			"dependsOn": [],
+			"env": {
+				"SECRET_KEY_BASE": "${{ inputs.campfireSecret }}",
+				"VAPID_PUBLIC_KEY": "${{ inputs.vapidPublicKey }}",
+				"VAPID_PRIVATE_KEY": "${{ inputs.vapidPrivateKey }}",
+				"DISABLE_SSL": "true",
+				"SSL_DOMAIN": "false",
+				"SKIP_TELEMETRY": "true",
+				"SENTRY_DSN": "${{ inputs.sentryDsn }}"
+			},
+			"volumes": [
+				{
+					"name": "campfire-storage",
+					"target": "/rails/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/basecamp/once-campfire@sha256:6047ae70017ce7381c1aaa7bd6758ec1e5e287aeafa1be25ce13055a09da31e9",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost/up"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "campfireDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

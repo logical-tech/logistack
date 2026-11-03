@@ -1,0 +1,99 @@
+{
+	"schema": 1,
+	"id": "cut",
+	"name": "Cut",
+	"description": "A tiny, self-hosted URL shortener — short links that are entirely yours, with per-link passwords, expiries, and click limits.",
+	"category": "other",
+	"tags": [
+		"url-shortener",
+		"links"
+	],
+	"logo": "logos/cut.svg",
+	"website": "https://github.com/MendyLanda/cut",
+	"docs": "https://github.com/MendyLanda/cut#readme",
+	"version": "0.1.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/cut",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "cut",
+			"dependsOn": [
+				"redis"
+			],
+			"env": {
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/mendylanda/cut@sha256:1c1a55388dae38876466d69b00019d0b91ccf5ec193e053fbb15802df7a7807b",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://127.0.0.1:3000/"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"command": [
+				"redis-server",
+				"--appendonly",
+				"yes",
+				"--maxmemory-policy",
+				"noeviction"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

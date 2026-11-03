@@ -1,0 +1,105 @@
+{
+	"schema": 1,
+	"id": "rote",
+	"name": "Rote",
+	"description": "Rote is an open-source multi-platform personal note system featuring an open API, full data ownership, and effortless Docker deployment.",
+	"category": "productivity",
+	"tags": [
+		"notes",
+		"productivity",
+		"postgres",
+		"bun"
+	],
+	"website": "https://rote.ink/",
+	"docs": "https://github.com/Rabithua/Rote/tree/main/doc/userguide",
+	"version": "sha256:bfc00cc666cd",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/rote",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "backendDomain",
+			"label": "Backend domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "frontendDomain",
+			"label": "Frontend domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "rote-backend",
+			"dependsOn": [
+				"rote-postgres"
+			],
+			"env": {
+				"POSTGRESQL_URL": "postgresql://rote:${{ inputs.postgresPassword }}@${{ services.rote-postgres.host }}:5432/rote"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "rabithua/rote-backend@sha256:143735a787e65745703fcbe4aee5dbe3f1804713a6a3b999df6ae8143a50f886",
+			"command": [
+				"sh",
+				"-c",
+				"sleep 15 && bun run dist/scripts/runMigrations.js && bun run dist/server.js"
+			],
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "backendDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "rote-frontend",
+			"dependsOn": [
+				"rote-backend"
+			],
+			"env": {
+				"VITE_API_BASE": "http://${{ inputs.backendDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "rabithua/rote-frontend@sha256:bfc00cc666cdb2660a0c9aa027f62e9e610bbae0dcfc8df24ed20b9f946334f1",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "frontendDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "rote-postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "rote",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "rote"
+			},
+			"volumes": [
+				{
+					"name": "rote-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17"
+		}
+	]
+}

@@ -1,0 +1,65 @@
+{
+	"schema": 1,
+	"id": "archivebox",
+	"name": "ArchiveBox",
+	"description": "ArchiveBox is a self-hosted internet archiving solution for saving websites, media, and documents.",
+	"category": "productivity",
+	"tags": [
+		"archive",
+		"bookmarks",
+		"web"
+	],
+	"logo": "logos/archivebox.svg",
+	"website": "https://archivebox.io/",
+	"docs": "https://docs.archivebox.io/",
+	"version": "sha256:f63170551ec4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/archivebox",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "archivebox",
+			"dependsOn": [],
+			"env": {
+				"ALLOWED_HOSTS": "*",
+				"PUBLIC_INDEX": "True",
+				"PUBLIC_SNAPSHOTS": "True"
+			},
+			"volumes": [
+				{
+					"name": "archivebox-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "archivebox/archivebox@sha256:f63170551ec48d7aa087c71e2d093156dbf4b4ed8680e2f97f22483e3bc71e55",
+			"command": [
+				"server",
+				"--quick-init",
+				"0.0.0.0:8000"
+			],
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,87 @@
+{
+	"schema": 1,
+	"id": "mosquitto",
+	"name": "Eclipse Mosquitto",
+	"description": "A lightweight, open-source MQTT broker for IoT and home automation with persistent messaging and WebSocket support.",
+	"category": "other",
+	"tags": [
+		"broker",
+		"iot",
+		"mqtt"
+	],
+	"logo": "logos/mosquitto.svg",
+	"website": "https://mosquitto.org/",
+	"docs": "https://mosquitto.org/documentation/",
+	"version": "2.1.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/mosquitto",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "brokerDomain",
+			"label": "Broker domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mqttPassword",
+			"label": "Mqtt password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "mosquitto",
+			"dependsOn": [],
+			"env": {
+				"MQTT_USERNAME": "mqtt",
+				"MQTT_PASSWORD": "${{ inputs.mqttPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mosquitto-data",
+					"target": "/mosquitto/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/mosquitto/config/mosquitto.conf",
+					"content": "persistence true\npersistence_location /mosquitto/data/\nlog_dest stdout\n\nlistener 1883\nprotocol mqtt\n\nlistener 9001\nprotocol websockets\n\nallow_anonymous false\npassword_file /mosquitto/data/passwordfile\n"
+				}
+			],
+			"kind": "application",
+			"image": "eclipse-mosquitto:2.1.2-alpine",
+			"entrypoint": [
+				"/bin/sh",
+				"-ec",
+				"umask 077\npassword_file=$(mktemp /mosquitto/data/passwordfile.XXXXXX)\ntrap 'rm -f \"$password_file\"' EXIT\nmosquitto_passwd -b -c - \"$MQTT_USERNAME\" \"$MQTT_PASSWORD\" > \"$password_file\"\nchown 1883:1883 \"$password_file\"\nchmod 600 \"$password_file\"\nmv -f \"$password_file\" /mosquitto/data/passwordfile\ntrap - EXIT\nexec /docker-entrypoint.sh /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf\n"
+			],
+			"ports": [
+				{
+					"target": 1883,
+					"protocol": "tcp"
+				},
+				{
+					"target": 9001,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"mosquitto_pub -h 127.0.0.1 -p 1883 -u \"$MQTT_USERNAME\" -P \"$MQTT_PASSWORD\" -t __healthcheck -m ok -q 1 >/dev/null 2>&1"
+				]
+			},
+			"public": {
+				"port": 9001,
+				"domain": "brokerDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

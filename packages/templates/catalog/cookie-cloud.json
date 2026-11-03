@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "cookie-cloud",
+	"name": "CookieCloud",
+	"description": "CookieCloud lets you sync and manage browser cookies across devices securely using a self-hosted backend.",
+	"category": "other",
+	"tags": [
+		"cookies",
+		"sync",
+		"selfhosted",
+		"privacy"
+	],
+	"logo": "logos/cookie-cloud.png",
+	"website": "https://github.com/easychen/cookiecloud",
+	"docs": "https://github.com/easychen/cookiecloud#readme",
+	"version": "sha256:7296aa83706a",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/cookie-cloud",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "cookiecloud",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "cookiecloud-data",
+					"target": "/data/api/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "easychen/cookiecloud@sha256:7296aa83706a4a0914842a0b3ae7ccdfaf0db55018ae9dd6336c6e4238e2cc47",
+			"ports": [
+				{
+					"target": 8088,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--spider",
+					"-q",
+					"http://localhost:8088"
+				]
+			},
+			"public": {
+				"port": 8088,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

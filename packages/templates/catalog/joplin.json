@@ -1,0 +1,90 @@
+{
+	"schema": 1,
+	"id": "joplin",
+	"name": "Joplin",
+	"description": "Self-hosted sync server for Joplin",
+	"category": "productivity",
+	"tags": [
+		"joplin"
+	],
+	"logo": "logos/joplin.png",
+	"docs": "https://github.com/laurent22/joplin/blob/dev/packages/server/README.md",
+	"version": "sha256:d951ce50b6d3",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/joplin.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "joplinDomain",
+			"label": "Joplin domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_DB": "joplin"
+			},
+			"volumes": [
+				{
+					"name": "joplin-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		},
+		{
+			"name": "joplin",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"APP_BASE_URL": "https://${{ inputs.joplinDomain }}",
+				"DB_CLIENT": "pg",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DATABASE": "joplin",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_HOST": "${{ services.postgres.host }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "joplin/server@sha256:d951ce50b6d3d542393ebc4d08bd62d9a4fb0a6f6827abb861726c83560ecf97",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/22300' || exit 1"
+				]
+			},
+			"public": {
+				"port": 22300,
+				"domain": "joplinDomain"
+			}
+		}
+	]
+}

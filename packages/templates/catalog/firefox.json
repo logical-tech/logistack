@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "firefox",
+	"name": "Firefox",
+	"description": "Fast, private, and self-hosted secure browser for browsing without limits.",
+	"category": "productivity",
+	"tags": [
+		"browser",
+		"web",
+		"privacy"
+	],
+	"logo": "logos/firefox.svg",
+	"docs": "https://github.com/jlesage/docker-firefox",
+	"version": "sha256:302aa068dcfa",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/firefox.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "firefoxDomain",
+			"label": "Firefox domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "firefox",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "firefox-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "jlesage/firefox@sha256:302aa068dcfa46a2d248771c998f67377383554df8940252caef42b99c13eb65",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:5800/"
+				]
+			},
+			"public": {
+				"port": 5800,
+				"domain": "firefoxDomain"
+			}
+		}
+	]
+}

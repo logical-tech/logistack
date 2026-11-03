@@ -1,0 +1,94 @@
+{
+	"schema": 1,
+	"id": "zipline",
+	"name": "Zipline",
+	"description": "A ShareX/file upload server that is easy to use, packed with features, and with an easy setup!",
+	"category": "storage",
+	"tags": [
+		"media-system",
+		"storage",
+		"zipline",
+		"file-sharing",
+		"upload",
+		"sharing"
+	],
+	"logo": "logos/zipline.png",
+	"website": "https://zipline.diced.sh/",
+	"docs": "https://zipline.diced.sh/docs/",
+	"version": "v3.7.9",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/zipline",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "secretBase",
+			"label": "Secret base",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "postgres",
+				"POSTGRES_DATABASE": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "pg-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15"
+		},
+		{
+			"name": "zipline",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"CORE_RETURN_HTTPS": "false",
+				"CORE_SECRET": "${{ inputs.secretBase }}",
+				"CORE_HOSTNAME": "0.0.0.0",
+				"CORE_PORT": "3000",
+				"DATABASE_URL": "postgres://postgres:postgres@${{ services.postgres.host }}/postgres",
+				"CORE_LOGGER": "true",
+				"DATASOURCE_TYPE": "local",
+				"DATASOURCE_LOCAL_DIRECTORY": "./uploads"
+			},
+			"volumes": [
+				{
+					"name": "files-uploads",
+					"target": "/zipline/uploads"
+				},
+				{
+					"name": "files-public",
+					"target": "/zipline/public"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/diced/zipline:v4",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

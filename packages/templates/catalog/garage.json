@@ -1,0 +1,127 @@
+{
+	"schema": 1,
+	"id": "garage",
+	"name": "Garage",
+	"description": "Garage is an S3-compatible distributed object storage service designed for self-hosting.",
+	"category": "storage",
+	"tags": [
+		"object",
+		"storage",
+		"server",
+		"s3",
+		"api",
+		"distributed",
+		"object-storage"
+	],
+	"logo": "logos/garage.svg",
+	"website": "https://garagehq.deuxfleurs.fr/",
+	"docs": "https://garagehq.deuxfleurs.fr/documentation/",
+	"version": "v2.3.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/garage.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "garageS3ApiUrl",
+			"label": "Garage S3 API URL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "garageWebUrl",
+			"label": "Garage web URL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "garageAdminUrl",
+			"label": "Garage admin URL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "rpcsecretHex",
+			"label": "Rpcsecret key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "garagePassword",
+			"label": "Garage password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "garagemetricsPassword",
+			"label": "Garagemetrics password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "garageUser",
+			"label": "Garage user",
+			"type": "username"
+		},
+		{
+			"key": "garagePassword2",
+			"label": "Garage password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "garage",
+			"dependsOn": [],
+			"env": {
+				"GARAGE_S3_API_URL": "${{ inputs.garageS3ApiUrl }}",
+				"GARAGE_WEB_URL": "${{ inputs.garageWebUrl }}",
+				"GARAGE_ADMIN_URL": "${{ inputs.garageAdminUrl }}",
+				"GARAGE_RPC_SECRET": "${{ inputs.rpcsecretHex }}",
+				"GARAGE_ADMIN_TOKEN": "${{ inputs.garagePassword }}",
+				"GARAGE_METRICS_TOKEN": "${{ inputs.garagemetricsPassword }}",
+				"GARAGE_ALLOW_WORLD_READABLE_SECRETS": "true",
+				"GARAGE_DEFAULT_ACCESS_KEY": "${{ inputs.garageUser }}",
+				"GARAGE_DEFAULT_SECRET_KEY": "${{ inputs.garagePassword2 }}",
+				"GARAGE_DEFAULT_BUCKET": "default",
+				"RUST_LOG": "garage=info"
+			},
+			"volumes": [
+				{
+					"name": "garage-meta",
+					"target": "/var/lib/garage/meta"
+				},
+				{
+					"name": "garage-data",
+					"target": "/var/lib/garage/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/etc/garage.toml",
+					"content": "metadata_dir = \"/var/lib/garage/meta\"\ndata_dir = \"/var/lib/garage/data\"\ndb_engine = \"lmdb\"\n\nreplication_factor = 1\nconsistency_mode = \"consistent\"\n\ncompression_level = 1\nblock_size = \"1M\"\n\nrpc_bind_addr = \"[::]:3901\"\nrpc_secret_file = \"env:GARAGE_RPC_SECRET\"\nbootstrap_peers = []\n\n[s3_api]\ns3_region = \"garage\"\napi_bind_addr = \"[::]:3900\"\nroot_domain = \".s3.garage.localhost\"\n\n[s3_web]\nbind_addr = \"[::]:3902\"\nroot_domain = \".web.garage.localhost\"\n\n[admin]\napi_bind_addr = \"[::]:3903\"\nadmin_token_file = \"env:GARAGE_ADMIN_TOKEN\"\nmetrics_token_file = \"env:GARAGE_METRICS_TOKEN\"\n"
+				}
+			],
+			"kind": "application",
+			"image": "dxflrs/garage:v2.3.0",
+			"command": [
+				"/garage",
+				"server",
+				"--single-node",
+				"--default-bucket"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/garage",
+					"stats",
+					"-a"
+				]
+			}
+		}
+	]
+}

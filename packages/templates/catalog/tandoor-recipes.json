@@ -1,0 +1,104 @@
+{
+	"schema": 1,
+	"id": "tandoor-recipes",
+	"name": "Tandoor Recipes",
+	"description": "Tandoor Recipes is a self-hosted recipe manager, meal planner, and shopping list application.",
+	"category": "other",
+	"tags": [
+		"recipes",
+		"meal-planning",
+		"self-hosted"
+	],
+	"logo": "logos/tandoor-recipes.svg",
+	"website": "https://tandoor.dev/",
+	"docs": "https://docs.tandoor.dev/",
+	"version": "2.6.11",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/tandoor-recipes",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "tandoor-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "tandoor",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "tandoor"
+			},
+			"volumes": [
+				{
+					"name": "tandoor-db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "tandoor-recipes",
+			"dependsOn": [
+				"tandoor-db"
+			],
+			"env": {
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"TANDOOR_PORT": "8080",
+				"DB_ENGINE": "django.db.backends.postgresql",
+				"POSTGRES_HOST": "${{ services.tandoor-db.host }}",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_USER": "tandoor",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "tandoor",
+				"ALLOWED_HOSTS": "${{ inputs.mainDomain }}",
+				"CSRF_TRUSTED_ORIGINS": "https://${{ inputs.mainDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "tandoor-staticfiles",
+					"target": "/opt/recipes/staticfiles"
+				},
+				{
+					"name": "tandoor-mediafiles",
+					"target": "/opt/recipes/mediafiles"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "vabene1111/recipes:2.6.11",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

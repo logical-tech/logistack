@@ -1,0 +1,107 @@
+{
+	"schema": 1,
+	"id": "keycloak",
+	"name": "Keycloak",
+	"description": "Keycloak is an open-source identity and access management tool with single sign-on (SSO).",
+	"category": "security",
+	"tags": [
+		"authentication",
+		"identity",
+		"sso",
+		"oauth2",
+		"openid-connect",
+		"keycloak",
+		"access",
+		"management",
+		"iam",
+		"authorization",
+		"security",
+		"single-sign-on",
+		"saml",
+		"rbac",
+		"ldap",
+		"jwt",
+		"social-login"
+	],
+	"logo": "logos/keycloak.svg",
+	"website": "https://www.keycloak.org/",
+	"docs": "https://www.keycloak.org/documentation",
+	"version": "26.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/keycloak",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "keycloakAdminPassword",
+			"label": "Keycloak admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "keycloak",
+				"POSTGRES_USER": "keycloakuser",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16.2"
+		},
+		{
+			"name": "keycloak",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"KC_DB": "postgres",
+				"KC_DB_URL": "jdbc:postgresql://${{ services.postgres.host }}:5432/keycloak",
+				"KC_DB_USERNAME": "keycloakuser",
+				"KC_DB_PASSWORD": "${{ inputs.postgresPassword }}",
+				"KC_BOOTSTRAP_ADMIN_USERNAME": "admin",
+				"KC_BOOTSTRAP_ADMIN_PASSWORD": "${{ inputs.keycloakAdminPassword }}",
+				"KC_HOSTNAME": "${{ inputs.mainDomain }}",
+				"KC_HTTP_ENABLED": "true",
+				"KC_HEALTH_ENABLED": "true",
+				"KC_PROXY_HEADERS": "xforwarded"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "quay.io/keycloak/keycloak:26.3.5",
+			"command": [
+				"start-dev"
+			],
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

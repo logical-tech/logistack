@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "confluence",
+	"name": "Confluence",
+	"description": "Confluence is a powerful team collaboration and knowledge-sharing tool. It allows you to create, organize, and collaborate on content in a centralized space. Designed for project management, documentation, and team communication, Confluence helps streamline workflows and enhances productivity.",
+	"category": "productivity",
+	"tags": [
+		"collaboration",
+		"documentation",
+		"productivity",
+		"project-management"
+	],
+	"logo": "logos/confluence.svg",
+	"website": "https://confluence.atlassian.com/",
+	"docs": "https://confluence.atlassian.com/doc/confluence-documentation-135922.html",
+	"version": "8.6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/confluence",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "domain",
+			"label": "Domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "confluence",
+			"dependsOn": [],
+			"env": {
+				"JVM_MINIMUM_MEMORY": "2048m",
+				"JVM_MAXIMUM_MEMORY": "4096m",
+				"CATALINA_CONNECTOR_PROXYNAME": "${{ inputs.domain }}",
+				"CATALINA_CONNECTOR_SCHEME": "http",
+				"CATALINA_CONNECTOR_SECURE": "true"
+			},
+			"volumes": [
+				{
+					"name": "confluence-data",
+					"target": "/var/atlassian/application-data/confluence"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "atlassian/confluence-server:8.6-ubuntu-jdk17",
+			"ports": [
+				{
+					"target": 8090,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8090,
+				"domain": "domain"
+			}
+		}
+	]
+}

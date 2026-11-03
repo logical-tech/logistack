@@ -1,0 +1,35 @@
+# documentation: https://notes.example.org?utm_source=coolify.io
+# slogan: A tiny notes app. Deploy it on Coolify in seconds.
+# category: productivity
+# tags: notes,wiki
+# logo: svgs/notes.svg
+# port: 3000
+
+services:
+  app:
+    image: ghcr.io/example/notes:1.4.2
+    environment:
+      - SERVICE_URL_APP_3000
+      - PUBLIC_URL=${SERVICE_URL_APP}
+      - DATABASE_URL=postgres://$SERVICE_USER_POSTGRES:$SERVICE_PASSWORD_POSTGRES@postgres:5432/${POSTGRES_DB:-notes}
+      - SESSION_SECRET=${SERVICE_BASE64_64_SESSION}
+      - TZ=${TZ:-UTC}
+      - SMTP_HOST=${SMTP_HOST}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:?}
+    volumes:
+      - notes-uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health"]
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=$SERVICE_USER_POSTGRES
+      - POSTGRES_PASSWORD=$SERVICE_PASSWORD_POSTGRES
+      - POSTGRES_DB=${POSTGRES_DB:-notes}
+    volumes:
+      - notes-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]

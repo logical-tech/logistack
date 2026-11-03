@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "wise-mcp",
+	"name": "Wise MCP (unofficial)",
+	"description": "Self-hosted MCP connector that lets Claude and ChatGPT read your Wise balances, card payments and transfers, and prepare transfers you approve twice.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"mcp",
+		"finance"
+	],
+	"logo": "logos/wise-mcp.svg",
+	"website": "https://blanketbyte.com/",
+	"docs": "https://github.com/BlanketByte/wise-mcp#readme",
+	"version": "1.1.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/wise-mcp",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "password",
+			"length": 48
+		}
+	],
+	"services": [
+		{
+			"name": "wise-mcp",
+			"dependsOn": [],
+			"env": {
+				"PUBLIC_URL": "https://${{ inputs.mainDomain }}",
+				"TOKEN_ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"ALLOWED_WISE_USERS": "",
+				"WRITES_ENABLED": "true"
+			},
+			"volumes": [
+				{
+					"name": "wise-mcp-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/blanketbyte/wise-mcp:1.1.1",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

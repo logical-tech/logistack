@@ -1,0 +1,163 @@
+{
+	"schema": 1,
+	"id": "quant-ux",
+	"name": "Quant-UX",
+	"description": "Quant-UX is an open-source UX design and prototyping tool that allows you to create interactive prototypes, conduct user research, and analyze user behavior.",
+	"category": "analytics",
+	"tags": [
+		"design",
+		"ux",
+		"prototyping",
+		"user-research",
+		"analytics"
+	],
+	"logo": "logos/quant-ux.svg",
+	"website": "https://www.quant-ux.com/",
+	"docs": "https://www.quant-ux.com/",
+	"version": "sha256:4ec6eeb63e82",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/quant-ux",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "quxJwtPassword",
+			"label": "Qux JWT password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "quxMailUser",
+			"label": "Qux mail user",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "quxMailPassword",
+			"label": "Qux mail password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "wsDomain",
+			"label": "Ws domain",
+			"type": "domain",
+			"role": "extra"
+		}
+	],
+	"services": [
+		{
+			"name": "mongo",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "mongo-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mongo@sha256:452bdaf2127b8ff851e31410a267809b9829eded219979f2210e7c7efb85a058",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "qux-fe",
+			"dependsOn": [
+				"qux-be"
+			],
+			"env": {
+				"QUX_PROXY_URL": "http://quant-ux-backend:8080",
+				"QUX_AUTH": "qux",
+				"QUX_KEYCLOAK_REALM": "",
+				"QUX_KEYCLOAK_CLIENT": "",
+				"QUX_KEYCLOAK_URL": "",
+				"QUX_WS_URL": "wss://${{ inputs.wsDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "klausenschaefersinho/quant-ux@sha256:4ec6eeb63e822fa00b535484a6a454a9b5e50d069d691acbd76ff44a2c9966d3",
+			"ports": [
+				{
+					"target": 8082,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8082,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "qux-be",
+			"dependsOn": [
+				"mongo"
+			],
+			"env": {
+				"QUX_HTTP_HOST": "https://${{ inputs.mainDomain }}",
+				"QUX_HTTP_PORT": "8080",
+				"QUX_MONGO_DB_NAME": "quantux",
+				"QUX_MONGO_TABLE_PREFIX": "quantux",
+				"QUX_MONGO_CONNECTION_STRING": "mongodb://quant-ux-mongo:27017",
+				"QUX_MAIL_USER": "${{ inputs.quxMailUser }}",
+				"QUX_MAIL_PASSWORD": "${{ inputs.quxMailPassword }}",
+				"QUX_MAIL_HOST": "mail.example.com",
+				"QUX_JWT_PASSWORD": "${{ inputs.quxJwtPassword }}",
+				"QUX_IMAGE_FOLDER_USER": "/app-data/qux-images",
+				"QUX_IMAGE_FOLDER_APPS": "/app-data/qux-image-apps",
+				"TZ": "America/Chicago",
+				"QUX_AUTH_SERVICE": "qux",
+				"QUX_KEYCLOAK_SERVER": "",
+				"QUX_KEYCLOAK_REALM": "",
+				"QUX_USER_ALLOW_SIGNUP": "true",
+				"QUX_USER_ALLOWED_DOMAINS": "*"
+			},
+			"volumes": [
+				{
+					"name": "quant-ux-data",
+					"target": "/app-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "klausenschaefersinho/quant-ux-backend@sha256:5b4507acb2bdc2c81a908b87ec9d1f39ec0ca9977258bc339fe0ef5762b33864",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "qux-ws",
+			"dependsOn": [
+				"qux-be"
+			],
+			"env": {
+				"QUX_SERVER": "http://quant-ux-backend:8080/",
+				"QUX_SERVER_PORT": "8086"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "klausenschaefersinho/quant-ux-websocket@sha256:cf663d6c001bbaa57cda9db6f9508eb96df33960980e3174c0158cf969c51cbc",
+			"ports": [
+				{
+					"target": 8086,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8086,
+				"domain": "wsDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,98 @@
+{
+	"schema": 1,
+	"id": "checkmate",
+	"name": "Checkmate",
+	"description": "An open source server and websites monitoring application",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"server",
+		"uptime",
+		"healthcheck",
+		"self-hosted"
+	],
+	"logo": "logos/checkmate.png",
+	"website": "https://checkmate.so/",
+	"docs": "https://docs.checkmate.so/",
+	"version": "v3.2.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/checkmate.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "checkmateDomain",
+			"label": "Checkmate domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jwtPassword",
+			"label": "JWT password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "checkmate",
+			"dependsOn": [
+				"mongodb"
+			],
+			"env": {
+				"UPTIME_APP_API_BASE_URL": "https://${{ inputs.checkmateDomain }}/api/v1",
+				"UPTIME_APP_CLIENT_HOST": "https://${{ inputs.checkmateDomain }}",
+				"DB_CONNECTION_STRING": "mongodb://${{ services.mongodb.host }}:27017/uptime_db",
+				"CLIENT_HOST": "https://${{ inputs.checkmateDomain }}",
+				"JWT_SECRET": "${{ inputs.jwtPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/bluewave-labs/checkmate-backend-mono-multiarch:v3.2.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"require('http').get('http://127.0.0.1:52345/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+				]
+			},
+			"public": {
+				"port": 52345,
+				"domain": "checkmateDomain"
+			}
+		},
+		{
+			"name": "mongodb",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "checkmate-mongo",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/bluewave-labs/checkmate-mongo:v3.2.0",
+			"command": [
+				"mongod",
+				"--quiet",
+				"--bind_ip_all"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mongosh",
+					"--eval",
+					"db.adminCommand('ping')",
+					"--quiet"
+				]
+			}
+		}
+	]
+}

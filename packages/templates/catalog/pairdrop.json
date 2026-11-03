@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "pairdrop",
+	"name": "Pairdrop",
+	"description": "Pairdrop is a self-hosted file sharing and collaboration platform, offering secure file sharing and collaboration capabilities for efficient teamwork.",
+	"category": "productivity",
+	"tags": [
+		"file",
+		"sharing",
+		"collaboration",
+		"teamwork",
+		"file-sharing",
+		"p2p",
+		"web-app",
+		"self-hosted"
+	],
+	"website": "https://pairdrop.net/",
+	"docs": "https://pairdrop.net/",
+	"version": "sha256:447e348a5c52",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/pairdrop.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "pairdropDomain",
+			"label": "Pairdrop domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "pairdrop",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Europe/Madrid",
+				"DEBUG_MODE": "false"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/pairdrop@sha256:447e348a5c52776c7c92435b472502e4ad62e08d954b2b7f26737cb588badb6b",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "pairdropDomain"
+			}
+		}
+	],
+	"logo": "logos/pairdrop.svg"
+}

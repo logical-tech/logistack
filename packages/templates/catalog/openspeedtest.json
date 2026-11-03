@@ -1,0 +1,53 @@
+{
+	"schema": 1,
+	"id": "openspeedtest",
+	"name": "OpenSpeedTest",
+	"description": "OpenSpeedTest is a 100% browser-based HTML5 network performance estimation tool for accurately measuring network speed.",
+	"category": "monitoring",
+	"tags": [
+		"network",
+		"testing",
+		"performance",
+		"monitoring",
+		"bandwidth"
+	],
+	"logo": "logos/openspeedtest.png",
+	"website": "https://openspeedtest.com/",
+	"docs": "https://github.com/openspeedtest/Speed-Test/wiki",
+	"version": "sha256:1127de0693c3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/openspeedtest",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "openspeedtest",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "openspeedtest/latest@sha256:1127de0693c36bcf8c297c73d09891df8ec243680d027a6b6fab13fa0954ff46",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

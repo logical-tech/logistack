@@ -1,0 +1,128 @@
+{
+	"schema": 1,
+	"id": "whatomate",
+	"name": "Whatomate",
+	"description": "Modern, open-source WhatsApp Business Platform with real-time chat, chatbot automation, bulk campaigns, template management, and voice calling via Meta's Cloud API.",
+	"category": "communication",
+	"tags": [
+		"communication",
+		"automation",
+		"crm"
+	],
+	"logo": "logos/whatomate.svg",
+	"website": "https://whatomate.io/",
+	"docs": "https://shridarpatil.github.io/whatomate/",
+	"version": "0.1.1-beta-0.16.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/whatomate",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "webhookVerifyToken",
+			"label": "Webhook verify token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "whatomate",
+			"dependsOn": [
+				"db",
+				"redis"
+			],
+			"env": {
+				"TZ": "Etc/UTC"
+			},
+			"volumes": [
+				{
+					"name": "whatomate-uploads",
+					"target": "/app/uploads"
+				}
+			],
+			"files": [
+				{
+					"target": "/app/config.toml",
+					"content": "[app]\nname = \"Whatomate\"\nenvironment = \"staging\"\ndebug = false\nencryption_key = \"${{ inputs.encryptionKey }}\"\n\n[server]\nhost = \"0.0.0.0\"\nport = 8080\nread_timeout = 30\nwrite_timeout = 30\nbase_path = \"\"\nallowed_origins = \"\"\n\n[database]\nhost = \"db\"\nport = 5432\nuser = \"whatomate\"\npassword = \"whatomate\"\nname = \"whatomate\"\nssl_mode = \"disable\"\nmax_open_conns = 25\nmax_idle_conns = 5\nconn_max_lifetime = 300\n\n[redis]\nhost = \"redis\"\nport = 6379\nusername = \"\"\npassword = \"\"\ndb = 0\ntls = false\n\n[jwt]\nsecret = \"${{ inputs.jwtSecret }}\"\naccess_expiry_mins = 15\nrefresh_expiry_days = 1\n\n[storage]\ntype = \"local\"\nlocal_path = \"./uploads\"\n\n[whatsapp]\nwebhook_verify_token = \"${{ inputs.webhookVerifyToken }}\"\napi_version = \"v24.0\"\nbase_url = \"https://graph.facebook.com\"\n\n[default_admin]\nemail = \"admin@admin.com\"\npassword = \"admin\"\nfull_name = \"Admin\"\n",
+					"secret": true
+				}
+			],
+			"kind": "application",
+			"image": "shridh0r/whatomate:0.1.1-beta-0.16.1",
+			"command": [
+				"server",
+				"-migrate",
+				"-config",
+				"/app/config.toml"
+			],
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "whatomate",
+				"POSTGRES_PASSWORD": "whatomate",
+				"POSTGRES_DB": "whatomate"
+			},
+			"volumes": [
+				{
+					"name": "whatomate-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "whatomate-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

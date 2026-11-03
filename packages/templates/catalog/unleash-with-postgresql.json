@@ -1,0 +1,100 @@
+{
+	"schema": 1,
+	"id": "unleash-with-postgresql",
+	"name": "Unleash With Postgresql",
+	"description": "Open source feature flag management for enterprises.",
+	"category": "devtools",
+	"tags": [
+		"unleash",
+		"feature flags",
+		"feature toggles",
+		"ab testing",
+		"open source"
+	],
+	"logo": "logos/unleash-with-postgresql.svg",
+	"docs": "https://docs.getunleash.io/",
+	"version": "sha256:025cd8b003a7",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/unleash-with-postgresql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "unleashDomain",
+			"label": "Unleash domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "unleashPassword",
+			"label": "Unleash password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "unleash",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"UNLEASH_URL": "https://${{ inputs.unleashDomain }}",
+				"UNLEASH_DEFAULT_ADMIN_PASSWORD": "${{ inputs.unleashPassword }}",
+				"DATABASE_URL": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}/db",
+				"DATABASE_SSL": "false",
+				"LOG_LEVEL": "warn",
+				"INIT_FRONTEND_API_TOKENS": "default:default:development.unleash-insecure-frontend-api-token",
+				"INIT_CLIENT_API_TOKENS": "default:development.unleash-insecure-api-token"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "unleashorg/unleash-server@sha256:025cd8b003a70cceb88427ca393c377ca6503a210d95fdee54d21610d51f7ed0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --no-verbose --tries=1 --spider http://127.0.0.1:4242/health || exit 1"
+				]
+			},
+			"public": {
+				"port": 4242,
+				"domain": "unleashDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "db"
+			},
+			"volumes": [
+				{
+					"name": "postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15"
+		}
+	]
+}

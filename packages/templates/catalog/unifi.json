@@ -1,0 +1,87 @@
+{
+	"schema": 1,
+	"id": "unifi",
+	"name": "Unifi Network",
+	"description": "Unifi Network is an open-source enterprise network management platform for wireless networks.",
+	"category": "networking",
+	"tags": [
+		"self-hosted",
+		"networking"
+	],
+	"logo": "logos/unifi.webp",
+	"website": "https://www.ui.com/",
+	"docs": "https://help.ui.com/hc/en-us/articles/360012282453-Self-Hosting-a-UniFi-Network-Server",
+	"version": "11.6.6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/unifi",
+		"license": "MIT"
+	},
+	"inputs": [],
+	"services": [
+		{
+			"name": "unifi-network-application",
+			"dependsOn": [
+				"unifi-db"
+			],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Etc/UTC",
+				"MONGO_HOST": "${{ services.unifi-db.host }}",
+				"MONGO_USER": "unifi",
+				"MONGO_PASS": "unifi_password",
+				"MONGO_PORT": "27017",
+				"MONGO_DBNAME": "unifi",
+				"MEM_LIMIT": "1024",
+				"MEM_STARTUP": "1024",
+				"MONGO_TLS": "",
+				"MONGO_AUTHSOURCE": ""
+			},
+			"volumes": [
+				{
+					"name": "files-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/unifi-network-application@sha256:8389f585c6443af7051b4696a09e4bb5408636da7f99c5a0e5a883595c1d434c",
+			"ports": [
+				{
+					"target": 8443,
+					"published": 8443,
+					"protocol": "tcp",
+					"mode": "host"
+				}
+			],
+			"restart": "any"
+		},
+		{
+			"name": "unifi-db",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "files-db-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [
+				{
+					"target": "/docker-entrypoint-initdb.d/init-mongo.sh",
+					"content": "#!/bin/bash\nmongo <<EOF\nuse unifi\ndb.createUser({\nuser: \"unifi\",\npwd: \"unifi_password\",\nroles: [\n    { db: \"unifi\", role: \"dbOwner\" },\n    { db: \"unifi_stat\", role: \"dbOwner\" }\n]\n})\nEOF \n"
+				}
+			],
+			"kind": "application",
+			"image": "mongo:4.4",
+			"ports": [
+				{
+					"target": 27017,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		}
+	]
+}

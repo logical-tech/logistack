@@ -1,0 +1,56 @@
+{
+	"schema": 1,
+	"id": "alltube",
+	"name": "AllTube",
+	"description": "AllTube Download is an application designed to facilitate the downloading of videos from YouTube and other video sites. It provides an HTML GUI for youtube-dl with video conversion capabilities and JSON API support.",
+	"category": "media",
+	"tags": [
+		"media",
+		"video",
+		"downloader"
+	],
+	"logo": "logos/alltube.png",
+	"website": "https://github.com/Rudloff/alltube",
+	"docs": "https://github.com/Rudloff/alltube/wiki",
+	"version": "sha256:cdff2a41ab79",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/alltube",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "alltube",
+			"dependsOn": [],
+			"env": {
+				"TITLE": "My AllTube Site",
+				"CONVERT": "true",
+				"STREAM": "true",
+				"REMUX": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "dnomd343/alltube@sha256:cdff2a41ab79c51e303fc65381a8a542ed7116bc32719af986e25d7bf45e074a",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "filegator",
+	"name": "FileGator",
+	"description": "FileGator is a simple self-hosted web file manager with multi-user support.",
+	"category": "other",
+	"tags": [
+		"files",
+		"file-manager",
+		"self-hosted"
+	],
+	"logo": "logos/filegator.svg",
+	"website": "https://filegator.io/",
+	"docs": "https://docs.filegator.io/",
+	"version": "7.14.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/filegator",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "filegator",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "filegator-repository",
+					"target": "/var/www/filegator/repository"
+				},
+				{
+					"name": "filegator-private",
+					"target": "/var/www/filegator/private"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "filegator/filegator:v7.14.3",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

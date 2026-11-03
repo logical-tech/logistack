@@ -1,0 +1,108 @@
+{
+	"schema": 1,
+	"id": "marketing-dashboard",
+	"name": "Marketing Dashboard",
+	"description": "Self-hosted marketing operations dashboard for product-led growth, checkout analytics, paid media, SEO signals, and Stripe readiness.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"marketing",
+		"self-hosted",
+		"postgresql",
+		"nextjs"
+	],
+	"logo": "logos/marketing-dashboard.svg",
+	"website": "https://github.com/abel-yelin/marketing-dashboard",
+	"docs": "https://github.com/abel-yelin/marketing-dashboard/blob/main/docs/production-deployment.md",
+	"version": "sha256:5cb21bc68574",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/marketing-dashboard",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "marketing-dashboard",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql://marketing_dashboard:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/marketing_dashboard?schema=public",
+				"DIRECT_URL": "postgresql://marketing_dashboard:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/marketing_dashboard?schema=public",
+				"MARKETING_APP_URL": "https://${{ inputs.mainDomain }}",
+				"MARKETING_COLLECTOR_UPSTREAM_URL": "https://${{ inputs.mainDomain }}/api/ingest/browser",
+				"MARKETING_SESSION_TIMEOUT_MINUTES": "30",
+				"MARKETING_PROXY_TIMEOUT_MS": "4000",
+				"MARKETING_INGEST_MAX_BODY_BYTES": "65536",
+				"MARKETING_INGEST_IP_RATE_LIMIT": "300",
+				"MARKETING_INGEST_CLIENT_RATE_LIMIT": "1200",
+				"MARKETING_INGEST_RATE_LIMIT_WINDOW_MS": "60000",
+				"MARKETING_ENABLE_PILOT_API": "false",
+				"MARKETING_DASHBOARD_ADMIN_USER": "admin",
+				"MARKETING_DASHBOARD_ADMIN_PASSWORD": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/abel-yelin/marketing-dashboard@sha256:5cb21bc68574acf16aa62fda3c2e2f458e4cb86d8783349036e431cba2d77517",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -fsS http://localhost:3000/api/health > /dev/null || exit 1"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "marketing_dashboard",
+				"POSTGRES_USER": "marketing_dashboard",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "marketing-dashboard-postgres",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		}
+	]
+}

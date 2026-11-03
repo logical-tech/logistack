@@ -1,0 +1,89 @@
+{
+	"schema": 1,
+	"id": "chiefonboarding",
+	"name": "Chief-Onboarding",
+	"description": "Chief-Onboarding is a comprehensive, self-hosted onboarding and employee management platform designed for businesses to streamline their onboarding processes.",
+	"category": "other",
+	"tags": [
+		"employee-onboarding",
+		"hr-management",
+		"task-tracking",
+		"role-based-access",
+		"document-management"
+	],
+	"logo": "logos/chiefonboarding.png",
+	"website": "https://chiefonboarding.com/",
+	"docs": "https://docs.chiefonboarding.com/",
+	"version": "v2.2.5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/chiefonboarding",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "chiefonboarding",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"DATABASE_URL": "postgres://postgres:${{ inputs.dbPassword }}@${{ services.db.host }}:5432/chiefonboarding",
+				"ALLOWED_HOSTS": "${{ inputs.mainDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "chiefonboarding/chiefonboarding:v2.2.5",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "chiefonboarding"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "13"
+		}
+	]
+}

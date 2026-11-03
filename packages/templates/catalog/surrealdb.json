@@ -1,0 +1,69 @@
+{
+	"schema": 1,
+	"id": "surrealdb",
+	"name": "SurrealDB",
+	"description": "SurrealDB is a native, open-source, multi-model database that lets you store and manage data across relational, document, graph, time-series, vector & search, and geospatial modelsâ€”all in one place.",
+	"category": "database",
+	"tags": [
+		"database",
+		"sql",
+		"surrealdb"
+	],
+	"logo": "logos/surrealdb.svg",
+	"website": "https://surrealdb.com/",
+	"docs": "https://surrealdb.com/docs/surrealdb",
+	"version": "2.3.10",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/surrealdb",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "surrealdbUser",
+			"label": "Surrealdb user",
+			"type": "username"
+		},
+		{
+			"key": "surrealdbPassword",
+			"label": "Surrealdb password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "surrealdb",
+			"dependsOn": [],
+			"env": {
+				"SURREAL_USER": "${{ inputs.surrealdbUser }}",
+				"SURREAL_PASS": "${{ inputs.surrealdbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/usr/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "surrealdb/surrealdb:v2.3.10",
+			"command": [
+				"start",
+				"rocksdb:/db_data/data.db"
+			],
+			"ports": [],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"user": "0"
+		}
+	]
+}

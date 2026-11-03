@@ -1,0 +1,98 @@
+{
+	"schema": 1,
+	"id": "letterfeed",
+	"name": "Letterfeed",
+	"description": "Convert email newsletters into RSS feeds",
+	"category": "communication",
+	"tags": [
+		"email",
+		"self-hosted",
+		"productivity"
+	],
+	"website": "https://github.com/leonmuscoden/letterfeed",
+	"docs": "https://github.com/leonmuscoden/letterfeed",
+	"version": "sha256:ddb56026d6fa",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/letterfeed",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "authPassword",
+			"label": "Auth password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "backend",
+			"dependsOn": [],
+			"env": {
+				"LETTERFEED_APP_BASE_URL": "https://${{ inputs.mainDomain }}",
+				"LETTERFEED_BACKEND_URL": "http://${{ services.backend.host }}:8000",
+				"LETTERFEED_DATABASE_URL": "sqlite:////data/letterfeed.db",
+				"LETTERFEED_IMAP_SERVER": "",
+				"LETTERFEED_IMAP_USERNAME": "",
+				"LETTERFEED_IMAP_PASSWORD": "",
+				"LETTERFEED_SEARCH_FOLDER": "INBOX",
+				"LETTERFEED_MOVE_TO_FOLDER": "",
+				"LETTERFEED_MARK_AS_READ": "true",
+				"LETTERFEED_EMAIL_CHECK_INTERVAL": "15",
+				"LETTERFEED_AUTO_ADD_NEW_SENDERS": "false",
+				"LETTERFEED_SECRET_KEY": "${{ inputs.secretKey }}",
+				"LETTERFEED_AUTH_USERNAME": "admin",
+				"LETTERFEED_AUTH_PASSWORD": "${{ inputs.authPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "letterfeed-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/leonmuscoden/letterfeed-backend@sha256:377ec24cbf726b6a30ff78a2a06a32529d5dff02a3e8df0e262a96f35184f5f1",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "frontend",
+			"dependsOn": [
+				"backend"
+			],
+			"env": {
+				"LETTERFEED_APP_BASE_URL": "https://${{ inputs.mainDomain }}",
+				"LETTERFEED_BACKEND_URL": "http://${{ services.backend.host }}:8000"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/leonmuscoden/letterfeed-frontend@sha256:ddb56026d6fad0b7a93c85a8246d75993a883b8a5e3bdccbe39e48ef12e46e14",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

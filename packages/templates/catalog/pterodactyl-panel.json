@@ -1,0 +1,228 @@
+{
+	"schema": 1,
+	"id": "pterodactyl-panel",
+	"name": "Pterodactyl Panel",
+	"description": "Pterodactyl is a free, open-source game server management panel",
+	"category": "media",
+	"tags": [
+		"game",
+		"game server",
+		"management",
+		"panel",
+		"minecraft"
+	],
+	"logo": "logos/pterodactyl-panel.png",
+	"docs": "https://pterodactyl.io/",
+	"version": "v1.15.2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/pterodactyl-panel.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "pterodactylDomain",
+			"label": "Pterodactyl domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "hashidsPassword",
+			"label": "Hashids password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "adminUser",
+			"label": "Admin user",
+			"type": "username"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mailFrom",
+			"label": "Mail from",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mailDriver",
+			"label": "Mail driver",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mailHost",
+			"label": "Mail host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mailPort",
+			"label": "Mail port",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mailUsername",
+			"label": "Mail username",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mailPassword",
+			"label": "Mail password",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mailEncryption",
+			"label": "Mail encryption",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
+				"MYSQL_DATABASE": "pterodactyl-db",
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "pterodactyl-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11.8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"healthcheck.sh --connect --innodb_initialized || exit 1"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"redis-cli ping || exit 1"
+				]
+			}
+		},
+		{
+			"name": "pterodactyl",
+			"dependsOn": [],
+			"env": {
+				"HASHIDS_SALT": "${{ inputs.hashidsPassword }}",
+				"HASHIDS_LENGTH": "8",
+				"ADMIN_EMAIL": "admin@example.com",
+				"ADMIN_USERNAME": "${{ inputs.adminUser }}",
+				"ADMIN_FIRSTNAME": "Admin",
+				"ADMIN_LASTNAME": "User",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"PTERODACTYL_HTTPS": "false",
+				"APP_ENV": "production",
+				"APP_ENVIRONMENT_ONLY": "false",
+				"APP_URL": "https://${{ inputs.pterodactylDomain }}",
+				"APP_TIMEZONE": "UTC",
+				"APP_SERVICE_AUTHOR": "author@example.com",
+				"LOG_LEVEL": "debug",
+				"CACHE_DRIVER": "redis",
+				"SESSION_DRIVER": "redis",
+				"QUEUE_DRIVER": "redis",
+				"REDIS_HOST": "${{ services.redis.host }}",
+				"DB_DATABASE": "pterodactyl-db",
+				"DB_USERNAME": "${{ inputs.mysqlUser }}",
+				"DB_HOST": "${{ services.mariadb.host }}",
+				"DB_PORT": "3306",
+				"DB_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MAIL_FROM": "${{ inputs.mailFrom }}",
+				"MAIL_DRIVER": "${{ inputs.mailDriver }}",
+				"MAIL_HOST": "${{ inputs.mailHost }}",
+				"MAIL_PORT": "${{ inputs.mailPort }}",
+				"MAIL_USERNAME": "${{ inputs.mailUsername }}",
+				"MAIL_PASSWORD": "${{ inputs.mailPassword }}",
+				"MAIL_ENCRYPTION": "${{ inputs.mailEncryption }}"
+			},
+			"volumes": [
+				{
+					"name": "panel-var",
+					"target": "/app/var"
+				},
+				{
+					"name": "panel-nginx",
+					"target": "/etc/nginx/http.d"
+				},
+				{
+					"name": "panel-certs",
+					"target": "/etc/letsencrypt"
+				}
+			],
+			"files": [
+				{
+					"target": "/entrypoint.sh",
+					"content": "#!/bin/sh\nset -e\n\n echo \"Setting logs permissions...\"\n chown -R nginx: /app/storage/logs/\n\n USER_EXISTS=$(php artisan tinker --no-ansi --execute='echo \\Pterodactyl\\Models\\User::where(\"email\", \"'\"$ADMIN_EMAIL\"'\")->exists() ? \"1\" : \"0\";')\n\n if [ \"$USER_EXISTS\" = \"0\" ]; then\n   echo \"Admin User does not exist, creating user now.\"\n   php artisan p:user:make --no-interaction \\\n     --admin=1 \\\n     --email=\"$ADMIN_EMAIL\" \\\n     --username=\"$ADMIN_USERNAME\" \\\n     --name-first=\"$ADMIN_FIRSTNAME\" \\\n     --name-last=\"$ADMIN_LASTNAME\" \\\n     --password=\"$ADMIN_PASSWORD\"\n   echo \"Admin user created successfully!\"\n else\n   echo \"Admin User already exists, skipping creation.\"\n fi\n\n exec supervisord --nodaemon\n"
+				}
+			],
+			"kind": "application",
+			"image": "ghcr.io/pterodactyl/panel:v1.15.2",
+			"command": [
+				"/entrypoint.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -sf http://localhost:80 || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "pterodactylDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "wikijs",
+	"name": "Wiki.js",
+	"description": "The most powerful and extensible open source Wiki software.",
+	"category": "productivity",
+	"tags": [
+		"knowledge-base",
+		"self-hosted",
+		"documentation",
+		"wiki",
+		"collaboration"
+	],
+	"logo": "logos/wikijs.svg",
+	"website": "https://js.wiki/",
+	"docs": "https://docs.requarks.io/",
+	"version": "2.5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/wikijs",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "wiki",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DB_TYPE": "postgres",
+				"DB_HOST": "${{ services.db.host }}",
+				"DB_PORT": "5432",
+				"DB_USER": "wikijs",
+				"DB_PASS": "wikijsrocks",
+				"DB_NAME": "wiki"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/requarks/wiki:2.5",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "wikijs",
+				"POSTGRES_PASSWORD": "wikijsrocks",
+				"POSTGRES_DB": "wiki"
+			},
+			"volumes": [
+				{
+					"name": "wiki-db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "14"
+		}
+	]
+}

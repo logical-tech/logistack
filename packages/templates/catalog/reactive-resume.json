@@ -1,0 +1,117 @@
+{
+	"schema": 1,
+	"id": "reactive-resume",
+	"name": "Reactive Resume",
+	"description": "A one-of-a-kind resume builder that keeps your privacy in mind.",
+	"category": "productivity",
+	"tags": [
+		"reactive-resume",
+		"resume-builder",
+		"open-source",
+		"2fa"
+	],
+	"logo": "logos/reactive-resume.svg",
+	"docs": "https://docs.rxresu.me/self-hosting/docker",
+	"version": "v6",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/reactive-resume.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "reactiveresumeDomain",
+			"label": "Reactiveresume domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "authsecretPassword",
+			"label": "Authsecret password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "encryptionsecretPassword",
+			"label": "Encryptionsecret password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "reactive-resume",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"APP_URL": "https://${{ inputs.reactiveresumeDomain }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/reactive_resume",
+				"AUTH_SECRET": "${{ inputs.authsecretPassword }}",
+				"ENCRYPTION_SECRET": "${{ inputs.encryptionsecretPassword }}",
+				"FLAG_DISABLE_SIGNUPS": "false",
+				"FLAG_DISABLE_EMAIL_AUTH": "false"
+			},
+			"volumes": [
+				{
+					"name": "reactive-resume-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "amruthpillai/reactive-resume:v6",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "reactiveresumeDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "reactive_resume",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,145 @@
+{
+	"schema": 1,
+	"id": "faraday",
+	"name": "Faraday",
+	"description": "Faraday is a powerful, open-source, web-based vulnerability management tool.",
+	"category": "security",
+	"tags": [
+		"vulnerability",
+		"management",
+		"tool"
+	],
+	"logo": "logos/faraday.png",
+	"docs": "https://faradaysec.com/",
+	"version": "sha256:9c34b6f1e81c",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/faraday.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "faradayDomain",
+			"label": "Faraday domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresDb",
+			"label": "Postgres DB",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_DB": "faraday"
+			},
+			"volumes": [
+				{
+					"name": "faraday-db",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -d ${POSTGRES_DB} -U ${POSTGRES_USER}"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:alpine",
+			"command": [
+				"--save",
+				"60",
+				"1",
+				"--loglevel",
+				"warning"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"redis-cli ping | grep PONG"
+				]
+			}
+		},
+		{
+			"name": "faraday",
+			"dependsOn": [
+				"postgresql",
+				"redis"
+			],
+			"env": {
+				"AUTHENTIK_POSTGRESQL__PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"PGSQL_USER": "${{ inputs.postgresqlUser }}",
+				"PGSQL_PASSWD": "${{ inputs.postgresqlPassword }}",
+				"PGSQL_DBNAME": "${{ inputs.postgresDb }}",
+				"PGSQL_HOST": "${{ services.postgresql.host }}",
+				"REDIS_SERVER": "${{ services.redis.host }}"
+			},
+			"volumes": [
+				{
+					"name": "faraday",
+					"target": "/home/faraday/.faraday"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "faradaysec/faraday@sha256:9c34b6f1e81c0f25b754d25c87f8358e532a3f668dc9435b530e0ef49d2c8965",
+			"entrypoint": [
+				"/entrypoint.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"nc",
+					"-z",
+					"localhost",
+					"5985"
+				]
+			},
+			"public": {
+				"port": 5985,
+				"domain": "faradayDomain"
+			}
+		}
+	]
+}

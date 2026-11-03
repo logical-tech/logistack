@@ -1,0 +1,56 @@
+{
+	"schema": 1,
+	"id": "dumbpad",
+	"name": "DumbPad",
+	"description": "DumbPad is a simple, self-hosted notepad service with PIN protection and no database required.",
+	"category": "other",
+	"tags": [
+		"notepad",
+		"self-hosted",
+		"simple"
+	],
+	"logo": "logos/dumbpad.svg",
+	"website": "https://dumbware.io/DumbPad/",
+	"docs": "https://github.com/dumbwareio/dumbpad",
+	"version": "sha256:495a109141c2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/dumbpad",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "dumbpad",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "dumbpad-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "dumbwareio/dumbpad@sha256:495a109141c28d990fedb9ed06e2d68db08a898b493479cdb12132d90f99d708",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,77 @@
+{
+	"schema": 1,
+	"id": "jean",
+	"name": "Jean",
+	"description": "Open-source desktop and server client for orchestrating AI coding agents.",
+	"category": "devtools",
+	"tags": [
+		"jean",
+		"ai",
+		"coding",
+		"agents",
+		"development",
+		"git",
+		"worktrees"
+	],
+	"logo": "logos/jean.png",
+	"docs": "https://github.com/coollabsio/jean/blob/main/docs/headless-server.md",
+	"version": "sha256:24f5bbcf8969",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/jean.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "jeanDomain",
+			"label": "Jean domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jeanPassword",
+			"label": "Jean password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "jean",
+			"dependsOn": [],
+			"env": {
+				"JEAN_HEADLESS": "1",
+				"JEAN_HOST": "0.0.0.0",
+				"JEAN_PORT": "3456",
+				"JEAN_TOKEN": "${{ inputs.jeanPassword }}",
+				"JEAN_NO_TOKEN": "0",
+				"JEAN_ALLOW_UNSAFE_NO_TOKEN": "0",
+				"JEAN_ALLOW_NATIVE_OPEN": "0",
+				"JEAN_ALLOWED_ORIGINS": "",
+				"JEAN_DATA_DIR": "/home/jean/.local/share/com.jean.desktop"
+			},
+			"volumes": [
+				{
+					"name": "jean-data",
+					"target": "/home/jean/.local/share/com.jean.desktop"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/coollabsio/jean-server@sha256:24f5bbcf89695d4bbe7b7b77de295232766920655817cb3bb14e69859fac0a8f",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -fsS http://127.0.0.1:3456/readyz >/dev/null || exit 1"
+				]
+			},
+			"public": {
+				"port": 3456,
+				"domain": "jeanDomain"
+			}
+		}
+	]
+}

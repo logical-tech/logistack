@@ -1,0 +1,69 @@
+{
+	"schema": 1,
+	"id": "calibre",
+	"name": "Calibre",
+	"description": "Calibre is a comprehensive e-book management tool designed to organize, convert, and read your e-book collection. It supports most of the major e-book formats and is compatible with various e-book reader devices.",
+	"category": "other",
+	"tags": [
+		"documents",
+		"e-commerce"
+	],
+	"website": "https://calibre-ebook.com/",
+	"docs": "https://manual.calibre-ebook.com/",
+	"version": "7.26.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/calibre",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "password",
+			"label": "Password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "calibre",
+			"dependsOn": [],
+			"env": {
+				"PASSWORD": "${{ inputs.password }}",
+				"TZ": "Etc/UTC",
+				"PUID": "1000",
+				"PGID": "1000"
+			},
+			"volumes": [
+				{
+					"name": "books",
+					"target": "/books"
+				},
+				{
+					"name": "data",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "linuxserver/calibre:7.26.0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

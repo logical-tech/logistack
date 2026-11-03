@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "silverbullet",
+	"name": "Silverbullet",
+	"description": "SilverBullet is a tool to develop, organize, and structure your personal knowledge and to make it universally accessible across all your devices.",
+	"category": "productivity",
+	"tags": [
+		"note-taking",
+		"markdown",
+		"pkm"
+	],
+	"docs": "https://v2.silverbullet.md/Install/Configuration",
+	"version": "v2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/silverbullet.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "silverbulletDomain",
+			"label": "Silverbullet domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "silverbulletUser",
+			"label": "Silverbullet user",
+			"type": "username"
+		},
+		{
+			"key": "silverbulletPassword",
+			"label": "Silverbullet password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "silverbullet",
+			"dependsOn": [],
+			"env": {
+				"SB_USER": "${{ inputs.silverbulletUser }}:${{ inputs.silverbulletPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "silverbullet-space",
+					"target": "/space"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/silverbulletmd/silverbullet:v2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--spider",
+					"--quiet",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "silverbulletDomain"
+			}
+		}
+	]
+}

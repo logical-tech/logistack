@@ -1,0 +1,174 @@
+{
+	"schema": 1,
+	"id": "paymenter",
+	"name": "Paymenter",
+	"description": "Open-Source Billing, Built for Hosting",
+	"category": "finance",
+	"tags": [
+		"automation",
+		"billing",
+		"open source",
+		"payment",
+		"hosting",
+		"invoicing",
+		"business",
+		"client-management"
+	],
+	"logo": "logos/paymenter.svg",
+	"website": "https://paymenter.org/",
+	"docs": "https://paymenter.org/docs/guides/docker",
+	"version": "v1.5.9",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/paymenter.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "paymenterDomain",
+			"label": "Paymenter domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "redisPassword",
+			"label": "Redis password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "keySecret",
+			"label": "Key secret",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "paymenter",
+			"dependsOn": [
+				"mariadb",
+				"redis"
+			],
+			"env": {
+				"SERVICE_URL_PAYMENTER": "https://${{ inputs.paymenterDomain }}",
+				"DB_DATABASE": "paymenter-db",
+				"DB_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"DB_USERNAME": "${{ inputs.mysqlUser }}",
+				"APP_ENV": "production",
+				"CACHE_STORE": "redis",
+				"SESSION_DRIVER": "redis",
+				"QUEUE_CONNECTION": "redis",
+				"REDIS_HOST": "${{ services.redis.host }}",
+				"REDIS_USERNAME": "default",
+				"REDIS_PASSWORD": "${{ inputs.redisPassword }}",
+				"DB_CONNECTION": "mariadb",
+				"DB_HOST": "${{ services.mariadb.host }}",
+				"DB_PORT": "3306",
+				"APP_KEY": "${{ inputs.keySecret }}"
+			},
+			"volumes": [
+				{
+					"name": "app-logs",
+					"target": "/app/storage/logs"
+				},
+				{
+					"name": "extenstions",
+					"target": "/app/extensions"
+				},
+				{
+					"name": "themes",
+					"target": "/app/themes"
+				},
+				{
+					"name": "app-storage",
+					"target": "/app/storage/app"
+				},
+				{
+					"name": "app-public-storage",
+					"target": "/app/storage/app/public"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/paymenter/paymenter:v1.5.9",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -sf http://localhost:80 || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "paymenterDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
+				"MYSQL_DATABASE": "paymenter-db",
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "paymenter-mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11.8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"redis-cli ping || exit 1"
+				]
+			}
+		}
+	]
+}

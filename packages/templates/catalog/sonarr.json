@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "sonarr",
+	"name": "Sonarr",
+	"description": "Sonarr⁠ (formerly NZBdrone) is a PVR for usenet and bittorrent users. It can monitor multiple RSS feeds for new episodes of your favorite shows and will grab, sort and rename them. It can also be configured to automatically upgrade the quality of files already downloaded when a better quality format becomes available.",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"tv"
+	],
+	"logo": "logos/sonarr.svg",
+	"docs": "https://hub.docker.com/r/linuxserver/sonarr",
+	"version": "sha256:386c962ee6e2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/sonarr.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "sonarrDomain",
+			"label": "Sonarr domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "sonarr",
+			"dependsOn": [],
+			"env": {
+				"_APP_URL": "https://${{ inputs.sonarrDomain }}",
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "America/Toronto"
+			},
+			"volumes": [
+				{
+					"name": "sonarr-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/sonarr@sha256:386c962ee6e260e3a5656b25df2ed056bcc9b6410e197d075f9547fd14c23bca",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:8989/ping"
+				]
+			},
+			"public": {
+				"port": 8989,
+				"domain": "sonarrDomain"
+			}
+		}
+	]
+}

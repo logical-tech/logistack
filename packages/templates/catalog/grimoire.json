@@ -1,0 +1,56 @@
+{
+	"schema": 1,
+	"id": "grimoire",
+	"name": "Grimoire",
+	"description": "Grimoire is a self-hosted bookmarking app designed for speed and simplicity.",
+	"category": "productivity",
+	"tags": [
+		"bookmarks",
+		"self-hosted",
+		"knowledge-management"
+	],
+	"logo": "logos/grimoire.webp",
+	"website": "https://github.com/goniszewski/grimoire",
+	"docs": "https://github.com/goniszewski/grimoire",
+	"version": "sha256:50f700527c95",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/grimoire",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "grimoire",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "grimoire-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "goniszewski/grimoire@sha256:50f700527c95b3cdd48be30ebf2b824c2f0634837eb597a2b6a8ba005920a23c",
+			"ports": [
+				{
+					"target": 5173,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 5173,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

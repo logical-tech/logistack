@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "mediawiki",
+	"name": "Mediawiki",
+	"description": "MediaWiki is a collaboration and documentation platform brought to you by a vibrant community.",
+	"category": "cms",
+	"tags": [
+		"wiki",
+		"collaboration",
+		"documentation"
+	],
+	"docs": "https://www.mediawiki.org/",
+	"version": "sha256:13e538ae3904",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/mediawiki.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "mediawikiDomain",
+			"label": "Mediawiki domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "mediawiki",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "mediawiki-images",
+					"target": "/var/www/html/images"
+				},
+				{
+					"name": "mediawiki-sqlite",
+					"target": "/var/www/html/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mediawiki@sha256:13e538ae39045e78a7219269d036db3328f980f1a94ef1faabde075ba46eeb59",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:80"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "mediawikiDomain"
+			}
+		}
+	]
+}

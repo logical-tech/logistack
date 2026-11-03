@@ -1,0 +1,355 @@
+{
+	"schema": 1,
+	"id": "orbit",
+	"name": "Orbit by Noveum",
+	"description": "Open-source task management with issues, projects, sprints, docs, files, realtime collaboration and an OAuth MCP endpoint.",
+	"category": "productivity",
+	"tags": [
+		"productivity",
+		"project-management",
+		"collaboration",
+		"mcp"
+	],
+	"website": "https://orbit.noveum.ai/",
+	"docs": "https://github.com/Noveum/orbit/blob/containers-2026.09.24/docs/container-catalogs.md",
+	"version": "2026.09.24",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/orbit",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "storageDomain",
+			"label": "Storage domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 48
+		},
+		{
+			"key": "minioPassword",
+			"label": "Minio password",
+			"type": "password",
+			"length": 48
+		},
+		{
+			"key": "authSecret",
+			"label": "Auth secret",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "cronSecret",
+			"label": "Cron secret",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "orbit",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "orbit"
+			},
+			"volumes": [
+				{
+					"name": "postgres",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U orbit -d orbit"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:8-alpine@sha256:978f0e01593e65eed801f2402944efcd936d43b5027e4908a7897baf88ed6241",
+			"command": [
+				"redis-server",
+				"--appendonly",
+				"yes"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "storage",
+			"dependsOn": [],
+			"env": {
+				"MINIO_PASSWORD": "${{ inputs.minioPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "storage",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "chrislusf/seaweedfs:4.48",
+			"command": [
+				"set -e\nprintf '{\"identities\":[{\"name\":\"orbit\",\"credentials\":[{\"accessKey\":\"orbit\",\"secretKey\":\"%s\"}],\"actions\":[\"Admin\",\"Read\",\"Write\",\"List\",\"Tagging\"]}]}' \"$MINIO_PASSWORD\" > /tmp/s3.json\nexec weed server -dir=/data -ip.bind=0.0.0.0 -s3 -s3.port=9000 -s3.config=/tmp/s3.json\n"
+			],
+			"entrypoint": [
+				"/bin/sh",
+				"-c"
+			],
+			"ports": [
+				{
+					"target": 9000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -q -O /dev/null http://127.0.0.1:9000/healthz || exit 1"
+				]
+			},
+			"public": {
+				"port": 9000,
+				"domain": "storageDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "bucket",
+			"dependsOn": [
+				"storage"
+			],
+			"env": {
+				"MINIO_PASSWORD": "${{ inputs.minioPassword }}",
+				"ORBIT_APP_URL": "https://${{ inputs.mainDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/noveum/orbit-bucket:2026.09.24",
+			"command": [
+				"set -eu\nuntil mc alias set orbit http://storage:9000 orbit \"$MINIO_PASSWORD\" --api S3v4; do sleep 2; done\nuntil mc mb --ignore-existing orbit/orbit-uploads; do sleep 2; done\nprintf '<CORSConfiguration><CORSRule><AllowedOrigin>%s</AllowedOrigin><AllowedMethod>GET</AllowedMethod><AllowedMethod>PUT</AllowedMethod><AllowedMethod>HEAD</AllowedMethod><AllowedHeader>*</AllowedHeader><ExposeHeader>ETag</ExposeHeader><MaxAgeSeconds>3600</MaxAgeSeconds></CORSRule></CORSConfiguration>' \"$ORBIT_APP_URL\" > /tmp/cors.xml\nuntil mc cors set orbit/orbit-uploads /tmp/cors.xml; do sleep 2; done\ntouch /tmp/initialized\nexec tail -f /dev/null\n"
+			],
+			"entrypoint": [
+				"/bin/sh",
+				"-c"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"test -f /tmp/initialized"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "web",
+			"dependsOn": [
+				"postgres",
+				"redis",
+				"bucket"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://orbit:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/orbit",
+				"DIRECT_URL": "postgres://orbit:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/orbit",
+				"DATABASE_PREPARED_STATEMENTS": "true",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"BETTER_AUTH_SECRET": "${{ inputs.authSecret }}",
+				"BETTER_AUTH_URL": "https://${{ inputs.mainDomain }}",
+				"NEXT_PUBLIC_APP_URL": "https://${{ inputs.mainDomain }}",
+				"ORBIT_PASSWORD_AUTH": "true",
+				"ALLOWED_EMAIL_DOMAINS": "",
+				"RESEND_API_KEY": "",
+				"EMAIL_FROM": "Orbit <auth@orbit.local>",
+				"GOOGLE_CLIENT_ID": "",
+				"GOOGLE_CLIENT_SECRET": "",
+				"GITHUB_CLIENT_ID": "",
+				"GITHUB_CLIENT_SECRET": "",
+				"GITHUB_APP_SLUG": "",
+				"GITHUB_APP_ID": "",
+				"GITHUB_APP_PRIVATE_KEY": "",
+				"GITHUB_APP_CLIENT_ID": "",
+				"GITHUB_APP_CLIENT_SECRET": "",
+				"GITHUB_WEBHOOK_SECRET": "",
+				"SLACK_ENABLED": "false",
+				"SLACK_CLIENT_ID": "",
+				"SLACK_CLIENT_SECRET": "",
+				"SLACK_SIGNING_SECRET": "",
+				"SLACK_APP_ID": "",
+				"CRON_SECRET": "${{ inputs.cronSecret }}",
+				"ORBIT_SELF_HOSTED": "true",
+				"S3_ENDPOINT": "https://${{ inputs.storageDomain }}",
+				"S3_REGION": "us-east-1",
+				"S3_BUCKET": "orbit-uploads",
+				"S3_ACCESS_KEY_ID": "orbit",
+				"S3_SECRET_ACCESS_KEY": "${{ inputs.minioPassword }}",
+				"NEXT_TELEMETRY_DISABLED": "1"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/noveum/orbit-runtime:2026.09.24",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "realtime",
+			"dependsOn": [
+				"web",
+				"bucket"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://orbit:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/orbit",
+				"DIRECT_URL": "postgres://orbit:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/orbit",
+				"DATABASE_PREPARED_STATEMENTS": "true",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"BETTER_AUTH_SECRET": "${{ inputs.authSecret }}",
+				"BETTER_AUTH_URL": "https://${{ inputs.mainDomain }}",
+				"NEXT_PUBLIC_APP_URL": "https://${{ inputs.mainDomain }}",
+				"ORBIT_PASSWORD_AUTH": "true",
+				"ALLOWED_EMAIL_DOMAINS": "",
+				"RESEND_API_KEY": "",
+				"EMAIL_FROM": "Orbit <auth@orbit.local>",
+				"GOOGLE_CLIENT_ID": "",
+				"GOOGLE_CLIENT_SECRET": "",
+				"GITHUB_CLIENT_ID": "",
+				"GITHUB_CLIENT_SECRET": "",
+				"GITHUB_APP_SLUG": "",
+				"GITHUB_APP_ID": "",
+				"GITHUB_APP_PRIVATE_KEY": "",
+				"GITHUB_APP_CLIENT_ID": "",
+				"GITHUB_APP_CLIENT_SECRET": "",
+				"GITHUB_WEBHOOK_SECRET": "",
+				"SLACK_ENABLED": "false",
+				"SLACK_CLIENT_ID": "",
+				"SLACK_CLIENT_SECRET": "",
+				"SLACK_SIGNING_SECRET": "",
+				"SLACK_APP_ID": "",
+				"CRON_SECRET": "${{ inputs.cronSecret }}",
+				"ORBIT_SELF_HOSTED": "true",
+				"S3_ENDPOINT": "https://${{ inputs.storageDomain }}",
+				"S3_REGION": "us-east-1",
+				"S3_BUCKET": "orbit-uploads",
+				"S3_ACCESS_KEY_ID": "orbit",
+				"S3_SECRET_ACCESS_KEY": "${{ inputs.minioPassword }}",
+				"NEXT_TELEMETRY_DISABLED": "1"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/noveum/orbit-runtime:2026.09.24",
+			"command": [
+				"node",
+				"apps/web/realtime.mjs"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"fetch('http://127.0.0.1:3100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "scheduler",
+			"dependsOn": [
+				"web"
+			],
+			"env": {
+				"CRON_SECRET": "${{ inputs.cronSecret }}",
+				"ORBIT_INTERNAL_URL": "http://${{ services.web.host }}:3000"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/noveum/orbit-runtime:2026.09.24",
+			"command": [
+				"node",
+				"apps/web/scheduler.mjs"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "orbit",
+			"dependsOn": [
+				"web",
+				"realtime",
+				"scheduler"
+			],
+			"env": {
+				"ORBIT_TRUSTED_PROXIES": "private_ranges"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/noveum/orbit-gateway:2026.09.24",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

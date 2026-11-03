@@ -1,0 +1,129 @@
+{
+	"schema": 1,
+	"id": "evolutionapi",
+	"name": "Evolution API",
+	"description": "Evolution API is a robust platform dedicated to empowering small businesses with limited resources, going beyond a simple messaging solution via WhatsApp.",
+	"category": "devtools",
+	"tags": [
+		"api",
+		"whatsapp",
+		"messaging"
+	],
+	"logo": "logos/evolutionapi.png",
+	"website": "https://evolutionfoundation.com.br/",
+	"docs": "https://docs.evolutionfoundation.com.br/en",
+	"version": "v2.3.7",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/evolutionapi",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "apiKey",
+			"label": "API key",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "evolution-api",
+			"dependsOn": [],
+			"env": {
+				"SERVER_URL": "https://${{ inputs.mainDomain }}",
+				"AUTHENTICATION_TYPE": "apikey",
+				"AUTHENTICATION_API_KEY": "${{ inputs.apiKey }}",
+				"AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES": "true",
+				"LANGUAGE": "en",
+				"CONFIG_SESSION_PHONE_CLIENT": "Evolution API",
+				"CONFIG_SESSION_PHONE_NAME": "Chrome",
+				"TELEMETRY": "false",
+				"TELEMETRY_URL": "",
+				"DATABASE_ENABLED": "true",
+				"DATABASE_PROVIDER": "postgresql",
+				"DATABASE_CONNECTION_URI": "postgres://postgresql:${{ inputs.postgresPassword }}@${{ services.evolution-postgres.host }}:5432/evolution",
+				"DATABASE_SAVE_DATA_INSTANCE": "true",
+				"DATABASE_SAVE_DATA_NEW_MESSAGE": "true",
+				"DATABASE_SAVE_MESSAGE_UPDATE": "true",
+				"DATABASE_SAVE_DATA_CONTACTS": "true",
+				"DATABASE_SAVE_DATA_CHATS": "true",
+				"DATABASE_SAVE_DATA_LABELS": "true",
+				"DATABASE_SAVE_DATA_HISTORIC": "true",
+				"CACHE_REDIS_ENABLED": "true",
+				"CACHE_REDIS_URI": "redis://${{ services.evolution-redis.host }}:6379",
+				"CACHE_REDIS_PREFIX_KEY": "evolution",
+				"CACHE_REDIS_SAVE_INSTANCES": "true",
+				"TYPEBOT_ENABLED": "true",
+				"TYPEBOT_API_VERSION": "latest",
+				"CHATWOOT_ENABLED": "true",
+				"OPENAI_ENABLED": "true",
+				"DIFY_ENABLED": "true",
+				"N8N_ENABLED": "true",
+				"EVOAI_ENABLED": "true"
+			},
+			"volumes": [
+				{
+					"name": "evolution-instances",
+					"target": "/evolution/instances"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "evoapicloud/evolution-api:v2.3.7",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "evolution-postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "evolution",
+				"POSTGRES_USER": "postgresql",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "evolution-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "evolution-redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "evolution-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:alpine",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

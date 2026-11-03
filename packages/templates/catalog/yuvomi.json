@@ -1,0 +1,100 @@
+{
+	"schema": 1,
+	"id": "yuvomi",
+	"name": "Yuvomi",
+	"description": "Privacy-first, self-hosted family planner: tasks, calendar sync, shopping, meals, budget, health and more in one PWA. No cloud, no subscriptions, no tracking.",
+	"category": "productivity",
+	"tags": [
+		"open-source",
+		"family",
+		"productivity",
+		"calendar",
+		"tasks"
+	],
+	"logo": "logos/yuvomi.svg",
+	"website": "https://yuvomi.cloud/",
+	"docs": "https://github.com/ulsklyc/yuvomi#readme",
+	"version": "2.80.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/yuvomi",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "sessionSecret",
+			"label": "Session secret",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "dbEncryptionKey",
+			"label": "DB encryption key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "yuvomi",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"DB_PATH": "/data/yuvomi.db",
+				"BACKUP_DIR": "/backups",
+				"DOCUMENT_STORAGE_LOCAL_ENABLED": "false",
+				"DOCUMENT_STORAGE_LOCAL_PATH": "/documents",
+				"SESSION_SECURE": "true",
+				"TRUST_PROXY": "1",
+				"SESSION_SECRET": "${{ inputs.sessionSecret }}",
+				"DB_ENCRYPTION_KEY": "${{ inputs.dbEncryptionKey }}"
+			},
+			"volumes": [
+				{
+					"name": "yuvomi-data",
+					"target": "/data"
+				},
+				{
+					"name": "yuvomi-backups",
+					"target": "/backups"
+				},
+				{
+					"name": "yuvomi-modules",
+					"target": "/app/modules"
+				},
+				{
+					"name": "yuvomi-documents",
+					"target": "/documents"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/ulsklyc/yuvomi:2.80.0",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

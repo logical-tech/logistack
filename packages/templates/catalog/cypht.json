@@ -1,0 +1,158 @@
+{
+	"schema": 1,
+	"id": "cypht",
+	"name": "Cypht",
+	"description": "Lightweight open source webmail aggregator. Read and send mail from multiple IMAP, SMTP, JMAP and EWS accounts in one place.",
+	"category": "communication",
+	"tags": [
+		"self-hosted",
+		"email",
+		"webmail"
+	],
+	"logo": "logos/cypht.svg",
+	"website": "https://cypht.org/",
+	"docs": "https://cypht.org/install.html",
+	"version": "2.13.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/cypht",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "redisPassword",
+			"label": "Redis password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "cypht",
+			"dependsOn": [
+				"cypht-db",
+				"cypht-redis"
+			],
+			"env": {
+				"AUTH_USERNAME": "admin",
+				"AUTH_PASSWORD": "${{ inputs.adminPassword }}",
+				"ADMIN_USERS": "admin",
+				"AUTH_TYPE": "DB",
+				"USER_CONFIG_TYPE": "DB",
+				"DB_CONNECTION_TYPE": "host",
+				"DB_DRIVER": "mysql",
+				"DB_HOST": "${{ services.cypht-db.host }}",
+				"DB_PORT": "3306",
+				"DB_NAME": "cypht",
+				"DB_USER": "cypht",
+				"DB_PASS": "${{ inputs.dbPassword }}",
+				"SESSION_TYPE": "REDIS",
+				"ENABLE_REDIS": "true",
+				"REDIS_SERVER": "${{ services.cypht-redis.host }}",
+				"REDIS_PORT": "6379",
+				"REDIS_PASS": "${{ inputs.redisPassword }}",
+				"REDIS_SOCKET": "",
+				"ENABLE_MEMCACHED": "false",
+				"ENCRYPT_LOCAL_STORAGE": "true"
+			},
+			"volumes": [
+				{
+					"name": "cypht-attachments",
+					"target": "/var/lib/hm3/attachments"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "cypht/cypht:2.13.0",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "cypht-db",
+			"dependsOn": [],
+			"env": {
+				"MARIADB_DATABASE": "cypht",
+				"MARIADB_USER": "cypht",
+				"MARIADB_PASSWORD": "${{ inputs.dbPassword }}",
+				"MARIADB_RANDOM_ROOT_PASSWORD": "yes"
+			},
+			"volumes": [
+				{
+					"name": "cypht-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "cypht-redis",
+			"dependsOn": [],
+			"env": {
+				"REDIS_PASSWORD": "${{ inputs.redisPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "cypht-redis",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"command": [
+				"sh",
+				"-c",
+				"exec redis-server --requirepass \"$REDIS_PASSWORD\" --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"redis-cli -a \"$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

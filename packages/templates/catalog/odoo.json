@@ -1,0 +1,104 @@
+{
+	"schema": 1,
+	"id": "odoo",
+	"name": "Odoo",
+	"description": "Odoo is a suite of open-source business apps that cover all your company needs.",
+	"category": "productivity",
+	"tags": [
+		"business",
+		"apps",
+		"crm",
+		"ecommerce",
+		"accounting",
+		"inventory",
+		"point of sale",
+		"project management",
+		"open-source"
+	],
+	"logo": "logos/odoo.svg",
+	"docs": "https://www.odoo.com/",
+	"version": "18",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/odoo.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "odooDomain",
+			"label": "Odoo domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "odoo",
+			"dependsOn": [],
+			"env": {
+				"HOST": "${{ services.postgresql.host }}",
+				"USER": "${{ inputs.postgresUser }}",
+				"PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "odoo-web-data",
+					"target": "/var/lib/odoo"
+				},
+				{
+					"name": "odoo-extra-addons",
+					"target": "/mnt/extra-addons"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "odoo:18",
+			"command": [
+				"--proxy-mode"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8069"
+				]
+			},
+			"public": {
+				"port": 8069,
+				"domain": "odooDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

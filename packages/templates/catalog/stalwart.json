@@ -1,0 +1,100 @@
+{
+	"schema": 1,
+	"id": "stalwart",
+	"name": "Stalwart",
+	"description": "Stalwart Mail Server is an open-source mail server solution with JMAP, IMAP4, POP3, and SMTP support and a wide range of modern features. It is written in Rust and designed to be secure, fast, robust and scalable.",
+	"category": "communication",
+	"tags": [
+		"email",
+		"smtp",
+		"jmap",
+		"imap4",
+		"pop3",
+		"self-hosted",
+		"mail-server"
+	],
+	"logo": "logos/stalwart.svg",
+	"website": "https://stalw.art/",
+	"docs": "https://stalw.art/docs/",
+	"version": "latest-alpine",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/stalwart",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "stalwart-mail",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "stalwart-etc",
+					"target": "/etc/stalwart"
+				},
+				{
+					"name": "stalwart-data",
+					"target": "/var/lib/stalwart"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "stalwartlabs/stalwart:latest-alpine",
+			"ports": [
+				{
+					"target": 443,
+					"protocol": "tcp"
+				},
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				},
+				{
+					"target": 25,
+					"protocol": "tcp"
+				},
+				{
+					"target": 587,
+					"protocol": "tcp"
+				},
+				{
+					"target": 465,
+					"protocol": "tcp"
+				},
+				{
+					"target": 143,
+					"protocol": "tcp"
+				},
+				{
+					"target": 993,
+					"protocol": "tcp"
+				},
+				{
+					"target": 4190,
+					"protocol": "tcp"
+				},
+				{
+					"target": 110,
+					"protocol": "tcp"
+				},
+				{
+					"target": 995,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

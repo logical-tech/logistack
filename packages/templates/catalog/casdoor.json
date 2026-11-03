@@ -1,0 +1,108 @@
+{
+	"schema": 1,
+	"id": "casdoor",
+	"name": "Casdoor",
+	"description": "An open-source UI-first Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML, CAS, LDAP, SCIM, WebAuthn, TOTP, MFA, and more.",
+	"category": "security",
+	"tags": [
+		"authentication",
+		"authorization",
+		"oauth2",
+		"oidc",
+		"sso",
+		"saml",
+		"identity-management",
+		"access-management",
+		"security"
+	],
+	"website": "https://casdoor.org/",
+	"docs": "https://casdoor.org/docs/overview",
+	"version": "sha256:a63e7a78257c",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/casdoor",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "casdoor",
+			"dependsOn": [
+				"casdoor-db"
+			],
+			"env": {
+				"RUNNING_IN_DOCKER": "true"
+			},
+			"volumes": [
+				{
+					"name": "casdoor-data",
+					"target": "/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/conf/app.conf",
+					"content": "appname = casdoor\nhttpport = 8000\nrunmode = prod\nSessionOn = true\ncopyrequestbody = true\ndriverName = postgres\ndataSourceName = user=casdoor password=${{ inputs.postgresPassword }} host=casdoor-db port=5432 sslmode=disable dbname=casdoor\ndbName = casdoor\nshowSql = false\nredisEndpoint =\ndefaultStorageProvider =\nisCloudIntranet = false\nauthState = \"casdoor\"\nsocks5Proxy = \"127.0.0.1:10808\"\nverificationCodeTimeout = 10\ninitData = \"./init_data.json\"\nlogPostOnly = true\nisUsernameLowered = false\norigin = \"https://${{ inputs.mainDomain }}\"\nstaticBaseUrl = \"https://cdn.casbin.org\"\nisDemoMode = false\nbatchSize = 100\nenableGzip = true\nldapServerPort = 389\nradiusServerPort = 1812\nradiusSecret = \"secret\"\nquota = {\"organization\": -1, \"user\": -1, \"application\": -1, \"provider\": -1}\nlogConfig = {\"filename\": \"logs/casdoor.log\", \"maxdays\":99999, \"perm\":\"0770\"}\ninitDataFile = \"./init_data.json\"\nfrontendBaseDir = \"../web/build\"\n",
+					"secret": true
+				},
+				{
+					"target": "/init_data.json",
+					"content": "{\n  \"organizations\": [\n    {\n      \"owner\": \"admin\",\n      \"name\": \"built-in\",\n      \"createdTime\": \"2021-01-01T00:00:00Z\",\n      \"displayName\": \"Built-in Organization\",\n      \"websiteUrl\": \"https://casdoor.org\",\n      \"favicon\": \"https://cdn.casbin.org/img/casbin/favicon.ico\",\n      \"passwordType\": \"plain\",\n      \"passwordOptions\": [\"AtLeast6\"],\n      \"countryCode\": \"US\",\n      \"defaultAvatar\": \"https://cdn.casbin.org/img/casbin/user.png\",\n      \"defaultApplication\": \"app-built-in\",\n      \"tags\": [],\n      \"languages\": [\"en\"],\n      \"themeData\": {\n        \"isCompact\": false,\n        \"isEnabled\": false,\n        \"themeType\": \"default\",\n        \"colorPrimary\": \"#1976d2\",\n        \"borderRadius\": 6,\n        \"isRoundedButton\": false,\n        \"isGradientButton\": false,\n        \"themeAlgorithm\": \"default\"\n      },\n      \"masterPassword\": \"\",\n      \"initScore\": 2000,\n      \"enableSoftDeletion\": false,\n      \"isProfilePublic\": false,\n      \"mfaItems\": [],\n      \"accountItems\": [\n        {\n          \"name\": \"Organization\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"ID\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Immutable\"\n        },\n        {\n          \"name\": \"Name\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Display name\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Avatar\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"User type\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Password\",\n          \"visible\": true,\n          \"viewRule\": \"Self\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Email\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Phone\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Country/Region\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Location\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Affiliation\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Title\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Homepage\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Bio\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Tag\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Language\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Gender\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Birthday\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Education\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Score\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Karma\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Ranking\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Signup application\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Roles\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Immutable\"\n        },\n        {\n          \"name\": \"Permissions\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Immutable\"\n        },\n        {\n          \"name\": \"Groups\",\n          \"visible\": true,\n          \"viewRule\": \"Public\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"3rd-party logins\",\n          \"visible\": true,\n          \"viewRule\": \"Self\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Properties\",\n          \"visible\": false,\n          \"viewRule\": \"Admin\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Is admin\",\n          \"visible\": true,\n          \"viewRule\": \"Admin\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Is forbidden\",\n          \"visible\": true,\n          \"viewRule\": \"Admin\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Is deleted\",\n          \"visible\": true,\n          \"viewRule\": \"Admin\",\n          \"modifyRule\": \"Admin\"\n        },\n        {\n          \"name\": \"Multi-factor authentication\",\n          \"visible\": true,\n          \"viewRule\": \"Self\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"WebAuthn credentials\",\n          \"visible\": true,\n          \"viewRule\": \"Self\",\n          \"modifyRule\": \"Self\"\n        },\n        {\n          \"name\": \"Managed accounts\",\n          \"visible\": true,\n          \"viewRule\": \"Self\",\n          \"modifyRule\": \"Self\"\n        }\n      ]\n    }\n  ],\n  \"users\": [\n    {\n      \"owner\": \"built-in\",\n      \"name\": \"admin\",\n      \"createdTime\": \"2021-01-01T00:00:00Z\",\n      \"updatedTime\": \"2021-01-01T00:00:00Z\",\n      \"id\": \"admin\",\n      \"type\": \"normal-user\",\n      \"password\": \"${{ inputs.adminPassword }}\",\n      \"passwordSalt\": \"\",\n      \"displayName\": \"Admin\",\n      \"firstName\": \"\",\n      \"lastName\": \"\",\n      \"avatar\": \"https://cdn.casbin.org/img/casbin/user.png\",\n      \"permanentAvatar\": \"\",\n      \"email\": \"admin@example.com\",\n      \"emailVerified\": true,\n      \"phone\": \"\",\n      \"location\": \"\",\n      \"address\": [],\n      \"affiliation\": \"Example Inc.\",\n      \"title\": \"Administrator\",\n      \"idCardType\": \"\",\n      \"idCard\": \"\",\n      \"homepage\": \"\",\n      \"bio\": \"\",\n      \"tag\": \"staff\",\n      \"region\": \"US\",\n      \"language\": \"en\",\n      \"gender\": \"\",\n      \"birthday\": \"\",\n      \"education\": \"\",\n      \"score\": 2000,\n      \"karma\": 0,\n      \"ranking\": 1,\n      \"isDefaultAvatar\": false,\n      \"isOnline\": false,\n      \"isAdmin\": true,\n      \"isGlobalAdmin\": true,\n      \"isForbidden\": false,\n      \"isDeleted\": false,\n      \"signupApplication\": \"app-built-in\",\n      \"hash\": \"\",\n      \"preHash\": \"\",\n      \"createdIp\": \"\",\n      \"lastSigninTime\": \"\",\n      \"lastSigninIp\": \"\",\n      \"github\": \"\",\n      \"google\": \"\",\n      \"qq\": \"\",\n      \"wechat\": \"\",\n      \"facebook\": \"\",\n      \"dingtalk\": \"\",\n      \"weibo\": \"\",\n      \"gitee\": \"\",\n      \"linkedin\": \"\",\n      \"wecom\": \"\",\n      \"lark\": \"\",\n      \"gitlab\": \"\",\n      \"adfs\": \"\",\n      \"baidu\": \"\",\n      \"alipay\": \"\",\n      \"casdoor\": \"\",\n      \"infoflow\": \"\",\n      \"apple\": \"\",\n      \"azuread\": \"\",\n      \"slack\": \"\",\n      \"steam\": \"\",\n      \"bilibili\": \"\",\n      \"okta\": \"\",\n      \"douyin\": \"\",\n      \"custom\": \"\",\n      \"webauthnCredentials\": [],\n      \"preferredMfaType\": \"\",\n      \"recoveryCodes\": [],\n      \"totpSecret\": \"\",\n      \"mfaPhoneEnabled\": false,\n      \"mfaEmailEnabled\": false,\n      \"ldap\": \"\",\n      \"properties\": {},\n      \"roles\": [],\n      \"permissions\": [],\n      \"groups\": [],\n      \"lastSigninWrongTime\": \"\",\n      \"signinWrongTimes\": 0,\n      \"managedAccounts\": []\n    }\n  ],\n  \"applications\": [\n    {\n      \"owner\": \"built-in\",\n      \"name\": \"app-built-in\",\n      \"createdTime\": \"2021-01-01T00:00:00Z\",\n      \"displayName\": \"Casdoor\",\n      \"logo\": \"https://cdn.casbin.org/img/casbin/favicon.ico\",\n      \"homepageUrl\": \"https://${{ inputs.mainDomain }}\",\n      \"description\": \"Casdoor - A UI-first Identity Access Management (IAM) / Single-Sign-On (SSO) platform\",\n      \"organization\": \"built-in\",\n      \"cert\": \"\",\n      \"enablePassword\": true,\n      \"enableSignUp\": true,\n      \"enableSigninSession\": false,\n      \"enableAutoSignin\": false,\n      \"enableCodeSignin\": false,\n      \"enableSamlCompress\": false,\n      \"enableWebAuthn\": false,\n      \"enableLinkWithEmail\": false,\n      \"samlReplyUrl\": \"\",\n      \"providers\": [],\n      \"signupItems\": [\n        {\n          \"name\": \"ID\",\n          \"visible\": false,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"Random\"\n        },\n        {\n          \"name\": \"Username\",\n          \"visible\": true,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"None\"\n        },\n        {\n          \"name\": \"Display name\",\n          \"visible\": true,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"None\"\n        },\n        {\n          \"name\": \"Password\",\n          \"visible\": true,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"None\"\n        },\n        {\n          \"name\": \"Confirm password\",\n          \"visible\": true,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"None\"\n        },\n        {\n          \"name\": \"Email\",\n          \"visible\": true,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"None\"\n        },\n        {\n          \"name\": \"Phone\",\n          \"visible\": true,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"None\"\n        },\n        {\n          \"name\": \"Agreement\",\n          \"visible\": true,\n          \"required\": true,\n          \"prompted\": false,\n          \"rule\": \"None\"\n        }\n      ],\n      \"grantTypes\": [\n        \"authorization_code\",\n        \"password\",\n        \"client_credentials\",\n        \"token\",\n        \"id_token\"\n      ],\n      \"organizationObj\": {\n        \"owner\": \"admin\",\n        \"name\": \"built-in\",\n        \"createdTime\": \"2021-01-01T00:00:00Z\",\n        \"displayName\": \"Built-in Organization\"\n      },\n      \"tags\": [],\n      \"clientId\": \"${{ inputs.jwtSecret }}\",\n      \"clientSecret\": \"${{ inputs.jwtSecret }}\",\n      \"redirectUris\": [\"https://${{ inputs.mainDomain }}/callback\"],\n      \"tokenFormat\": \"JWT\",\n      \"tokenFields\": [],\n      \"expireInHours\": 168,\n      \"refreshExpireInHours\": 168,\n      \"signupUrl\": \"\",\n      \"signinUrl\": \"\",\n      \"forgetUrl\": \"\",\n      \"affiliationUrl\": \"\",\n      \"termsOfUse\": \"\",\n      \"privacyPolicy\": \"\",\n      \"tokenFields\": [],\n      \"themeData\": {\n        \"isCompact\": false,\n        \"isEnabled\": false,\n        \"themeType\": \"default\",\n        \"colorPrimary\": \"#1976d2\",\n        \"borderRadius\": 6,\n        \"isRoundedButton\": false,\n        \"isGradientButton\": false,\n        \"themeAlgorithm\": \"default\"\n      },\n      \"formCss\": \"\",\n      \"formCssMobile\": \"\",\n      \"formOffset\": 2,\n      \"formSideHtml\": \"\",\n      \"formBackgroundUrl\": \"\"\n    }\n  ],\n  \"certs\": [],\n  \"providers\": [],\n  \"ldaps\": [],\n  \"models\": [],\n  \"permissions\": [],\n  \"roles\": [],\n  \"groups\": [],\n  \"enforcers\": [],\n  \"tokens\": [],\n  \"sessions\": [],\n  \"payments\": [],\n  \"products\": [],\n  \"resources\": [],\n  \"synceers\": [],\n  \"adapters\": [],\n  \"webhooks\": [],\n  \"subscriptions\": [],\n  \"plans\": [],\n  \"pricings\": [],\n  \"invitations\": []\n}\n",
+					"secret": true
+				}
+			],
+			"kind": "application",
+			"image": "casbin/casdoor@sha256:a63e7a78257c43c90b22a49bf93becca7007dc47b4f97bec763aa50bcc9c9ee9",
+			"ports": [],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "casdoor-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "casdoor",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "casdoor"
+			},
+			"volumes": [
+				{
+					"name": "casdoor-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		}
+	]
+}

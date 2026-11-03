@@ -1,0 +1,83 @@
+{
+	"schema": 1,
+	"id": "tianji",
+	"name": "Tianji",
+	"description": "Tianji is a lightweight web analytic service and uptime monitoring tool.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"monitoring",
+		"web",
+		"uptime"
+	],
+	"logo": "logos/tianji.svg",
+	"website": "https://tianji.dev/",
+	"docs": "https://tianji.dev/docs/intro",
+	"version": "sha256:08b51b0a4c93",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/tianji",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "tianji",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql://tianji:tianji@${{ services.postgres.host }}:5432/tianji",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"ALLOW_REGISTER": "false",
+				"ALLOW_OPENAPI": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "moonrailgun/tianji@sha256:08b51b0a4c93eaa5a7982f39a75b59f69ab4a798c0f547b36c4ea2f9d5cc26f8",
+			"ports": [
+				{
+					"target": 12345,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 12345,
+				"domain": "mainDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "tianji",
+				"POSTGRES_USER": "tianji",
+				"POSTGRES_PASSWORD": "tianji"
+			},
+			"volumes": [
+				{
+					"name": "tianji-db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15.4-alpine"
+		}
+	]
+}

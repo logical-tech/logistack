@@ -1,0 +1,75 @@
+{
+	"schema": 1,
+	"id": "opentodo",
+	"name": "OpenTodo",
+	"description": "Open-source, local-first task manager. Works offline and syncs every device from one small container.",
+	"category": "productivity",
+	"tags": [
+		"productivity",
+		"tasks",
+		"todo",
+		"self-hosted"
+	],
+	"logo": "logos/opentodo.svg",
+	"website": "https://open-todo.app/",
+	"docs": "https://open-todo.app/docs/self-hosting/dokploy/",
+	"version": "0.13.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/opentodo",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "setupToken",
+			"label": "Setup token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "opentodo",
+			"dependsOn": [],
+			"env": {
+				"OPENTODO_BASE_URL": "",
+				"OPENTODO_SETUP_TOKEN": "${{ inputs.setupToken }}",
+				"OPENTODO_ALLOW_SIGNUP": "false",
+				"OPENTODO_TRUSTED_PROXIES": ""
+			},
+			"volumes": [
+				{
+					"name": "opentodo-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/pixari/opentodo:0.13.0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/opentodo",
+					"healthcheck"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

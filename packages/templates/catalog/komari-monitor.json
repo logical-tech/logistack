@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "komari-monitor",
+	"name": "Komari Monitor",
+	"description": "A lightweight, self-hosted server monitoring tool for tracking server performance.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"self-hosted"
+	],
+	"website": "https://github.com/komari-monitor/komari",
+	"docs": "https://github.com/komari-monitor/komari#readme",
+	"version": "sha256:68df57a235d0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/komari-monitor",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "komari",
+			"dependsOn": [],
+			"env": {
+				"ADMIN_USERNAME": "admin",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "komari-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/komari-monitor/komari@sha256:68df57a235d0d9d631f73a6c95466d1acc4220e9cae6ab2c5e009a51318937e0",
+			"ports": [],
+			"public": {
+				"port": 25774,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "umami",
+	"name": "Umami",
+	"description": "Umami is a simple website analytics tool and an alternative to Google Analytics.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"insights",
+		"privacy"
+	],
+	"logo": "logos/umami.png",
+	"website": "https://umami.is/",
+	"docs": "https://umami.is/docs",
+	"version": "v3.4.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/umami",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "appSecret",
+			"label": "App secret",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "umami",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql://umami:${{ inputs.dbPassword }}@${{ services.db.host }}:5432/umami",
+				"DATABASE_TYPE": "postgresql",
+				"APP_SECRET": "${{ inputs.appSecret }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/umami-software/umami:3.4.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl http://localhost:3000/api/heartbeat"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "umami",
+				"POSTGRES_USER": "umami",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15-alpine"
+		}
+	]
+}

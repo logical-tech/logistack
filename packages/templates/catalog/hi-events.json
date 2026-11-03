@@ -1,0 +1,107 @@
+{
+	"schema": 1,
+	"id": "hi-events",
+	"name": "Hi.events",
+	"description": "Hi.Events is a self-hosted event management and ticket selling platform that allows you to create, manage and promote events easily.",
+	"category": "other",
+	"tags": [
+		"self-hosted",
+		"open-source",
+		"manager"
+	],
+	"logo": "logos/hi-events.svg",
+	"website": "https://hi.events/",
+	"docs": "https://hi.events/docs",
+	"version": "1.9.0-beta",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/hi-events",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "appKey",
+			"label": "App key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "all-in-one",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"VITE_FRONTEND_URL": "https://${{ inputs.mainDomain }}",
+				"APP_FRONTEND_URL": "https://${{ inputs.mainDomain }}",
+				"VITE_API_URL_CLIENT": "https://${{ inputs.mainDomain }}/api",
+				"VITE_API_URL_SERVER": "http://localhost:80/api",
+				"VITE_STRIPE_PUBLISHABLE_KEY": "",
+				"LOG_CHANNEL": "stderr",
+				"QUEUE_CONNECTION": "sync",
+				"MAIL_MAILER": "",
+				"APP_KEY": "${{ inputs.appKey }}",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"FILESYSTEM_PUBLIC_DISK": "public",
+				"FILESYSTEM_PRIVATE_DISK": "local",
+				"APP_CDN_URL": "https://${{ inputs.mainDomain }}/storage",
+				"DATABASE_URL": "postgresql://hievents:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/hievents",
+				"MAIL_HOST": "",
+				"MAIL_PORT": "",
+				"MAIL_USERNAME": "",
+				"MAIL_PASSWORD": "",
+				"MAIL_FROM_ADDRESS": "",
+				"MAIL_FROM_NAME": ""
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "daveearley/hi.events-all-in-one:v1.9.0-beta",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "hievents",
+				"POSTGRES_USER": "hievents",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "pg-hi-events-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "elestio/postgres:16",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

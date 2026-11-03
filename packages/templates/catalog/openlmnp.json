@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "openlmnp",
+	"name": "OpenLMNP",
+	"description": "Self-hosted accounting for French furnished rentals (LMNP): depreciation schedules, ready-to-file 2031/2033 tax forms, FEC export and Airbnb CSV import.",
+	"category": "finance",
+	"tags": [
+		"finance",
+		"accounting",
+		"tax",
+		"rental"
+	],
+	"logo": "logos/openlmnp.png",
+	"website": "https://openlmnp.fr/",
+	"docs": "https://github.com/manganate006/openlmnp/blob/main/docs/INSTALLATION.md",
+	"version": "1.6.6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/openlmnp",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "openlmnp",
+			"dependsOn": [],
+			"env": {
+				"APP_URL": "https://${{ inputs.mainDomain }}",
+				"ALLOW_REGISTRATION": "auto"
+			},
+			"volumes": [
+				{
+					"name": "openlmnp-database",
+					"target": "/var/www/html/database"
+				},
+				{
+					"name": "openlmnp-storage",
+					"target": "/var/www/html/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "manganate06/openlmnp:1.6.6",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"php",
+					"-r",
+					"exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

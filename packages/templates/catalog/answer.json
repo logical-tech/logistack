@@ -1,0 +1,83 @@
+{
+	"schema": 1,
+	"id": "answer",
+	"name": "Answer",
+	"description": "Answer is an open-source Q&A platform for building a self-hosted question-and-answer service.",
+	"category": "other",
+	"tags": [
+		"q-and-a",
+		"self-hosted"
+	],
+	"logo": "logos/answer.png",
+	"website": "https://answer.apache.org/",
+	"docs": "https://answer.apache.org/docs",
+	"version": "v1.4.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/answer",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "serviceHash",
+			"label": "Service hash",
+			"type": "secret",
+			"length": 32,
+			"charset": "hex"
+		}
+	],
+	"services": [
+		{
+			"name": "answer",
+			"dependsOn": [
+				"db"
+			],
+			"env": {},
+			"volumes": [
+				{
+					"name": "answer-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "apache/answer:1.4.1",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 9080,
+				"domain": "mainDomain"
+			},
+			"restart": "on-failure"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "answer",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		}
+	]
+}

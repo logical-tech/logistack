@@ -1,0 +1,121 @@
+{
+	"schema": 1,
+	"id": "joomla",
+	"name": "Joomla",
+	"description": "Joomla is a flexible open-source content management system for building websites, portals, and online applications.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"website",
+		"php",
+		"mariadb"
+	],
+	"logo": "logos/joomla.svg",
+	"website": "https://www.joomla.org/",
+	"docs": "https://manual.joomla.org/",
+	"version": "6.1.0-apache",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/joomla",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminUsername",
+			"label": "Admin username",
+			"type": "username"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "joomla",
+			"dependsOn": [
+				"joomla-db"
+			],
+			"env": {
+				"JOOMLA_DB_HOST": "${{ services.joomla-db.host }}",
+				"JOOMLA_DB_USER": "joomla",
+				"JOOMLA_DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"JOOMLA_DB_NAME": "joomla",
+				"JOOMLA_SITE_NAME": "Joomla",
+				"JOOMLA_ADMIN_USER": "Joomla Administrator",
+				"JOOMLA_ADMIN_USERNAME": "${{ inputs.adminUsername }}",
+				"JOOMLA_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"JOOMLA_ADMIN_EMAIL": "${{ inputs.adminEmail }}"
+			},
+			"volumes": [
+				{
+					"name": "joomla-data",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "joomla:6.1.0-apache",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "joomla-db",
+			"dependsOn": [],
+			"env": {
+				"MARIADB_DATABASE": "joomla",
+				"MARIADB_USER": "joomla",
+				"MARIADB_PASSWORD": "${{ inputs.dbPassword }}",
+				"MARIADB_RANDOM_ROOT_PASSWORD": "1"
+			},
+			"volumes": [
+				{
+					"name": "joomla-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11.4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"healthcheck.sh --connect --innodb_initialized"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

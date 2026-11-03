@@ -1,0 +1,48 @@
+{
+	"schema": 1,
+	"id": "poke",
+	"name": "Poke",
+	"description": "Poke is an open-source, self-hosted alternative to YouTube. A privacy-focused video platform that allows you to watch and share videos without tracking.",
+	"category": "media",
+	"tags": [
+		"video",
+		"youtube-alternative",
+		"self-hosted",
+		"privacy",
+		"streaming"
+	],
+	"logo": "logos/poke.png",
+	"website": "https://poketube.fun/",
+	"docs": "https://codeberg.org/ashleyirispuppy/poke",
+	"version": "amd64",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/poke",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "poke",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "codeberg.org/poketube/poke:amd64",
+			"ports": [],
+			"public": {
+				"port": 6003,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

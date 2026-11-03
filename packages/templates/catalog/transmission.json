@@ -1,0 +1,73 @@
+{
+	"schema": 1,
+	"id": "transmission",
+	"name": "Transmission",
+	"description": "Fast, easy, and free BitTorrent client.",
+	"category": "media",
+	"tags": [
+		"bittorrent",
+		"torrent",
+		"peer-to-peer"
+	],
+	"logo": "logos/transmission.svg",
+	"docs": "https://docs.linuxserver.io/images/docker-transmission/",
+	"version": "sha256:5b3c27a96c8a",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/transmission.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "transmissionDomain",
+			"label": "Transmission domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminUser",
+			"label": "Admin user",
+			"type": "username"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "transmission",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"USER": "${{ inputs.adminUser }}",
+				"PASS": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "transmission-config",
+					"target": "/config"
+				},
+				{
+					"name": "transmission-downloads",
+					"target": "/downloads"
+				},
+				{
+					"name": "transmission-watch",
+					"target": "/watch"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/transmission@sha256:5b3c27a96c8a37c878a525ebf377a32032c3a3acfe845ecaa7c3eb10b09c2caa",
+			"ports": [],
+			"public": {
+				"port": 9091,
+				"domain": "transmissionDomain"
+			}
+		}
+	]
+}

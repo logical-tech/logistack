@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "palmr",
+	"name": "Palmr",
+	"description": "Palmr the open-source, self-hosted alternative to WeTransfer. Share files securely, without tracking or limitations.",
+	"category": "storage",
+	"tags": [
+		"file-sharing",
+		"self-hosted",
+		"open-source"
+	],
+	"logo": "logos/palmr.png",
+	"website": "https://palmr.kyantech.com.br/",
+	"docs": "https://palmr.kyantech.com.br/docs/3.0-beta",
+	"version": "sha256:043dd6cdbb4d",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/palmr",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "palmr",
+			"dependsOn": [],
+			"env": {
+				"ENABLE_S3": "false",
+				"ENCRYPTION_KEY": ""
+			},
+			"volumes": [
+				{
+					"name": "palmr-data",
+					"target": "/app/server"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "kyantech/palmr@sha256:043dd6cdbb4d9985b376915020fb26c2037b19876674273eac310ab04cdf16f4",
+			"ports": [
+				{
+					"target": 5487,
+					"protocol": "tcp"
+				},
+				{
+					"target": 3333,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 5487,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

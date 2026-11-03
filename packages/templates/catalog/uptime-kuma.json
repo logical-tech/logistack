@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "uptime-kuma",
+	"name": "Uptime Kuma",
+	"description": "Uptime Kuma is a monitoring tool for tracking the status and performance of your applications in real-time.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"status",
+		"performance",
+		"web",
+		"services",
+		"applications",
+		"real-time"
+	],
+	"logo": "logos/uptime-kuma.svg",
+	"docs": "https://github.com/louislam/uptime-kuma?tab=readme-ov-file",
+	"version": "2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/uptime-kuma.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "uptimekumaDomain",
+			"label": "Uptimekuma domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "uptime-kuma",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "uptime-kuma-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "louislam/uptime-kuma:2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"extra/healthcheck"
+				]
+			},
+			"public": {
+				"port": 3001,
+				"domain": "uptimekumaDomain"
+			}
+		}
+	]
+}

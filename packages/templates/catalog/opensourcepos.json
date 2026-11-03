@@ -1,0 +1,114 @@
+{
+	"schema": 1,
+	"id": "opensourcepos",
+	"name": "OpenSourcePOS",
+	"description": "OpenSourcePOS is a web-based point of sale system for managing sales, inventory, customers, and reports.",
+	"category": "other",
+	"tags": [
+		"pos",
+		"retail",
+		"inventory",
+		"sales",
+		"business"
+	],
+	"logo": "logos/opensourcepos.svg",
+	"website": "https://opensourcepos.org/",
+	"docs": "https://github.com/opensourcepos/opensourcepos/blob/master/README.md",
+	"version": "sha256:0d3489a32e43",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/opensourcepos",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "opensourcepos",
+			"dependsOn": [
+				"opensourcepos-db"
+			],
+			"env": {
+				"CI_ENVIRONMENT": "production",
+				"ALLOWED_HOSTNAMES": "${{ inputs.mainDomain }}",
+				"FORCE_HTTPS": "false",
+				"PHP_TIMEZONE": "UTC",
+				"MYSQL_USERNAME": "admin",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DB_NAME": "ospos",
+				"MYSQL_HOST_NAME": "${{ services.opensourcepos-db.host }}"
+			},
+			"volumes": [
+				{
+					"name": "opensourcepos-uploads",
+					"target": "/app/public/uploads"
+				},
+				{
+					"name": "opensourcepos-logs",
+					"target": "/app/writable/logs"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "jekkos/opensourcepos@sha256:0d3489a32e43bef0e7ef96001e478f10cc03f1a114586cf522fe4d7712c65880",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "opensourcepos-db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}",
+				"MYSQL_DATABASE": "ospos",
+				"MYSQL_USER": "admin",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "opensourcepos-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"healthcheck.sh --connect --innodb_initialized"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,123 @@
+{
+	"schema": 1,
+	"id": "langflow",
+	"name": "Langflow",
+	"description": "Langflow is an open-source, Python-based, customizable framework for building AI applications.",
+	"category": "ai",
+	"tags": [
+		"langflow",
+		"ai",
+		"openai",
+		"gpt",
+		"llm",
+		"workflow",
+		"automation",
+		"open source",
+		"low code"
+	],
+	"logo": "logos/langflow.svg",
+	"website": "https://www.langflow.org/",
+	"docs": "https://docs.langflow.org/",
+	"version": "1.7.2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/langflow.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "langflowDomain",
+			"label": "Langflow domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "langflowUser",
+			"label": "Langflow user",
+			"type": "username"
+		},
+		{
+			"key": "langflowPassword",
+			"label": "Langflow password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "langflow",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"LANGFLOW_AUTO_LOGIN": "false",
+				"LANGFLOW_SUPERUSER": "${{ inputs.langflowUser }}",
+				"LANGFLOW_SUPERUSER_PASSWORD": "${{ inputs.langflowPassword }}",
+				"LANGFLOW_DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/langflow-db",
+				"LANGFLOW_CONFIG_DIR": "app/langflow",
+				"LANGFLOW_HOST": "0.0.0.0",
+				"PORT": "7860"
+			},
+			"volumes": [
+				{
+					"name": "langflow-data",
+					"target": "/app/langflow"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "langflowai/langflow:1.7.2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://127.0.0.1:7860/health"
+				]
+			},
+			"public": {
+				"port": 7860,
+				"domain": "langflowDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "langflow-db"
+			},
+			"volumes": [
+				{
+					"name": "langflow-postgres",
+					"target": "/var/lib/postgres/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		}
+	]
+}

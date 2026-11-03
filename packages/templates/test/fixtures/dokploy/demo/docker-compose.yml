@@ -1,0 +1,35 @@
+services:
+  web:
+    image: example/demo:2.1.0
+    restart: unless-stopped
+    command: ["serve", "--config", "/etc/demo/config.yml"]
+    environment:
+      APP_URL: ${APP_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: mysql://demo:${DB_PASSWORD}@mysql:3306/demo
+      REDIS_HOST: cache
+      ADMIN_USER: ${ADMIN_USER}
+    volumes:
+      - ../files/demo/config.yml:/etc/demo/config.yml:ro
+      - demo-data:/var/lib/demo
+    expose:
+      - 8080
+    depends_on:
+      - mysql
+      - cache
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: demo
+    volumes:
+      - mysql-data:/var/lib/mysql
+  cache:
+    image: redis:7.4-alpine
+    volumes:
+      - cache-data:/data
+
+volumes:
+  demo-data:
+  mysql-data:
+  cache-data:

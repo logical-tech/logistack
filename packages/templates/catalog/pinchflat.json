@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "pinchflat",
+	"name": "Pinchflat",
+	"description": "Pinchflat is a self-hosted YouTube downloader that allows you to download videos and playlists with a simple web interface.",
+	"category": "media",
+	"tags": [
+		"youtube",
+		"downloader",
+		"media"
+	],
+	"website": "https://github.com/kieraneglin/pinchflat",
+	"docs": "https://github.com/kieraneglin/pinchflat",
+	"version": "sha256:01b4f98aabaf",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/pinchflat",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "basicAuthPassword",
+			"label": "Basic auth password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "pinchflat",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "files-config",
+					"target": "/config"
+				},
+				{
+					"name": "files-downloads",
+					"target": "/downloads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/kieraneglin/pinchflat@sha256:01b4f98aabaf3f5fe394213f7a32578c9e84e42080f52e2f8334021a4473b202",
+			"ports": [],
+			"public": {
+				"port": 8945,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

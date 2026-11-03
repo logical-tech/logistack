@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "mulesoft-esb",
+	"name": "MuleSoft ESB Runtime Community Edition",
+	"description": "MuleSoft ESB Runtime  is a lightweight, Java-based integration platform that allows you to easily integrate applications, data sources, and APIs. It provides powerful connectors and data transformation capabilities for building robust integration solutions.",
+	"category": "devtools",
+	"tags": [
+		"integration",
+		"api",
+		"esb",
+		"enterprise",
+		"java"
+	],
+	"logo": "logos/mulesoft-esb.png",
+	"website": "https://www.mulesoft.com/",
+	"docs": "https://docs.mulesoft.com/",
+	"version": "sha256:4f92e477bba8",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/mulesoft-esb",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "mule",
+			"dependsOn": [],
+			"env": {
+				"MULE_VERSION": "4.9.0",
+				"HTTP_PORT": "8081",
+				"MULE_HOME": "/opt/mule-standalone",
+				"MULE_BASE": "/opt/mule-standalone",
+				"TZ": "UTC",
+				"MULE_VERBOSE_EXCEPTIONS": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "yogeshmulecraft/mulece-esb@sha256:4f92e477bba84c5141416bdefb24a85dba8d9ae8febab3ad0b6af8b981c990f9",
+			"ports": [
+				{
+					"target": 8081,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://localhost:8081/ || exit 0"
+				]
+			},
+			"public": {
+				"port": 8081,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

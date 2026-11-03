@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "soju",
+	"name": "Soju",
+	"description": "A user-friendly IRC bouncer with a modern web interface",
+	"category": "communication",
+	"tags": [
+		"irc",
+		"bouncer",
+		"chat",
+		"messaging",
+		"relay"
+	],
+	"logo": "logos/soju.svg",
+	"docs": "https://soju.im/",
+	"version": "sha256:9650c193b914",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/soju.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "gamjaDomain",
+			"label": "Gamja domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "soju",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "soju-db",
+					"target": "/db"
+				},
+				{
+					"name": "soju-uploads",
+					"target": "/uploads"
+				},
+				{
+					"name": "soju-run",
+					"target": "/run/soju"
+				}
+			],
+			"files": [
+				{
+					"target": "/soju-config",
+					"content": "db sqlite3 /db/main.db\nmessage-store db\nfile-upload fs /uploads/\nlisten irc+insecure://0.0.0.0:6667\nlisten ws+insecure://0.0.0.0:80\nlisten unix+admin:///run/soju/admin\n"
+				}
+			],
+			"kind": "application",
+			"image": "codeberg.org/emersion/soju@sha256:c695fb996dce168fb39449415c7523b17189ed81b48c107d4728fc93fb30e799",
+			"ports": []
+		},
+		{
+			"name": "gamja",
+			"dependsOn": [
+				"soju"
+			],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "codeberg.org/emersion/gamja@sha256:9650c193b9148c6f68a920d7e066a8507a30e3cb1b8bee5dfd0496b5bee75759",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "gamjaDomain"
+			}
+		}
+	]
+}

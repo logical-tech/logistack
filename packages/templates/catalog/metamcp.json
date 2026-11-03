@@ -1,0 +1,103 @@
+{
+	"schema": 1,
+	"id": "metamcp",
+	"name": "Metamcp",
+	"description": "MCP Aggregator, Orchestrator, Middleware, Gateway in one app",
+	"category": "ai",
+	"tags": [
+		"mcp",
+		"ai",
+		"sse",
+		"aggregator",
+		"orchestrator",
+		"middleware"
+	],
+	"docs": "https://github.com/metatool-ai/metamcp",
+	"version": "2.4",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/metamcp.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "metamcpDomain",
+			"label": "Metamcp domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "authPassword",
+			"label": "Auth password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "app",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"POSTGRES_HOST": "${{ services.postgres.host }}",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "metamcp_db",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/metamcp_db",
+				"APP_URL": "https://${{ inputs.metamcpDomain }}",
+				"NEXT_PUBLIC_APP_URL": "https://${{ inputs.metamcpDomain }}",
+				"BETTER_AUTH_SECRET": "${{ inputs.authPassword }}",
+				"TRANSFORM_LOCALHOST_TO_DOCKER_INTERNAL": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/metatool-ai/metamcp:2.4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:12008/health"
+				]
+			},
+			"public": {
+				"port": 12008,
+				"domain": "metamcpDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "metamcp_db",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

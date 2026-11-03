@@ -1,0 +1,71 @@
+{
+	"schema": 1,
+	"id": "upsnap",
+	"name": "Upsnap",
+	"description": "Upsnap is a simple network device monitor and dashboard built on PocketBase.",
+	"category": "monitoring",
+	"tags": [
+		"network",
+		"monitoring",
+		"dashboard",
+		"self-hosted"
+	],
+	"website": "https://github.com/seriousm4x/upsnap",
+	"docs": "https://github.com/seriousm4x/upsnap#readme",
+	"version": "5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/upsnap",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "upsnap",
+			"dependsOn": [],
+			"env": {
+				"TZ": "Europe/Berlin",
+				"UPSNAP_INTERVAL": "*/10 * * * * *",
+				"UPSNAP_SCAN_RANGE": "192.168.1.0/24",
+				"UPSNAP_SCAN_TIMEOUT": "500ms",
+				"UPSNAP_PING_PRIVILEGED": "true",
+				"UPSNAP_WEBSITE_TITLE": "Upsnap Network Monitor"
+			},
+			"volumes": [
+				{
+					"name": "upsnap-data",
+					"target": "/app/pb_data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/seriousm4x/upsnap:5",
+			"ports": [
+				{
+					"target": 8090,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-fs",
+					"http://localhost:8090/api/health"
+				]
+			},
+			"public": {
+				"port": 8090,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

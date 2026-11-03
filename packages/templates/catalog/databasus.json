@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "databasus",
+	"name": "Databasus",
+	"description": "Databasus is a free, open source and self-hosted tool to backup PostgreSQL, MySQL, and MongoDB.",
+	"category": "devtools",
+	"tags": [
+		"postgres",
+		"mysql",
+		"mongo",
+		"backup",
+		"s3"
+	],
+	"logo": "logos/databasus.svg",
+	"website": "https://databasus.com/",
+	"docs": "https://databasus.com/installation",
+	"version": "v3.16.2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/databasus.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "databasusDomain",
+			"label": "Databasus domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "databasus",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "databasus-data",
+					"target": "/databasus-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "databasus/databasus:v3.16.2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://localhost:4005/api/v1/system/health"
+				]
+			},
+			"public": {
+				"port": 4005,
+				"domain": "databasusDomain"
+			}
+		}
+	]
+}

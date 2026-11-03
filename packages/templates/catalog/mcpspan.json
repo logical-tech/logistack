@@ -1,0 +1,156 @@
+{
+	"schema": 1,
+	"id": "mcpspan",
+	"name": "mcpspan",
+	"description": "mcpspan is open-source analytics for MCP servers: which tools agents call, how often they fail and why, which clients call them, and how fast they answer. Add one line with an SDK in any of eight languages, or none at all behind its proxy, and see it in the dashboard. Parameter values never leave your server.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"monitoring",
+		"mcp"
+	],
+	"logo": "logos/mcpspan.svg",
+	"website": "https://mcpspan.com/",
+	"docs": "https://mcpspan.com/docs/self-hosting/",
+	"version": "0.13.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/mcpspan",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "apiKeySecret",
+			"label": "API key secret",
+			"type": "base64",
+			"bytes": 48
+		},
+		{
+			"key": "apiDomain",
+			"label": "API domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "mcpspan",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "mcpspan"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "timescale/timescaledb:2.30.1-pg17",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -h 127.0.0.1 -U mcpspan -d mcpspan"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "migrate",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://mcpspan:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/mcpspan"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/mcpspan/core-api:0.13.0",
+			"command": [
+				"./node_modules/.bin/node-pg-migrate",
+				"up"
+			],
+			"ports": [],
+			"restart": "none"
+		},
+		{
+			"name": "api",
+			"dependsOn": [
+				"migrate"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://mcpspan:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/mcpspan",
+				"PORT": "6271",
+				"API_KEY_SECRET": "${{ inputs.apiKeySecret }}",
+				"MCPSPAN_DASHBOARD_URL": "http://${{ inputs.mainDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/mcpspan/core-api:0.13.0",
+			"ports": [
+				{
+					"target": 6271,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"fetch('http://127.0.0.1:6271/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+				]
+			},
+			"public": {
+				"port": 6271,
+				"domain": "apiDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "dashboard",
+			"dependsOn": [
+				"api"
+			],
+			"env": {
+				"CORE_API_URL": "http://${{ services.api.host }}:6271",
+				"MCPSPAN_INGEST_URL": "http://${{ inputs.apiDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/mcpspan/core-dashboard:0.13.0",
+			"ports": [
+				{
+					"target": 6270,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 6270,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

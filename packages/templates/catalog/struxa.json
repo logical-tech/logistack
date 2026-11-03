@@ -1,0 +1,187 @@
+{
+	"schema": 1,
+	"id": "struxa",
+	"name": "Struxa",
+	"description": "Struxa is a self-hosted, open-source server management panel — a modern, fully typed replacement for Pterodactyl.",
+	"category": "other",
+	"tags": [
+		"hosting",
+		"game-server",
+		"panel",
+		"self-hosted"
+	],
+	"logo": "logos/struxa.svg",
+	"website": "https://struxa.cloud/",
+	"docs": "https://docs.struxa.cloud/",
+	"version": "sha256:d5e935ca3ee3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/struxa",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "betterAuthSecret",
+			"label": "Better auth secret",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbEncryptionKey",
+			"label": "DB encryption key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "minioAccessKey",
+			"label": "Minio access key",
+			"type": "username"
+		},
+		{
+			"key": "minioSecretKey",
+			"label": "Minio secret key",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}",
+				"MYSQL_DATABASE": "struxa",
+				"MYSQL_USER": "struxa",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "struxa-mysql",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8.4"
+		},
+		{
+			"name": "minio",
+			"dependsOn": [],
+			"env": {
+				"MINIO_ROOT_USER": "${{ inputs.minioAccessKey }}",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioSecretKey }}"
+			},
+			"volumes": [
+				{
+					"name": "struxa-minio",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "minio/minio:RELEASE.2025-04-22T22-12-26Z",
+			"command": [
+				"server",
+				"/data",
+				"--console-address",
+				":9001"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:9000/minio/health/live"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "migrate",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"DATABASE_URL": "mysql://struxa:${{ inputs.mysqlPassword }}@${{ services.mysql.host }}:3306/struxa"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/struxadotcloud/migrate@sha256:6984ce8d453c456abfc425583c2f9d9669ac53ebe865520094705ca5d99f097d",
+			"ports": [],
+			"restart": "on-failure"
+		},
+		{
+			"name": "struxa",
+			"dependsOn": [
+				"migrate",
+				"minio"
+			],
+			"env": {
+				"DATABASE_URL": "mysql://struxa:${{ inputs.mysqlPassword }}@${{ services.mysql.host }}:3306/struxa",
+				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
+				"BETTER_AUTH_URL": "http://${{ inputs.mainDomain }}",
+				"CORS_ORIGIN": "http://${{ inputs.mainDomain }}",
+				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"DATABASE_ENCRYPTION_KEY": "${{ inputs.dbEncryptionKey }}",
+				"MINIO_ENDPOINT": "http://${{ services.minio.host }}:9000",
+				"MINIO_ACCESS_KEY": "${{ inputs.minioAccessKey }}",
+				"MINIO_SECRET_KEY": "${{ inputs.minioSecretKey }}",
+				"MINIO_BUCKET": "struxa",
+				"NODE_ENV": "production"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/struxadotcloud/dashboard@sha256:d5e935ca3ee31fe912a07b27b63df461be620da2b2178c2d7595cca77ba910ce",
+			"entrypoint": [
+				"/bin/sh",
+				"-c",
+				"eval \"$(node -e '\n  const {generateKeyPairSync}=require(\"crypto\");\n  const {publicKey,privateKey}=generateKeyPairSync(\"rsa\",{modulusLength:2048,\n    publicKeyEncoding:{type:\"spki\",format:\"pem\"},\n    privateKeyEncoding:{type:\"pkcs8\",format:\"pem\"}});\n  console.log(\"export JWT_PRIVATE_KEY=\"+JSON.stringify(privateKey.replace(/\\n/g,\"\\\\n\")));\n  console.log(\"export JWT_PUBLIC_KEY=\"+JSON.stringify(publicKey.replace(/\\n/g,\"\\\\n\")));\n')\"\nexec node apps/web/server.js\n"
+			],
+			"ports": [],
+			"public": {
+				"port": 3001,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "watchkeeper",
+			"dependsOn": [
+				"migrate"
+			],
+			"env": {
+				"DATABASE_URL": "mysql://struxa:${{ inputs.mysqlPassword }}@${{ services.mysql.host }}:3306/struxa",
+				"DATABASE_ENCRYPTION_KEY": "${{ inputs.dbEncryptionKey }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/struxadotcloud/watchkeeper@sha256:3817d30125d53f0e0abe56627ed6156875f26d3d36f558b8ea244fb854c2de7c",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

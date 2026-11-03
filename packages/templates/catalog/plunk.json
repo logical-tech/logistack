@@ -1,0 +1,150 @@
+{
+	"schema": 1,
+	"id": "plunk",
+	"name": "Plunk",
+	"description": "Plunk, The Open-Source Email Platform for AWS",
+	"category": "communication",
+	"tags": [
+		"plunk",
+		"email",
+		"automation",
+		"aws"
+	],
+	"logo": "logos/plunk.svg",
+	"docs": "https://docs.useplunk.com/getting-started/introduction",
+	"version": "sha256:85e7fc843327",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/plunk.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "plunkDomain",
+			"label": "Plunk domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtsecretPassword",
+			"label": "Jwtsecret password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "awsRegion",
+			"label": "AWS region",
+			"type": "text"
+		},
+		{
+			"key": "awsAccessKeyId",
+			"label": "AWS access key ID",
+			"type": "text"
+		},
+		{
+			"key": "awsSecretAccessKey",
+			"label": "AWS secret access key",
+			"type": "text"
+		},
+		{
+			"key": "awsSesConfigurationSet",
+			"label": "AWS ses configuration set",
+			"type": "text"
+		}
+	],
+	"services": [
+		{
+			"name": "plunk",
+			"dependsOn": [
+				"postgresql",
+				"redis"
+			],
+			"env": {
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}/plunk-db?schema=public",
+				"JWT_SECRET": "${{ inputs.jwtsecretPassword }}",
+				"AWS_REGION": "${{ inputs.awsRegion }}",
+				"AWS_ACCESS_KEY_ID": "${{ inputs.awsAccessKeyId }}",
+				"AWS_SECRET_ACCESS_KEY": "${{ inputs.awsSecretAccessKey }}",
+				"AWS_SES_CONFIGURATION_SET": "${{ inputs.awsSesConfigurationSet }}",
+				"NEXT_PUBLIC_API_URI": "https://${{ inputs.plunkDomain }}/api",
+				"APP_URI": "https://${{ inputs.plunkDomain }}",
+				"API_URI": "https://${{ inputs.plunkDomain }}/api",
+				"DISABLE_SIGNUPS": "False",
+				"NODE_OPTIONS": "--no-network-family-autoselection"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "driaug/plunk@sha256:85e7fc843327318741c92e744cf05856aa3f28ac9f01e4ed3fb0a2592524d0a2",
+			"entrypoint": [
+				"/app/entry.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"(wget -S --spider http://127.0.0.1:3000/api/health 2>&1 | grep -q \"HTTP/1.1 [1-3]\")"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "plunkDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "plunk-db"
+			},
+			"volumes": [
+				{
+					"name": "plunk-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "plunk-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7.4-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"PING"
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,121 @@
+{
+	"schema": 1,
+	"id": "onedev",
+	"name": "Onedev",
+	"description": "Git server with CI/CD, kanban, and packages. Seamless integration. Unparalleled experience.",
+	"category": "devtools",
+	"tags": [
+		"git",
+		"scm",
+		"ci",
+		"cd",
+		"kanban",
+		"packages",
+		"devops",
+		"collaboration",
+		"code",
+		"repository",
+		"management"
+	],
+	"logo": "logos/onedev.svg",
+	"docs": "https://docs.onedev.io/",
+	"version": "sha256:a198460c10b6",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/onedev.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "onedevDomain",
+			"label": "Onedev domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "databaseUser",
+			"label": "Database user",
+			"type": "username"
+		},
+		{
+			"key": "databasePassword",
+			"label": "Database password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "onedevUser",
+			"label": "Onedev user",
+			"type": "username"
+		},
+		{
+			"key": "onedevPassword",
+			"label": "Onedev password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "onedev",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"hibernate_dialect": "io.onedev.server.persistence.PostgreSQLDialect",
+				"hibernate_connection_driver_class": "org.postgresql.Driver",
+				"hibernate_connection_url": "jdbc:postgresql://${{ services.postgres.host }}:5432/onedev",
+				"hibernate_connection_username": "${{ inputs.databaseUser }}",
+				"hibernate_connection_password": "${{ inputs.databasePassword }}",
+				"initial_user": "${{ inputs.onedevUser }}",
+				"initial_password": "${{ inputs.onedevPassword }}",
+				"initial_email": "mail@example.com",
+				"initial_server_url": "https://${{ inputs.onedevDomain }}",
+				"initial_ssh_root_url": "ssh://changeme:22"
+			},
+			"volumes": [
+				{
+					"name": "onedev-docker-sock",
+					"target": "/var/run/docker.sock"
+				},
+				{
+					"name": "onedev-data",
+					"target": "/opt/onedev"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "1dev/server@sha256:a198460c10b6ef76780a169bc94df9751ebf0a4fdc4cf2d0d093ff76543168d4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"true"
+				]
+			},
+			"public": {
+				"port": 6610,
+				"domain": "onedevDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.databaseUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.databasePassword }}",
+				"POSTGRES_DB": "onedev"
+			},
+			"volumes": [
+				{
+					"name": "onedev-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

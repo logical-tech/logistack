@@ -1,0 +1,56 @@
+{
+	"schema": 1,
+	"id": "newt-pangolin",
+	"name": "Newt Pangolin",
+	"description": "Pangolin tunnels your services to the internet so you can access anything from anywhere.",
+	"category": "networking",
+	"tags": [
+		"wireguard",
+		"reverse-proxy",
+		"zero-trust-network-access",
+		"open source"
+	],
+	"logo": "logos/newt-pangolin.png",
+	"docs": "https://docs.digpangolin.com/manage/sites/install-site",
+	"version": "sha256:c89f01cb387b",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/newt-pangolin.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "newtId",
+			"label": "Newt ID",
+			"type": "text"
+		},
+		{
+			"key": "newtSecret",
+			"label": "Newt secret",
+			"type": "text"
+		}
+	],
+	"services": [
+		{
+			"name": "newt",
+			"dependsOn": [],
+			"env": {
+				"PANGOLIN_ENDPOINT": "https://pangolin.domain.tld",
+				"NEWT_ID": "${{ inputs.newtId }}",
+				"NEWT_SECRET": "${{ inputs.newtSecret }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "fosrl/newt@sha256:c89f01cb387bf6c598959036cbf56306b068a43e8784345bee7398b7af8ee2e1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"newt",
+					"--version"
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,55 @@
+{
+	"schema": 1,
+	"id": "imgcompress",
+	"name": "Imgcompress",
+	"description": "Offline image compression, conversion, and AI background removal for Docker homelabs.",
+	"category": "media",
+	"tags": [
+		"compress",
+		"photo",
+		"server",
+		"metadata"
+	],
+	"docs": "https://imgcompress.karimzouine.com/",
+	"version": "0.6.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/imgcompress.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "imgcompressDomain",
+			"label": "Imgcompress domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "imgcompress",
+			"dependsOn": [],
+			"env": {
+				"DISABLE_LOGO": "false",
+				"DISABLE_STORAGE_MANAGEMENT": "false"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "karimz1/imgcompress:0.6.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:5000"
+				]
+			},
+			"public": {
+				"port": 5000,
+				"domain": "imgcompressDomain"
+			}
+		}
+	]
+}

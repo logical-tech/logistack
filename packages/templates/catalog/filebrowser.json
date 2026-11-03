@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "filebrowser",
+	"name": "Filebrowser",
+	"description": "FileBrowser is a web-based file manager and file explorer with a user-friendly interface.",
+	"category": "storage",
+	"tags": [
+		"file-management",
+		"storage-access",
+		"data-organization",
+		"file-utilization",
+		"administration-tool",
+		"file-manager",
+		"storage"
+	],
+	"logo": "logos/filebrowser.svg",
+	"website": "https://filebrowser.org/",
+	"docs": "https://filebrowser.org/",
+	"version": "sha256:a469ea076d4a",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/filebrowser.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "filebrowserDomain",
+			"label": "Filebrowser domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "filebrowser",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "srv",
+					"target": "/srv"
+				}
+			],
+			"files": [
+				{
+					"target": "/database.db",
+					"content": ""
+				},
+				{
+					"target": "/.filebrowser.json",
+					"content": "{\n  \"address\": \"0.0.0.0\",\n  \"port\": 80\n}\n"
+				}
+			],
+			"kind": "application",
+			"image": "filebrowser/filebrowser@sha256:a469ea076d4a1b4b1d86a41d130f2f536cd9da996a2b1fb39c0d7635f9d89b9a",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "filebrowserDomain"
+			}
+		}
+	]
+}

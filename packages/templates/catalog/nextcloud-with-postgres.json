@@ -1,0 +1,128 @@
+{
+	"schema": 1,
+	"id": "nextcloud-with-postgres",
+	"name": "Nextcloud With Postgres",
+	"description": "NextCloud is a self-hosted, open-source platform that provides file storage, collaboration, and communication tools for seamless data management.",
+	"category": "storage",
+	"tags": [
+		"cloud",
+		"collaboration",
+		"communication",
+		"filestorage",
+		"data"
+	],
+	"logo": "logos/nextcloud-with-postgres.svg",
+	"docs": "https://docs.nextcloud.com/",
+	"version": "sha256:b980e092ea0c",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/nextcloud-with-postgres.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "nextcloudDomain",
+			"label": "Nextcloud domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "nextcloud",
+			"dependsOn": [
+				"nextcloud-db",
+				"redis"
+			],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Europe/Paris",
+				"POSTGRES_DB": "nextcloud",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_HOST": "${{ services.nextcloud-db.host }}",
+				"REDIS_HOST": "${{ services.redis.host }}",
+				"REDIS_PORT": "6379"
+			},
+			"volumes": [
+				{
+					"name": "nextcloud-config",
+					"target": "/config"
+				},
+				{
+					"name": "nextcloud-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/nextcloud@sha256:b980e092ea0ce7b509b8c1f03b8b5ae244348faccd4ae9e519d61e32706aa20a",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:80/status.php"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "nextcloudDomain"
+			}
+		},
+		{
+			"name": "nextcloud-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "nextcloud"
+			},
+			"volumes": [
+				{
+					"name": "nextcloud-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "nextcloud-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7.4-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"PING"
+				]
+			}
+		}
+	]
+}

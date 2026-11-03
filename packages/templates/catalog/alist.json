@@ -1,0 +1,55 @@
+{
+	"schema": 1,
+	"id": "alist",
+	"name": "AList",
+	"description": "ðŸ—‚ï¸A file list/WebDAV program that supports multiple storages, powered by Gin and Solidjs.",
+	"category": "storage",
+	"tags": [
+		"file",
+		"webdav",
+		"storage"
+	],
+	"logo": "logos/alist.svg",
+	"website": "https://alistgo.com/",
+	"docs": "https://alistgo.com/guide/install/docker.html",
+	"version": "v3.55.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/alist",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "alist",
+			"dependsOn": [],
+			"env": {
+				"PUID": "0",
+				"PGID": "0",
+				"UMASK": "022"
+			},
+			"volumes": [
+				{
+					"name": "alist-data",
+					"target": "/opt/alist/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "xhofe/alist:v3.55.0",
+			"ports": [],
+			"public": {
+				"port": 5244,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,108 @@
+{
+	"schema": 1,
+	"id": "vikunja-with-postgresql",
+	"name": "Vikunja With Postgresql",
+	"description": "The open-source, self-hostable to-do app. Organize everything, on all platforms.",
+	"category": "productivity",
+	"tags": [
+		"productivity",
+		"todo"
+	],
+	"logo": "logos/vikunja-with-postgresql.svg",
+	"docs": "https://vikunja.io/",
+	"version": "sha256:f7dc8428d10a",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/vikunja-with-postgresql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "vikunjaDomain",
+			"label": "Vikunja domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jwtsecretPassword",
+			"label": "Jwtsecret password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresqlDatabase",
+			"label": "Postgresql database",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "vikunja",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"VIKUNJA_SERVICE_PUBLICURL": "https://${{ inputs.vikunjaDomain }}",
+				"VIKUNJA_SERVICE_SECRET": "${{ inputs.jwtsecretPassword }}",
+				"VIKUNJA_SERVICE_ENABLEREGISTRATION": "true",
+				"VIKUNJA_DATABASE_TYPE": "postgres",
+				"VIKUNJA_DATABASE_HOST": "${{ services.postgresql.host }}",
+				"VIKUNJA_DATABASE_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"VIKUNJA_DATABASE_USER": "${{ inputs.postgresqlUser }}",
+				"VIKUNJA_DATABASE_DATABASE": "${{ inputs.postgresqlDatabase }}"
+			},
+			"volumes": [
+				{
+					"name": "vikunja-data",
+					"target": "/app/vikunja"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "vikunja/vikunja@sha256:f7dc8428d10aef17f3075886d3c1c022f566ec456f88985f02c137f4fc534576",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/app/vikunja/vikunja",
+					"healthcheck"
+				]
+			},
+			"public": {
+				"port": 3456,
+				"domain": "vikunjaDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_DB": "${{ inputs.postgresqlDatabase }}"
+			},
+			"volumes": [
+				{
+					"name": "vikunja-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

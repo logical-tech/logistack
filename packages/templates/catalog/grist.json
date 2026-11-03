@@ -1,0 +1,194 @@
+{
+	"schema": 1,
+	"id": "grist",
+	"name": "Grist",
+	"description": "Grist is a modern relational spreadsheet. It combines the flexibility of a spreadsheet with the robustness of a database.",
+	"category": "productivity",
+	"tags": [
+		"lowcode",
+		"nocode",
+		"spreadsheet",
+		"database",
+		"relational",
+		"productivity",
+		"self-hosted",
+		"data-management"
+	],
+	"logo": "logos/grist.svg",
+	"website": "https://www.getgrist.com/",
+	"docs": "https://support.getgrist.com/",
+	"version": "sha256:3e835d0eadfc",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/grist.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "gristDomain",
+			"label": "Grist domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "oidcIdpIssuer",
+			"label": "OIDC idp issuer",
+			"type": "text"
+		},
+		{
+			"key": "oidcIdpClientId",
+			"label": "OIDC idp client ID",
+			"type": "text"
+		},
+		{
+			"key": "oidcIdpClientSecret",
+			"label": "OIDC idp client secret",
+			"type": "text"
+		},
+		{
+			"key": "v128Key",
+			"label": "128 key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "allowedWebhookDomains",
+			"label": "Allowed webhook domains",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "freeCoachingCallUrl",
+			"label": "Free coaching call URL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "contactSupportUrl",
+			"label": "Contact support URL",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "grist",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"APP_HOME_URL": "https://${{ inputs.gristDomain }}",
+				"APP_DOC_URL": "https://${{ inputs.gristDomain }}",
+				"GRIST_DOMAIN": "${{ inputs.gristDomain }}",
+				"TZ": "UTC",
+				"GRIST_SUPPORT_ANON": "false",
+				"GRIST_FORCE_LOGIN": "true",
+				"COOKIE_MAX_AGE": "86400000",
+				"GRIST_PAGE_TITLE_SUFFIX": " - Suffix",
+				"GRIST_HIDE_UI_ELEMENTS": "billing,sendToDrive,supportGrist,multiAccounts,tutorials",
+				"GRIST_UI_FEATURES": "helpCenter,billing,templates,createSite,multiSite,sendToDrive,tutorials,supportGrist",
+				"GRIST_DEFAULT_EMAIL": "?",
+				"GRIST_ORG_IN_PATH": "true",
+				"GRIST_OIDC_SP_HOST": "https://${{ inputs.gristDomain }}",
+				"GRIST_OIDC_IDP_SCOPES": "openid profile email",
+				"GRIST_OIDC_IDP_SKIP_END_SESSION_ENDPOINT": "false",
+				"GRIST_OIDC_IDP_ISSUER": "${{ inputs.oidcIdpIssuer }}",
+				"GRIST_OIDC_IDP_CLIENT_ID": "${{ inputs.oidcIdpClientId }}",
+				"GRIST_OIDC_IDP_CLIENT_SECRET": "${{ inputs.oidcIdpClientSecret }}",
+				"GRIST_SESSION_SECRET": "${{ inputs.v128Key }}",
+				"GRIST_HOME_INCLUDE_STATIC": "true",
+				"GRIST_SANDBOX_FLAVOR": "gvisor",
+				"ALLOWED_WEBHOOK_DOMAINS": "${{ inputs.allowedWebhookDomains }}",
+				"COMMENTS": "true",
+				"TYPEORM_TYPE": "postgres",
+				"TYPEORM_DATABASE": "grist-db",
+				"TYPEORM_USERNAME": "${{ inputs.postgresUser }}",
+				"TYPEORM_PASSWORD": "${{ inputs.postgresPassword }}",
+				"TYPEORM_HOST": "${{ services.postgres.host }}",
+				"TYPEORM_PORT": "5432",
+				"TYPEORM_LOGGING": "false",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"GRIST_HELP_CENTER": "https://${{ inputs.gristDomain }}/help",
+				"GRIST_TERMS_OF_SERVICE_URL": "https://${{ inputs.gristDomain }}/terms",
+				"FREE_COACHING_CALL_URL": "${{ inputs.freeCoachingCallUrl }}",
+				"GRIST_CONTACT_SUPPORT_URL": "${{ inputs.contactSupportUrl }}"
+			},
+			"volumes": [
+				{
+					"name": "grist-data",
+					"target": "/persist"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "gristlabs/grist@sha256:3e835d0eadfcef11ec8be1c34f5abe220e5523185d970a6d45fd897a0c404835",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"-e",
+					"require('http').get('http://localhost:8484/status', res => process.exit(res.statusCode === 200 ? 0 : 1))",
+					"> /dev/null 2>&1"
+				]
+			},
+			"public": {
+				"port": 8484,
+				"domain": "gristDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "grist-db",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "grist-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "grist-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"PING"
+				]
+			}
+		}
+	]
+}

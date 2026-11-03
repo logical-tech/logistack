@@ -1,0 +1,102 @@
+{
+	"schema": 1,
+	"id": "uptime-kuma-with-mysql",
+	"name": "Uptime Kuma With Mysql",
+	"description": "Uptime Kuma is a monitoring tool for tracking the status and performance of your applications in real-time.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"status",
+		"performance",
+		"web",
+		"services",
+		"applications",
+		"real-time"
+	],
+	"logo": "logos/uptime-kuma-with-mysql.svg",
+	"docs": "https://github.com/louislam/uptime-kuma?tab=readme-ov-file",
+	"version": "2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/uptime-kuma-with-mysql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "uptimekumaDomain",
+			"label": "Uptimekuma domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rootPassword",
+			"label": "Root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "uptime-kuma",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"TZ": "Etc/UTC"
+			},
+			"volumes": [
+				{
+					"name": "uptime-kuma-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "louislam/uptime-kuma:2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"extra/healthcheck"
+				]
+			},
+			"public": {
+				"port": 3001,
+				"domain": "uptimekumaDomain"
+			}
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.rootPassword }}",
+				"MYSQL_DATABASE": "uptime-kuma-db"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8"
+		}
+	]
+}

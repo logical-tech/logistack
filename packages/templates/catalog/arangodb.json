@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "arangodb",
+	"name": "ArangoDB",
+	"description": "ArangoDB is a native multi-model database with flexible data models for documents, graphs, and key-values. Build high performance applications using a convenient SQL-like query language or JavaScript extensions.",
+	"category": "database",
+	"tags": [
+		"database",
+		"graph-database",
+		"nosql"
+	],
+	"logo": "logos/arangodb.png",
+	"website": "https://www.arangodb.com/",
+	"docs": "https://www.arangodb.com/docs/",
+	"version": "3.12.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/arangodb",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "arangoPassword",
+			"label": "Arango password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "arangodb",
+			"dependsOn": [],
+			"env": {
+				"ARANGO_ROOT_PASSWORD": "${{ inputs.arangoPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "data",
+					"target": "/var/lib/arangodb3"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "arangodb:3.12.4",
+			"ports": [
+				{
+					"target": 8529,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8529,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

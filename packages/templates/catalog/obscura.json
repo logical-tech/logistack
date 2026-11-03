@@ -1,0 +1,133 @@
+{
+	"schema": 1,
+	"id": "obscura",
+	"name": "Obscura Browser",
+	"description": "Headless browser for AI agents with authenticated remote MCP and Chrome DevTools Protocol endpoints.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"browser",
+		"automation",
+		"mcp",
+		"cdp"
+	],
+	"logo": "logos/obscura.png",
+	"website": "https://github.com/h4ckf0r0day/obscura",
+	"docs": "https://github.com/h4ckf0r0day/obscura/blob/master/docs/Use-the-MCP-server.md",
+	"version": "0.2.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/obscura",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "apiToken",
+			"label": "API token",
+			"type": "password",
+			"length": 48
+		}
+	],
+	"services": [
+		{
+			"name": "obscura-cdp",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "obscura-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "h4ckf0r0day/obscura:0.2.1",
+			"command": [
+				"serve",
+				"--host",
+				"0.0.0.0",
+				"--port",
+				"9222",
+				"--stealth",
+				"--storage-dir",
+				"/data"
+			],
+			"ports": [
+				{
+					"target": 9222,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		},
+		{
+			"name": "obscura-mcp",
+			"dependsOn": [],
+			"env": {
+				"OBSCURA_MCP_ALLOWED_ORIGINS": "https://${{ inputs.mainDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "h4ckf0r0day/obscura:0.2.1",
+			"command": [
+				"mcp",
+				"--http",
+				"--host",
+				"0.0.0.0",
+				"--port",
+				"3000",
+				"--stealth"
+			],
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		},
+		{
+			"name": "caddy",
+			"dependsOn": [
+				"obscura-cdp",
+				"obscura-mcp"
+			],
+			"env": {
+				"OBSCURA_HOST": "${{ inputs.mainDomain }}",
+				"OBSCURA_API_TOKEN": "${{ inputs.apiToken }}"
+			},
+			"volumes": [],
+			"files": [
+				{
+					"target": "/etc/caddy/Caddyfile",
+					"content": ":80 {\n    @mcp path /mcp /mcp/*\n    @cdpVersion path /json/version /json/version/\n\n    handle @mcp {\n        @authorized header Authorization \"Bearer {$OBSCURA_API_TOKEN}\"\n\n        handle @authorized {\n            reverse_proxy obscura-mcp:3000\n        }\n\n        respond \"Unauthorized\" 401\n    }\n\n    handle @cdpVersion {\n        @authorized header Authorization \"Bearer {$OBSCURA_API_TOKEN}\"\n\n        handle @authorized {\n            header Content-Type application/json\n            respond `{\"Browser\":\"Obscura\",\"Protocol-Version\":\"1.3\",\"webSocketDebuggerUrl\":\"wss://{$OBSCURA_HOST}/devtools/browser?access_token={$OBSCURA_API_TOKEN}\"}` 200\n        }\n\n        respond \"Unauthorized\" 401\n    }\n\n    handle {\n        @authorizedByHeader header Authorization \"Bearer {$OBSCURA_API_TOKEN}\"\n        @authorizedByQuery {\n            path /devtools/*\n            query access_token={$OBSCURA_API_TOKEN}\n        }\n\n        handle @authorizedByHeader {\n            reverse_proxy obscura-cdp:9222\n        }\n\n        handle @authorizedByQuery {\n            reverse_proxy obscura-cdp:9222\n        }\n\n        respond \"Unauthorized\" 401\n    }\n}\n"
+				}
+			],
+			"kind": "application",
+			"image": "caddy:2.10.2-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"-O",
+					"/dev/null",
+					"http://127.0.0.1:2019/config/"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

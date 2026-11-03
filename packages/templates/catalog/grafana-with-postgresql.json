@@ -1,0 +1,105 @@
+{
+	"schema": 1,
+	"id": "grafana-with-postgresql",
+	"name": "Grafana With Postgresql",
+	"description": "Grafana is the open source analytics & monitoring solution for every database.",
+	"category": "monitoring",
+	"tags": [
+		"grafana",
+		"analytics",
+		"monitoring",
+		"dashboard"
+	],
+	"logo": "logos/grafana-with-postgresql.svg",
+	"docs": "https://grafana.com/",
+	"version": "sha256:5dad0df181cb",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/grafana-with-postgresql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "grafanaDomain",
+			"label": "Grafana domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "grafanaPassword",
+			"label": "Grafana password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "grafana",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"GF_SERVER_ROOT_URL": "https://${{ inputs.grafanaDomain }}",
+				"GF_SERVER_DOMAIN": "${{ inputs.grafanaDomain }}",
+				"GF_SECURITY_ADMIN_PASSWORD": "${{ inputs.grafanaPassword }}",
+				"GF_DATABASE_TYPE": "postgres",
+				"GF_DATABASE_HOST": "${{ services.postgresql.host }}",
+				"GF_DATABASE_USER": "${{ inputs.postgresUser }}",
+				"GF_DATABASE_PASSWORD": "${{ inputs.postgresPassword }}",
+				"GF_DATABASE_NAME": "grafana"
+			},
+			"volumes": [
+				{
+					"name": "grafana-data",
+					"target": "/var/lib/grafana"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "grafana/grafana-oss@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000/api/health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "grafanaDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "grafana"
+			},
+			"volumes": [
+				{
+					"name": "postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

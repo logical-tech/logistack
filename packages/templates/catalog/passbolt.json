@@ -1,0 +1,118 @@
+{
+	"schema": 1,
+	"id": "passbolt",
+	"name": "Passbolt",
+	"description": "Passbolt Community Edition (CE) API. The JSON API for the open source password manager for teams!",
+	"category": "security",
+	"tags": [
+		"security",
+		"credentials",
+		"password-manager",
+		"open source",
+		"team-collaboration",
+		"encryption"
+	],
+	"logo": "logos/passbolt.svg",
+	"website": "https://www.passbolt.com/",
+	"docs": "https://www.passbolt.com/ce/docker",
+	"version": "latest-ce",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/passbolt.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "passboltDomain",
+			"label": "Passbolt domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "passboltUser",
+			"label": "Passbolt user",
+			"type": "username"
+		},
+		{
+			"key": "passboltPassword",
+			"label": "Passbolt password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rootmariadbPassword",
+			"label": "Rootmariadb password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "passbolt",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"APP_FULL_BASE_URL": "https://${{ inputs.passboltDomain }}",
+				"DATASOURCES_DEFAULT_HOST": "${{ services.mariadb.host }}",
+				"DATASOURCES_DEFAULT_USERNAME": "${{ inputs.passboltUser }}",
+				"DATASOURCES_DEFAULT_PASSWORD": "${{ inputs.passboltPassword }}",
+				"DATASOURCES_DEFAULT_DATABASE": "passbolt-db"
+			},
+			"volumes": [
+				{
+					"name": "gpg-volume",
+					"target": "/etc/passbolt/gpg"
+				},
+				{
+					"name": "jwt-volume",
+					"target": "/etc/passbolt/jwt"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "passbolt/passbolt:latest-ce",
+			"command": [
+				"/usr/bin/wait-for.sh",
+				"-t",
+				"0",
+				"mariadb:3306",
+				"--",
+				"/docker-entrypoint.sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:80"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "passboltDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MARIADB_ROOT_PASSWORD": "${{ inputs.rootmariadbPassword }}",
+				"MARIADB_DATABASE": "passbolt-db",
+				"MARIADB_USER": "${{ inputs.passboltUser }}",
+				"MARIADB_PASSWORD": "${{ inputs.passboltPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "passbolt-mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mariadb",
+			"version": "11"
+		}
+	]
+}

@@ -1,0 +1,98 @@
+{
+	"schema": 1,
+	"id": "flarum",
+	"name": "Flarum",
+	"description": "Flarum is a delightfully simple, modern forum software. It is fast, free, and easy to use with a clean and extensible architecture.",
+	"category": "other",
+	"tags": [
+		"forum",
+		"community",
+		"discussion",
+		"php"
+	],
+	"logo": "logos/flarum.png",
+	"website": "https://flarum.org/",
+	"docs": "https://docs.flarum.org/",
+	"version": "sha256:cff0216da149",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/flarum",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 16
+		}
+	],
+	"services": [
+		{
+			"name": "flarum",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"FLARUM_BASE_URL": "https://${{ inputs.mainDomain }}",
+				"DB_HOST": "${{ services.db.host }}",
+				"DB_NAME": "flarum",
+				"DB_USER": "flarum",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "flarum-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "crazymax/flarum@sha256:cff0216da14932588bf63956c4d3633777e7dc21956a07d1a8f0682efcf8df63",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}",
+				"MYSQL_DATABASE": "flarum",
+				"MYSQL_USER": "flarum",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

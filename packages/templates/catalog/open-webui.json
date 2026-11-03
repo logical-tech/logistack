@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "open-webui",
+	"name": "Open Webui",
+	"description": "User-friendly AI Interface (Supports Ollama, OpenAI API, ...)",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"models",
+		"deployment",
+		"open-web-ui",
+		"integration"
+	],
+	"logo": "logos/open-webui.svg",
+	"docs": "https://docs.openwebui.com/",
+	"version": "sha256:975e3965dcf5",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/open-webui.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "openwebuiDomain",
+			"label": "Openwebui domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "open-webui",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "open-webui",
+					"target": "/app/backend/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/open-webui/open-webui@sha256:975e3965dcf5832804d2f77e167920794757027c5a2046917d42023d75fac431",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8080"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "openwebuiDomain"
+			}
+		}
+	]
+}

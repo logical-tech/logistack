@@ -1,0 +1,132 @@
+{
+	"schema": 1,
+	"id": "postgres-pgadmin",
+	"name": "PostgreSQL + pgAdmin",
+	"description": "PostgreSQL 18 Alpine with pgAdmin 4 web UI, persistent volumes and healthchecks for easy database administration.",
+	"category": "database",
+	"tags": [
+		"database",
+		"postgres",
+		"postgresql",
+		"admin",
+		"pgadmin"
+	],
+	"logo": "logos/postgres-pgadmin.svg",
+	"website": "https://www.postgresql.org/",
+	"docs": "https://www.pgadmin.org/docs/",
+	"version": "18-alpine",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/postgres-pgadmin",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "pgadminEmail",
+			"label": "Pgadmin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "pgadminPassword",
+			"label": "Pgadmin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "pgadminDomain",
+			"label": "Pgadmin domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [
+				{
+					"target": 5432,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "pgadmin",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"PGADMIN_DEFAULT_EMAIL": "${{ inputs.pgadminEmail }}",
+				"PGADMIN_DEFAULT_PASSWORD": "${{ inputs.pgadminPassword }}",
+				"PGADMIN_CONFIG_SERVER_MODE": "False",
+				"PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED": "False",
+				"PGADMIN_SERVER_JSON_FILE": "/pgadmin4/servers.json"
+			},
+			"volumes": [
+				{
+					"name": "pgadmin-data",
+					"target": "/var/lib/pgadmin"
+				}
+			],
+			"files": [
+				{
+					"target": "/pgadmin4/servers.json",
+					"content": "{\n  \"Servers\": {\n    \"1\": {\n      \"Name\": \"PostgreSQL\",\n      \"Group\": \"Servers\",\n      \"Host\": \"postgres\",\n      \"Port\": 5432,\n      \"MaintenanceDB\": \"postgres\",\n      \"Username\": \"${{ inputs.postgresUser }}\",\n      \"PassFile\": \"/var/lib/pgadmin/pgpass\",\n      \"SSLMode\": \"prefer\"\n    }\n  }\n}\n"
+				},
+				{
+					"target": "/pgadmin4/pgpass",
+					"content": "postgres:5432:*:${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}\n",
+					"secret": true
+				}
+			],
+			"kind": "application",
+			"image": "dpage/pgadmin4:9.17",
+			"entrypoint": [
+				"/bin/sh",
+				"-c",
+				"cp /pgadmin4/pgpass /var/lib/pgadmin/pgpass && chmod 600 /var/lib/pgadmin/pgpass && exec /entrypoint.sh"
+			],
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "pgadminDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

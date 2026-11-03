@@ -1,0 +1,94 @@
+{
+	"schema": 1,
+	"id": "matomo",
+	"name": "Matomo",
+	"description": "Matomo is an open-source web analytics platform that gives you full ownership of your data.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"metrics",
+		"privacy",
+		"self-hosted"
+	],
+	"website": "https://matomo.org/",
+	"docs": "https://matomo.org/docs",
+	"version": "5.1-apache",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/matomo",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "matomoDatabasePassword",
+			"label": "Matomo database password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "matomoDomain",
+			"label": "Matomo domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "matomo",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"MATOMO_DATABASE_HOST": "${{ services.db.host }}",
+				"MATOMO_DATABASE_DB": "matomo",
+				"MATOMO_DATABASE_USER": "matomo",
+				"MATOMO_DATABASE_PASSWORD": "${{ inputs.matomoDatabasePassword }}"
+			},
+			"volumes": [
+				{
+					"name": "matomo",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "matomo:5.1-apache",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "matomoDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}",
+				"MYSQL_DATABASE": "matomo",
+				"MYSQL_USER": "matomo",
+				"MYSQL_PASSWORD": "${{ inputs.matomoDatabasePassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.11",
+			"command": [
+				"--max-allowed-packet=64MB"
+			],
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

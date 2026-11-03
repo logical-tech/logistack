@@ -1,0 +1,98 @@
+{
+	"schema": 1,
+	"id": "invoiceshelf",
+	"name": "InvoiceShelf",
+	"description": "InvoiceShelf is a self-hosted open source invoicing system for freelancers and small businesses.",
+	"category": "finance",
+	"tags": [
+		"invoice",
+		"business",
+		"finance"
+	],
+	"logo": "logos/invoiceshelf.png",
+	"website": "https://invoiceshelf.com/",
+	"docs": "https://github.com/InvoiceShelf/invoiceshelf#readme",
+	"version": "sha256:599dc6aa9d73",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/invoiceshelf",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "invoiceshelf-postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_USER": "invoiceshelf",
+				"POSTGRES_DB": "invoiceshelf"
+			},
+			"volumes": [
+				{
+					"name": "invoiceshelf-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15"
+		},
+		{
+			"name": "invoiceshelf-app",
+			"dependsOn": [
+				"invoiceshelf-postgres"
+			],
+			"env": {
+				"PHP_TZ": "UTC",
+				"TIMEZONE": "UTC",
+				"APP_NAME": "InvoiceShelf",
+				"APP_ENV": "production",
+				"APP_DEBUG": "false",
+				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"DB_CONNECTION": "pgsql",
+				"DB_HOST": "${{ services.invoiceshelf-postgres.host }}",
+				"DB_PORT": "5432",
+				"DB_DATABASE": "invoiceshelf",
+				"DB_USERNAME": "invoiceshelf",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"CACHE_STORE": "file",
+				"SESSION_DRIVER": "file",
+				"SESSION_LIFETIME": "120",
+				"SESSION_ENCRYPT": "true",
+				"SESSION_PATH": "/",
+				"SESSION_DOMAIN": "${{ inputs.mainDomain }}",
+				"SANCTUM_STATEFUL_DOMAINS": "${{ inputs.mainDomain }}",
+				"STARTUP_DELAY": "10"
+			},
+			"volumes": [
+				{
+					"name": "invoiceshelf-storage",
+					"target": "/var/www/html/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "invoiceshelf/invoiceshelf@sha256:599dc6aa9d7303c9ae0d099397817c7f6002cd6f7af099bc90511d5eae4e9cd2",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

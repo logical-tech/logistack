@@ -1,0 +1,74 @@
+{
+	"schema": 1,
+	"id": "oryx",
+	"name": "Oryx",
+	"description": "Oryx (formerly SRS Stack) is an all-in-one, open-source video streaming server with a web console. It ingests RTMP, WebRTC (WHIP) and SRT streams and plays them back over HLS, HTTP-FLV and WebRTC (WHEP), with built-in recording, forwarding, transcoding and virtual live streaming.",
+	"category": "media",
+	"tags": [
+		"streaming",
+		"video",
+		"rtmp",
+		"webrtc",
+		"srt",
+		"hls",
+		"media-server"
+	],
+	"logo": "logos/oryx.svg",
+	"website": "https://ossrs.io/",
+	"docs": "https://ossrs.io/lts/en-us/docs/v6/doc/getting-started-oryx",
+	"version": "5.15.20",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/oryx",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "oryx",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "oryx-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ossrs/oryx:5.15.20",
+			"ports": [
+				{
+					"target": 1935,
+					"published": 1935,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 8000,
+					"published": 8000,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 10080,
+					"published": 10080,
+					"protocol": "udp",
+					"mode": "host"
+				}
+			],
+			"public": {
+				"port": 2022,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,109 @@
+{
+	"schema": 1,
+	"id": "notifuse",
+	"name": "Notifuse",
+	"description": "Open-source newsletter and notification platform that empowers teams to create, send, and track communications at scale.",
+	"category": "communication",
+	"tags": [
+		"newsletter",
+		"email",
+		"communication",
+		"notifications"
+	],
+	"logo": "logos/notifuse.png",
+	"website": "https://notifuse.com/",
+	"docs": "https://docs.notifuse.com/",
+	"version": "sha256:82bb25149845",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/notifuse",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "rootEmail",
+			"label": "Root email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "base64",
+			"bytes": 64
+		}
+	],
+	"services": [
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "postgres",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "postgres"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		},
+		{
+			"name": "notifuse",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"ROOT_EMAIL": "${{ inputs.rootEmail }}",
+				"API_ENDPOINT": "https://${{ inputs.mainDomain }}",
+				"DB_HOST": "${{ services.db.host }}",
+				"DB_PORT": "5432",
+				"DB_USER": "postgres",
+				"DB_PASSWORD": "postgres",
+				"DB_PREFIX": "notifuse",
+				"DB_NAME": "postgres",
+				"DB_SSLMODE": "disable",
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"SERVER_PORT": "8080",
+				"SERVER_HOST": "0.0.0.0",
+				"ENVIRONMENT": "production"
+			},
+			"volumes": [
+				{
+					"name": "notifuse-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "notifuse/notifuse@sha256:82bb2514984528bcf51f5a07f6ea8b850b7bf2408aa9c44bb7e411df40c4e114",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--no-verbose",
+					"--tries=1",
+					"--spider",
+					"http://localhost:8080/healthz"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

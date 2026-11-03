@@ -1,0 +1,117 @@
+{
+	"schema": 1,
+	"id": "miniflux",
+	"name": "Miniflux",
+	"description": "Miniflux is a minimalist and opinionated feed reader for self-hosted RSS and Atom subscriptions.",
+	"category": "communication",
+	"tags": [
+		"rss",
+		"feed-reader",
+		"news",
+		"miniflux",
+		"feed",
+		"self",
+		"hosted"
+	],
+	"logo": "logos/miniflux.svg",
+	"website": "https://miniflux.app/",
+	"docs": "https://miniflux.app/docs/",
+	"version": "2.2.19",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/miniflux",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "miniflux",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DATABASE_URL": "user=miniflux password=${{ inputs.postgresPassword }} dbname=miniflux host=db sslmode=disable",
+				"RUN_MIGRATIONS": "1",
+				"CREATE_ADMIN": "1",
+				"ADMIN_USERNAME": "admin",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"BASE_URL": "https://${{ inputs.mainDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "miniflux/miniflux:2.2.19",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/usr/bin/miniflux",
+					"-healthcheck",
+					"auto"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "miniflux",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "miniflux"
+			},
+			"volumes": [
+				{
+					"name": "miniflux-db",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [
+				{
+					"target": 5432,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U miniflux -d miniflux"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

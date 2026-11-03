@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "mailpit",
+	"name": "Mailpit",
+	"description": "Mailpit is a tiny, self-contained, and secure email & SMTP testing tool with API for developers.",
+	"category": "communication",
+	"tags": [
+		"email",
+		"smtp",
+		"mailpit",
+		"testing"
+	],
+	"logo": "logos/mailpit.svg",
+	"website": "https://mailpit.axllent.org/",
+	"docs": "https://mailpit.axllent.org/docs/",
+	"version": "v1.22.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/mailpit",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "mailpit",
+			"dependsOn": [],
+			"env": {
+				"MP_SMTP_AUTH_ALLOW_INSECURE": "true",
+				"MP_MAX_MESSAGES": "5000",
+				"MP_DATABASE": "/data/mailpit.db",
+				"MP_UI_AUTH": "",
+				"MP_SMTP_AUTH": ""
+			},
+			"volumes": [
+				{
+					"name": "mailpit-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "axllent/mailpit:v1.22.3",
+			"ports": [
+				{
+					"target": 1025,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/mailpit",
+					"readyz"
+				]
+			},
+			"public": {
+				"port": 8025,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

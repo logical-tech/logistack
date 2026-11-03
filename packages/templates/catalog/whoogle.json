@@ -1,0 +1,51 @@
+{
+	"schema": 1,
+	"id": "whoogle",
+	"name": "Whoogle",
+	"description": "Whoogle is a self-hosted, privacy-focused search engine front-end for accessing Google search results without tracking and data collection.",
+	"category": "productivity",
+	"tags": [
+		"privacy",
+		"search engine"
+	],
+	"logo": "logos/whoogle.png",
+	"docs": "https://github.com/benbusby/whoogle-search?tab=readme-ov-file",
+	"version": "sha256:5795c303615b",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/whoogle.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "whoogleDomain",
+			"label": "Whoogle domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "whoogle",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "benbusby/whoogle-search@sha256:5795c303615bbe5c5558d353f32b656da4d1d5f21568b9869276d1f51415d6e8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:5000"
+				]
+			},
+			"public": {
+				"port": 5000,
+				"domain": "whoogleDomain"
+			}
+		}
+	]
+}

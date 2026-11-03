@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "lubelogger",
+	"name": "LubeLogger",
+	"description": "LubeLogger is a self-hosted vehicle maintenance and fuel mileage tracker for managing service records, reminders, fuel logs, and vehicle expenses.",
+	"category": "other",
+	"tags": [
+		"vehicle",
+		"maintenance",
+		"fleet",
+		"self-hosted"
+	],
+	"logo": "logos/lubelogger.png",
+	"website": "https://lubelogger.com/",
+	"docs": "https://docs.lubelogger.com/",
+	"version": "v1.6.5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/lubelogger",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "lubelogger",
+			"dependsOn": [],
+			"env": {
+				"LC_ALL": "en_US.UTF-8",
+				"LANG": "en_US.UTF-8",
+				"LUBELOGGER_DOMAIN": "https://${{ inputs.mainDomain }}",
+				"EnableAuth": "false"
+			},
+			"volumes": [
+				{
+					"name": "lubelogger-data",
+					"target": "/App/data"
+				},
+				{
+					"name": "lubelogger-keys",
+					"target": "/root/.aspnet/DataProtection-Keys"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/hargata/lubelogger:v1.6.5",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

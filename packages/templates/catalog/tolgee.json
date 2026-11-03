@@ -1,0 +1,116 @@
+{
+	"schema": 1,
+	"id": "tolgee",
+	"name": "Tolgee",
+	"description": "Tolgee is a localization management platform for developers and translators.",
+	"category": "productivity",
+	"tags": [
+		"localization",
+		"translation",
+		"management",
+		"platform",
+		"self-hosted",
+		"i18n",
+		"translations"
+	],
+	"logo": "logos/tolgee.svg",
+	"website": "https://tolgee.io/",
+	"docs": "https://tolgee.io/",
+	"version": "sha256:af6362b225a4",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/tolgee.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "tolgeeDomain",
+			"label": "Tolgee domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "tolgeePassword",
+			"label": "Tolgee password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtPassword",
+			"label": "JWT password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "tolgee",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"TOLGEE_AUTHENTICATION_ENABLED": "true",
+				"TOLGEE_AUTHENTICATION_INITIAL_PASSWORD": "${{ inputs.tolgeePassword }}",
+				"TOLGEE_AUTHENTICATION_INITIAL_USERNAME": "admin",
+				"TOLGEE_AUTHENTICATION_JWT_SECRET": "${{ inputs.jwtPassword }}",
+				"TOLGEE_POSTGRES_AUTOSTART_ENABLED": "false",
+				"SPRING_DATASOURCE_URL": "jdbc:postgresql://${{ services.postgresql.host }}:5432/tolgee",
+				"SPRING_DATASOURCE_USERNAME": "${{ inputs.postgresqlUser }}",
+				"SPRING_DATASOURCE_PASSWORD": "${{ inputs.postgresqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "tolgee-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "tolgee/tolgee@sha256:af6362b225a4cc789d5282c6292187a45e7014931ecaeb5e8ba6c148cbed09cf",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8080"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "tolgeeDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"POSTGRES_DB": "tolgee"
+			},
+			"volumes": [
+				{
+					"name": "tolgee-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

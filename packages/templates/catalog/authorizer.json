@@ -1,0 +1,117 @@
+{
+	"schema": 1,
+	"id": "authorizer",
+	"name": "Authorizer",
+	"description": "Authorizer is a powerful tool designed to simplify the process of user authentication and authorization in your applications. It allows you to build secure apps 10x faster with its low code tool and low-cost deployment.",
+	"category": "security",
+	"tags": [
+		"authentication",
+		"authorization",
+		"security"
+	],
+	"logo": "logos/authorizer.png",
+	"website": "https://authorizer.dev/",
+	"docs": "https://docs.authorizer.dev/",
+	"version": "1.4.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/authorizer",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "adminSecret",
+			"label": "Admin secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "authorizer",
+			"dependsOn": [
+				"authorizer-db",
+				"authorizer-redis"
+			],
+			"env": {
+				"DATABASE_TYPE": "postgres",
+				"DATABASE_URL": "postgres://postgres:${{ inputs.dbPassword }}@${{ services.authorizer-db.host }}:5432/authorizer?sslmode=disable",
+				"REDIS_URL": "redis://${{ services.authorizer-redis.host }}:6379",
+				"ADMIN_SECRET": "${{ inputs.adminSecret }}",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"COOKIE_NAME": "authorizer",
+				"ACCESS_TOKEN_EXPIRY_TIME": "86400",
+				"REFRESH_TOKEN_EXPIRY_TIME": "86400",
+				"DISABLE_PLAYGROUND": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "lakhansamani/authorizer:1.4.4",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "authorizer-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "authorizer"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15-alpine"
+		},
+		{
+			"name": "authorizer-redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

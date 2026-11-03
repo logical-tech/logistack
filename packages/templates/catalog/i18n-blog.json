@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "i18n-blog",
+	"name": "i18n Blog (Kuno)",
+	"description": "Kuno is an internationalized blogging platform with a backend built in Go and a frontend in Next.js.",
+	"category": "cms",
+	"tags": [
+		"blog",
+		"i18n",
+		"nextjs",
+		"go",
+		"web"
+	],
+	"website": "https://qut.edu.kg/",
+	"docs": "https://github.com/xuemian168/kuno#readme",
+	"version": "sha256:c66f517347c9",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/i18n-blog",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "kuno",
+			"dependsOn": [],
+			"env": {
+				"NEXT_PUBLIC_API_URL": "https://${{ inputs.mainDomain }}/api",
+				"DB_PATH": "/app/data/blog.db",
+				"UPLOAD_DIR": "/app/data/uploads",
+				"GIN_MODE": "release",
+				"NODE_ENV": "production",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"RECOVERY_MODE": "false"
+			},
+			"volumes": [
+				{
+					"name": "kuno-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ictrun/kuno@sha256:c66f517347c947aeb18dafba32ed00597f8645d6932962dfc24b39915ea84ec3",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

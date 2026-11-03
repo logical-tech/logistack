@@ -1,0 +1,73 @@
+{
+	"schema": 1,
+	"id": "audiobookshelf",
+	"name": "Audiobookshelf",
+	"description": "Self-hosted audiobook, ebook, and podcast server",
+	"category": "media",
+	"tags": [
+		"audiobooks",
+		"ebooks",
+		"podcasts",
+		"server",
+		"self-hosted"
+	],
+	"logo": "logos/audiobookshelf.svg",
+	"docs": "https://www.audiobookshelf.org/",
+	"version": "2.34.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/audiobookshelf.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "audiobookshelfDomain",
+			"label": "Audiobookshelf domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "audiobookshelf",
+			"dependsOn": [],
+			"env": {
+				"TZ": "America/Toronto"
+			},
+			"volumes": [
+				{
+					"name": "audiobookshelf-audiobooks",
+					"target": "/audiobooks"
+				},
+				{
+					"name": "audiobookshelf-podcasts",
+					"target": "/podcasts"
+				},
+				{
+					"name": "audiobookshelf-config",
+					"target": "/config"
+				},
+				{
+					"name": "audiobookshelf-metadata",
+					"target": "/metadata"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/advplyr/audiobookshelf:2.34.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --quiet --tries=1 --timeout=5 http://localhost:80/ping -O /dev/null || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "audiobookshelfDomain"
+			}
+		}
+	]
+}

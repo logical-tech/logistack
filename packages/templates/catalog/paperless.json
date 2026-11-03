@@ -1,0 +1,115 @@
+{
+	"schema": 1,
+	"id": "paperless",
+	"name": "Paperless",
+	"description": "Paperless-ngx is a community-supported open-source document management system that transforms your physical documents into a searchable online archive so you can keep, well, less paper.",
+	"category": "productivity",
+	"tags": [],
+	"logo": "logos/paperless.svg",
+	"docs": "https://docs.paperless-ngx.com/configuration/",
+	"version": "sha256:1a08d8dfc2b5",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/paperless.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "paperlessDomain",
+			"label": "Paperless domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "paperlessPassword",
+			"label": "Paperless password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "paperlessUser",
+			"label": "Paperless user",
+			"type": "username"
+		},
+		{
+			"key": "paperlessKey",
+			"label": "Paperless key",
+			"type": "base64",
+			"bytes": 64
+		}
+	],
+	"services": [
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "paperless-redis",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7.4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		},
+		{
+			"name": "paperless",
+			"dependsOn": [
+				"redis"
+			],
+			"env": {
+				"PAPERLESS_URL": "https://${{ inputs.paperlessDomain }}",
+				"PAPERLESS_ADMIN_PASSWORD": "${{ inputs.paperlessPassword }}",
+				"PAPERLESS_ADMIN_USER": "${{ inputs.paperlessUser }}",
+				"PAPERLESS_REDIS": "redis://${{ services.redis.host }}:6379",
+				"PAPERLESS_SECRET_KEY": "${{ inputs.paperlessKey }}"
+			},
+			"volumes": [
+				{
+					"name": "paperless-data",
+					"target": "/usr/src/paperless/data"
+				},
+				{
+					"name": "paperless-media",
+					"target": "/usr/src/paperless/media"
+				},
+				{
+					"name": "export",
+					"target": "/usr/src/paperless/export"
+				},
+				{
+					"name": "consume",
+					"target": "/usr/src/paperless/consume"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "paperlessngx/paperless-ngx@sha256:1a08d8dfc2b51a08de09652dd86ad4d0c611c362382f944533ad38b73125fbc4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-fs",
+					"-S",
+					"--max-time",
+					"2",
+					"http://localhost:8000"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "paperlessDomain"
+			}
+		}
+	]
+}

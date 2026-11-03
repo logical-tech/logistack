@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "prowlarr",
+	"name": "Prowlarr",
+	"description": "Prowlarr⁠ is a indexer manager/proxy built on the popular arr .net/reactjs base stack to integrate with your various PVR apps.",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"movies",
+		"tv",
+		"indexer",
+		"torrent",
+		"nzb",
+		"usenet"
+	],
+	"logo": "logos/prowlarr.svg",
+	"docs": "https://hub.docker.com/r/linuxserver/prowlarr",
+	"version": "sha256:04be30163fba",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/prowlarr.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "prowlarrDomain",
+			"label": "Prowlarr domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "prowlarr",
+			"dependsOn": [],
+			"env": {
+				"_APP_URL": "https://${{ inputs.prowlarrDomain }}",
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "America/Toronto"
+			},
+			"volumes": [
+				{
+					"name": "prowlarr-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/prowlarr@sha256:04be30163fbaf48d6aeee7b5893c9f6614ffbad6d853971df0d6dcdf01c7f104",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:9696/ping"
+				]
+			},
+			"public": {
+				"port": 9696,
+				"domain": "prowlarrDomain"
+			}
+		}
+	]
+}

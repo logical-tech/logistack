@@ -1,0 +1,124 @@
+{
+	"schema": 1,
+	"id": "senddock",
+	"name": "SendDock",
+	"description": "Open-source, self-hosted email marketing platform with BYO SMTP. Manage subscribers, templates, broadcasts, and scheduled campaigns from one place.",
+	"category": "communication",
+	"tags": [
+		"email",
+		"newsletter",
+		"mailing-list",
+		"marketing"
+	],
+	"logo": "logos/senddock.svg",
+	"website": "https://senddock.dev/",
+	"docs": "https://docs.senddock.dev/",
+	"version": "0.8.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/senddock",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "senddock",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "senddock"
+			},
+			"volumes": [
+				{
+					"name": "pgdata",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redisdata",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "senddock",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://senddock:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/senddock?sslmode=disable",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"PUBLIC_URL": "https://${{ inputs.mainDomain }}",
+				"FRONTEND_URL": "https://${{ inputs.mainDomain }}",
+				"PORT": "8080"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/arkhe-systems/senddock:0.8.3",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://127.0.0.1:8080/health"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

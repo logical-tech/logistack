@@ -1,0 +1,83 @@
+{
+	"schema": 1,
+	"id": "ackee",
+	"name": "Ackee",
+	"description": "Ackee is a self-hosted analytics tool for your website.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"self-hosted"
+	],
+	"logo": "logos/ackee.png",
+	"website": "https://ackee.electerious.com/",
+	"docs": "https://docs.ackee.electerious.com/",
+	"version": "3.4.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/ackee",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "ackeePassword",
+			"label": "Ackee password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mongoInitdbRootPassword",
+			"label": "Mongo initdb root password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "ackeeDomain",
+			"label": "Ackee domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "ackee",
+			"dependsOn": [],
+			"env": {
+				"ACKEE_USERNAME": "default",
+				"ACKEE_PASSWORD": "${{ inputs.ackeePassword }}",
+				"ACKEE_MONGODB": "mongodb://mongo:${{ inputs.mongoInitdbRootPassword }}@${{ services.mongo.host }}:27017"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "electerious/ackee:3.4.2",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "ackeeDomain"
+			}
+		},
+		{
+			"name": "mongo",
+			"dependsOn": [],
+			"env": {
+				"MONGO_INITDB_ROOT_PASSWORD": "${{ inputs.mongoInitdbRootPassword }}",
+				"MONGO_INITDB_ROOT_USERNAME": "mongo"
+			},
+			"volumes": [
+				{
+					"name": "mongo-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mongo",
+			"version": "4"
+		}
+	]
+}

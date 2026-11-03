@@ -1,0 +1,250 @@
+# LogiStack control plane. Deployed by install.sh:
+#   LOGISTACK_IMAGE_TAG=x.y.z LOGISTACK_PUBLIC_URL=http://h \
+#   LOGISTACK_WEB_ORIGIN=https://h docker stack deploy --with-registry-auth -c stack.yml logistack
+# --local-build sets LOGISTACK_REGISTRY=localhost and LOGISTACK_IMAGE_TAG=x.y.z-local.<hash of image ids>.
+# The release version is baked into the images (LOGISTACK_VERSION), not set here, because an
+# in-app update (Settings > Updates) swaps only the images.
+version: "3.9"
+
+x-rolling: &rolling
+  update_config:
+    order: start-first
+    failure_action: rollback
+    monitor: 30s
+  rollback_config:
+    order: start-first
+  restart_policy:
+    condition: any
+    delay: 5s
+
+# Stateful services pinned to one node and services holding host ports cannot
+# run two tasks side by side, so they stop the old task first.
+x-stop-first: &stop-first
+  update_config:
+    order: stop-first
+    failure_action: rollback
+    monitor: 30s
+  rollback_config:
+    order: stop-first
+  restart_policy:
+    condition: any
+    delay: 5s
+
+x-app-env: &app-env
+  LOGISTACK_MASTER_KEY_FILE: /run/secrets/master_key
+  BETTER_AUTH_SECRET_FILE: /run/secrets/better_auth_secret
+  POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+  REDIS_PASSWORD_FILE: /run/secrets/redis_password
+  BETTER_AUTH_URL: ${LOGISTACK_PUBLIC_URL:?set LOGISTACK_PUBLIC_URL}
+  WEB_ORIGIN: ${LOGISTACK_WEB_ORIGIN:?set LOGISTACK_WEB_ORIGIN}
+  LOGISTACK_PUBLIC_URL: ${LOGISTACK_PUBLIC_URL:?set LOGISTACK_PUBLIC_URL}
+
+x-app-secrets: &app-secrets
+  - source: logistack-master-key
+    target: master_key
+  - source: logistack-better-auth-secret
+    target: better_auth_secret
+  - source: logistack-postgres-password
+    target: postgres_password
+  - source: logistack-redis-password
+    target: redis_password
+
+x-agent-token: &agent-token
+  source: logistack-agent-token
+  target: agent_token
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: logistack
+      POSTGRES_DB: logistack
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - source: logistack-postgres-password
+        target: postgres_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [ls-control]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "logistack", "-d", "logistack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      <<: *stop-first
+      replicas: 1
+      placement:
+        constraints: [node.labels.logistack.data == true]
+
+  redis:
+    image: redis:7
+    # Password goes through a config file, not argv, so it never shows in ps.
+    command:
+      - sh
+      - -c
+      - umask 077 && printf 'requirepass %s\n' "$$(cat /run/secrets/redis_password)" > /tmp/redis.conf && chown redis:redis /tmp/redis.conf && exec docker-entrypoint.sh redis-server /tmp/redis.conf --appendonly yes
+    secrets:
+      - source: logistack-redis-password
+        target: redis_password
+    volumes:
+      - redisdata:/data
+    networks: [ls-control]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli ping | grep -q PONG',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      <<: *stop-first
+      replicas: 1
+      placement:
+        constraints: [node.labels.logistack.data == true]
+
+  logistack-api:
+    image: ${LOGISTACK_REGISTRY:-ghcr.io/logical-tech}/logistack:${LOGISTACK_IMAGE_TAG:?set LOGISTACK_IMAGE_TAG}
+    environment:
+      <<: *app-env
+      ROLE: api
+      PORT: "3000"
+      LOGISTACK_AGENT_TOKEN_FILE: /run/secrets/agent_token
+    secrets:
+      - source: logistack-master-key
+        target: master_key
+      - source: logistack-better-auth-secret
+        target: better_auth_secret
+      - source: logistack-postgres-password
+        target: postgres_password
+      - source: logistack-redis-password
+        target: redis_password
+      - *agent-token
+    networks: [ls-control]
+    deploy:
+      <<: *rolling
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
+  logistack-worker:
+    # Starts as root, and the entrypoint drops to bun plus the docker socket's group.
+    image: ${LOGISTACK_REGISTRY:-ghcr.io/logical-tech}/logistack-worker:${LOGISTACK_IMAGE_TAG:?set LOGISTACK_IMAGE_TAG}
+    environment:
+      <<: *app-env
+      ROLE: worker
+      LS_WORK_DIR: /var/lib/logistack
+      LS_CONTROL_NETWORK: ls-control
+      LS_INGRESS_NETWORK: ls-ingress
+      LS_CADDY_SERVICE: logistack_caddy
+      LS_API_UPSTREAM: logistack-api:3000
+      # Must match the railpack CLI pinned in the Dockerfile: the plan format follows the release.
+      LS_RAILPACK_FRONTEND: ghcr.io/railwayapp/railpack-frontend:v0.43.0
+      # Where Settings > Updates takes release images from; the smoke test points it at localhost.
+      LS_UPDATE_REGISTRY: ${LOGISTACK_UPDATE_REGISTRY:-ghcr.io/logical-tech}
+    secrets: *app-secrets
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - workerdata:/var/lib/logistack
+    networks: [ls-control]
+    healthcheck:
+      disable: true
+    deploy:
+      <<: *rolling
+      replicas: 1
+      placement:
+        # Swarm services, configs and secrets can only be managed through a manager's engine.
+        constraints: [node.role == manager]
+
+  logistack-agent:
+    image: ${LOGISTACK_REGISTRY:-ghcr.io/logical-tech}/logistack-agent:${LOGISTACK_IMAGE_TAG:?set LOGISTACK_IMAGE_TAG}
+    environment:
+      LOGISTACK_API_URL: http://logistack-api:3000
+      # Enrollment token; the per-node token the server issues is kept in agentdata.
+      LOGISTACK_AGENT_TOKEN_FILE: /run/secrets/agent_token
+      LOGISTACK_AGENT_TOKEN_PATH: /var/lib/logistack-agent/node-token
+      LOGISTACK_NODE_ID: "{{.Node.ID}}"
+      LOGISTACK_NODE_HOSTNAME: "{{.Node.Hostname}}"
+      HOST_PROC: /host/proc
+      HOST_SYS: /host/sys
+      # statfs on host mount points for per-disk usage.
+      HOST_ROOT: /host/root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+      # Local per node (global service), so each node keeps its own token across restarts and upgrades.
+      - agentdata:/var/lib/logistack-agent
+    secrets: [*agent-token]
+    networks: [ls-control]
+    deploy:
+      <<: *rolling
+      mode: global
+
+  # No BuildKit service here: rootless BuildKit needs seccomp unconfined (runc's session keyring)
+  # and AppArmor off, which `docker stack deploy` cannot express (it ignores security_opt, and
+  # cap_add SYS_ADMIN starts the daemon but every RUN step fails). The worker creates `ls-buildkit`
+  # through the Engine API with those privileges on the first build (apps/worker/src/build.ts).
+
+  caddy:
+    image: ${LOGISTACK_REGISTRY:-ghcr.io/logical-tech}/logistack-caddy:${LOGISTACK_IMAGE_TAG:?set LOGISTACK_IMAGE_TAG}
+    environment:
+      LS_CONTROL_SUBNET_PREFIX: "10.247."
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      LOGISTACK_API_UPSTREAM: logistack-api:3000
+    secrets:
+      - source: logistack-redis-password
+        target: redis_password
+    ports:
+      - { target: 80, published: 80, protocol: tcp, mode: host }
+      - { target: 443, published: 443, protocol: tcp, mode: host }
+      - { target: 443, published: 443, protocol: udp, mode: host }
+    networks: [ls-control, ls-ingress]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "80"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      <<: *stop-first
+      mode: global
+      placement:
+        constraints: [node.labels.logistack.ingress == true]
+
+networks:
+  # Fixed subnet: Caddy binds its admin API to its address in this range.
+  ls-control:
+    name: ls-control
+    driver: overlay
+    attachable: true
+    ipam:
+      config:
+        - subnet: 10.247.0.0/16
+  ls-ingress:
+    name: ls-ingress
+    driver: overlay
+    attachable: true
+
+volumes:
+  pgdata:
+  redisdata:
+  workerdata:
+  agentdata:
+
+secrets:
+  logistack-master-key:
+    external: true
+  logistack-better-auth-secret:
+    external: true
+  logistack-postgres-password:
+    external: true
+  logistack-redis-password:
+    external: true
+  logistack-agent-token:
+    external: true

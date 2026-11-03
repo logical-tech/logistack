@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "dumbassets",
+	"name": "DumbAssets",
+	"description": "DumbAssets is a simple, self-hosted asset tracking service with no database or authentication required.",
+	"category": "other",
+	"tags": [
+		"asset-tracking",
+		"self-hosted",
+		"simple"
+	],
+	"logo": "logos/dumbassets.svg",
+	"website": "https://dumbware.io/DumbAssets/",
+	"docs": "https://github.com/dumbwareio/dumbassets",
+	"version": "sha256:1bbe3a1c4aa4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/dumbassets",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "defaultPin",
+			"label": "Default pin",
+			"type": "password",
+			"length": 8
+		}
+	],
+	"services": [
+		{
+			"name": "dumbassets",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "dumbassets-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "dumbwareio/dumbassets@sha256:1bbe3a1c4aa404f3cbd9641cbf7ef24dfd3f4f09a92570eecc88d48de31517ab",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

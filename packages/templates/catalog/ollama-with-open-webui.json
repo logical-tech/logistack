@@ -1,0 +1,86 @@
+{
+	"schema": 1,
+	"id": "ollama-with-open-webui",
+	"name": "Ollama With Open Webui",
+	"description": "Ollama with Open Web UI integrates AI model deployment with a user-friendly interface.",
+	"category": "ai",
+	"tags": [
+		"ollama",
+		"ai",
+		"models",
+		"deployment",
+		"open-web-ui",
+		"integration"
+	],
+	"logo": "logos/ollama-with-open-webui.svg",
+	"docs": "https://docs.openwebui.com/",
+	"version": "sha256:975e3965dcf5",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/ollama-with-open-webui.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "ollamaDomain",
+			"label": "Ollama domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "ollama-api",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "ollama",
+					"target": "/root/.ollama"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ollama/ollama@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"ollama",
+					"list"
+				]
+			}
+		},
+		{
+			"name": "open-webui",
+			"dependsOn": [
+				"ollama-api"
+			],
+			"env": {
+				"OLLAMA_BASE_URL": "http://${{ services.ollama-api.host }}:11434"
+			},
+			"volumes": [
+				{
+					"name": "open-webui",
+					"target": "/app/backend/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/open-webui/open-webui@sha256:975e3965dcf5832804d2f77e167920794757027c5a2046917d42023d75fac431",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8080"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "ollamaDomain"
+			}
+		}
+	]
+}

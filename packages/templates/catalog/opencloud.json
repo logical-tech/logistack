@@ -1,0 +1,85 @@
+{
+	"schema": 1,
+	"id": "opencloud",
+	"name": "OpenCloud",
+	"description": "Open source cloud platform for secure file sync, sharing, and content collaboration",
+	"category": "storage",
+	"tags": [
+		"storage",
+		"cloud",
+		"files",
+		"productivity"
+	],
+	"logo": "logos/opencloud.svg",
+	"website": "https://opencloud.eu/",
+	"docs": "https://docs.opencloud.eu/",
+	"version": "7.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/opencloud",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "opencloud",
+			"dependsOn": [],
+			"env": {
+				"OC_URL": "https://${{ inputs.mainDomain }}",
+				"INITIAL_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"IDM_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"PROXY_HTTP_ADDR": "0.0.0.0:9200",
+				"PROXY_TLS": "false",
+				"OC_INSECURE": "false",
+				"OC_LOG_LEVEL": "info"
+			},
+			"volumes": [
+				{
+					"name": "opencloud-config",
+					"target": "/etc/opencloud"
+				},
+				{
+					"name": "opencloud-data",
+					"target": "/var/lib/opencloud"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "opencloudeu/opencloud:7.2",
+			"command": [
+				"-c",
+				"opencloud init || true; opencloud server"
+			],
+			"entrypoint": [
+				"/bin/sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://localhost:9200/healthz || exit 1"
+				]
+			},
+			"public": {
+				"port": 9200,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

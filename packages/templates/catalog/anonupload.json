@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "anonupload",
+	"name": "AnonUpload",
+	"description": "AnonUpload is a secure, anonymous file sharing application that does not require a database. It is built with privacy as a priority, ensuring that the direct filename used is not displayed.",
+	"category": "storage",
+	"tags": [
+		"file-sharing",
+		"privacy"
+	],
+	"website": "https://anonupload.com/",
+	"docs": "https://github.com/Supernova3339/anonupload/blob/main/env.md",
+	"version": "1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/anonupload",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "contactEmail",
+			"label": "Contact email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "anonupload",
+			"dependsOn": [],
+			"env": {
+				"ADMIN_EMAIL": "${{ inputs.adminEmail }}",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"CONTACT_EMAIL": "${{ inputs.contactEmail }}"
+			},
+			"volumes": [
+				{
+					"name": "uploads",
+					"target": "/var/www/html/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/supernova3339/anonfiles:1",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,105 @@
+{
+	"schema": 1,
+	"id": "kanbn",
+	"name": "Kanbn",
+	"description": "The open-source project management alternative to Trello.",
+	"category": "productivity",
+	"tags": [
+		"collaboration",
+		"project-management",
+		"kanban-board",
+		"task-management"
+	],
+	"logo": "logos/kanbn.svg",
+	"website": "https://kan.bn/",
+	"docs": "https://docs.kan.bn/",
+	"version": "0.6.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kanbn",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "betterAuthSecret",
+			"label": "Better auth secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "kanbn",
+			"dependsOn": [
+				"migrate"
+			],
+			"env": {
+				"NEXT_PUBLIC_BASE_URL": "https://${{ inputs.mainDomain }}",
+				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
+				"POSTGRES_URL": "postgresql://kan:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/kan_db",
+				"NEXT_PUBLIC_ALLOW_CREDENTIALS": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/kanbn/kan:0.6.0",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "migrate",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"POSTGRES_URL": "postgresql://kan:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/kan_db"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/kanbn/kan-migrate:0.6.0",
+			"ports": [],
+			"restart": "none"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "kan_db",
+				"POSTGRES_USER": "kan",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "kan-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15"
+		}
+	]
+}

@@ -1,0 +1,90 @@
+{
+	"schema": 1,
+	"id": "hedgedoc",
+	"name": "HedgeDoc",
+	"description": "HedgeDoc is a collaborative Markdown editor for teams that need real-time notes, documentation, and knowledge sharing.",
+	"category": "productivity",
+	"tags": [
+		"markdown",
+		"notes",
+		"documentation",
+		"collaboration",
+		"wiki"
+	],
+	"logo": "logos/hedgedoc.svg",
+	"website": "https://hedgedoc.org/",
+	"docs": "https://docs.hedgedoc.org/",
+	"version": "1.10.8",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/hedgedoc",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "databasePassword",
+			"label": "Database password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "hedgedoc",
+			"dependsOn": [
+				"database"
+			],
+			"env": {
+				"CMD_DB_URL": "postgres://hedgedoc:${{ inputs.databasePassword }}@${{ services.database.host }}:5432/hedgedoc",
+				"CMD_DOMAIN": "${{ inputs.mainDomain }}",
+				"CMD_PROTOCOL_USESSL": "true",
+				"CMD_URL_ADDPORT": "false"
+			},
+			"volumes": [
+				{
+					"name": "hedgedoc-uploads",
+					"target": "/hedgedoc/public/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "quay.io/hedgedoc/hedgedoc:1.10.8",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "database",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "hedgedoc",
+				"POSTGRES_PASSWORD": "${{ inputs.databasePassword }}",
+				"POSTGRES_DB": "hedgedoc"
+			},
+			"volumes": [
+				{
+					"name": "hedgedoc-database",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17.7-alpine"
+		}
+	]
+}

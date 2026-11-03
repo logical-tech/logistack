@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "speedtest-tracker",
+	"name": "Speedtest Tracker",
+	"description": "Speedtest Tracker runs scheduled internet speed tests and stores the results in a self-hosted dashboard.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"network",
+		"speedtest"
+	],
+	"logo": "logos/speedtest-tracker.svg",
+	"website": "https://docs.speedtest-tracker.dev/",
+	"docs": "https://docs.speedtest-tracker.dev/",
+	"version": "sha256:14d56d7c4ff0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/speedtest-tracker",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "appKey",
+			"label": "App key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "speedtest-tracker",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"APP_KEY": "base64:${{ inputs.appKey }}",
+				"DB_CONNECTION": "sqlite"
+			},
+			"volumes": [
+				{
+					"name": "speedtest-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/speedtest-tracker@sha256:14d56d7c4ff0af18f0a09be8494352ba40d23196e78c5f812cee69afaa1edc45",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,125 @@
+{
+	"schema": 1,
+	"id": "hortusfox",
+	"name": "HortusFox",
+	"description": "HortusFox is an open source task and photo management app, designed for photographers and creatives to manage projects, tasks, and images effectively.",
+	"category": "productivity",
+	"tags": [
+		"productivity",
+		"photo",
+		"task-management",
+		"php",
+		"mariadb"
+	],
+	"logo": "logos/hortusfox.png",
+	"website": "https://www.hortusfox.com/",
+	"docs": "https://github.com/danielbrendel/hortusfox-web#readme",
+	"version": "5.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/hortusfox",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "appAdminEmail",
+			"label": "App admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "appAdminPassword",
+			"label": "App admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 20
+		},
+		{
+			"key": "mariadbRootPassword",
+			"label": "Mariadb root password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "app",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"APP_ADMIN_EMAIL": "${{ inputs.appAdminEmail }}",
+				"APP_ADMIN_PASSWORD": "${{ inputs.appAdminPassword }}",
+				"APP_TIMEZONE": "UTC",
+				"DB_HOST": "${{ services.db.host }}",
+				"DB_PORT": "3306",
+				"DB_DATABASE": "hortusfox",
+				"DB_USERNAME": "hortususer",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
+				"DB_CHARSET": "utf8mb4"
+			},
+			"volumes": [
+				{
+					"name": "app-images",
+					"target": "/var/www/html/public/img"
+				},
+				{
+					"name": "app-logs",
+					"target": "/var/www/html/app/logs"
+				},
+				{
+					"name": "app-backup",
+					"target": "/var/www/html/public/backup"
+				},
+				{
+					"name": "app-themes",
+					"target": "/var/www/html/public/themes"
+				},
+				{
+					"name": "app-migrate",
+					"target": "/var/www/html/app/migrations"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/danielbrendel/hortusfox-web@sha256:bea58ac1f2884d672277ad2444de372b0a5032ef827bdc51d2b368285dbdb4dd",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MARIADB_ROOT_PASSWORD": "${{ inputs.mariadbRootPassword }}",
+				"MARIADB_DATABASE": "hortusfox",
+				"MARIADB_USER": "hortususer",
+				"MARIADB_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mariadb",
+			"version": "11"
+		}
+	]
+}

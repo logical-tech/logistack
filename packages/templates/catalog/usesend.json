@@ -1,0 +1,165 @@
+{
+	"schema": 1,
+	"id": "usesend",
+	"name": "Usesend",
+	"description": "Usesend is an open-source alternative to Resend, Sendgrid, Mailgun and Postmark etc.",
+	"category": "communication",
+	"tags": [
+		"resend",
+		"mailer",
+		"marketing emails",
+		"transaction emails",
+		"self-hosting",
+		"postmark"
+	],
+	"logo": "logos/usesend.svg",
+	"docs": "https://docs.usesend.com/self-hosting/overview",
+	"version": "sha256:cd60aacbff47",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/usesend.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "usesendDomain",
+			"label": "Usesend domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "nextauthsecretSecret",
+			"label": "Nextauthsecret secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "awsAccessKey",
+			"label": "AWS access key",
+			"type": "text"
+		},
+		{
+			"key": "awsSecretKey",
+			"label": "AWS secret key",
+			"type": "text"
+		},
+		{
+			"key": "awsDefaultRegion",
+			"label": "AWS default region",
+			"type": "text"
+		},
+		{
+			"key": "githubId",
+			"label": "Github ID",
+			"type": "text"
+		},
+		{
+			"key": "githubSecret",
+			"label": "Github secret",
+			"type": "text"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "usesend"
+			},
+			"volumes": [
+				{
+					"name": "usesend-postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "usesend-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7",
+			"command": [
+				"redis-server",
+				"--maxmemory-policy",
+				"noeviction"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"PING"
+				]
+			}
+		},
+		{
+			"name": "usesend",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/usesend",
+				"NEXTAUTH_URL": "https://${{ inputs.usesendDomain }}",
+				"NEXTAUTH_SECRET": "${{ inputs.nextauthsecretSecret }}",
+				"AWS_ACCESS_KEY": "${{ inputs.awsAccessKey }}",
+				"AWS_SECRET_KEY": "${{ inputs.awsSecretKey }}",
+				"AWS_DEFAULT_REGION": "${{ inputs.awsDefaultRegion }}",
+				"GITHUB_ID": "${{ inputs.githubId }}",
+				"GITHUB_SECRET": "${{ inputs.githubSecret }}",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
+				"NEXT_PUBLIC_IS_CLOUD": "false",
+				"API_RATE_LIMIT": "1",
+				"HOSTNAME": "0.0.0.0"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "usesend/usesend@sha256:cd60aacbff4711d7fc09bd7620f64387be2b7bd1050e1d9d4992657e329fcba4",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://usesend:3000 || exit 1"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "usesendDomain"
+			}
+		}
+	]
+}

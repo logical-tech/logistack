@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "triliumnext",
+	"name": "Triliumnext",
+	"description": "Build your personal knowledge base with TriliumNext Notes.",
+	"category": "productivity",
+	"tags": [
+		"self-hosted",
+		"notes",
+		"todo",
+		"organize",
+		"markdown",
+		"wiki"
+	],
+	"logo": "logos/triliumnext.svg",
+	"docs": "https://github.com/TriliumNext/Trilium",
+	"version": "sha256:d87d810fdcb5",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/triliumnext.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "triliumnextDomain",
+			"label": "Triliumnext domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "triliumnext",
+			"dependsOn": [],
+			"env": {
+				"TZ": "Europe/Berlin"
+			},
+			"volumes": [
+				{
+					"name": "triliumnext-data",
+					"target": "/home/node/trilium-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/triliumnext/trilium@sha256:d87d810fdcb549db65710a40933acaa16bc75c9426a9164c547f7ba95592941b",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"node",
+					"/usr/src/app/docker_healthcheck.cjs"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "triliumnextDomain"
+			}
+		}
+	]
+}

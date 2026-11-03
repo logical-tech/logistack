@@ -1,0 +1,89 @@
+{
+	"schema": 1,
+	"id": "fivem",
+	"name": "FiveM Server",
+	"description": "A modded GTA V multiplayer server with optional txAdmin web interface for easy server management.",
+	"category": "other",
+	"tags": [
+		"gaming",
+		"gta",
+		"multiplayer",
+		"server"
+	],
+	"logo": "logos/fivem.svg",
+	"website": "https://fivem.net/",
+	"docs": "https://docs.fivem.net/docs/server-manual/",
+	"version": "sha256:fbf9f58c9255",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/fivem",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "licenseKey",
+			"label": "License key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rconPassword",
+			"label": "Rcon password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "fivem",
+			"dependsOn": [],
+			"env": {
+				"LICENSE_KEY": "${{ inputs.licenseKey }}",
+				"RCON_PASSWORD": "${{ inputs.rconPassword }}",
+				"NO_DEFAULT_CONFIG": "${NO_DEFAULT_CONFIG:-}"
+			},
+			"volumes": [
+				{
+					"name": "fivem-config",
+					"target": "/config"
+				},
+				{
+					"name": "fivem-txdata",
+					"target": "/txData"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "spritsail/fivem@sha256:fbf9f58c9255e7f77e71215e8d55497b4eed417f1c21cd7b73d1d4686e16517a",
+			"ports": [
+				{
+					"target": 30120,
+					"published": 30120,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 30120,
+					"published": 30120,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 40120,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 40120,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,104 @@
+{
+	"schema": 1,
+	"id": "fider",
+	"name": "Fider",
+	"description": "Fider is an open-source feedback portal for collecting, discussing, and prioritizing feature requests.",
+	"category": "productivity",
+	"tags": [
+		"feedback",
+		"product",
+		"roadmap",
+		"self-hosted",
+		"user-feedback"
+	],
+	"logo": "logos/fider.svg",
+	"website": "https://fider.io/",
+	"docs": "https://docs.fider.io/hosting-instance/",
+	"version": "0.21.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/fider",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "fider",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "fider"
+			},
+			"volumes": [
+				{
+					"name": "fiderpostgresdata",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17"
+		},
+		{
+			"name": "fider",
+			"dependsOn": [
+				"db",
+				"mailhog"
+			],
+			"env": {
+				"BASE_URL": "https://${{ inputs.mainDomain }}",
+				"DATABASE_URL": "postgres://fider:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/fider?sslmode=disable",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"EMAIL": "smtp",
+				"EMAIL_NOREPLY": "noreply@${{ inputs.mainDomain }}",
+				"EMAIL_SMTP_HOST": "${{ services.mailhog.host }}",
+				"EMAIL_SMTP_PORT": "1025",
+				"EMAIL_SMTP_USERNAME": "",
+				"EMAIL_SMTP_PASSWORD": "",
+				"EMAIL_SMTP_ENABLE_STARTTLS": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "getfider/fider:0.21.1",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mailhog",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "mailhog/mailhog:v1.0.1",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

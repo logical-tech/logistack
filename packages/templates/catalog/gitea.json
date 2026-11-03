@@ -1,0 +1,79 @@
+{
+	"schema": 1,
+	"id": "gitea",
+	"name": "Gitea",
+	"description": "Gitea is a self-hosted, lightweight Git service, offering version control, collaboration, and code hosting.",
+	"category": "devtools",
+	"tags": [
+		"version control",
+		"collaboration",
+		"code",
+		"hosting",
+		"lightweight"
+	],
+	"logo": "logos/gitea.svg",
+	"docs": "https://docs.gitea.com/",
+	"version": "sha256:8967bf9deaf3",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/gitea.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "giteaDomain",
+			"label": "Gitea domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "gitea",
+			"dependsOn": [],
+			"env": {
+				"USER_UID": "1000",
+				"USER_GID": "1000"
+			},
+			"volumes": [
+				{
+					"name": "gitea-data",
+					"target": "/data"
+				},
+				{
+					"name": "gitea-timezone",
+					"target": "/etc/timezone",
+					"readOnly": true
+				},
+				{
+					"name": "gitea-localtime",
+					"target": "/etc/localtime",
+					"readOnly": true
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "gitea/gitea@sha256:8967bf9deaf3c5c4adae13519436dc1b20c646ac83fe37ae810c933a1045227d",
+			"ports": [
+				{
+					"target": 22,
+					"published": 22222,
+					"protocol": "tcp",
+					"mode": "host"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "giteaDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,111 @@
+{
+	"schema": 1,
+	"id": "joomla-with-mariadb",
+	"name": "Joomla With Mariadb",
+	"description": "Joomla! is the mobile-ready and user-friendly way to build your website. Choose from thousands of features and designs. Joomla! is free and open source.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"blog",
+		"content",
+		"management",
+		"mariadb"
+	],
+	"logo": "logos/joomla-with-mariadb.svg",
+	"docs": "https://joomla.org/",
+	"version": "sha256:73639c53368b",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/joomla-with-mariadb.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "joomlaDomain",
+			"label": "Joomla domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "joomlaUser",
+			"label": "Joomla user",
+			"type": "username"
+		},
+		{
+			"key": "joomlaPassword",
+			"label": "Joomla password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "rootPassword",
+			"label": "Root password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "joomla",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"JOOMLA_DB_HOST": "${{ services.mariadb.host }}",
+				"JOOMLA_DB_USER": "${{ inputs.joomlaUser }}",
+				"JOOMLA_DB_PASSWORD": "${{ inputs.joomlaPassword }}",
+				"JOOMLA_DB_NAME": "joomla-db"
+			},
+			"volumes": [
+				{
+					"name": "joomla-data",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "joomla@sha256:73639c53368baca415f5fe2d3af4a9c847086c465d11e312fcaf68429e92599d",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "joomlaDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.rootPassword }}",
+				"MYSQL_DATABASE": "joomla-db",
+				"MYSQL_USER": "${{ inputs.joomlaUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.joomlaPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "joomla-mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		}
+	]
+}

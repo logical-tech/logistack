@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "baikal",
+	"name": "Baikal",
+	"description": "Baikal is a lightweight, self-hosted CalDAV and CardDAV server that enables users to manage calendars and contacts efficiently. It provides a simple and effective solution for syncing and sharing events, tasks, and address books across multiple devices.",
+	"category": "other",
+	"tags": [
+		"calendar",
+		"contacts",
+		"caldav",
+		"carddav"
+	],
+	"logo": "logos/baikal.png",
+	"website": "https://sabre.io/baikal/",
+	"docs": "https://sabre.io/baikal/install/",
+	"version": "nginx-php8.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/baikal",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "baikal",
+			"dependsOn": [],
+			"env": {
+				"TZ": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "config",
+					"target": "/var/www/baikal/config"
+				},
+				{
+					"name": "data",
+					"target": "/var/www/baikal/Specific"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ckulka/baikal:nginx-php8.2",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

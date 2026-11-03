@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "freshrss",
+	"name": "Freshrss",
+	"description": "A free, self-hostable feed aggregator.",
+	"category": "communication",
+	"tags": [
+		"rss",
+		"feed",
+		"feed-reader",
+		"news",
+		"self-hosted",
+		"aggregator",
+		"reader"
+	],
+	"logo": "logos/freshrss.png",
+	"website": "https://freshrss.org/",
+	"docs": "https://freshrss.org/index.html",
+	"version": "sha256:af4438522954",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/freshrss.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "freshrssDomain",
+			"label": "Freshrss domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "freshrss",
+			"dependsOn": [],
+			"env": {
+				"CRON_MIN": "1,31"
+			},
+			"volumes": [
+				{
+					"name": "freshrss-data",
+					"target": "/var/www/FreshRSS/data"
+				},
+				{
+					"name": "freshrss-extensions",
+					"target": "/var/www/FreshRSS/extensions"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "freshrss/freshrss@sha256:af44385229541bee24aa9148d0ff8f3b40e095373c63a2c0f74e09a27d3c59df",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/80' || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "freshrssDomain"
+			}
+		}
+	]
+}

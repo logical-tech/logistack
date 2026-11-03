@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "libreoffice",
+	"name": "Libreoffice",
+	"description": "LibreOffice is a free and powerful office suite.",
+	"category": "productivity",
+	"tags": [
+		"office",
+		"document",
+		"spreadsheet",
+		"presentation",
+		"open-source"
+	],
+	"logo": "logos/libreoffice.svg",
+	"docs": "https://docs.linuxserver.io/images/docker-libreoffice/",
+	"version": "sha256:02e0bbe9c87d",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/libreoffice.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "libreofficeDomain",
+			"label": "Libreoffice domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "libreoffice",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Etc/UTC"
+			},
+			"volumes": [
+				{
+					"name": "libreoffice-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/libreoffice@sha256:02e0bbe9c87df4873fc3675ecceea828e2f4bf1f28423a35fa7d3980f75031eb",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://localhost:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "libreofficeDomain"
+			}
+		}
+	]
+}

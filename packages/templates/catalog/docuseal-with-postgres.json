@@ -1,0 +1,97 @@
+{
+	"schema": 1,
+	"id": "docuseal-with-postgres",
+	"name": "Docuseal With Postgres",
+	"description": "Document Signing for Everyone free forever for individuals, extensible for businesses and developers. Open Source Alternative to DocuSign, PandaDoc and more.",
+	"category": "productivity",
+	"tags": [
+		"documentation"
+	],
+	"logo": "logos/docuseal-with-postgres.png",
+	"docs": "https://www.docuseal.co/",
+	"version": "sha256:d3fb5bd51509",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/docuseal-with-postgres.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "docusealDomain",
+			"label": "Docuseal domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresDb",
+			"label": "Postgres DB",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "docuseal",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"HOST": "https://${{ inputs.docusealDomain }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}:5432/${{ inputs.postgresDb }}"
+			},
+			"volumes": [
+				{
+					"name": "docuseal-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docuseal/docuseal@sha256:d3fb5bd51509aac293e858c37e113882a70d5b97975fa44bfbf232bbfb17175d",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "docusealDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "docuseal"
+			},
+			"volumes": [
+				{
+					"name": "postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

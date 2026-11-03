@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "victoriametrics",
+	"name": "VictoriaMetrics",
+	"description": "VictoriaMetrics is a fast, cost-effective, and scalable monitoring solution and time series database. It is a drop-in replacement for Prometheus.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"metrics",
+		"time-series",
+		"prometheus"
+	],
+	"logo": "logos/victoriametrics.png",
+	"website": "https://victoriametrics.com/",
+	"docs": "https://docs.victoriametrics.com/",
+	"version": "v1.108.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/victoriametrics",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "victoriametrics",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "vm-data",
+					"target": "/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "victoriametrics/victoria-metrics:v1.108.1",
+			"command": [
+				"--storageDataPath=/storage",
+				"--retentionPeriod=90d",
+				"--httpListenAddr=:8428"
+			],
+			"ports": [
+				{
+					"target": 8428,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8428,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "jellyseerr",
+	"name": "Jellyseerr",
+	"description": "Jellyseerr is a media request manager for Jellyfin, Emby, and Plex.",
+	"category": "media",
+	"tags": [
+		"media",
+		"requests",
+		"jellyfin"
+	],
+	"logo": "logos/jellyseerr.svg",
+	"website": "https://docs.jellyseerr.dev/",
+	"docs": "https://docs.jellyseerr.dev/",
+	"version": "2.7.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/jellyseerr",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "jellyseerr",
+			"dependsOn": [],
+			"env": {
+				"LOG_LEVEL": "info"
+			},
+			"volumes": [
+				{
+					"name": "jellyseerr-config",
+					"target": "/app/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "fallenbagel/jellyseerr:2.7.3",
+			"ports": [
+				{
+					"target": 5055,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 5055,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "cyberchef",
+	"name": "Cyberchef",
+	"description": "The Cyber Swiss Army Knife - a web app for encryption, encoding, compression and data analysis",
+	"category": "security",
+	"tags": [
+		"encryption",
+		"encoding",
+		"compression",
+		"data analysis",
+		"tools",
+		"development",
+		"security",
+		"data-analysis"
+	],
+	"logo": "logos/cyberchef.jpg",
+	"website": "https://gchq.github.io/CyberChef/",
+	"docs": "https://github.com/gchq/CyberChef",
+	"version": "sha256:f04a39926344",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/cyberchef.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "cyberchefDomain",
+			"label": "Cyberchef domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "cyberchef",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "cyberchef-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/gchq/cyberchef@sha256:f04a39926344faf8e4cbbc8c92fb125d2b466f9be62db09aff23c7c406101a51",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8080"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "cyberchefDomain"
+			}
+		}
+	]
+}

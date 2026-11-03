@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "vaultwarden",
+	"name": "Vaultwarden",
+	"description": "Vaultwarden is a lightweight password manager that works with Bitwarden apps.",
+	"category": "security",
+	"tags": [
+		"open-source",
+		"password manager",
+		"security"
+	],
+	"logo": "logos/vaultwarden.svg",
+	"docs": "https://github.com/dani-garcia/vaultwarden/wiki",
+	"version": "1.36.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/vaultwarden",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "vaultwarden",
+			"dependsOn": [],
+			"env": {
+				"DOMAIN": "https://${{ inputs.mainDomain }}",
+				"SIGNUPS_ALLOWED": "true"
+			},
+			"volumes": [
+				{
+					"name": "vaultwarden",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "vaultwarden/server:1.36.0",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

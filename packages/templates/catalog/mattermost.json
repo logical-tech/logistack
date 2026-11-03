@@ -1,0 +1,113 @@
+{
+	"schema": 1,
+	"id": "mattermost",
+	"name": "Mattermost",
+	"description": "Mattermost is an open source, self-hosted Slack-alternative.",
+	"category": "communication",
+	"tags": [
+		"mattermost",
+		"slack",
+		"alternative"
+	],
+	"logo": "logos/mattermost.svg",
+	"docs": "https://docs.mattermost.com/",
+	"version": "release-10",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/mattermost.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "mattermostDomain",
+			"label": "Mattermost domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresDb",
+			"label": "Postgres DB",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "mattermost",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"MM_SERVICESETTINGS_SITEURL": "https://${{ inputs.mattermostDomain }}",
+				"TZ": "UTC",
+				"MM_SQLSETTINGS_DRIVERNAME": "postgres",
+				"MM_SQLSETTINGS_DATASOURCE": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/${{ inputs.postgresDb }}?sslmode=disable&connect_timeout=10",
+				"MM_BLEVESETTINGS_INDEXDIR": "/mattermost/bleve-indexes"
+			},
+			"volumes": [
+				{
+					"name": "mattermost-data-config",
+					"target": "/mattermost/config"
+				},
+				{
+					"name": "mattermost-data-data",
+					"target": "/mattermost/data"
+				},
+				{
+					"name": "mattermost-data-logs",
+					"target": "/mattermost/logs"
+				},
+				{
+					"name": "mattermost-data-plugins",
+					"target": "/mattermost/plugins"
+				},
+				{
+					"name": "mattermost-data-client-plugins",
+					"target": "/mattermost/client/plugins"
+				},
+				{
+					"name": "mattermost-data-bleve-indexes",
+					"target": "/mattermost/bleve-indexes"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mattermost/mattermost-team-edition:release-10",
+			"ports": [],
+			"public": {
+				"port": 8065,
+				"domain": "mattermostDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "mattermost"
+			},
+			"volumes": [
+				{
+					"name": "postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

@@ -1,0 +1,121 @@
+{
+	"schema": 1,
+	"id": "synapse",
+	"name": "Synapse",
+	"description": "Synapse is the reference homeserver implementation for Matrix, an open standard for secure, decentralised, real-time communication.",
+	"category": "communication",
+	"tags": [
+		"matrix",
+		"communication"
+	],
+	"logo": "logos/synapse.svg",
+	"website": "https://element-hq.github.io/synapse/latest/",
+	"docs": "https://element-hq.github.io/synapse/latest/setup/installation.html",
+	"version": "v1.156.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/synapse",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "registrationSharedSecret",
+			"label": "Registration shared secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "macaroonSecretKey",
+			"label": "Macaroon secret key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "formSecret",
+			"label": "Form secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "synapse",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"SYNAPSE_CONFIG_PATH": "/config/homeserver.yaml"
+			},
+			"volumes": [
+				{
+					"name": "synapse-data",
+					"target": "/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/config/homeserver.yaml",
+					"content": "# Synapse homeserver configuration\n# https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html\n\nserver_name: \"${{ inputs.mainDomain }}\"\npublic_baseurl: \"https://${{ inputs.mainDomain }}/\"\npid_file: /data/homeserver.pid\nsigning_key_path: \"/data/signing.key\"\nlog_config: \"/config/log.config\"\nmedia_store_path: /data/media_store\nreport_stats: false\n\n# Serve /.well-known/matrix/server so other homeservers can federate with\n# this server over port 443 (the dedicated federation port 8448 is not exposed).\nserve_server_wellknown: true\n\nlisteners:\n  - port: 8008\n    tls: false\n    type: http\n    x_forwarded: true\n    bind_addresses: ['0.0.0.0']\n    resources:\n      - names: [client, federation]\n        compress: false\n\ndatabase:\n  name: psycopg2\n  args:\n    user: synapse\n    password: \"${{ inputs.postgresPassword }}\"\n    database: synapse\n    host: postgres\n    port: 5432\n    cp_min: 5\n    cp_max: 10\n\n# Public registration is disabled. Create users with the\n# register_new_matrix_user tool (see the template instructions).\nenable_registration: false\nregistration_shared_secret: \"${{ inputs.registrationSharedSecret }}\"\n\nmacaroon_secret_key: \"${{ inputs.macaroonSecretKey }}\"\nform_secret: \"${{ inputs.formSecret }}\"\n\ntrusted_key_servers:\n  - server_name: \"matrix.org\"\nsuppress_key_server_warning: true\n",
+					"secret": true
+				},
+				{
+					"target": "/config/log.config",
+					"content": "version: 1\n\nformatters:\n  precise:\n    format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'\n\nhandlers:\n  console:\n    class: logging.StreamHandler\n    formatter: precise\n\nloggers:\n  synapse.storage.SQL:\n    level: INFO\n\nroot:\n  level: INFO\n  handlers: [console]\n\ndisable_existing_loggers: false\n"
+				}
+			],
+			"kind": "application",
+			"image": "matrixdotorg/synapse:v1.156.0",
+			"entrypoint": [
+				"/bin/sh",
+				"-c",
+				"python -m synapse.app.homeserver --config-path /config/homeserver.yaml --keys-directory /data --generate-keys\nchown -R 991:991 /data\nexec /start.py\n"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -fSs http://localhost:8008/health || exit 1"
+				]
+			},
+			"public": {
+				"port": 8008,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "synapse",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "synapse",
+				"POSTGRES_INITDB_ARGS": "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

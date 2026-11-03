@@ -1,0 +1,60 @@
+{
+	"schema": 1,
+	"id": "kokoro-web",
+	"name": "Kokoro Web",
+	"description": "Kokoro Web provides an interface for text-to-speech using advanced AI voice synthesis. It allows model caching and API integration with authentication.",
+	"category": "ai",
+	"tags": [
+		"text-to-speech",
+		"ai",
+		"voice",
+		"web"
+	],
+	"website": "https://github.com/eduardolat/kokoro-web",
+	"docs": "https://github.com/eduardolat/kokoro-web#readme",
+	"version": "sha256:58202493d16e",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kokoro-web",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "apiKey",
+			"label": "API key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "kokoro-web",
+			"dependsOn": [],
+			"env": {
+				"KW_SECRET_API_KEY": "${{ inputs.apiKey }}",
+				"KW_PUBLIC_NO_TRACK": "false"
+			},
+			"volumes": [
+				{
+					"name": "kokoro-cache",
+					"target": "/kokoro/cache"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/eduardolat/kokoro-web@sha256:58202493d16e2b116a9593fc02adf8ceaca6e8a95ad72369733059707a7d3d17",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,74 @@
+{
+	"schema": 1,
+	"id": "privatepaste",
+	"name": "PrivatePaste",
+	"description": "Self-hosted clipboard sync: copy on one device, paste on your others, with an encrypted, searchable history and apps for Windows, macOS, Linux and Android.",
+	"category": "productivity",
+	"tags": [
+		"productivity",
+		"clipboard",
+		"sync"
+	],
+	"logo": "logos/privatepaste.svg",
+	"website": "https://github.com/DynamicsNinja/privatepaste",
+	"docs": "https://github.com/DynamicsNinja/privatepaste/blob/main/docs/self-hosting.md",
+	"version": "0.3.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/privatepaste",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbKey",
+			"label": "DB key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "loginPassword",
+			"label": "Login password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "privatepaste",
+			"dependsOn": [],
+			"env": {
+				"PP_DB_KEY": "${{ inputs.dbKey }}",
+				"PP_PASSWORD": "${{ inputs.loginPassword }}",
+				"PP_MAX_IMAGE_MB": "20",
+				"PP_MAX_TEXT_KB": "1024",
+				"PP_TRUST_CLOUDFLARE": "false"
+			},
+			"volumes": [
+				{
+					"name": "privatepaste-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/dynamicsninja/privatepaste:0.3.1",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

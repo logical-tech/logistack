@@ -1,0 +1,184 @@
+{
+	"schema": 1,
+	"id": "rybbit",
+	"name": "Rybbit",
+	"description": "Open-source, privacy-first web analytics.",
+	"category": "analytics",
+	"tags": [
+		"analytics",
+		"web",
+		"privacy",
+		"self-hosted",
+		"clickhouse",
+		"postgres"
+	],
+	"logo": "logos/rybbit.svg",
+	"docs": "https://rybbit.io/docs",
+	"version": "v2.2.3",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/rybbit.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "rybbitDomain",
+			"label": "Rybbit domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "clickhousePassword",
+			"label": "Clickhouse password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "backendSecret",
+			"label": "Backend secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		}
+	],
+	"services": [
+		{
+			"name": "rybbit",
+			"dependsOn": [
+				"rybbit-backend"
+			],
+			"env": {
+				"NODE_ENV": "production",
+				"NEXT_PUBLIC_BACKEND_URL": "https://${{ inputs.rybbitDomain }}",
+				"NEXT_PUBLIC_DISABLE_SIGNUP": "false"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/rybbit-io/rybbit-client:v2.2.3",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"nc -z 127.0.0.1 3002"
+				]
+			},
+			"public": {
+				"port": 3002,
+				"domain": "rybbitDomain"
+			}
+		},
+		{
+			"name": "rybbit-backend",
+			"dependsOn": [
+				"rybbit-clickhouse",
+				"rybbit-postgres"
+			],
+			"env": {
+				"NODE_ENV": "production",
+				"TRUST_PROXY": "true",
+				"BASE_URL": "https://${{ inputs.rybbitDomain }}",
+				"CLICKHOUSE_PASSWORD": "${{ inputs.clickhousePassword }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"BETTER_AUTH_SECRET": "${{ inputs.backendSecret }}",
+				"DISABLE_SIGNUP": "false",
+				"DISABLE_TELEMETRY": "true",
+				"CLICKHOUSE_HOST": "http://${{ services.rybbit-clickhouse.host }}:8123",
+				"CLICKHOUSE_USER": "default",
+				"CLICKHOUSE_DB": "analytics",
+				"POSTGRES_HOST": "${{ services.rybbit-postgres.host }}",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_DB": "analytics",
+				"POSTGRES_USER": "frog"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/rybbit-io/rybbit-backend:v2.2.3",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--no-verbose",
+					"--tries=1",
+					"--spider",
+					"http://127.0.0.1:3001/api/health"
+				]
+			}
+		},
+		{
+			"name": "rybbit-postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "analytics",
+				"POSTGRES_USER": "frog",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17.4"
+		},
+		{
+			"name": "rybbit-clickhouse",
+			"dependsOn": [],
+			"env": {
+				"CLICKHOUSE_DB": "analytics",
+				"CLICKHOUSE_USER": "default",
+				"CLICKHOUSE_PASSWORD": "${{ inputs.clickhousePassword }}"
+			},
+			"volumes": [
+				{
+					"name": "clickhouse-data",
+					"target": "/var/lib/clickhouse"
+				}
+			],
+			"files": [
+				{
+					"target": "/etc/clickhouse-server/config.d/enable_json.xml",
+					"content": "<clickhouse>\n    <settings>\n        <enable_json_type>1</enable_json_type>\n    </settings>\n</clickhouse>\n"
+				},
+				{
+					"target": "/etc/clickhouse-server/config.d/logging_rules.xml",
+					"content": "<clickhouse>\n    <logger>\n        <level>warning</level>\n        <console>true</console>\n    </logger>\n    <query_thread_log remove=\"remove\"/>\n    <query_log remove=\"remove\"/>\n    <text_log remove=\"remove\"/>\n    <trace_log remove=\"remove\"/>\n    <metric_log remove=\"remove\"/>\n    <asynchronous_metric_log remove=\"remove\"/>\n    <session_log remove=\"remove\"/>\n    <part_log remove=\"remove\"/>\n    <latency_log remove=\"remove\"/>\n    <processors_profile_log remove=\"remove\"/>\n</clickhouse>\n"
+				},
+				{
+					"target": "/etc/clickhouse-server/config.d/network.xml",
+					"content": "<clickhouse>\n    <listen_host>0.0.0.0</listen_host>\n</clickhouse>\n"
+				},
+				{
+					"target": "/etc/clickhouse-server/config.d/user_logging.xml",
+					"content": "<clickhouse>\n    <profiles>\n        <default>\n            <log_queries>0</log_queries>\n            <log_query_threads>0</log_query_threads>\n            <log_processors_profiles>0</log_processors_profiles>\n        </default>\n    </profiles>\n</clickhouse>\n"
+				}
+			],
+			"kind": "application",
+			"image": "clickhouse/clickhouse-server:25.4.2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--no-verbose",
+					"--tries=1",
+					"--spider",
+					"http://localhost:8123/ping"
+				]
+			}
+		}
+	]
+}

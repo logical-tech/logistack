@@ -1,0 +1,65 @@
+{
+	"schema": 1,
+	"id": "vault",
+	"name": "Vault",
+	"description": "HashiCorp Vault securely stores and controls access to secrets.",
+	"category": "security",
+	"tags": [
+		"vault",
+		"hashicorp",
+		"secrets",
+		"security",
+		"encryption"
+	],
+	"docs": "https://developer.hashicorp.com/vault/docs/deploy/run-container",
+	"version": "sha256:962a92876e16",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/vault.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "vaultDomain",
+			"label": "Vault domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "vault",
+			"dependsOn": [],
+			"env": {
+				"VAULT_ADDR": "http://127.0.0.1:8200",
+				"VAULT_API_ADDR": "https://${{ inputs.vaultDomain }}",
+				"VAULT_LOCAL_CONFIG": "{\"ui\":true,\"disable_mlock\":true,\"storage\":{\"file\":{\"path\":\"/vault/file\"}},\"listener\":{\"tcp\":{\"address\":\"0.0.0.0:8200\",\"tls_disable\":true}}}"
+			},
+			"volumes": [
+				{
+					"name": "vault-data",
+					"target": "/vault/file"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "hashicorp/vault@sha256:962a92876e168d68eaaa24b0b8b49bbce1cb63024060a67bba95cd158a366fc2",
+			"command": [
+				"server"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- \"http://127.0.0.1:8200/v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200\" >/dev/null || exit 1"
+				]
+			},
+			"public": {
+				"port": 8200,
+				"domain": "vaultDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,71 @@
+{
+	"schema": 1,
+	"id": "kavita",
+	"name": "Kavita",
+	"description": "Kavita is a digital library server for comics, manga, and ebooks.",
+	"category": "media",
+	"tags": [
+		"media",
+		"ebooks",
+		"comics",
+		"library"
+	],
+	"logo": "logos/kavita.svg",
+	"website": "https://www.kavitareader.com/",
+	"docs": "https://wiki.kavitareader.com/installation/docker/",
+	"version": "sha256:31181a32f0dd",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kavita",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "kavitaDomain",
+			"label": "Kavita domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "kavita",
+			"dependsOn": [],
+			"env": {
+				"TZ": "Etc/UTC"
+			},
+			"volumes": [
+				{
+					"name": "kavita-config",
+					"target": "/kavita/config"
+				},
+				{
+					"name": "kavita-media",
+					"target": "/manga"
+				},
+				{
+					"name": "kavita-books",
+					"target": "/books"
+				},
+				{
+					"name": "kavita-comics",
+					"target": "/comics"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "jvmilazz0/kavita@sha256:31181a32f0dda73cae68721867028a7253d57881b58bea5754cd9e578e75421a",
+			"ports": [
+				{
+					"target": 5000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 5000,
+				"domain": "kavitaDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

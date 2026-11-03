@@ -1,0 +1,122 @@
+{
+	"schema": 1,
+	"id": "hoarder",
+	"name": "Hoarder",
+	"description": "Hoarder is an open source \"Bookmark Everything\" app that uses AI for automatically tagging the content you throw at it.",
+	"category": "productivity",
+	"tags": [
+		"self-hosted",
+		"bookmarks",
+		"link-sharing"
+	],
+	"logo": "logos/hoarder.svg",
+	"website": "https://hoarder.app/",
+	"docs": "https://docs.hoarder.app/",
+	"version": "0.22.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/hoarder",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "nextSecret",
+			"label": "Next secret",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "meiliMasterKey",
+			"label": "Meili master key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "web",
+			"dependsOn": [],
+			"env": {
+				"DISABLE_SIGNUPS": "",
+				"NEXTAUTH_URL": "http://${{ inputs.mainDomain }}",
+				"NEXTAUTH_SECRET": "${{ inputs.nextSecret }}",
+				"MEILI_ADDR": "http://${{ services.meilisearch.host }}:7700",
+				"BROWSER_WEB_URL": "http://${{ services.chrome.host }}:9222",
+				"DATA_DIR": "/data",
+				"MEILI_MASTER_KEY": "${{ inputs.meiliMasterKey }}"
+			},
+			"volumes": [
+				{
+					"name": "hoarder-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/hoarder-app/hoarder:0.22.0",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "chrome",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "gcr.io/zenika-hub/alpine-chrome:124",
+			"command": [
+				"--no-sandbox",
+				"--disable-gpu",
+				"--disable-dev-shm-usage",
+				"--remote-debugging-address=0.0.0.0",
+				"--remote-debugging-port=9222",
+				"--hide-scrollbars"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "meilisearch",
+			"dependsOn": [],
+			"env": {
+				"MEILI_MASTER_KEY": "${{ inputs.meiliMasterKey }}",
+				"MEILI_NO_ANALYTICS": "true"
+			},
+			"volumes": [
+				{
+					"name": "meilisearch-data",
+					"target": "/meili_data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "getmeili/meilisearch:v1.6",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:7700/health"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

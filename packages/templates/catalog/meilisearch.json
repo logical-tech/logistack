@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "meilisearch",
+	"name": "Meilisearch",
+	"description": "Meilisearch is a free and open-source search engine that allows you to easily add search functionality to your web applications.",
+	"category": "productivity",
+	"tags": [
+		"search",
+		"engine",
+		"fulltext",
+		"full",
+		"text",
+		"meilisearch"
+	],
+	"logo": "logos/meilisearch.png",
+	"website": "https://www.meilisearch.com/",
+	"docs": "https://docs.meilisearch.com/",
+	"version": "v1.35.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/meilisearch",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "masterKey",
+			"label": "Master key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "meilisearch",
+			"dependsOn": [],
+			"env": {
+				"MEILI_MASTER_KEY": "${{ inputs.masterKey }}"
+			},
+			"volumes": [
+				{
+					"name": "meili-data",
+					"target": "/meili_data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "getmeili/meilisearch:v1.35.1",
+			"ports": [],
+			"public": {
+				"port": 7700,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

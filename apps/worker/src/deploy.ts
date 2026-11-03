@@ -1,0 +1,453 @@
+import { appendFile, mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
+import type { DeploymentStatus, EventType } from "@logistack/contracts";
+import { type DeploymentEvent, isTerminal, transition } from "@logistack/core";
+import { deployment } from "@logistack/db";
+import { and, asc, eq, inArray, not } from "drizzle-orm";
+import {
+	desiredSpec,
+	inspectService,
+	type RolloutResult,
+	upsertService,
+	waitForRollout,
+} from "./apply.ts";
+import {
+	buildkitAddr,
+	buildPlan,
+	clone,
+	ensureBuildkit,
+	type LogLine,
+	loadImage,
+	pushImage,
+	run,
+} from "./build.ts";
+import { log } from "./bus.ts";
+import type { Ctx } from "./ctx.ts";
+import { imageRef, loadService, type ServiceContext, svcName } from "./load.ts";
+
+export type DeploymentRow = typeof deployment.$inferSelect;
+type Patch = Partial<
+	Pick<
+		DeploymentRow,
+		| "startedAt"
+		| "finishedAt"
+		| "error"
+		| "commitSha"
+		| "commitMessage"
+		| "imageRef"
+		| "logPath"
+		| "supersededBy"
+	>
+>;
+
+export type QueuePlan =
+	| { kind: "idle" }
+	| { kind: "resume"; deployment: DeploymentRow }
+	| { kind: "run"; deployment: DeploymentRow; supersede: DeploymentRow[] };
+
+/**
+ * Pure: what to do next with a service's non-terminal deployments. One in flight is resumed
+ * first (a running deployment is only ever cancelled explicitly); otherwise the newest queued
+ * one runs and every older queued one is superseded by it.
+ */
+export function planQueue(pending: readonly DeploymentRow[]): QueuePlan {
+	const live = pending.filter((d) => !isTerminal(d.status));
+	const inFlight = live.find((d) => d.status !== "queued");
+	if (inFlight) return { kind: "resume", deployment: inFlight };
+	const queued = live
+		.filter((d) => d.status === "queued")
+		.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+	const newest = queued.at(-1);
+	if (!newest) return { kind: "idle" };
+	return { kind: "run", deployment: newest, supersede: queued.slice(0, -1) };
+}
+
+/** The row moved under us (cancelled through the API, or another writer); stop without writing. */
+export class Interrupted extends Error {
+	override name = "Interrupted";
+}
+
+export type Steps = {
+	clone(): Promise<Patch>;
+	build(): Promise<Patch>;
+	push(): Promise<void>;
+	deploy(): Promise<RolloutResult>;
+};
+
+export type AbortReason = "cancel" | "shutdown";
+
+/**
+ * Drives one deployment through `core.transition`, one step result at a time. `advance`
+ * persists a transition and returns the new state. Aborting with "cancel" cancels a build;
+ * "shutdown" fails a build but leaves a rollout in `deploying` for the next worker to resume.
+ */
+export async function drive(o: {
+	status: DeploymentStatus;
+	source: "git" | "image";
+	push: boolean;
+	steps: Steps;
+	advance: (e: DeploymentEvent, patch?: Patch) => Promise<DeploymentStatus>;
+	signal: AbortSignal;
+	onState?: (s: DeploymentStatus) => void;
+}): Promise<DeploymentStatus> {
+	let state = o.status;
+	const go = async (e: DeploymentEvent, patch?: Patch) => {
+		state = await o.advance(e, patch);
+		o.onState?.(state);
+	};
+	try {
+		if (state === "queued") {
+			await go({ type: "start", source: o.source });
+			if (o.source === "git") {
+				await go({ type: "cloned" }, await o.steps.clone());
+				await go({ type: "built", push: o.push }, await o.steps.build());
+				if (o.push) {
+					await o.steps.push();
+					await go({ type: "pushed" });
+				}
+			}
+		}
+		if (state !== "deploying")
+			throw new Error(`interrupted: the worker stopped during ${state}`);
+		const result = await o.steps.deploy();
+		if (result.ok) await go({ type: "healthy" }, { finishedAt: new Date() });
+		else
+			await go(
+				{ type: "fail" },
+				{ error: result.error, finishedAt: new Date() },
+			);
+	} catch (e) {
+		if (e instanceof Interrupted) return state;
+		const reason = o.signal.aborted
+			? (o.signal.reason as AbortReason)
+			: undefined;
+		if (reason === "shutdown" && state === "deploying") return state;
+		const cancel = reason === "cancel" && state !== "deploying";
+		const error =
+			reason === "shutdown"
+				? "interrupted: the worker shut down"
+				: e instanceof Error
+					? e.message
+					: String(e);
+		try {
+			await go(cancel ? { type: "cancel" } : { type: "fail" }, {
+				finishedAt: new Date(),
+				...(cancel ? {} : { error }),
+			});
+		} catch (inner) {
+			if (!(inner instanceof Interrupted)) throw inner;
+		}
+	}
+	return state;
+}
+
+const eventFor: Partial<Record<DeploymentEvent["type"], EventType>> = {
+	start: "deployment.started",
+	healthy: "deployment.succeeded",
+	fail: "deployment.failed",
+	cancel: "deployment.cancelled",
+	// contracts has no deployment.superseded; the payload's status tells them apart.
+	supersede: "deployment.cancelled",
+};
+
+async function advance(
+	ctx: Ctx,
+	sc: ServiceContext,
+	d: { id: string; status: DeploymentStatus },
+	event: DeploymentEvent,
+	patch: Patch = {},
+): Promise<DeploymentStatus> {
+	const r = transition(d.status, event);
+	if (!r.ok)
+		throw new Error(
+			`deployment ${d.id}: illegal ${event.type} from ${d.status}`,
+		);
+	const rows = await ctx.db
+		.update(deployment)
+		.set({ status: r.state, ...patch })
+		.where(and(eq(deployment.id, d.id), eq(deployment.status, d.status)))
+		.returning({ id: deployment.id });
+	if (!rows.length) throw new Interrupted();
+	const from = d.status;
+	d.status = r.state;
+	const type = eventFor[event.type];
+	if (type)
+		await ctx.bus.publish(
+			type,
+			sc.organizationId,
+			{ type: "deployment", id: d.id },
+			{
+				serviceId: sc.service.id,
+				from,
+				status: r.state,
+				...(patch.error ? { error: patch.error } : {}),
+				...(patch.supersededBy ? { supersededBy: patch.supersededBy } : {}),
+			},
+		);
+	return r.state;
+}
+
+type Running = { controller: AbortController; state: DeploymentStatus };
+const running = new Map<string, Running>();
+
+/** Explicit cancel: aborts this deployment's child processes, only before Swarm owns the rollout. */
+export function cancelRunning(deploymentId: string): boolean {
+	const r = running.get(deploymentId);
+	if (!r || r.state === "deploying" || isTerminal(r.state)) return false;
+	r.controller.abort("cancel" satisfies AbortReason);
+	return true;
+}
+
+export function abortAll(reason: AbortReason) {
+	for (const r of running.values()) r.controller.abort(reason);
+}
+
+function deploymentLog(ctx: Ctx, id: string): { path: string; line: LogLine } {
+	const path = join(ctx.cfg.LS_WORK_DIR, "logs", `${id}.log`);
+	let chain = mkdir(join(ctx.cfg.LS_WORK_DIR, "logs"), {
+		recursive: true,
+	}).then(() => {});
+	// The api replays from Redis (it does not mount the worker's volume); seq needs one line at a time.
+	let published = Promise.resolve();
+	return {
+		path,
+		line: (text) => {
+			// Ordered appends without blocking the producer; a lost line must not fail a deploy.
+			chain = chain.then(() => appendFile(path, `${text}\n`)).catch(() => {});
+			published = published
+				.then(() => ctx.bus.publishLog(id, text))
+				.catch(() => {});
+		},
+	};
+}
+
+async function runDeployment(
+	ctx: Ctx,
+	sc: ServiceContext,
+	d: DeploymentRow,
+): Promise<DeploymentStatus> {
+	const controller = new AbortController();
+	const entry: Running = { controller, state: d.status };
+	running.set(d.id, entry);
+	const signal = controller.signal;
+	const { path, line } = deploymentLog(ctx, d.id);
+	const spec = sc.service.spec;
+	// Queued with an image already (rollback, restart): reuse it instead of building.
+	const source =
+		spec.kind === "application" && spec.source.type === "git" && !d.imageRef
+			? "git"
+			: "image";
+	const push = sc.registry !== null;
+	const ref =
+		d.imageRef ??
+		(spec.kind === "application" && spec.source.type === "image"
+			? spec.source.image
+			: imageRef(ctx, sc, d.id));
+	let checkout: string | undefined;
+	const state = { id: d.id, status: d.status };
+
+	const steps: Steps = {
+		async clone() {
+			if (spec.kind !== "application" || spec.source.type !== "git")
+				throw new Error("not a git source");
+			line(`==> cloning ${spec.source.repository}#${spec.source.branch}`);
+			const c = await clone(ctx, spec.source, {
+				deploymentId: d.id,
+				...(sc.git ? { auth: sc.git } : {}),
+				log: line,
+				signal,
+			});
+			checkout = c.dir;
+			line(`==> commit ${c.commitSha} ${c.commitMessage}`);
+			return { commitSha: c.commitSha, commitMessage: c.commitMessage };
+		},
+		async build() {
+			if (
+				spec.kind !== "application" ||
+				spec.source.type !== "git" ||
+				!checkout
+			)
+				throw new Error("nothing to build");
+			if (!push && (await ctx.docker.nodes.list()).length > 1)
+				throw new Error(
+					"a multi-node swarm needs a registry: configure one before building",
+				);
+			line(`==> building ${ref} (${spec.build.type})`);
+			await ensureBuildkit(ctx);
+			const plan = buildPlan({
+				dir: checkout,
+				appPath: spec.source.path,
+				build: spec.build,
+				buildEnv: Object.entries(sc.env)
+					.filter(([, v]) => v.isBuildTime)
+					.map(([key, v]) => ({ key, value: v.value, isSecret: v.isSecret })),
+				imageRef: ref,
+				railpackFrontend: ctx.cfg.LS_RAILPACK_FRONTEND,
+			});
+			try {
+				if (plan.prepare)
+					await run([...ctx.cfg.LS_RAILPACK, ...plan.prepare], {
+						log: line,
+						signal,
+					});
+				await run(
+					[...ctx.cfg.LS_BUILDCTL, "--addr", buildkitAddr(ctx), ...plan.args],
+					{
+						log: line,
+						signal,
+						env: plan.env,
+						stdout: (tar) => loadImage(ctx, tar, line, signal),
+					},
+				);
+			} finally {
+				await rm(checkout, { recursive: true, force: true });
+			}
+			return { imageRef: ref };
+		},
+		async push() {
+			line(`==> pushing ${ref}`);
+			await pushImage(ctx, ref, sc.registry?.auth, line, signal);
+		},
+		async deploy() {
+			line(`==> deploying ${ref}`);
+			const target = { id: d.id, imageRef: ref };
+			const name = svcName(ctx, sc.service.id);
+			const current = await inspectService(ctx, name);
+			const label = (s?: {
+				TaskTemplate: { ContainerSpec: { Labels?: Record<string, string> } };
+			}) => s?.TaskTemplate.ContainerSpec.Labels?.["logistack.deployment"];
+			const timeoutMs = ctx.cfg.LS_DEPLOY_TIMEOUT_MS;
+			// Resuming: our spec is already applied, or Swarm already rolled it back.
+			if (current && label(current.Spec) === d.id)
+				return waitForRollout(
+					ctx,
+					name,
+					{ created: false, before: undefined },
+					{
+						timeoutMs,
+						signal,
+						deploymentId: d.id,
+					},
+				);
+			if (
+				current &&
+				label(current.PreviousSpec) === d.id &&
+				current.UpdateStatus?.State.startsWith("rollback")
+			)
+				return {
+					ok: false,
+					error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
+					rolledBack: true,
+				};
+			const applied = await upsertService(
+				ctx,
+				sc.registry?.auth,
+				await desiredSpec(ctx, sc, target),
+			);
+			const result = await waitForRollout(ctx, name, applied, {
+				timeoutMs,
+				signal,
+				deploymentId: d.id,
+			});
+			line(result.ok ? "==> healthy" : `==> failed: ${result.error}`);
+			return result;
+		},
+	};
+
+	try {
+		return await drive({
+			status: d.status,
+			source,
+			push,
+			steps,
+			signal,
+			onState: (s) => {
+				entry.state = s;
+			},
+			advance: (event, patch = {}) =>
+				advance(ctx, sc, state, event, {
+					...patch,
+					...(event.type === "start"
+						? {
+								startedAt: new Date(),
+								logPath: path,
+								...(source === "image" ? { imageRef: ref } : {}),
+							}
+						: {}),
+				}),
+		});
+	} finally {
+		running.delete(d.id);
+	}
+}
+
+/** A service that cannot be loaded (unsupported kind, undecryptable secret) fails its pending deployments. */
+async function failAll(ctx: Ctx, pending: DeploymentRow[], error: string) {
+	for (const d of pending) {
+		const r = transition(d.status, { type: "fail" });
+		if (!r.ok) continue;
+		await ctx.db
+			.update(deployment)
+			.set({ status: r.state, error, finishedAt: new Date() })
+			.where(and(eq(deployment.id, d.id), eq(deployment.status, d.status)));
+	}
+	log("error", "service cannot be deployed", { error, count: pending.length });
+}
+
+const terminal: DeploymentStatus[] = [
+	"healthy",
+	"failed",
+	"cancelled",
+	"superseded",
+];
+
+/** The `deploy` job: drains a service's deployments one at a time until none is pending. */
+export async function processService(
+	ctx: Ctx,
+	serviceId: string,
+): Promise<void> {
+	for (;;) {
+		const pending = await ctx.db
+			.select()
+			.from(deployment)
+			.where(
+				and(
+					eq(deployment.serviceId, serviceId),
+					not(inArray(deployment.status, terminal)),
+				),
+			)
+			.orderBy(asc(deployment.createdAt));
+		const plan = planQueue(pending);
+		if (plan.kind === "idle") return;
+		let sc: ServiceContext | null;
+		try {
+			sc = await loadService(ctx, serviceId);
+		} catch (e) {
+			await failAll(ctx, pending, e instanceof Error ? e.message : String(e));
+			return;
+		}
+		if (!sc) return; // deleted: cascades removed its deployments
+		if (plan.kind === "run")
+			for (const old of plan.supersede)
+				await advance(
+					ctx,
+					sc,
+					old,
+					{ type: "supersede" },
+					{
+						supersededBy: plan.deployment.id,
+						finishedAt: new Date(),
+					},
+				).catch((e) => {
+					if (!(e instanceof Interrupted)) throw e;
+				});
+		const final = await runDeployment(ctx, sc, plan.deployment);
+		log("info", "deployment finished", {
+			deploymentId: plan.deployment.id,
+			serviceId,
+			status: final,
+		});
+		// Left in deploying by a shutdown: the next worker resumes it.
+		if (!isTerminal(final)) return;
+	}
+}

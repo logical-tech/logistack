@@ -1,0 +1,103 @@
+{
+	"schema": 1,
+	"id": "crawlab-master",
+	"name": "Crawlab (Master)",
+	"description": "Crawlab is a distributed web crawler admin platform supporting multiple programming languages and frameworks. This template deploys the master node with MongoDB.",
+	"category": "other",
+	"tags": [
+		"crawler",
+		"scraping",
+		"distributed",
+		"self-hosted"
+	],
+	"logo": "logos/crawlab-master.jpg",
+	"website": "https://crawlab.cn/",
+	"docs": "https://docs.crawlab.cn/",
+	"version": "sha256:a0f72ac7325a",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/crawlab-master",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mongoPassword",
+			"label": "Mongo password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "crawlabMasterDomain",
+			"label": "Crawlab master domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "crawlab-master",
+			"dependsOn": [
+				"mongo"
+			],
+			"env": {
+				"CRAWLAB_NODE_MASTER": "Y",
+				"CRAWLAB_MONGO_HOST": "${{ services.mongo.host }}",
+				"CRAWLAB_MONGO_PORT": "27017",
+				"CRAWLAB_MONGO_DB": "crawlab",
+				"CRAWLAB_MONGO_USERNAME": "crawlab",
+				"CRAWLAB_MONGO_PASSWORD": "${{ inputs.mongoPassword }}",
+				"CRAWLAB_MONGO_AUTHSOURCE": "admin"
+			},
+			"volumes": [
+				{
+					"name": "crawlab-master-data",
+					"target": "/root/.crawlab"
+				},
+				{
+					"name": "crawlab-app-data",
+					"target": "/data"
+				},
+				{
+					"name": "crawlab-logs",
+					"target": "/var/log/crawlab"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "crawlabteam/crawlab@sha256:a0f72ac7325ad97dd9452f56871b0c0bc90225021abbd7857f447fc14fd68abb",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				},
+				{
+					"target": 9666,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "crawlabMasterDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mongo",
+			"dependsOn": [],
+			"env": {
+				"MONGO_INITDB_ROOT_USERNAME": "crawlab",
+				"MONGO_INITDB_ROOT_PASSWORD": "${{ inputs.mongoPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "mongo-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mongo",
+			"version": "4.2"
+		}
+	]
+}

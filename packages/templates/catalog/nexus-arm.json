@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "nexus-arm",
+	"name": "Nexus Arm",
+	"description": "Open source Universal Repository Manager (ARM version, community edition), default credentials: admin/admin123",
+	"category": "devtools",
+	"tags": [
+		"repository",
+		"manager",
+		"open source",
+		"docker",
+		"registry",
+		"container"
+	],
+	"logo": "logos/nexus-arm.png",
+	"docs": "https://help.sonatype.com/en/sonatype-nexus-repository.html",
+	"version": "sha256:b5750d65108b",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/nexus-arm.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "nexusDomain",
+			"label": "Nexus domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "nexus",
+			"dependsOn": [],
+			"env": {
+				"NEXUS_SECURITY_RANDOMPASSWORD": "false",
+				"INSTALL4J_ADD_VM_PARAMS": "-Xms2703m -Xmx2703m -XX:MaxDirectMemorySize=2703m -Djava.util.prefs.userRoot=/nexus-data/javaprefs"
+			},
+			"volumes": [
+				{
+					"name": "nexus-data",
+					"target": "/nexus-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "sonatypecommunity/nexus3@sha256:b5750d65108b79754297221a29af0a5e68e40debcae29d6b3e477b2f0acea6d8",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:8081/service/rest/v1/status"
+				]
+			},
+			"public": {
+				"port": 8081,
+				"domain": "nexusDomain"
+			}
+		}
+	]
+}

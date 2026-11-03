@@ -1,0 +1,263 @@
+{
+	"dns": {
+		"cloudflare": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"apiToken": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["apiToken"]
+		},
+		"route53": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"accessKeyId": {
+					"type": "string",
+					"minLength": 1
+				},
+				"secretAccessKey": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				},
+				"region": {
+					"default": "us-east-1",
+					"type": "string",
+					"minLength": 1
+				}
+			},
+			"required": ["accessKeyId", "secretAccessKey"]
+		},
+		"hetzner": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"apiToken": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["apiToken"]
+		}
+	},
+	"notify": {
+		"email": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"transport": {
+							"type": "string",
+							"const": "smtp"
+						},
+						"host": {
+							"type": "string",
+							"minLength": 1
+						},
+						"port": {
+							"default": 587,
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 65535
+						},
+						"secure": {
+							"default": false,
+							"type": "boolean"
+						},
+						"username": {
+							"type": "string"
+						},
+						"password": {
+							"type": "string",
+							"minLength": 1,
+							"secret": true
+						},
+						"from": {
+							"type": "string",
+							"minLength": 3
+						},
+						"to": {
+							"minItems": 1,
+							"type": "array",
+							"items": {
+								"type": "string",
+								"format": "email",
+								"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+							}
+						}
+					},
+					"required": ["transport", "host", "from", "to"]
+				},
+				{
+					"type": "object",
+					"properties": {
+						"transport": {
+							"type": "string",
+							"const": "resend"
+						},
+						"apiKey": {
+							"type": "string",
+							"minLength": 1,
+							"secret": true
+						},
+						"from": {
+							"type": "string",
+							"minLength": 3
+						},
+						"to": {
+							"minItems": 1,
+							"type": "array",
+							"items": {
+								"type": "string",
+								"format": "email",
+								"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+							}
+						}
+					},
+					"required": ["transport", "apiKey", "from", "to"]
+				}
+			]
+		},
+		"slack": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"webhookUrl": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["webhookUrl"]
+		},
+		"discord": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"webhookUrl": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["webhookUrl"]
+		},
+		"telegram": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"botToken": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				},
+				"chatId": {
+					"type": "string",
+					"minLength": 1
+				}
+			},
+			"required": ["botToken", "chatId"]
+		},
+		"teams": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"webhookUrl": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["webhookUrl"]
+		},
+		"mattermost": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"webhookUrl": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["webhookUrl"]
+		},
+		"ntfy": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"serverUrl": {
+					"default": "https://ntfy.sh",
+					"type": "string",
+					"format": "uri"
+				},
+				"topic": {
+					"type": "string",
+					"pattern": "^[\\w-]{1,64}$"
+				},
+				"token": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["topic"]
+		},
+		"gotify": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"serverUrl": {
+					"type": "string",
+					"format": "uri"
+				},
+				"appToken": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["serverUrl", "appToken"]
+		},
+		"pushover": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"appToken": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				},
+				"userKey": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["appToken", "userKey"]
+		},
+		"webhook": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"url": {
+					"type": "string",
+					"format": "uri"
+				},
+				"secret": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["url", "secret"]
+		}
+	}
+}

@@ -1,0 +1,85 @@
+{
+	"schema": 1,
+	"id": "easyappointments",
+	"name": "Easy!Appointments",
+	"description": "Easy!Appointments is a highly customizable web application that allows customers to book appointments with you via a sophisticated web interface.",
+	"category": "productivity",
+	"tags": [
+		"scheduling",
+		"appointments",
+		"booking",
+		"calendar",
+		"database"
+	],
+	"logo": "logos/easyappointments.png",
+	"website": "https://easyappointments.org/",
+	"docs": "https://easyappointments.org/docs",
+	"version": "1.5.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/easyappointments",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "easyappointments",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"BASE_URL": "http://${{ inputs.mainDomain }}",
+				"DB_HOST": "${{ services.mysql.host }}",
+				"DB_NAME": "easyappointments",
+				"DB_USERNAME": "root",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "easyappointments",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "alextselegidis/easyappointments:1.5.0",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_DATABASE": "easyappointments"
+			},
+			"volumes": [
+				{
+					"name": "mysql",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "8.0"
+		}
+	]
+}

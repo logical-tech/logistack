@@ -1,0 +1,78 @@
+{
+	"schema": 1,
+	"id": "celld",
+	"name": "Celld",
+	"description": "Self-hosted, distributed Durable Objects powered by Deno.",
+	"category": "devtools",
+	"tags": [
+		"deno",
+		"durable-objects",
+		"workers",
+		"sqlite",
+		"distributed",
+		"backend",
+		"serverless"
+	],
+	"docs": "https://celld.dev/docs",
+	"version": "sha256:22bca1b40a9e",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/celld.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "celldDomain",
+			"label": "Celld domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "celldBucket",
+			"label": "Celld bucket",
+			"type": "text"
+		},
+		{
+			"key": "awsAccessKeyId",
+			"label": "AWS access key ID",
+			"type": "text"
+		},
+		{
+			"key": "awsSecretAccessKey",
+			"label": "AWS secret access key",
+			"type": "text"
+		}
+	],
+	"services": [
+		{
+			"name": "celld",
+			"dependsOn": [],
+			"env": {
+				"CELLD_BUCKET": "${{ inputs.celldBucket }}",
+				"S3_ENDPOINT": "",
+				"AWS_REGION": "us-east-1",
+				"AWS_ACCESS_KEY_ID": "${{ inputs.awsAccessKeyId }}",
+				"AWS_SECRET_ACCESS_KEY": "${{ inputs.awsSecretAccessKey }}",
+				"AWS_SESSION_TOKEN": "",
+				"CELLD_ADDR": "0.0.0.0:8080",
+				"CELLD_ADVERTISE": "${{ services.celld.host }}:8080",
+				"CELLD_WATCH": "/var/lib/celld/state",
+				"RUST_LOG": "info"
+			},
+			"volumes": [
+				{
+					"name": "celld-data",
+					"target": "/var/lib/celld"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/denoland/celld@sha256:22bca1b40a9e4c434cc149d8913d7eaafa9792961a8c05f9fecf921d416216dc",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "celldDomain"
+			}
+		}
+	]
+}

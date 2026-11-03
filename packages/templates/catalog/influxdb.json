@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "influxdb",
+	"name": "InfluxDB",
+	"description": "InfluxDB 2.7 is the platform purpose-built to collect, store, process and visualize time series data.",
+	"category": "storage",
+	"tags": [
+		"self-hosted",
+		"open-source",
+		"storage",
+		"database",
+		"influxdb",
+		"time series",
+		"metrics",
+		"iot",
+		"monitoring",
+		"telegraf"
+	],
+	"logo": "logos/influxdb.png",
+	"website": "https://www.influxdata.com/",
+	"docs": "https://docs.influxdata.com/influxdb/v2/",
+	"version": "2.7.10",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/influxdb",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "influxdb",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "influxdb2-data",
+					"target": "/var/lib/influxdb2"
+				},
+				{
+					"name": "influxdb2-config",
+					"target": "/etc/influxdb2"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "influxdb:2.7.10",
+			"ports": [],
+			"public": {
+				"port": 8086,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

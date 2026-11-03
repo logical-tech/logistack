@@ -1,0 +1,96 @@
+{
+	"schema": 1,
+	"id": "cap-captcha",
+	"name": "Cap Captcha",
+	"description": "The self-hosted CAPTCHA for the modern web.",
+	"category": "security",
+	"tags": [
+		"captcha",
+		"security",
+		"privacy",
+		"proof-of-work"
+	],
+	"logo": "logos/cap-captcha.png",
+	"docs": "https://capjs.js.org/guide/",
+	"version": "3.0.4",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/cap-captcha.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "capDomain",
+			"label": "Cap domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "cap",
+			"dependsOn": [
+				"valkey"
+			],
+			"env": {
+				"ADMIN_KEY": "${{ inputs.adminPassword }}",
+				"REDIS_URL": "redis://${{ services.valkey.host }}:6379"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "tiago2/cap:3.0.4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"bun",
+					"-e",
+					"fetch('http://localhost:3000').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "capDomain"
+			}
+		},
+		{
+			"name": "valkey",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "valkey-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "valkey/valkey:9-alpine",
+			"command": [
+				"valkey-server",
+				"--save",
+				"60",
+				"1",
+				"--loglevel",
+				"warning",
+				"--maxmemory-policy",
+				"noeviction"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"valkey-cli",
+					"ping"
+				]
+			}
+		}
+	]
+}

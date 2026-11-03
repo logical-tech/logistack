@@ -1,0 +1,91 @@
+{
+	"schema": 1,
+	"id": "maybe",
+	"name": "Maybe",
+	"description": "Maybe is a self-hosted finance tracking application designed to simplify budgeting and expenses.",
+	"category": "finance",
+	"tags": [
+		"finance",
+		"self-hosted"
+	],
+	"logo": "logos/maybe.svg",
+	"website": "https://maybe.finance/",
+	"docs": "https://github.com/maybe-finance/maybe/blob/main/docs/hosting/docker.md",
+	"version": "sha-68c570eed8810fd59b5b33cca51bbad5eabb4cb4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/maybe",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "secretKeyBase",
+			"label": "Secret key base",
+			"type": "base64",
+			"bytes": 64
+		},
+		{
+			"key": "synthApiKey",
+			"label": "Synth API key",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "app",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DATABASE_URL": "postgresql://maybe:maybe@${{ services.db.host }}:5432/maybe",
+				"SECRET_KEY_BASE": "${{ inputs.secretKeyBase }}",
+				"SELF_HOSTED": "true",
+				"SYNTH_API_KEY": "${{ inputs.synthApiKey }}",
+				"RAILS_FORCE_SSL": "false",
+				"RAILS_ASSUME_SSL": "false",
+				"GOOD_JOB_EXECUTION_MODE": "async"
+			},
+			"volumes": [],
+			"files": [
+				{
+					"target": "/app/uploads",
+					"content": "This is where user uploads will be stored"
+				}
+			],
+			"kind": "application",
+			"image": "ghcr.io/maybe-finance/maybe:sha-68c570eed8810fd59b5b33cca51bbad5eabb4cb4",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "maybe",
+				"POSTGRES_USER": "maybe",
+				"POSTGRES_PASSWORD": "maybe"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		}
+	]
+}

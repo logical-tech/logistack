@@ -1,0 +1,54 @@
+{
+	"schema": 1,
+	"id": "anytype",
+	"name": "Anytype",
+	"description": "Anytype is a private, offline-first app for notes and personal knowledge.",
+	"category": "other",
+	"tags": [
+		"note-taking",
+		"local-first",
+		"peer-to-peer"
+	],
+	"website": "https://anytype.io/",
+	"docs": "https://doc.anytype.io/anytype-docs",
+	"version": "sha256:8c0a00d7ecf7",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/anytype",
+		"license": "MIT"
+	},
+	"inputs": [],
+	"services": [
+		{
+			"name": "any-sync-bundle",
+			"dependsOn": [],
+			"env": {
+				"ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS": "192.168.100.9"
+			},
+			"volumes": [
+				{
+					"name": "files-anytype-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/grishy/any-sync-bundle@sha256:8c0a00d7ecf78ccc636743ed83153c593792238f49a37bf6cf7b9b5c1ea557db",
+			"ports": [
+				{
+					"target": 33010,
+					"published": 33010,
+					"protocol": "tcp",
+					"mode": "host"
+				},
+				{
+					"target": 33020,
+					"published": 33020,
+					"protocol": "udp",
+					"mode": "host"
+				}
+			],
+			"restart": "any"
+		}
+	]
+}

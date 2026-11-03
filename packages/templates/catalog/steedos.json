@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "steedos",
+	"name": "Steedos",
+	"description": "Steedos is an open-source low-code platform and alternative to Salesforce, designed to help you build enterprise applications like CRM with clicks, not code.",
+	"category": "other",
+	"tags": [
+		"crm",
+		"low-code"
+	],
+	"logo": "logos/steedos.png",
+	"website": "https://www.steedos.com/",
+	"docs": "https://docs.steedos.com/",
+	"version": "3.0.14",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/steedos",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "steedos",
+			"dependsOn": [],
+			"env": {
+				"ROOT_URL": "http://${{ inputs.mainDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "steedos-data",
+					"target": "/steedos-storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "steedos/steedos-community:3.0.14",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

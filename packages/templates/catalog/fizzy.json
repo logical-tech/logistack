@@ -1,0 +1,98 @@
+{
+	"schema": 1,
+	"id": "fizzy",
+	"name": "Fizzy",
+	"description": "Kanban tracking tool for issues and ideas by 37signals",
+	"category": "productivity",
+	"tags": [
+		"kanban",
+		"project management",
+		"issues",
+		"rails",
+		"ruby",
+		"basecamp",
+		"37signals"
+	],
+	"docs": "https://github.com/basecamp/fizzy",
+	"version": "sha256:a4616360b21a",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/fizzy.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "fizzyDomain",
+			"label": "Fizzy domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "fizzyPassword",
+			"label": "Fizzy password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "masterkeyPassword",
+			"label": "Masterkey password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "vapidPrivateKey",
+			"label": "Vapid private key",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "vapidPublicKey",
+			"label": "Vapid public key",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "fizzy",
+			"dependsOn": [],
+			"env": {
+				"SECRET_KEY_BASE": "${{ inputs.fizzyPassword }}",
+				"RAILS_MASTER_KEY": "${{ inputs.masterkeyPassword }}",
+				"RAILS_ENV": "production",
+				"RAILS_LOG_TO_STDOUT": "true",
+				"RAILS_SERVE_STATIC_FILES": "true",
+				"DATABASE_ADAPTER": "sqlite",
+				"SOLID_QUEUE_CONNECTS_TO": "false",
+				"VAPID_PRIVATE_KEY": "${{ inputs.vapidPrivateKey }}",
+				"VAPID_PUBLIC_KEY": "${{ inputs.vapidPublicKey }}"
+			},
+			"volumes": [
+				{
+					"name": "fizzy-data",
+					"target": "/rails/db"
+				},
+				{
+					"name": "fizzy-storage",
+					"target": "/rails/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/basecamp/fizzy@sha256:a4616360b21aeb3b0f50f694518961bbea4051de6ca4dd1e28d391dd84f94a9a",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:80/up"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "fizzyDomain"
+			}
+		}
+	]
+}

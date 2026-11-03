@@ -1,0 +1,94 @@
+{
+	"schema": 1,
+	"id": "9router",
+	"name": "9router",
+	"description": "Free AI coding gateway. Routes Claude Code, Codex, Cursor, Cline, Copilot requests to 40+ LLM providers with auto-fallback and token savings.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"gateway",
+		"routing",
+		"coding",
+		"llm",
+		"providers",
+		"proxy",
+		"developer-tools"
+	],
+	"logo": "logos/9router.svg",
+	"website": "https://9router.com/",
+	"docs": "https://github.com/decolua/9router",
+	"version": "0.5.65",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/9router.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "v9routerDomain",
+			"label": "9router domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "passwordPassword",
+			"label": "Password password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtsecretPassword",
+			"label": "Jwtsecret password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "keysecretPassword",
+			"label": "Keysecret password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "hmacsaltHex",
+			"label": "Hmacsalt key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		}
+	],
+	"services": [
+		{
+			"name": "9router",
+			"dependsOn": [],
+			"env": {
+				"DATA_DIR": "/app/data",
+				"INITIAL_PASSWORD": "${{ inputs.passwordPassword }}",
+				"JWT_SECRET": "${{ inputs.jwtsecretPassword }}",
+				"API_KEY_SECRET": "${{ inputs.keysecretPassword }}",
+				"MACHINE_ID_SALT": "${{ inputs.hmacsaltHex }}"
+			},
+			"volumes": [
+				{
+					"name": "9router",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "decolua/9router:0.5.65",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--spider",
+					"http://127.0.0.1:20128/"
+				]
+			},
+			"public": {
+				"port": 20128,
+				"domain": "v9routerDomain"
+			}
+		}
+	]
+}

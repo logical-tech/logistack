@@ -1,0 +1,188 @@
+{
+	"schema": 1,
+	"id": "flowise-with-databases",
+	"name": "Flowise With Databases",
+	"description": "Flowise is an open source low-code tool for developers to build customized LLM orchestration flows & AI agents. Also deploys Redis, Postgres and other services.",
+	"category": "ai",
+	"tags": [
+		"lowcode",
+		"nocode",
+		"ai",
+		"llm",
+		"openai",
+		"anthropic",
+		"machine-learning",
+		"rag",
+		"agents",
+		"chatbot",
+		"api",
+		"team",
+		"bot",
+		"flows"
+	],
+	"logo": "logos/flowise-with-databases.png",
+	"docs": "https://docs.flowiseai.com/",
+	"version": "sha256:cf880b17b129",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/flowise-with-databases.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "flowiseDomain",
+			"label": "Flowise domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "qdrantDomain",
+			"label": "Qdrant domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "flowiseUser",
+			"label": "Flowise user",
+			"type": "username"
+		},
+		{
+			"key": "flowisePassword",
+			"label": "Flowise password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "qdrantapikeyPassword",
+			"label": "Qdrantapikey password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "flowise",
+			"dependsOn": [
+				"pg-record-manager",
+				"redis-cache",
+				"qdrant"
+			],
+			"env": {
+				"DEBUG": "false",
+				"DISABLE_FLOWISE_TELEMETRY": "true",
+				"PORT": "3001",
+				"DATABASE_PATH": "/root/.flowise",
+				"APIKEY_PATH": "/root/.flowise",
+				"SECRETKEY_PATH": "/root/.flowise",
+				"LOG_PATH": "/root/.flowise/logs",
+				"BLOB_STORAGE_PATH": "/root/.flowise/storage",
+				"FLOWISE_USERNAME": "${{ inputs.flowiseUser }}",
+				"FLOWISE_PASSWORD": "${{ inputs.flowisePassword }}"
+			},
+			"volumes": [
+				{
+					"name": "flowise-data",
+					"target": "/root/.flowise"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "flowiseai/flowise@sha256:cf880b17b1290fbaebebc76c33954bde67b3775aff95feec72a1d060cc81e43d",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget -qO- http://127.0.0.1:3001 || exit 1"
+				]
+			},
+			"public": {
+				"port": 3001,
+				"domain": "flowiseDomain"
+			}
+		},
+		{
+			"name": "pg-record-manager",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "pg-record-manager"
+			},
+			"volumes": [
+				{
+					"name": "pg-record-manager-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		},
+		{
+			"name": "redis-cache",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "flowise-redis-cache-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"redis-cli -h localhost -p 6379 ping"
+				]
+			}
+		},
+		{
+			"name": "qdrant",
+			"dependsOn": [],
+			"env": {
+				"QDRANT__SERVICE__API_KEY": "${{ inputs.qdrantapikeyPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "flowise-qdrant-data",
+					"target": "/qdrant/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "qdrant/qdrant@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"
+				]
+			},
+			"public": {
+				"port": 6333,
+				"domain": "qdrantDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,86 @@
+{
+	"schema": 1,
+	"id": "snapp",
+	"name": "Snapp",
+	"description": "Snapp is a self-hosted screenshot sharing service with user management and authentication.",
+	"category": "security",
+	"tags": [
+		"screenshot",
+		"sharing",
+		"self-hosted",
+		"authentication"
+	],
+	"logo": "logos/snapp.png",
+	"website": "https://github.com/UraniaDev/snapp",
+	"docs": "https://github.com/UraniaDev/snapp",
+	"version": "0.9-rc-020",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/snapp",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "tokenSecret",
+			"label": "Token secret",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "snapp",
+			"dependsOn": [],
+			"env": {
+				"DATABASE_URL": "file:./db.sqlite",
+				"DATABASE_PROVIDER": "sqlite",
+				"TOKEN_SECRET": "${{ inputs.tokenSecret }}",
+				"ORIGIN": "http://${{ inputs.mainDomain }}",
+				"DISABLED_EMAIL_AND_PASSWORD": "false",
+				"LOG_LEVEL": "debug",
+				"PORT": "3000",
+				"ADMIN_USERNAME": "admin",
+				"ADMIN_EMAIL": "info@example.org",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"ENABLE_SIGNUP": "true",
+				"ENABLED_MFA": "false",
+				"PUBLIC_URL": "${{ inputs.mainDomain }}",
+				"APPNAME": "Snapp",
+				"PUBLIC_EXTRA_GROUPS_EDITABLE": "true",
+				"URLS_VIA_GROUPS_ONLY": "false",
+				"HOST": "0.0.0.0"
+			},
+			"volumes": [
+				{
+					"name": "files-snapp-db",
+					"target": "/app/db.sqlite"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "uraniadev/snapp:0.9-rc-020",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

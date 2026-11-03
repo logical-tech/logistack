@@ -1,0 +1,100 @@
+{
+	"schema": 1,
+	"id": "cockpit",
+	"name": "Cockpit",
+	"description": "Cockpit is a headless content platform designed to streamline the creation, connection, and delivery of content for creators, marketers, and developers. It is built with an API-first approach, enabling limitless digital solutions.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"content-management",
+		"api",
+		"cockpit",
+		"headless",
+		"database",
+		"nosql"
+	],
+	"logo": "logos/cockpit.png",
+	"website": "https://getcockpit.com/",
+	"docs": "https://getcockpit.com/documentation",
+	"version": "core-2.11.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/cockpit",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "salt",
+			"label": "Salt",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mongoPassword",
+			"label": "Mongo password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "cockpitDomain",
+			"label": "Cockpit domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "cockpit",
+			"dependsOn": [
+				"mongo"
+			],
+			"env": {
+				"COCKPIT_SESSION_NAME": "cockpit",
+				"COCKPIT_SALT": "${{ inputs.salt }}",
+				"COCKPIT_DATABASE_SERVER": "mongodb://mongo:${{ inputs.mongoPassword }}@${{ services.mongo.host }}:27017",
+				"COCKPIT_DATABASE_NAME": "cockpit"
+			},
+			"volumes": [
+				{
+					"name": "config",
+					"target": "/var/www/html/config"
+				},
+				{
+					"name": "storage",
+					"target": "/var/www/html/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "cockpithq/cockpit:core-2.11.0",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "cockpitDomain"
+			}
+		},
+		{
+			"name": "mongo",
+			"dependsOn": [],
+			"env": {
+				"MONGO_INITDB_ROOT_PASSWORD": "${{ inputs.mongoPassword }}",
+				"MONGO_INITDB_ROOT_USERNAME": "mongo"
+			},
+			"volumes": [
+				{
+					"name": "mongo-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mongo",
+			"version": "4"
+		}
+	]
+}

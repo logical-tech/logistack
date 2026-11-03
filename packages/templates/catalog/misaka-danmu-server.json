@@ -1,0 +1,100 @@
+{
+	"schema": 1,
+	"id": "misaka-danmu-server",
+	"name": "Misaka Danmu Server",
+	"description": "A self-hosted danmaku (bullet comments) server for live streaming and video platforms.",
+	"category": "media",
+	"tags": [
+		"streaming",
+		"danmaku",
+		"live"
+	],
+	"logo": "logos/misaka-danmu-server.png",
+	"website": "https://github.com/l429609201/misaka_danmu_server",
+	"docs": "https://github.com/l429609201/misaka_danmu_server#readme",
+	"version": "sha256:aa0e82d4b905",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/misaka-danmu-server",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_USER": "danmuapi",
+				"POSTGRES_DB": "danmuapi",
+				"TZ": "Asia/Shanghai"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U danmuapi -d danmuapi"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "danmu-app",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"UMASK": "0022",
+				"TZ": "Asia/Shanghai",
+				"DANMUAPI_DATABASE__TYPE": "postgresql",
+				"DANMUAPI_DATABASE__HOST": "${{ services.postgres.host }}",
+				"DANMUAPI_DATABASE__PORT": "5432",
+				"DANMUAPI_DATABASE__NAME": "danmuapi",
+				"DANMUAPI_DATABASE__USER": "danmuapi",
+				"DANMUAPI_DATABASE__PASSWORD": "${{ inputs.dbPassword }}",
+				"DANMUAPI_ADMIN__INITIAL_USER": "admin"
+			},
+			"volumes": [
+				{
+					"name": "danmu-config",
+					"target": "/app/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "l429609201/misaka_danmu_server@sha256:aa0e82d4b905da9b485f3e2cf05c96ab4ad2ddf9312b31e7bbb50da0c09574db",
+			"ports": [],
+			"public": {
+				"port": 7768,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

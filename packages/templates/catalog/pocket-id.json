@@ -1,0 +1,82 @@
+{
+	"schema": 1,
+	"id": "pocket-id",
+	"name": "Pocket ID",
+	"description": "Pocket ID is a simple OpenID Connect and OAuth 2.0 provider that lets users authenticate to applications with passkeys.",
+	"category": "security",
+	"tags": [
+		"authentication",
+		"identity",
+		"sso",
+		"oidc",
+		"oauth2",
+		"passkeys",
+		"security",
+		"self-hosted",
+		"oauth",
+		"passkey",
+		"webauthn",
+		"openid"
+	],
+	"logo": "logos/pocket-id.svg",
+	"website": "https://pocket-id.org/",
+	"docs": "https://pocket-id.org/docs/",
+	"version": "2.14.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/pocket-id",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "encryptionKey",
+			"label": "Encryption key",
+			"type": "base64",
+			"bytes": 32
+		}
+	],
+	"services": [
+		{
+			"name": "pocket-id",
+			"dependsOn": [],
+			"env": {
+				"APP_URL": "https://${{ inputs.mainDomain }}",
+				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
+				"TRUST_PROXY": "true"
+			},
+			"volumes": [
+				{
+					"name": "pocket-id-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "pocketid/pocket-id:v2.14.0",
+			"ports": [
+				{
+					"target": 1411,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/app/pocket-id",
+					"healthcheck"
+				]
+			},
+			"public": {
+				"port": 1411,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

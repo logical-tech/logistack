@@ -1,0 +1,65 @@
+{
+	"schema": 1,
+	"id": "homebridge",
+	"name": "Homebridge",
+	"description": "Homebridge is a tool that brings Apple HomeKit support to smart home devices that don't support it natively.",
+	"category": "other",
+	"tags": [
+		"iot",
+		"homekit",
+		"internet-of-things",
+		"self-hosted",
+		"server"
+	],
+	"website": "https://homebridge.io/",
+	"docs": "https://github.com/homebridge/homebridge/wiki",
+	"version": "sha256:169416416bf3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/homebridge",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "homebridge",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "volumes-homebridge",
+					"target": "/homebridge"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "homebridge/homebridge@sha256:169416416bf303bb64bfd6c666f64d93a4f52f54db9a64e8ad553b5dc89fcea4",
+			"ports": [
+				{
+					"target": 8581,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://homebridge:8581/"
+				]
+			},
+			"public": {
+				"port": 8581,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

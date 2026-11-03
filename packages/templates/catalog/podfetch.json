@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "podfetch",
+	"name": "PodFetch",
+	"description": "PodFetch is a sleek, self-hosted podcast manager that automatically downloads new episodes, offers a web UI for listening and managing podcasts, and provides a GPodder-compatible sync API for mobile apps like AntennaPod.",
+	"category": "media",
+	"tags": [
+		"media"
+	],
+	"logo": "logos/podfetch.png",
+	"website": "https://samtv12345.github.io/PodFetch/",
+	"docs": "https://samtv12345.github.io/PodFetch/",
+	"version": "v5.2.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/podfetch",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "podfetch",
+			"dependsOn": [],
+			"env": {
+				"DATABASE_URL": "sqlite:///app/db/podcast.db",
+				"POLLING_INTERVAL": "300",
+				"BASIC_AUTH": "true",
+				"USERNAME": "admin",
+				"PASSWORD": "${{ inputs.adminPassword }}",
+				"GPODDER_INTEGRATION_ENABLED": "true"
+			},
+			"volumes": [
+				{
+					"name": "podfetch-podcasts",
+					"target": "/app/podcasts"
+				},
+				{
+					"name": "podfetch-db",
+					"target": "/app/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "samuel19982/podfetch:v5.2.2",
+			"ports": [],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

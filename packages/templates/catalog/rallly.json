@@ -1,0 +1,156 @@
+{
+	"schema": 1,
+	"id": "rallly",
+	"name": "Rallly",
+	"description": "Rallly is an open-source scheduling and collaboration tool designed to make organizing events and meetings easier.",
+	"category": "productivity",
+	"tags": [
+		"scheduling",
+		"rallly",
+		"events",
+		"meeting",
+		"doodle"
+	],
+	"logo": "logos/rallly.svg",
+	"docs": "https://support.rallly.co/self-hosting/introduction",
+	"version": "sha256:1dacb9297f29",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/rallly.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "ralllyDomain",
+			"label": "Rallly domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "ralllyPassword",
+			"label": "Rallly password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "initialAdminEmail",
+			"label": "Initial admin email",
+			"type": "text"
+		},
+		{
+			"key": "allowedEmails",
+			"label": "Allowed emails",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "supportEmail",
+			"label": "Support email",
+			"type": "text"
+		},
+		{
+			"key": "smtpHost",
+			"label": "SMTP host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpPort",
+			"label": "SMTP port",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpUser",
+			"label": "SMTP user",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpPwd",
+			"label": "SMTP pwd",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "rallly-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_DB": "rallly"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -d ${POSTGRES_DB} -U ${POSTGRES_USER}"
+				]
+			}
+		},
+		{
+			"name": "rallly",
+			"dependsOn": [
+				"rallly-db"
+			],
+			"env": {
+				"PROXY_MODE": "external",
+				"DATABASE_URL": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.rallly-db.host }}:5432/rallly",
+				"SECRET_PASSWORD": "${{ inputs.ralllyPassword }}",
+				"NEXT_PUBLIC_BASE_URL": "https://${{ inputs.ralllyDomain }}",
+				"REGISTRATION_ENABLED": "true",
+				"INITIAL_ADMIN_EMAIL": "${{ inputs.initialAdminEmail }}",
+				"ALLOWED_EMAILS": "${{ inputs.allowedEmails }}",
+				"SUPPORT_EMAIL": "${{ inputs.supportEmail }}",
+				"SMTP_HOST": "${{ inputs.smtpHost }}",
+				"SMTP_PORT": "${{ inputs.smtpPort }}",
+				"SMTP_SECURE": "false",
+				"SMTP_USER": "${{ inputs.smtpUser }}",
+				"SMTP_PWD": "${{ inputs.smtpPwd }}",
+				"SMTP_TLS_ENABLED": "false",
+				"BETTER_AUTH_TRUSTED_ORIGINS": "https://${{ inputs.ralllyDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "lukevella/rallly@sha256:1dacb9297f29d89d543f6fe4de2f8703b2c59e854bac1953fc66a6dbc1d1d8b0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/3000' || exit 1"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "ralllyDomain"
+			}
+		}
+	]
+}

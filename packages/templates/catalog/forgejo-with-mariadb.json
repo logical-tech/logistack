@@ -1,0 +1,144 @@
+{
+	"schema": 1,
+	"id": "forgejo-with-mariadb",
+	"name": "Forgejo With Mariadb",
+	"description": "Forgejo is a self-hosted lightweight software forge. Easy to install and low maintenance, it just does the job.",
+	"category": "devtools",
+	"tags": [
+		"version control",
+		"collaboration",
+		"code",
+		"hosting",
+		"lightweight",
+		"mariadb"
+	],
+	"logo": "logos/forgejo-with-mariadb.svg",
+	"docs": "https://forgejo.org/docs",
+	"version": "15",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/forgejo-with-mariadb.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "forgejoDomain",
+			"label": "Forgejo domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "forgejoMigrationsAllowedDomains",
+			"label": "Forgejo migrations allowed domains",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "forgejo",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"FORGEJO__server__ROOT_URL": "https://${{ inputs.forgejoDomain }}",
+				"FORGEJO__migrations__ALLOWED_DOMAINS": "${{ inputs.forgejoMigrationsAllowedDomains }}",
+				"FORGEJO__migrations__ALLOW_LOCALNETWORKS": "false",
+				"FORGEJO__server__DOMAIN": "${{ inputs.forgejoDomain }}",
+				"FORGEJO__server__SSH_DOMAIN": "${{ inputs.forgejoDomain }}",
+				"FORGEJO__server__SSH_PORT": "22222",
+				"USER_UID": "1000",
+				"USER_GID": "1000",
+				"FORGEJO__database__DB_TYPE": "mysql",
+				"FORGEJO__database__HOST": "${{ services.mariadb.host }}",
+				"FORGEJO__database__NAME": "forgejo",
+				"FORGEJO__database__USER": "${{ inputs.mysqlUser }}",
+				"FORGEJO__database__PASSWD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "forgejo-data",
+					"target": "/data"
+				},
+				{
+					"name": "forgejo-timezone",
+					"target": "/etc/timezone",
+					"readOnly": true
+				},
+				{
+					"name": "forgejo-localtime",
+					"target": "/etc/localtime",
+					"readOnly": true
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "codeberg.org/forgejo/forgejo:15",
+			"ports": [
+				{
+					"target": 22,
+					"published": 22222,
+					"protocol": "tcp",
+					"mode": "host"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "forgejoDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DATABASE": "forgejo",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "forgejo-mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		}
+	]
+}

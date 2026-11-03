@@ -1,0 +1,86 @@
+{
+	"schema": 1,
+	"id": "unleash",
+	"name": "Unleash",
+	"description": "Open-source feature management platform",
+	"category": "other",
+	"tags": [
+		"feature-flag",
+		"feature-management",
+		"feature-toggle",
+		"remote-configuration"
+	],
+	"logo": "logos/unleash.png",
+	"website": "https://www.getunleash.io/",
+	"docs": "https://docs.getunleash.io/",
+	"version": "7.4.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/unleash",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "unleash",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://unleash:${{ inputs.dbPassword }}@${{ services.db.host }}/unleash",
+				"DATABASE_SSL": "false",
+				"LOG_LEVEL": "warn"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "unleashorg/unleash-server:7.4.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --no-verbose --tries=1 --spider http://localhost:4242/health || exit 1"
+				]
+			},
+			"public": {
+				"port": 4242,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "unleash",
+				"POSTGRES_USER": "unleash",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "15"
+		}
+	]
+}

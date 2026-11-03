@@ -1,0 +1,862 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`snapshots stateless application 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "tcp",
+        "PublishMode": "ingress",
+        "PublishedPort": 18080,
+        "TargetPort": 8080,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_app0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 2,
+    },
+  },
+  "Name": "ls-svc-app0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "start-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Args": [
+        "serve",
+        "--port",
+        "8080",
+      ],
+      "Configs": [],
+      "Env": [
+        "API_KEY=s3cret",
+        "PORT=8080",
+      ],
+      "Image": "registry.example.com/org_acme/ls-svc-app:dep_one",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_app0000000000000000000000",
+      },
+      "Mounts": [],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "web",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.labels.region==eu",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 268435456,
+        "NanoCPUs": 500000000,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "start-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`snapshots stateful application with domain, config and secret 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "tcp",
+        "PublishMode": "ingress",
+        "PublishedPort": 18080,
+        "TargetPort": 8080,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_app0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 2,
+    },
+  },
+  "Name": "ls-svc-app0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Args": [
+        "serve",
+        "--port",
+        "8080",
+      ],
+      "Configs": [
+        {
+          "ConfigID": "id-of-ls-cfg-conf000000000000000000000-eacc13bfba72",
+          "ConfigName": "ls-cfg-conf000000000000000000000-eacc13bfba72",
+          "File": {
+            "GID": "0",
+            "Mode": 292,
+            "Name": "/etc/app/config.toml",
+            "UID": "0",
+          },
+        },
+      ],
+      "Env": [
+        "API_KEY=s3cret",
+        "PORT=8080",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 15000000000,
+        "Test": [
+          "CMD-SHELL",
+          "grep -sqE ':1F90 [0-9A-F]{8,32}:0000 0A' /proc/net/tcp /proc/net/tcp6",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "registry.example.com/org_acme/ls-svc-app:dep_one",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_app0000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "ReadOnly": false,
+          "Source": "ls-vol-data000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "mnt_data000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [
+        {
+          "File": {
+            "GID": "0",
+            "Mode": 292,
+            "Name": "/run/secrets/key",
+            "UID": "0",
+          },
+          "SecretID": "id-of-ls-sec-key0000000000000000000000-f52fbd32b2b3",
+          "SecretName": "ls-sec-key0000000000000000000000-f52fbd32b2b3",
+        },
+      ],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "web",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-ingress-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.labels.region==eu",
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 268435456,
+        "NanoCPUs": 500000000,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`snapshots database postgres 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "db",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_db00000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-db00000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "POSTGRES_PASSWORD=pw",
+        "POSTGRES_USER=app",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD-SHELL",
+          "pg_isready -U "\${POSTGRES_USER:-postgres}" -h 127.0.0.1",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "postgres:1",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "db",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_db00000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-db00000000000000000000000",
+          "Target": "/var/lib/postgresql/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_db00000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "db",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {},
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`snapshots database mysql 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "db",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_db00000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-db00000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "MYSQL_ROOT_PASSWORD=pw",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "--silent",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "mysql:1",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "db",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_db00000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-db00000000000000000000000",
+          "Target": "/var/lib/mysql",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_db00000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "db",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {},
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`snapshots database mariadb 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "db",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_db00000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-db00000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "MARIADB_ROOT_PASSWORD=pw",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "healthcheck.sh",
+          "--connect",
+          "--innodb_initialized",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "mariadb:1",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "db",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_db00000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-db00000000000000000000000",
+          "Target": "/var/lib/mysql",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_db00000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "db",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {},
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`snapshots database mongo 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "db",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_db00000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-db00000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "MONGO_INITDB_ROOT_PASSWORD=pw",
+        "MONGO_INITDB_ROOT_USERNAME=root",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "db.adminCommand('ping').ok",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "mongo:1",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "db",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_db00000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-db00000000000000000000000",
+          "Target": "/data/db",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_db00000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "db",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {},
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`snapshots database redis 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "db",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_db00000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-db00000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Command": [
+        "sh",
+        "-c",
+        "umask 077 && printf 'requirepass %s\\n' "$REDIS_PASSWORD" > /tmp/redis.conf && chown redis:redis /tmp/redis.conf && exec docker-entrypoint.sh redis-server /tmp/redis.conf --appendonly yes",
+      ],
+      "Configs": [],
+      "Env": [
+        "REDIS_PASSWORD=pw",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 30000000000,
+        "Test": [
+          "CMD-SHELL",
+          "REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "redis:1",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "db",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_db00000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-db00000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_db00000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "db",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {},
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`host-level application settings snapshot 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "udp",
+        "PublishMode": "host",
+        "PublishedPort": 34197,
+        "TargetPort": 34197,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_app0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-app0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "CapabilityAdd": [
+        "CAP_NET_BIND_SERVICE",
+      ],
+      "CapabilityDrop": [
+        "ALL",
+      ],
+      "Configs": [],
+      "Env": [
+        "API_KEY=s3cret",
+        "PORT=8080",
+      ],
+      "Image": "registry.example.com/org_acme/ls-svc-app:dep_one",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_app0000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "ReadOnly": false,
+          "Source": "/home/gaming/factorio",
+          "Target": "/factorio",
+          "Type": "bind",
+        },
+        {
+          "ReadOnly": true,
+          "Source": "/srv/config",
+          "Target": "/config",
+          "Type": "bind",
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+      "User": "845:845",
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "web",
+        ],
+        "Target": "net-env-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {},
+    },
+    "RestartPolicy": {
+      "Condition": "on-failure",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;

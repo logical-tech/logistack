@@ -1,0 +1,157 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { AGENT_WS_PATH } from "@logistack/contracts";
+import { Scalar } from "@scalar/hono-api-reference";
+import type { MiddlewareHandler } from "hono";
+import { serveStatic } from "hono/bun";
+import { cors } from "hono/cors";
+import { requestId } from "hono/request-id";
+import { type Actor, authenticate } from "./actor.ts";
+import { assertMutationsAudited } from "./audit.ts";
+import type { Deps, Env } from "./env.ts";
+import { onError, validationHook } from "./errors.ts";
+import { terminal } from "./exec-ws.ts";
+import { requestLogger } from "./log.ts";
+import { mcpHandler } from "./mcp.ts";
+import { apiKeys } from "./routes/api-keys.ts";
+import { audit } from "./routes/audit-log.ts";
+import { backups } from "./routes/backups.ts";
+import { certificates } from "./routes/certificates.ts";
+import { dnsProviders } from "./routes/dns-providers.ts";
+import { domains } from "./routes/domains.ts";
+import { envVars } from "./routes/env-vars.ts";
+import { folders } from "./routes/folders.ts";
+import { git } from "./routes/git.ts";
+import { health } from "./routes/health.ts";
+import { instance } from "./routes/instance-settings.ts";
+import { integrations } from "./routes/integrations.ts";
+import { members } from "./routes/members.ts";
+import { metrics } from "./routes/metrics.ts";
+import { nodes } from "./routes/nodes.ts";
+import { notifications } from "./routes/notifications.ts";
+import { organizationRoutes } from "./routes/organization.ts";
+import { projects } from "./routes/projects.ts";
+import { registries } from "./routes/registries.ts";
+import { s3Destinations } from "./routes/s3-destinations.ts";
+import { schedules } from "./routes/schedules.ts";
+import { serviceOps } from "./routes/service-ops.ts";
+import { services } from "./routes/services.ts";
+import { setup } from "./routes/setup.ts";
+import { sshKeys } from "./routes/ssh-keys.ts";
+import { sso } from "./routes/sso.ts";
+import { templates } from "./routes/templates.ts";
+import { updates } from "./routes/updates.ts";
+import { webhooks } from "./routes/webhooks.ts";
+import { realtime } from "./ws.ts";
+
+/**
+ * Builds the HTTP app over injected dependencies (real ones in index.ts, containers in tests).
+ * `actor` replaces authentication for in-process callers (scripts): every request runs as it.
+ */
+export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
+	const { actor } = opts;
+	const identify: MiddlewareHandler<Env> = actor
+		? async (c, next) => {
+				c.set("actor", actor);
+				await next();
+			}
+		: authenticate;
+	const app = new OpenAPIHono<Env>({ defaultHook: validationHook });
+	app.onError(onError);
+	app.notFound((c) =>
+		c.json({ error: { code: "not_found", message: "route not found" } }, 404),
+	);
+	app.use(requestId());
+	app.use(async (c, next) => {
+		c.set("deps", deps);
+		await next();
+	});
+	app.use(requestLogger);
+	app.use(
+		"/api/*",
+		cors({ origin: deps.config.WEB_ORIGIN, credentials: true }),
+	);
+	app.on(["GET", "POST"], "/api/auth/*", (c) => deps.auth.handler(c.req.raw));
+	// Health must answer even when the session store is unreachable; agents present node tokens.
+	app.use("/api/*", async (c, next) =>
+		c.req.path.startsWith("/api/auth/") ||
+		c.req.path === "/api/health" ||
+		// Authenticated by the provider's signature instead of a session.
+		c.req.path.startsWith("/api/webhooks/") ||
+		c.req.path === AGENT_WS_PATH
+			? next()
+			: identify(c, next),
+	);
+	app.use("/ws", identify);
+
+	app.openAPIRegistry.registerComponent("securitySchemes", "session", {
+		type: "apiKey",
+		in: "cookie",
+		name: "better-auth.session_token",
+	});
+	app.openAPIRegistry.registerComponent("securitySchemes", "apiKey", {
+		type: "apiKey",
+		in: "header",
+		name: "x-api-key",
+	});
+	app.doc31("/api/openapi.json", {
+		openapi: "3.1.0",
+		info: { title: "LogiStack API", version: "0.1.0" },
+	});
+	app.get("/api/docs", Scalar({ url: "/api/openapi.json" }));
+
+	const routes = app
+		.route("/api", health)
+		.route("/api", setup)
+		.route("/api", folders)
+		.route("/api", projects)
+		.route("/api", services)
+		.route("/api", envVars)
+		.route("/api", domains)
+		.route("/api", dnsProviders)
+		.route("/api", certificates)
+		.route("/api", notifications)
+		.route("/api", integrations)
+		.route("/api", audit)
+		.route("/api", organizationRoutes)
+		.route("/api", metrics)
+		.route("/api", nodes)
+		.route("/api", members)
+		.route("/api", apiKeys)
+		.route("/api", sshKeys)
+		.route("/api", sso)
+		.route("/api", serviceOps)
+		.route("/api", instance)
+		.route("/api", updates)
+		.route("/api", git)
+		.route("/api", registries)
+		.route("/api", webhooks)
+		.route("/api", s3Destinations)
+		.route("/api", backups)
+		.route("/api", schedules)
+		.route("/api", templates)
+		.route("/", realtime)
+		.route("/", terminal);
+
+	app.on(["GET", "POST", "DELETE"], "/mcp", mcpHandler(app));
+
+	const web = deps.config.WEB_DIST_DIR;
+	if (existsSync(join(web, "index.html"))) {
+		const isApi = (p: string) =>
+			p === "/ws" || p === "/mcp" || p === "/api" || p.startsWith("/api/");
+		// A file when one matches, else the app shell for client-side routes.
+		for (const handler of [
+			serveStatic({ root: web }),
+			serveStatic({ root: web, path: "index.html" }),
+		])
+			app.get("*", (c, next) =>
+				isApi(c.req.path) ? next() : handler(c, next),
+			);
+	}
+
+	assertMutationsAudited(app);
+	return routes;
+}
+
+export type AppType = ReturnType<typeof createApp>;

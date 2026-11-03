@@ -1,0 +1,92 @@
+{
+	"schema": 1,
+	"id": "flatnotes-totp",
+	"name": "Flatnotes (TOTP)",
+	"description": "Flatnotes with TOTP authentication enabled (username + password + one-time passcode).",
+	"category": "productivity",
+	"tags": [
+		"notes",
+		"productivity",
+		"markdown",
+		"self-hosted",
+		"totp",
+		"2fa"
+	],
+	"logo": "logos/flatnotes-totp.png",
+	"website": "https://flatnotes.io/",
+	"docs": "https://github.com/dullage/flatnotes",
+	"version": "sha256:ca4b40ee7491",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/flatnotes-totp",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "flatnotesUsername",
+			"label": "Flatnotes username",
+			"type": "username"
+		},
+		{
+			"key": "flatnotesPassword",
+			"label": "Flatnotes password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "totpKey",
+			"label": "Totp key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "flatnotes",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"FLATNOTES_AUTH_TYPE": "totp",
+				"FLATNOTES_USERNAME": "${{ inputs.flatnotesUsername }}",
+				"FLATNOTES_PASSWORD": "${{ inputs.flatnotesPassword }}",
+				"FLATNOTES_SECRET_KEY": "${{ inputs.secretKey }}",
+				"FLATNOTES_TOTP_KEY": "${{ inputs.totpKey }}",
+				"FLATNOTES_SESSION_EXPIRY_DAYS": "30",
+				"FLATNOTES_PATH_PREFIX": ""
+			},
+			"volumes": [
+				{
+					"name": "flatnotes-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "dullage/flatnotes@sha256:ca4b40ee7491aabf6b52bbb20ab140145cb96981d4b3fe96ab1e797ac6cd93e5",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

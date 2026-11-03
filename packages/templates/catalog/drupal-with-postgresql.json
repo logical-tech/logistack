@@ -1,0 +1,106 @@
+{
+	"schema": 1,
+	"id": "drupal-with-postgresql",
+	"name": "Drupal With Postgresql",
+	"description": "Drupal is a free and open-source web content management system written in PHP and distributed under the GNU General Public License.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"blog",
+		"content",
+		"management",
+		"postgresql"
+	],
+	"logo": "logos/drupal-with-postgresql.svg",
+	"docs": "https://www.drupal.org/about",
+	"version": "10-apache",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/drupal-with-postgresql.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "drupalDomain",
+			"label": "Drupal domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "drupal",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"DB_HOST": "${{ services.postgres.host }}",
+				"DB_NAME": "postgres",
+				"DB_USER": "postgres",
+				"DB_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "drupal-modules",
+					"target": "/var/www/html/modules"
+				},
+				{
+					"name": "drupal-profiles",
+					"target": "/var/www/html/profiles"
+				},
+				{
+					"name": "drupal-themes",
+					"target": "/var/www/html/themes"
+				},
+				{
+					"name": "drupal-sites",
+					"target": "/var/www/html/sites"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "drupal:10-apache",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://localhost:80 || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "drupalDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "postgres",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:16",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		}
+	]
+}

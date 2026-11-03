@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "libretranslate",
+	"name": "Libretranslate",
+	"description": "Free and open-source machine translation API, entirely self-hosted.",
+	"category": "ai",
+	"tags": [
+		"translate",
+		"api",
+		"translation",
+		"nlp",
+		"language"
+	],
+	"logo": "logos/libretranslate.svg",
+	"website": "https://libretranslate.com/",
+	"docs": "https://libretranslate.com/docs/",
+	"version": "sha256:cf85439147da",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/libretranslate.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "libretranslateDomain",
+			"label": "Libretranslate domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "libretranslate",
+			"dependsOn": [],
+			"env": {
+				"LT_SSL": "true",
+				"LT_UPDATE_MODELS": "true",
+				"LT_LOAD_ONLY": "en,es,fr,de,ja"
+			},
+			"volumes": [
+				{
+					"name": "libretranslate-api-keys",
+					"target": "/app/db"
+				},
+				{
+					"name": "libretranslate-models",
+					"target": "/home/libretranslate/.local"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "libretranslate/libretranslate@sha256:cf85439147da3cf73fb525a303cfeb884946a9bc633083143bd771d6c6efb007",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"./venv/bin/python scripts/healthcheck.py"
+				]
+			},
+			"public": {
+				"port": 5000,
+				"domain": "libretranslateDomain"
+			}
+		}
+	]
+}

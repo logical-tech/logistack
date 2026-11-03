@@ -1,0 +1,115 @@
+{
+	"schema": 1,
+	"id": "systemprompt",
+	"name": "systemprompt",
+	"description": "Self-owned AI control plane: governance gateway for Claude, OpenAI, and Gemini with policy checks, audit trails, rate limits, and MCP orchestration. Requires at least one AI provider API key.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"self-hosted"
+	],
+	"logo": "logos/systemprompt.svg",
+	"website": "https://systemprompt.io/",
+	"docs": "https://systemprompt.io/documentation/",
+	"version": "0.21.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/systemprompt",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "systemprompt",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"DATABASE_URL": "postgres://systemprompt:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/systemprompt",
+				"ANTHROPIC_API_KEY": "",
+				"OPENAI_API_KEY": "",
+				"GEMINI_API_KEY": "",
+				"EXTERNAL_URL": "https://${{ inputs.mainDomain }}",
+				"HOST": "0.0.0.0",
+				"PORT": "8080"
+			},
+			"volumes": [
+				{
+					"name": "systemprompt-web",
+					"target": "/app/web"
+				},
+				{
+					"name": "systemprompt-storage",
+					"target": "/app/storage/data"
+				},
+				{
+					"name": "systemprompt-profiles",
+					"target": "/app/services/profiles/docker"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/systempromptio/systemprompt-template:0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:8080/api/v1/health"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "systemprompt",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "systemprompt"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U systemprompt -d systemprompt"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

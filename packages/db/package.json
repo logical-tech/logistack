@@ -1,0 +1,29 @@
+{
+	"name": "@logistack/db",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./schema": "./src/schema/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc -p .",
+		"auth:generate": "auth generate --config auth.config.ts --output src/schema/auth.ts --yes && biome check --write src/schema/auth.ts",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "bun src/migrate.ts"
+	},
+	"dependencies": {
+		"@logistack/contracts": "workspace:*",
+		"@logistack/core": "workspace:*",
+		"drizzle-orm": "0.45.4",
+		"postgres": "3.4.9"
+	},
+	"devDependencies": {
+		"@better-auth/api-key": "1.7.12",
+		"@better-auth/passkey": "1.7.12",
+		"@better-auth/sso": "1.7.12",
+		"auth": "1.7.12",
+		"better-auth": "1.7.12",
+		"drizzle-kit": "0.31.11"
+	}
+}

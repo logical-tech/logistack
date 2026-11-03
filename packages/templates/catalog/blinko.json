@@ -1,0 +1,92 @@
+{
+	"schema": 1,
+	"id": "blinko",
+	"name": "Blinko",
+	"description": "Blinko is a modern web application for managing and organizing your digital content and workflows.",
+	"category": "productivity",
+	"tags": [
+		"productivity",
+		"organization",
+		"workflow",
+		"nextjs"
+	],
+	"logo": "logos/blinko.svg",
+	"website": "https://blinko.space/",
+	"docs": "https://docs.blinko.space/",
+	"version": "1.6.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/blinko",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "nextauthSecret",
+			"label": "Nextauth secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "blinko-website",
+			"dependsOn": [
+				"blinko-postgres"
+			],
+			"env": {
+				"NODE_ENV": "production",
+				"NEXTAUTH_SECRET": "${{ inputs.nextauthSecret }}",
+				"DATABASE_URL": "postgresql://postgres:${{ inputs.postgresPassword }}@${{ services.blinko-postgres.host }}:5432/postgres",
+				"NEXTAUTH_URL": "http://${{ inputs.mainDomain }}",
+				"NEXT_PUBLIC_BASE_URL": "http://${{ inputs.mainDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "blinkospace/blinko:1.6.3",
+			"ports": [
+				{
+					"target": 1111,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 1111,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "blinko-postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "postgres",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"TZ": "Asia/Shanghai"
+			},
+			"volumes": [
+				{
+					"name": "blinko-db",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "14"
+		}
+	]
+}

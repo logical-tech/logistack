@@ -1,0 +1,154 @@
+{
+	"schema": 1,
+	"id": "strapi",
+	"name": "Strapi",
+	"description": "Open-source headless CMS to build powerful APIs with built-in content management.",
+	"category": "devtools",
+	"tags": [
+		"cms",
+		"headless",
+		"mysql",
+		"api",
+		"content-management"
+	],
+	"logo": "logos/strapi.svg",
+	"website": "https://strapi.io/",
+	"docs": "https://docs.strapi.io/",
+	"version": "v5.33.4",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/strapi.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "strapiDomain",
+			"label": "Strapi domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresqlUser",
+			"label": "Postgresql user",
+			"type": "username"
+		},
+		{
+			"key": "postgresqlPassword",
+			"label": "Postgresql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "secretSecret",
+			"label": "Secret secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "keySecret",
+			"label": "Key secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "strapiLicense",
+			"label": "Strapi license",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "strapi",
+			"dependsOn": [
+				"postgresql"
+			],
+			"env": {
+				"DATABASE_CLIENT": "postgres",
+				"DATABASE_HOST": "${{ services.postgresql.host }}",
+				"DATABASE_PORT": "5432",
+				"DATABASE_NAME": "strapi",
+				"DATABASE_USERNAME": "${{ inputs.postgresqlUser }}",
+				"DATABASE_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"JWT_SECRET": "${{ inputs.secretSecret }}",
+				"ADMIN_JWT_SECRET": "${{ inputs.secretSecret }}",
+				"APP_KEYS": "${{ inputs.keySecret }}",
+				"STRAPI_TELEMETRY_DISABLED": "true",
+				"STRAPI_LICENSE": "${{ inputs.strapiLicense }}",
+				"NODE_ENV": "development",
+				"BROWSER": "true",
+				"STRAPI_PLUGIN_I18N_INIT_LOCALE_CODE": "en",
+				"STRAPI_ENFORCE_SOURCEMAPS": "false",
+				"FAST_REFRESH": "true"
+			},
+			"volumes": [
+				{
+					"name": "strapi-config",
+					"target": "/opt/app/config"
+				},
+				{
+					"name": "strapi-src",
+					"target": "/opt/app/src"
+				},
+				{
+					"name": "strapi-uploads",
+					"target": "/opt/app/public/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "elestio/strapi-production:v5.33.4",
+			"command": [
+				"-c",
+				"cat > /opt/app/src/admin/vite.config.js << 'EOFVITE'\nconst { mergeConfig } = require('vite');\nmodule.exports = (config) => {\n  return mergeConfig(config, {\n    resolve: {\n      alias: {\n        '@': '/src',\n      },\n    },\n    server: {\n      allowedHosts: ['${{ inputs.strapiDomain }}']\n    }\n  });\n};\nEOFVITE\nexec npm run develop\n"
+			],
+			"entrypoint": [
+				"/bin/sh"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:1337/"
+				]
+			},
+			"public": {
+				"port": 1337,
+				"domain": "strapiDomain"
+			}
+		},
+		{
+			"name": "postgresql",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "strapi",
+				"POSTGRES_USER": "${{ inputs.postgresqlUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresqlPassword }}",
+				"PGDATA": "/var/lib/postgresql/data"
+			},
+			"volumes": [
+				{
+					"name": "strapi-postgresql-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "elestio/postgres@sha256:63ea1193370ec7c9159f9a2eee15c7be2670b0f1679fc673b139955006094193",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+				]
+			}
+		}
+	]
+}

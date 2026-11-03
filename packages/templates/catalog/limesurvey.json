@@ -1,0 +1,191 @@
+{
+	"schema": 1,
+	"id": "limesurvey",
+	"name": "Limesurvey",
+	"description": "Simple, quick and anonymous online survey tool that's bursting with juicy insights.",
+	"category": "productivity",
+	"tags": [
+		"online survey",
+		"forms",
+		"no code",
+		"open source",
+		"questionnaire",
+		"survey"
+	],
+	"logo": "logos/limesurvey.svg",
+	"website": "https://www.limesurvey.org/",
+	"docs": "https://www.limesurvey.org/manual/",
+	"version": "sha256:90c9ad8bdc0c",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/limesurvey.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "limesurveyDomain",
+			"label": "Limesurvey domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "limesurveyFromEmail",
+			"label": "Limesurvey from email",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "limesurveySmtpHost",
+			"label": "Limesurvey SMTP host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "limesurveySmtpUser",
+			"label": "Limesurvey SMTP user",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "limesurveySmtpPassword",
+			"label": "Limesurvey SMTP password",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "limesurveySmtpSsl",
+			"label": "Limesurvey SMTP SSL",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "limesurvey",
+			"dependsOn": [
+				"mariadb",
+				"redis"
+			],
+			"env": {
+				"LIMESURVEY_DB_HOST": "${{ services.mariadb.host }}",
+				"LIMESURVEY_DB_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"LIMESURVEY_DB_USER": "${{ inputs.mysqlUser }}",
+				"LIMESURVEY_DB_NAME": "limesurvey-db",
+				"LIMESURVEY_ADMIN_USER": "admin",
+				"LIMESURVEY_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"LIMESURVEY_ADMIN_NAME": "Admin",
+				"LIMESURVEY_ADMIN_EMAIL": "admin@example.com",
+				"LIMESURVEY_FROM_EMAIL": "${{ inputs.limesurveyFromEmail }}",
+				"LIMESURVEY_SMTP_HOST": "${{ inputs.limesurveySmtpHost }}",
+				"LIMESURVEY_SMTP_USER": "${{ inputs.limesurveySmtpUser }}",
+				"LIMESURVEY_SMTP_PASSWORD": "${{ inputs.limesurveySmtpPassword }}",
+				"LIMESURVEY_SMTP_SSL": "${{ inputs.limesurveySmtpSsl }}",
+				"LIMESURVEY_PHP_SESSION_SAVE_HANDLER": "redis",
+				"LIMESURVEY_PHP_SESSION_SAVE_PATH": "tcp://${{ services.redis.host }}:6379",
+				"TZ": "America/Jamaica"
+			},
+			"volumes": [
+				{
+					"name": "limesurvey-plugins-data",
+					"target": "/var/www/html/plugins"
+				},
+				{
+					"name": "limesurvey-upload-data",
+					"target": "/var/www/html/upload"
+				},
+				{
+					"name": "limesurvey-config-data",
+					"target": "/var/www/html/application/config"
+				},
+				{
+					"name": "limesurvey-sessions-data",
+					"target": "/var/lime/sessions"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "adamzammit/limesurvey@sha256:90c9ad8bdc0cc19efae4e2f7b1b484922b7c23ba8a23d4be14a103b219532399",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "limesurveyDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DATABASE": "limesurvey-db",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "limesurvey-mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		}
+	]
+}

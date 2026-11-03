@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "nocodb",
+	"name": "Nocodb",
+	"description": "NocoDB is an open source Airtable alternative. Turns any MySQL, PostgreSQL, SQL Server, SQLite & MariaDB into a smart-spreadsheet.",
+	"category": "productivity",
+	"tags": [
+		"nocodb",
+		"airtable",
+		"mysql",
+		"postgresql",
+		"sqlserver",
+		"sqlite",
+		"mariadb",
+		"database",
+		"spreadsheet",
+		"low-code",
+		"nocode"
+	],
+	"logo": "logos/nocodb.svg",
+	"website": "https://nocodb.com/",
+	"docs": "https://nocodb.com/",
+	"version": "sha256:8c2dd06896d9",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/nocodb.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "nocodbDomain",
+			"label": "Nocodb domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "nocodb",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "nocodb-data",
+					"target": "/usr/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "nocodb/nocodb@sha256:8c2dd06896d95e750d55010e529972c22c1ee73b22dce321b1d2de2e7d5cd6ae",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8080/api/v1/health"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "nocodbDomain"
+			}
+		}
+	]
+}

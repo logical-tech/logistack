@@ -1,0 +1,117 @@
+{
+	"schema": 1,
+	"id": "gitea-postgres",
+	"name": "Gitea (PostgreSQL)",
+	"description": "Gitea is a lightweight Git service for hosting code repositories.",
+	"category": "devtools",
+	"tags": [
+		"git",
+		"scm",
+		"postgres",
+		"developer-tools",
+		"self-hosted"
+	],
+	"logo": "logos/gitea-postgres.png",
+	"website": "https://gitea.io/",
+	"docs": "https://docs.gitea.com/",
+	"version": "1.27.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/gitea-postgres",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "dbUser",
+			"label": "DB user",
+			"type": "username"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 24
+		}
+	],
+	"services": [
+		{
+			"name": "gitea",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"USER_UID": "1000",
+				"USER_GID": "1000",
+				"GITEA__database__DB_TYPE": "postgres",
+				"GITEA__database__HOST": "${{ services.postgres.host }}:5432",
+				"GITEA__database__NAME": "gitea",
+				"GITEA__database__USER": "${{ inputs.dbUser }}",
+				"GITEA__database__PASSWD": "${{ inputs.dbPassword }}",
+				"GITEA__server__DOMAIN": "${{ inputs.mainDomain }}",
+				"GITEA__server__SSH_DOMAIN": "${{ inputs.mainDomain }}",
+				"GITEA__server__ROOT_URL": "https://${{ inputs.mainDomain }}/",
+				"GITEA__server__LFS_START_SERVER": "true",
+				"GITEA__service__DISABLE_REGISTRATION": "false",
+				"GITEA__service__REQUIRE_SIGNIN_VIEW": "false"
+			},
+			"volumes": [
+				{
+					"name": "gitea-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docker.gitea.com/gitea:1.27.3",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				},
+				{
+					"target": 22,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://localhost:3000/api/healthz"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.dbUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "gitea"
+			},
+			"volumes": [
+				{
+					"name": "pg-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

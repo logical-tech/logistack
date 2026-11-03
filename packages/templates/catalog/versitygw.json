@@ -1,0 +1,99 @@
+{
+	"schema": 1,
+	"id": "versitygw",
+	"name": "VersityGW",
+	"description": "VersityGW is a high-performance S3-compatible gateway that exposes POSIX filesystems, ScoutFS, Azure Blob, or other S3 servers over the S3 API, with a built-in WebUI for bucket and user management.",
+	"category": "storage",
+	"tags": [
+		"s3",
+		"storage",
+		"gateway",
+		"object-storage"
+	],
+	"logo": "logos/versitygw.svg",
+	"website": "https://www.versity.com/",
+	"docs": "https://github.com/versity/versitygw/wiki",
+	"version": "1.8.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/versitygw",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "rootAccessKey",
+			"label": "Root access key",
+			"type": "secret",
+			"length": 16,
+			"charset": "hex"
+		},
+		{
+			"key": "rootSecretKey",
+			"label": "Root secret key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "versitygw",
+			"dependsOn": [],
+			"env": {
+				"ROOT_ACCESS_KEY": "${{ inputs.rootAccessKey }}",
+				"ROOT_SECRET_KEY": "${{ inputs.rootSecretKey }}",
+				"VGW_BACKEND": "posix",
+				"VGW_PORT": ":7070",
+				"VGW_BACKEND_ARGS": "/data/s3",
+				"VGW_IAM_DIR": "/data/iam",
+				"VGW_VERSIONING_DIR": "/data/versioning",
+				"VGW_ADMIN_PORT": ":7071",
+				"VGW_WEBUI_PORT": ":8080",
+				"VGW_WEBUI_NO_TLS": "true",
+				"VGW_WEBUI_GATEWAYS": "http://localhost:7070",
+				"VGW_WEBUI_ADMIN_GATEWAYS": "http://localhost:7071"
+			},
+			"volumes": [
+				{
+					"name": "versitygw-s3",
+					"target": "/data/s3"
+				},
+				{
+					"name": "versitygw-versioning",
+					"target": "/data/versioning"
+				},
+				{
+					"name": "versitygw-iam",
+					"target": "/data/iam"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "versity/versitygw:v1.8.0",
+			"ports": [
+				{
+					"target": 7070,
+					"protocol": "tcp"
+				},
+				{
+					"target": 7071,
+					"protocol": "tcp"
+				},
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "seq",
+	"name": "Seq",
+	"description": "Seq is a self-hosted search, analysis, and alerting server for structured application logs and events.",
+	"category": "monitoring",
+	"tags": [
+		"logging",
+		"observability",
+		"monitoring"
+	],
+	"logo": "logos/seq.svg",
+	"website": "https://datalust.co/seq",
+	"docs": "https://datalust.co/docs",
+	"version": "2025.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/seq",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "seq",
+			"dependsOn": [],
+			"env": {
+				"ACCEPT_EULA": "Y",
+				"SEQ_API_CANONICALURI": "https://${{ inputs.mainDomain }}",
+				"SEQ_FIRSTRUN_ADMINPASSWORD": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "seq-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "datalust/seq:2025.2",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,32 @@
+{
+	"name": "@logistack/server",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"dev": "bun --watch src/index.ts",
+		"typecheck": "tsc -p ."
+	},
+	"dependencies": {
+		"@better-auth/api-key": "1.7.12",
+		"@better-auth/passkey": "1.7.12",
+		"@better-auth/sso": "1.7.12",
+		"@hono/zod-openapi": "1.6.3",
+		"@logistack/contracts": "workspace:*",
+		"@logistack/core": "workspace:*",
+		"@logistack/db": "workspace:*",
+		"@logistack/docker": "workspace:*",
+		"@logistack/providers": "workspace:*",
+		"@logistack/templates": "workspace:*",
+		"@logistack/worker": "workspace:*",
+		"@modelcontextprotocol/sdk": "1.32.2",
+		"@scalar/hono-api-reference": "0.12.17",
+		"better-auth": "1.7.12",
+		"cron-parser": "5.10.2",
+		"drizzle-orm": "0.45.4",
+		"hono": "4.13.16",
+		"zod": "4.6.7"
+	}
+}

@@ -1,0 +1,58 @@
+{
+	"schema": 1,
+	"id": "qui",
+	"name": "qui",
+	"description": "A fast, modern web interface for qBittorrent. Manage multiple qBittorrent instances from a single, lightweight application built by autobrr.",
+	"category": "media",
+	"tags": [
+		"torrent",
+		"qbittorrent",
+		"download",
+		"media",
+		"self-hosted"
+	],
+	"logo": "logos/qui.png",
+	"website": "https://getqui.com/",
+	"docs": "https://getqui.com/",
+	"version": "sha256:a5b2f5faf638",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/qui",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "qui",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "qui-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/autobrr/qui@sha256:a5b2f5faf6388cce257137c88e4b189458fd799cf9119ed476c980e5a69341b2",
+			"ports": [
+				{
+					"target": 7476,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 7476,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

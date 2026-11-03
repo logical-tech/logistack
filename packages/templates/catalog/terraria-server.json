@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "terraria-server",
+	"name": "Terraria Server",
+	"description": "Docker multi-arch Image for Terraria Server.",
+	"category": "media",
+	"tags": [
+		"terraria"
+	],
+	"docs": "https://github.com/hexlo/terraria-server-docker",
+	"version": "1.4.5.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/terraria-server.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "terrariaPassword",
+			"label": "Terraria password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "terraria-server",
+			"dependsOn": [],
+			"env": {
+				"worldpath": "/root/.local/share/Terraria/Worlds",
+				"autocreate": "2",
+				"world": "world1.wld",
+				"difficulty": "1",
+				"maxplayers": "8",
+				"password": "${{ inputs.terrariaPassword }}",
+				"motd": "Welcome to the server!",
+				"language": "en/US",
+				"secure": "1"
+			},
+			"volumes": [
+				{
+					"name": "terraria-server",
+					"target": "/root/.local/share/Terraria/Worlds"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "hexlo/terraria-server-docker:1.4.5.0",
+			"ports": [
+				{
+					"target": 7777,
+					"published": 7777,
+					"protocol": "tcp",
+					"mode": "host"
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,57 @@
+{
+	"schema": 1,
+	"id": "pocketbase",
+	"name": "Pocketbase",
+	"description": "Open Source backend for your next SaaS and Mobile app in 1 file",
+	"category": "devtools",
+	"tags": [
+		"pocketbase",
+		"backend",
+		"saas",
+		"mobile",
+		"api",
+		"database"
+	],
+	"logo": "logos/pocketbase.svg",
+	"website": "https://pocketbase.io/",
+	"docs": "https://pocketbase.io/docs/",
+	"version": "sha256:afbf77a5f09a",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/pocketbase.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "pocketbaseDomain",
+			"label": "Pocketbase domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "pocketbase",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "pocketbase-data",
+					"target": "/app/pb_data"
+				},
+				{
+					"name": "pocketbase-hooks",
+					"target": "/app/pb_hooks"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/coollabsio/pocketbase@sha256:afbf77a5f09aa02d522425f78c0ed6c30a50b12c006e2bdb904ac567a9b4d3e7",
+			"ports": [],
+			"public": {
+				"port": 8080,
+				"domain": "pocketbaseDomain"
+			}
+		}
+	]
+}

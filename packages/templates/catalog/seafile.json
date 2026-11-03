@@ -1,0 +1,193 @@
+{
+	"schema": 1,
+	"id": "seafile",
+	"name": "Seafile",
+	"description": "Seafile is an open-source file sync and sharing platform.",
+	"category": "storage",
+	"tags": [
+		"file-manager",
+		"file-sharing",
+		"storage"
+	],
+	"logo": "logos/seafile.svg",
+	"website": "https://seafile.com/",
+	"docs": "https://manual.seafile.com/13.0",
+	"version": "13.0-latest",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/seafile",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mysqlUserPassword",
+			"label": "Mysql user password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlRootPassword",
+			"label": "Mysql root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "redisPassword",
+			"label": "Redis password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "jwtPrivateKey",
+			"label": "JWT private key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "seafile-db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}",
+				"MYSQL_LOG_CONSOLE": "true",
+				"MARIADB_AUTO_UPGRADE": "1"
+			},
+			"volumes": [
+				{
+					"name": "seafile-mysql-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/usr/local/bin/healthcheck.sh",
+					"--connect",
+					"--mariadbupgrade",
+					"--innodb_initialized"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {
+				"REDIS_PASSWORD": "${{ inputs.redisPassword }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "redis:8.8",
+			"command": [
+				"/bin/sh",
+				"-c",
+				"exec redis-server --requirepass \"$REDIS_PASSWORD\" --save \"\" --appendonly no"
+			],
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "seafile",
+			"dependsOn": [
+				"seafile-db",
+				"redis"
+			],
+			"env": {
+				"SEAFILE_MYSQL_DB_HOST": "${{ services.seafile-db.host }}",
+				"SEAFILE_MYSQL_DB_PORT": "3306",
+				"SEAFILE_MYSQL_DB_USER": "seafile",
+				"SEAFILE_MYSQL_DB_PASSWORD": "${{ inputs.mysqlUserPassword }}",
+				"INIT_SEAFILE_MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlRootPassword }}",
+				"SEAFILE_MYSQL_DB_CCNET_DB_NAME": "ccnet_db",
+				"SEAFILE_MYSQL_DB_SEAFILE_DB_NAME": "seafile_db",
+				"SEAFILE_MYSQL_DB_SEAHUB_DB_NAME": "seahub_db",
+				"TIME_ZONE": "Etc/UTC",
+				"INIT_SEAFILE_ADMIN_EMAIL": "admin@example.com",
+				"INIT_SEAFILE_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"SEAFILE_SERVER_HOSTNAME": "${{ inputs.mainDomain }}",
+				"SEAFILE_SERVER_PROTOCOL": "https",
+				"SITE_ROOT": "/",
+				"NON_ROOT": "false",
+				"JWT_PRIVATE_KEY": "${{ inputs.jwtPrivateKey }}",
+				"SEAFILE_LOG_TO_STDOUT": "false",
+				"ENABLE_GO_FILESERVER": "true",
+				"ENABLE_SEADOC": "true",
+				"SEADOC_SERVER_URL": "https://${{ inputs.mainDomain }}/sdoc-server",
+				"CACHE_PROVIDER": "redis",
+				"REDIS_HOST": "${{ services.redis.host }}",
+				"REDIS_PORT": "6379",
+				"REDIS_PASSWORD": "${{ inputs.redisPassword }}",
+				"MD_FILE_COUNT_LIMIT": "100000"
+			},
+			"volumes": [
+				{
+					"name": "seafile-data",
+					"target": "/shared"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "seafileltd/seafile-mc:13.0-latest",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://localhost:80 || exit 1"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "seadoc",
+			"dependsOn": [
+				"seafile-db"
+			],
+			"env": {
+				"DB_HOST": "${{ services.seafile-db.host }}",
+				"DB_PORT": "3306",
+				"DB_USER": "seafile",
+				"DB_PASSWORD": "${{ inputs.mysqlUserPassword }}",
+				"DB_NAME": "seahub_db",
+				"TIME_ZONE": "Etc/UTC",
+				"JWT_PRIVATE_KEY": "${{ inputs.jwtPrivateKey }}",
+				"NON_ROOT": "false",
+				"SEAHUB_SERVICE_URL": "http://${{ services.seafile.host }}"
+			},
+			"volumes": [
+				{
+					"name": "seadoc-data",
+					"target": "/shared"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "seafileltd/sdoc-server:2.0-latest",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

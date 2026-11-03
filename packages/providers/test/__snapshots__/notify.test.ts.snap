@@ -1,0 +1,338 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`channel payloads slack 1`] = `
+{
+  "body": {
+    "blocks": [
+      {
+        "text": {
+          "text": "Deployment failed: api",
+          "type": "plain_text",
+        },
+        "type": "header",
+      },
+      {
+        "text": {
+          "text": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+          "type": "mrkdwn",
+        },
+        "type": "section",
+      },
+      {
+        "elements": [
+          {
+            "text": "error · <https://ls.example.com/deployments/dep_1|Open in LogiStack>",
+            "type": "mrkdwn",
+          },
+        ],
+        "type": "context",
+      },
+    ],
+    "text": "Deployment failed: api",
+  },
+  "headers": {
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://hooks.slack.com/services/T/B/x",
+}
+`;
+
+exports[`channel payloads discord 1`] = `
+{
+  "body": {
+    "embeds": [
+      {
+        "color": 15680580,
+        "description": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+        "footer": {
+          "text": "deployment.failed",
+        },
+        "timestamp": "2026-11-03T10:00:00.000Z",
+        "title": "Deployment failed: api",
+        "url": "https://ls.example.com/deployments/dep_1",
+      },
+    ],
+  },
+  "headers": {
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://discord.com/api/webhooks/1/x",
+}
+`;
+
+exports[`channel payloads telegram 1`] = `
+{
+  "body": {
+    "chat_id": "-100",
+    "disable_web_page_preview": true,
+    "parse_mode": "HTML",
+    "text": 
+"<b>Deployment failed: api</b>
+
+build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z
+
+<a href="https://ls.example.com/deployments/dep_1">Open in LogiStack</a>"
+,
+  },
+  "headers": {
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://api.telegram.org/bot123:abc/sendMessage",
+}
+`;
+
+exports[`channel payloads teams 1`] = `
+{
+  "body": {
+    "attachments": [
+      {
+        "content": {
+          "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+          "actions": [
+            {
+              "title": "Open in LogiStack",
+              "type": "Action.OpenUrl",
+              "url": "https://ls.example.com/deployments/dep_1",
+            },
+          ],
+          "body": [
+            {
+              "color": "Attention",
+              "size": "Medium",
+              "text": "Deployment failed: api",
+              "type": "TextBlock",
+              "weight": "Bolder",
+              "wrap": true,
+            },
+            {
+              "text": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+              "type": "TextBlock",
+              "wrap": true,
+            },
+          ],
+          "type": "AdaptiveCard",
+          "version": "1.4",
+        },
+        "contentType": "application/vnd.microsoft.card.adaptive",
+      },
+    ],
+    "type": "message",
+  },
+  "headers": {
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://prod.westeurope.logic.azure.com/workflows/x",
+}
+`;
+
+exports[`channel payloads mattermost 1`] = `
+{
+  "body": {
+    "attachments": [
+      {
+        "color": "#ef4444",
+        "fallback": "Deployment failed: api",
+        "text": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+        "title": "Deployment failed: api",
+        "title_link": "https://ls.example.com/deployments/dep_1",
+      },
+    ],
+    "text": "Deployment failed: api",
+  },
+  "headers": {
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://mm.example.com/hooks/x",
+}
+`;
+
+exports[`channel payloads ntfy 1`] = `
+{
+  "body": {
+    "click": "https://ls.example.com/deployments/dep_1",
+    "message": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+    "priority": 5,
+    "tags": [
+      "error",
+      "deployment.failed",
+    ],
+    "title": "Deployment failed: api",
+    "topic": "logistack-alerts",
+  },
+  "headers": {
+    "authorization": "Bearer tk_x",
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://ntfy.sh/",
+}
+`;
+
+exports[`channel payloads gotify 1`] = `
+{
+  "body": {
+    "extras": {
+      "client::notification": {
+        "click": {
+          "url": "https://ls.example.com/deployments/dep_1",
+        },
+      },
+    },
+    "message": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+    "priority": 8,
+    "title": "Deployment failed: api",
+  },
+  "headers": {
+    "content-type": "application/json",
+    "x-gotify-key": "AppTok",
+  },
+  "method": "POST",
+  "url": "https://gotify.example.com/message",
+}
+`;
+
+exports[`channel payloads pushover 1`] = `
+{
+  "body": {
+    "message": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+    "priority": 1,
+    "title": "Deployment failed: api",
+    "token": "app",
+    "url": "https://ls.example.com/deployments/dep_1",
+    "url_title": "Open in LogiStack",
+    "user": "user",
+  },
+  "headers": {
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://api.pushover.net/1/messages.json",
+}
+`;
+
+exports[`channel payloads webhook 1`] = `
+{
+  "body": {
+    "event": {
+      "at": "2026-11-03T10:00:00.000Z",
+      "id": "evt_1",
+      "organizationId": "org_1",
+      "payload": {
+        "commit": "a1b2c3d",
+        "environment": "production",
+        "error": "build exited with code 1",
+        "name": "api",
+        "project": "shop",
+        "projectId": "prj_1",
+        "serviceId": "svc_1",
+        "url": "https://ls.example.com/deployments/dep_1",
+      },
+      "resource": {
+        "id": "dep_1",
+        "type": "deployment",
+      },
+      "type": "deployment.failed",
+    },
+    "rendered": {
+      "body": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z"
+,
+      "severity": "error",
+      "title": "Deployment failed: api",
+      "url": "https://ls.example.com/deployments/dep_1",
+    },
+  },
+  "headers": {
+    "content-type": "application/json",
+    "user-agent": "LogiStack-Webhook",
+    "x-logistack-delivery": "evt_1",
+    "x-logistack-event": "deployment.failed",
+    "x-logistack-signature": "sha256=3515becd41dd45cdc67ed6ad1912b5a08516c70fa4fe5338048b1c62fc9dd48f",
+    "x-logistack-timestamp": "1793700005",
+  },
+  "method": "POST",
+  "url": "https://hooks.example.com/ls",
+}
+`;
+
+exports[`channel payloads email 1`] = `
+{
+  "body": {
+    "from": "LogiStack <ls@example.com>",
+    "subject": "[error] Deployment failed: api",
+    "text": 
+"build exited with code 1
+Project: shop
+Environment: production
+Commit: a1b2c3d
+At: 2026-11-03T10:00:00.000Z
+
+https://ls.example.com/deployments/dep_1"
+,
+    "to": [
+      "ops@example.com",
+    ],
+  },
+  "headers": {
+    "authorization": "Bearer re_x",
+    "content-type": "application/json",
+  },
+  "method": "POST",
+  "url": "https://api.resend.com/emails",
+}
+`;

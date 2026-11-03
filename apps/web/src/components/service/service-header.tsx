@@ -1,0 +1,167 @@
+import { useNavigate } from "@tanstack/react-router";
+import { Play, Rocket, RotateCw, Square } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ServiceStatus } from "@/components/status";
+import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
+import {
+	type DeploymentRow,
+	type ServiceOverview,
+	useServiceMutation,
+} from "@/lib/api/service-ops";
+import type { ProjectId } from "@/lib/api/types";
+
+/** What the service runs, in one line: the image of its current deployment, else its source. */
+function sourceLabel(o: ServiceOverview) {
+	if (o.current?.imageRef) return o.current.imageRef;
+	const spec = o.spec;
+	if (spec.kind === "database") return `${spec.engine} ${spec.version}`;
+	if (spec.source.type === "image") return spec.source.image;
+	if (spec.source.type === "inline") return "Compose file";
+	return `${spec.source.repository}@${spec.source.branch}`;
+}
+
+/** Desired and observed disagree while the reconciler converges, or when it cannot. */
+function convergence(o: ServiceOverview) {
+	const observed = o.status.observed;
+	if (o.desiredState === "stopped" && observed !== "stopped") return "stopping";
+	if (o.desiredState === "running" && observed === "stopped") return "starting";
+	return null;
+}
+
+const errorText = (e: unknown) =>
+	e instanceof Error ? e.message : "Something went wrong.";
+
+type Confirm = "restart" | "stop" | null;
+
+export function ServiceHeader({
+	service: o,
+	projectId,
+}: {
+	service: ServiceOverview;
+	projectId: ProjectId;
+}) {
+	const navigate = useNavigate();
+	const [confirm, setConfirm] = useState<Confirm>(null);
+	const openLog = (d: DeploymentRow) =>
+		navigate({
+			to: "/projects/$projectId/services/$serviceId/deployments",
+			params: { projectId, serviceId: o.id },
+			search: { d: d.id },
+		});
+	const deploy = useServiceMutation(o.id, () => api.serviceOps.deploy(o.id));
+	const restart = useServiceMutation(o.id, () => api.serviceOps.restart(o.id));
+	const stop = useServiceMutation(o.id, () => api.serviceOps.stop(o.id));
+	const start = useServiceMutation(o.id, () => api.serviceOps.start(o.id));
+	const stopped = o.desiredState === "stopped";
+	const note = convergence(o);
+	const replicas =
+		o.kind === "application" && o.status.replicasDesired > 0
+			? `${o.status.replicasRunning}/${o.status.replicasDesired}`
+			: undefined;
+
+	return (
+		<header className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-end sm:justify-between">
+			<div className="min-w-0">
+				<h1 className="truncate text-xl font-semibold">{o.name}</h1>
+				<p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+					<ServiceStatus status={o.status.observed} suffix={replicas} />
+					{note && (
+						<span className="text-foreground">
+							Desired {o.desiredState}, {note}
+						</span>
+					)}
+					<span>{o.environmentName}</span>
+					<span className="min-w-0 truncate font-mono text-xs">
+						{sourceLabel(o)}
+					</span>
+				</p>
+			</div>
+			<div className="flex shrink-0 flex-wrap items-center gap-2">
+				{stopped ? (
+					<Button
+						variant="outline"
+						disabled={start.isPending}
+						onClick={() =>
+							start.mutate(undefined, {
+								onSuccess: () => toast.success(`Starting ${o.name}`),
+								onError: (e) =>
+									toast.error("Couldn't start", { description: errorText(e) }),
+							})
+						}
+					>
+						<Play data-icon="inline-start" />
+						Start
+					</Button>
+				) : (
+					<Button variant="outline" onClick={() => setConfirm("stop")}>
+						<Square data-icon="inline-start" />
+						Stop
+					</Button>
+				)}
+				<Button
+					variant="outline"
+					disabled={!o.current}
+					title={o.current ? undefined : "Needs one healthy deployment first"}
+					onClick={() => setConfirm("restart")}
+				>
+					<RotateCw data-icon="inline-start" />
+					Restart
+				</Button>
+				<Button
+					disabled={deploy.isPending}
+					onClick={() =>
+						deploy.mutate(undefined, {
+							onSuccess: openLog,
+							onError: (e) =>
+								toast.error("Couldn't deploy", { description: errorText(e) }),
+						})
+					}
+				>
+					<Rocket data-icon="inline-start" />
+					Deploy
+				</Button>
+			</div>
+
+			<ConfirmDialog
+				open={confirm === "restart"}
+				onOpenChange={(open) => !open && setConfirm(null)}
+				title={`Restart ${o.name}?`}
+				description="Each replica is replaced on the current image, one at a time, with the new one started first. No build runs."
+				confirmLabel="Restart"
+				destructive={false}
+				pending={restart.isPending}
+				onConfirm={() =>
+					restart.mutate(undefined, {
+						onSuccess: (d) => {
+							setConfirm(null);
+							openLog(d);
+						},
+						onError: (e) =>
+							toast.error("Couldn't restart", { description: errorText(e) }),
+					})
+				}
+			/>
+			<ConfirmDialog
+				open={confirm === "stop"}
+				onOpenChange={(open) => !open && setConfirm(null)}
+				title={`Stop ${o.name}?`}
+				description="It scales to zero replicas and its domains leave the proxy. Data, volumes and configuration stay; Start brings it back."
+				confirmLabel="Stop service"
+				pending={stop.isPending}
+				onConfirm={() =>
+					stop.mutate(undefined, {
+						onSuccess: () => {
+							setConfirm(null);
+							toast.success(`Stopping ${o.name}`);
+						},
+						onError: (e) =>
+							toast.error("Couldn't stop", { description: errorText(e) }),
+					})
+				}
+			/>
+		</header>
+	);
+}

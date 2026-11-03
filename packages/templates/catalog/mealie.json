@@ -1,0 +1,69 @@
+{
+	"schema": 1,
+	"id": "mealie",
+	"name": "Mealie",
+	"description": "A recipe manager and meal planner.",
+	"category": "productivity",
+	"tags": [
+		"recipe manager",
+		"meal planner",
+		"cooking",
+		"food",
+		"recipes",
+		"shopping-list",
+		"meal-planning"
+	],
+	"logo": "logos/mealie.png",
+	"website": "https://mealie.io/",
+	"docs": "https://docs.mealie.io/",
+	"version": "3.17.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/mealie.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "mealieDomain",
+			"label": "Mealie domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "mealie",
+			"dependsOn": [],
+			"env": {
+				"ALLOW_SIGNUP": "true",
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Europe/Berlin",
+				"MAX_WORKERS": "1",
+				"WEB_CONCURRENCY": "1"
+			},
+			"volumes": [
+				{
+					"name": "mealie-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/mealie-recipes/mealie:3.17.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"bash -c ':> /dev/tcp/127.0.0.1/9000' || exit 1"
+				]
+			},
+			"public": {
+				"port": 9000,
+				"domain": "mealieDomain"
+			}
+		}
+	]
+}

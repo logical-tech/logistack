@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "fmd-server",
+	"name": "FMD Server",
+	"description": "A server to communicate with the FMD Android app, to locate and control your devices.",
+	"category": "security",
+	"tags": [
+		"phone",
+		"security",
+		"gps",
+		"location"
+	],
+	"logo": "logos/fmd-server.svg",
+	"website": "https://fmd-foss.org/",
+	"docs": "https://fmd-foss.org/docs/fmd-server/overview",
+	"version": "0.16.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/fmd-server",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "registrationToken",
+			"label": "Registration token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "fmd-server",
+			"dependsOn": [],
+			"env": {
+				"FMD_REGISTRATIONTOKEN": "${{ inputs.registrationToken }}",
+				"FMD_USERIDLENGTH": "5",
+				"FMD_MAXSAVEDLOC": "1000",
+				"FMD_MAXSAVEDPIC": "10"
+			},
+			"volumes": [
+				{
+					"name": "fmd-server-data",
+					"target": "/var/lib/fmd-server/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "registry.gitlab.com/fmd-foss/fmd-server:0.16.0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"timeout 10s bash -c ':> /dev/tcp/127.0.0.1/8080'"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

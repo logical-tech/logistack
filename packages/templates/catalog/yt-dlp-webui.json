@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"id": "yt-dlp-webui",
+	"name": "yt-dlp-webui",
+	"description": "yt-dlp-webui is a web interface for yt-dlp, allowing you to download videos and audio from various platforms with a simple web UI.",
+	"category": "media",
+	"tags": [
+		"downloader",
+		"youtube",
+		"media",
+		"webui"
+	],
+	"website": "https://github.com/marcopiovanello/yt-dlp-web-ui",
+	"docs": "https://github.com/marcopiovanello/yt-dlp-web-ui",
+	"version": "sha256:a8ae96007ee3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/yt-dlp-webui",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "yt-dlp-webui",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "downloads",
+					"target": "/downloads"
+				},
+				{
+					"name": "config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "marcobaobao/yt-dlp-webui@sha256:a8ae96007ee3f306a1079b4edb81a6b87dc685a6e8b822cd52aa0b026cf10ff3",
+			"ports": [
+				{
+					"target": 3033,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://localhost:3033 || exit 1"
+				]
+			},
+			"public": {
+				"port": 3033,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

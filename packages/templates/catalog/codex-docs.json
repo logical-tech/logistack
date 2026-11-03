@@ -1,0 +1,107 @@
+{
+	"schema": 1,
+	"id": "codex-docs",
+	"name": "CodeX Docs",
+	"description": "CodeX is a comprehensive platform that brings together passionate engineers, designers, and specialists to create high-quality open-source projects. It includes Editor.js, Hawk.so, CodeX Notes, and more.",
+	"category": "productivity",
+	"tags": [
+		"documentation",
+		"development",
+		"collaboration"
+	],
+	"logo": "logos/codex-docs.svg",
+	"website": "https://codex.so/",
+	"docs": "https://docs.codex.so/",
+	"version": "v2.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/codex-docs",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mongoPassword",
+			"label": "Mongo password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "authPassword",
+			"label": "Auth password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "authSecret",
+			"label": "Auth secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "codexDomain",
+			"label": "Codex domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "codex",
+			"dependsOn": [
+				"mongo"
+			],
+			"env": {
+				"APP_CONFIG_database_driver": "mongodb",
+				"APP_CONFIG_database_mongodb_uri": "mongodb://mongo:${{ inputs.mongoPassword }}@${{ services.mongo.host }}:27017",
+				"APP_CONFIG_auth_password": "${{ inputs.authPassword }}",
+				"APP_CONFIG_auth_secret": "${{ inputs.authSecret }}"
+			},
+			"volumes": [
+				{
+					"name": "uploads",
+					"target": "/usr/src/app/uploads"
+				},
+				{
+					"name": "db",
+					"target": "/usr/src/app/db"
+				}
+			],
+			"files": [
+				{
+					"target": "/usr/src/app/docs-config.yaml",
+					"content": "# Custom Config, view Here https://github.com/codex-team/codex.docs/blob/main/docs-config.yaml\n# Can Also Be configured with ENV, see here https://docs.codex.so/configuration#override-properties-with-environment-variables\n"
+				}
+			],
+			"kind": "application",
+			"image": "ghcr.io/codex-team/codex.docs:v2.2",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3000,
+				"domain": "codexDomain"
+			}
+		},
+		{
+			"name": "mongo",
+			"dependsOn": [],
+			"env": {
+				"MONGO_INITDB_ROOT_PASSWORD": "${{ inputs.mongoPassword }}",
+				"MONGO_INITDB_ROOT_USERNAME": "mongo"
+			},
+			"volumes": [
+				{
+					"name": "mongo-data",
+					"target": "/data/db"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mongo",
+			"version": "4"
+		}
+	]
+}

@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "navidrome",
+	"name": "Navidrome",
+	"description": "Standalone server, that allows you to browse and listen to your music collection using a web browser or any Subsonic-compatible client.",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"music",
+		"subsonic",
+		"streaming",
+		"media-server",
+		"self-hosted",
+		"audio"
+	],
+	"logo": "logos/navidrome.svg",
+	"website": "https://www.navidrome.org/",
+	"docs": "https://www.navidrome.org/docs/",
+	"version": "sha256:38dc2727bfcf",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/navidrome.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "navidromeDomain",
+			"label": "Navidrome domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "navidrome",
+			"dependsOn": [],
+			"env": {
+				"ND_BASEURL": "https://${{ inputs.navidromeDomain }}",
+				"ND_SCANSCHEDULE": "1h",
+				"ND_LOGLEVEL": "info",
+				"ND_SESSIONTIMEOUT": "24h",
+				"ND_ENABLEINSIGHTSCOLLECTOR": "false"
+			},
+			"volumes": [
+				{
+					"name": "data",
+					"target": "/data"
+				},
+				{
+					"name": "music",
+					"target": "/music",
+					"readOnly": true
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "deluan/navidrome@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--spider",
+					"--quiet",
+					"http://127.0.0.1:4533/ping"
+				]
+			},
+			"public": {
+				"port": 4533,
+				"domain": "navidromeDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

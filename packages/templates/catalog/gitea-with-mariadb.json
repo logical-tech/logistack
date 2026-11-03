@@ -1,0 +1,138 @@
+{
+	"schema": 1,
+	"id": "gitea-with-mariadb",
+	"name": "Gitea With Mariadb",
+	"description": "Gitea is a self-hosted, lightweight Git service, offering version control, collaboration, and code hosting.",
+	"category": "devtools",
+	"tags": [
+		"version control",
+		"collaboration",
+		"code",
+		"hosting",
+		"lightweight",
+		"mariadb"
+	],
+	"logo": "logos/gitea-with-mariadb.svg",
+	"docs": "https://docs.gitea.com/",
+	"version": "sha256:8967bf9deaf3",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/gitea-with-mariadb.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "giteaDomain",
+			"label": "Gitea domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlUser",
+			"label": "Mysql user",
+			"type": "username"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mysqlDatabase",
+			"label": "Mysql database",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "mysqlrootPassword",
+			"label": "Mysqlroot password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "gitea",
+			"dependsOn": [
+				"mariadb"
+			],
+			"env": {
+				"USER_UID": "1000",
+				"USER_GID": "1000",
+				"GITEA__database__DB_TYPE": "mysql",
+				"GITEA__database__HOST": "${{ services.mariadb.host }}",
+				"GITEA__database__NAME": "gitea",
+				"GITEA__database__USER": "${{ inputs.mysqlUser }}",
+				"GITEA__database__PASSWD": "${{ inputs.mysqlPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "gitea-data",
+					"target": "/data"
+				},
+				{
+					"name": "gitea-timezone",
+					"target": "/etc/timezone",
+					"readOnly": true
+				},
+				{
+					"name": "gitea-localtime",
+					"target": "/etc/localtime",
+					"readOnly": true
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "gitea/gitea@sha256:8967bf9deaf3c5c4adae13519436dc1b20c646ac83fe37ae810c933a1045227d",
+			"ports": [
+				{
+					"target": 22,
+					"published": 22222,
+					"protocol": "tcp",
+					"mode": "host"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:3000"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "giteaDomain"
+			}
+		},
+		{
+			"name": "mariadb",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_USER": "${{ inputs.mysqlUser }}",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_DATABASE": "${{ inputs.mysqlDatabase }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "gitea-mariadb-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"healthcheck.sh",
+					"--connect",
+					"--innodb_initialized"
+				]
+			}
+		}
+	]
+}

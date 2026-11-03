@@ -1,0 +1,102 @@
+{
+	"schema": 1,
+	"id": "ihatemoney",
+	"name": "I Hate Money",
+	"description": "I Hate Money is a web application for managing shared expenses among groups of people. It helps you track who owes what to whom, making it easy to split bills and manage group finances.",
+	"category": "finance",
+	"tags": [
+		"budget",
+		"finance",
+		"expense-sharing",
+		"self-hosted",
+		"money-management",
+		"group-finances"
+	],
+	"logo": "logos/ihatemoney.png",
+	"website": "https://ihatemoney.org/",
+	"docs": "https://ihatemoney.readthedocs.io/",
+	"version": "sha256:009d15205527",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/ihatemoney",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mailPassword",
+			"label": "Mail password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mailUsername",
+			"label": "Mail username",
+			"type": "username"
+		},
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "ihatemoney",
+			"dependsOn": [],
+			"env": {
+				"DEBUG": "False",
+				"ACTIVATE_DEMO_PROJECT": "True",
+				"ACTIVATE_ADMIN_DASHBOARD": "False",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"ALLOW_PUBLIC_PROJECT_CREATION": "True",
+				"BABEL_DEFAULT_TIMEZONE": "UTC",
+				"GREENLET_TEST_CPP": "no",
+				"MAIL_DEFAULT_SENDER": "Budget manager <admin@example.com>",
+				"MAIL_PASSWORD": "${{ inputs.mailPassword }}",
+				"MAIL_PORT": "25",
+				"MAIL_SERVER": "localhost",
+				"MAIL_USE_SSL": "False",
+				"MAIL_USE_TLS": "False",
+				"MAIL_USERNAME": "${{ inputs.mailUsername }}",
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"SESSION_COOKIE_SECURE": "True",
+				"SHOW_ADMIN_EMAIL": "True",
+				"SQLALCHEMY_DATABASE_URI": "sqlite:////database/ihatemoney.db",
+				"SQLALCHEMY_TRACK_MODIFICATIONS": "False",
+				"APPLICATION_ROOT": "/",
+				"ENABLE_CAPTCHA": "False",
+				"LEGAL_LINK": "",
+				"PORT": "8000",
+				"PUID": "0",
+				"PGID": "0"
+			},
+			"volumes": [
+				{
+					"name": "files-sqlite-db",
+					"target": "/database"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ihatemoney/ihatemoney@sha256:009d1520552782765c8c41750262cc69410be7ac616f93a9f371556e472f23c6",
+			"ports": [],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

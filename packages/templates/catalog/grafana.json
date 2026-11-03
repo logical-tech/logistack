@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "grafana",
+	"name": "Grafana",
+	"description": "Grafana is an open-source dashboard tool for monitoring and visualizing data.",
+	"category": "monitoring",
+	"tags": [
+		"monitoring",
+		"grafana",
+		"analytics",
+		"dashboard"
+	],
+	"logo": "logos/grafana.svg",
+	"website": "https://grafana.com/",
+	"docs": "https://grafana.com/docs/",
+	"version": "12.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/grafana",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "grafana",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "grafana-storage",
+					"target": "/var/lib/grafana"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "grafana/grafana-enterprise:12.4",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

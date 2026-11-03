@@ -1,0 +1,80 @@
+{
+	"schema": 1,
+	"id": "sessy",
+	"name": "Sessy",
+	"description": "Email observability platform for monitoring and analyzing email systems.",
+	"category": "monitoring",
+	"tags": [
+		"email",
+		"observability",
+		"monitoring",
+		"analytics"
+	],
+	"logo": "logos/sessy.svg",
+	"docs": "https://github.com/marckohlbrugge/sessy/blob/main/docs/docker-deployment.md",
+	"version": "sha256:d5f4904f7df7",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/sessy.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "sessyDomain",
+			"label": "Sessy domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "sessysecretHex",
+			"label": "Sessysecret key",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "sessyUser",
+			"label": "Sessy user",
+			"type": "username"
+		},
+		{
+			"key": "sessyPassword",
+			"label": "Sessy password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "sessy",
+			"dependsOn": [],
+			"env": {
+				"SECRET_KEY_BASE": "${{ inputs.sessysecretHex }}",
+				"HTTP_AUTH_USERNAME": "${{ inputs.sessyUser }}",
+				"HTTP_AUTH_PASSWORD": "${{ inputs.sessyPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "sessy-data",
+					"target": "/rails/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/marckohlbrugge/sessy@sha256:d5f4904f7df7ef4ab8c8782b2365606af274d6ab34d5f5daa46743d75f5ec9d6",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -sf http://127.0.0.1:80 || [ $? -eq 22 ]"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "sessyDomain"
+			}
+		}
+	]
+}

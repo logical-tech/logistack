@@ -1,0 +1,87 @@
+{
+	"schema": 1,
+	"id": "joplin-server",
+	"name": "Joplin Server",
+	"description": "Joplin Server is the sync backend for the Joplin note-taking app.",
+	"category": "productivity",
+	"tags": [
+		"notes",
+		"sync",
+		"productivity"
+	],
+	"logo": "logos/joplin-server.svg",
+	"website": "https://joplinapp.org/",
+	"docs": "https://github.com/laurent22/joplin/tree/dev/packages/server",
+	"version": "3.7.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/joplin-server",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "joplin-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_USER": "joplin",
+				"POSTGRES_DB": "joplin"
+			},
+			"volumes": [
+				{
+					"name": "joplin-db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		},
+		{
+			"name": "joplin-server",
+			"dependsOn": [
+				"joplin-db"
+			],
+			"env": {
+				"APP_BASE_URL": "http://${{ inputs.mainDomain }}",
+				"APP_PORT": "22300",
+				"DB_CLIENT": "pg",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DATABASE": "joplin",
+				"POSTGRES_USER": "joplin",
+				"POSTGRES_PORT": "5432",
+				"POSTGRES_HOST": "${{ services.joplin-db.host }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "joplin/server:3.7.1",
+			"ports": [
+				{
+					"target": 22300,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 22300,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

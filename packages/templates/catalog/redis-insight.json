@@ -1,0 +1,72 @@
+{
+	"schema": 1,
+	"id": "redis-insight",
+	"name": "Redis Insight",
+	"description": "Redis Insight lets you do both GUI- and CLI-based interactions in a fully-featured desktop GUI client.",
+	"category": "database",
+	"tags": [
+		"redis",
+		"gui",
+		"database",
+		"monitoring",
+		"analytics"
+	],
+	"logo": "logos/redis-insight.png",
+	"docs": "https://redis.io/docs/latest/operate/redisinsight/",
+	"version": "2.70",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/redis-insight.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "redisinsightDomain",
+			"label": "Redisinsight domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "riEncryptionKeyPassword",
+			"label": "Ri encryption key password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "redisinsight",
+			"dependsOn": [],
+			"env": {
+				"RI_APP_HOST": "0.0.0.0",
+				"RI_APP_PORT": "5540",
+				"RI_ENCRYPTION_KEY": "${{ inputs.riEncryptionKeyPassword }}",
+				"RI_LOG_LEVEL": "info",
+				"RI_FILES_LOGGER": "true",
+				"RI_STDOUT_LOGGER": "true"
+			},
+			"volumes": [
+				{
+					"name": "redis-insight-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis/redisinsight:2.70",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"--spider",
+					"http://0.0.0.0:5540/api/health"
+				]
+			},
+			"public": {
+				"port": 5540,
+				"domain": "redisinsightDomain"
+			}
+		}
+	]
+}

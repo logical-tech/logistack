@@ -1,0 +1,246 @@
+/*
+ * Motion tokens (transitions-dev scale) and their application to the Radix
+ * surfaces shadcn renders. Radix unmounts on animationend, so surfaces use
+ * keyframes driven by tw-animate's variables; in-place state changes use
+ * transitions so they stay interruptible.
+ */
+:root {
+	--duration-stagger: 40ms;
+	--duration-micro: 80ms;
+	--duration-quick: 150ms;
+	--duration-fast: 250ms;
+	--duration-medium: 350ms;
+	--duration-slow: 400ms;
+	--duration-very-slow: 500ms;
+
+	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-in-out: ease-in-out;
+	--ease-out: ease-out;
+	--ease-linear: linear;
+
+	--distance-micro: 4px;
+	--distance-small: 6px;
+	--distance-base: 8px;
+	--distance-medium: 12px;
+
+	--scale-large: 0.96;
+	--scale-medium: 0.97;
+	--scale-small: 0.98;
+	--scale-tiny: 0.99;
+
+	--blur-small: 2px;
+	--blur-medium: 3px;
+}
+
+/* Modal: scale up from 0.96 on the open clock, dip back on the faster close clock. */
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"] {
+	--tw-ease: var(--ease-smooth-out);
+}
+[data-slot="dialog-content"][data-state="open"],
+[data-slot="alert-dialog-content"][data-state="open"] {
+	--tw-animation-duration: var(--duration-fast);
+	--tw-enter-scale: var(--scale-large);
+}
+[data-slot="dialog-content"][data-state="closed"],
+[data-slot="alert-dialog-content"][data-state="closed"] {
+	--tw-animation-duration: var(--duration-quick);
+	--tw-exit-scale: var(--scale-large);
+}
+[data-slot="dialog-overlay"][data-state="open"] {
+	--tw-animation-duration: var(--duration-fast);
+}
+[data-slot="dialog-overlay"][data-state="closed"] {
+	--tw-animation-duration: var(--duration-quick);
+}
+
+/* Dropdowns grow from their trigger: origin-aware scale, no slide. */
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="popover-content"],
+[data-slot="select-content"] {
+	--tw-ease: var(--ease-smooth-out);
+	--tw-enter-translate-x: 0;
+	--tw-enter-translate-y: 0;
+	--tw-exit-translate-x: 0;
+	--tw-exit-translate-y: 0;
+}
+[data-slot="dropdown-menu-content"][data-state="open"],
+[data-slot="dropdown-menu-sub-content"][data-state="open"],
+[data-slot="popover-content"][data-state="open"],
+[data-slot="select-content"][data-state="open"] {
+	--tw-animation-duration: var(--duration-fast);
+	--tw-enter-scale: var(--scale-medium);
+}
+[data-slot="dropdown-menu-content"][data-state="closed"],
+[data-slot="dropdown-menu-sub-content"][data-state="closed"],
+[data-slot="popover-content"][data-state="closed"],
+[data-slot="select-content"][data-state="closed"] {
+	--tw-animation-duration: var(--duration-quick);
+	--tw-exit-scale: var(--scale-tiny);
+}
+
+/* Tooltip: quick fade + slight scale in, near-instant out. */
+[data-slot="tooltip-content"] {
+	--tw-ease: var(--ease-out);
+	--tw-enter-translate-x: 0;
+	--tw-enter-translate-y: 0;
+	--tw-animation-duration: var(--duration-quick);
+	--tw-enter-scale: var(--scale-small);
+}
+[data-slot="tooltip-content"][data-state="closed"] {
+	--tw-animation-duration: var(--duration-micro);
+}
+
+[data-slot="sheet-content"] {
+	--tw-ease: var(--ease-smooth-out);
+}
+[data-slot="sheet-content"][data-state="open"] {
+	--tw-animation-duration: var(--duration-slow);
+}
+[data-slot="sheet-content"][data-state="closed"] {
+	--tw-animation-duration: var(--duration-medium);
+}
+
+/* Number pop-in: changed digits re-enter with a blurred rise. */
+@keyframes t-digit-pop-in {
+	0% {
+		transform: translateY(var(--distance-base));
+		opacity: 0;
+		filter: blur(var(--blur-small));
+	}
+	100% {
+		transform: translateY(0);
+		opacity: 1;
+		filter: blur(0);
+	}
+}
+.t-digit {
+	display: inline-block;
+}
+.t-digit[data-changed] {
+	animation: t-digit-pop-in var(--duration-slow) var(--ease-smooth-out) both;
+	animation-delay: calc(var(--i, 0) * var(--duration-stagger));
+}
+
+/* Text swap soft: a value cross-blurs into the next in place. */
+@keyframes t-swap-soft {
+	0% {
+		opacity: 0;
+		filter: blur(var(--blur-small));
+		transform: translateY(var(--distance-micro));
+	}
+	100% {
+		opacity: 1;
+		filter: blur(0);
+		transform: translateY(0);
+	}
+}
+.t-swap {
+	animation: t-swap-soft var(--duration-fast) var(--ease-smooth-out) both;
+}
+
+/* Skeleton: a slow pulse, then content cross-blurs in over the reveal clock. */
+@keyframes t-skel-pulse {
+	50% {
+		opacity: 0.55;
+	}
+}
+.t-skel {
+	animation: t-skel-pulse 1400ms var(--ease-in-out) infinite;
+}
+@keyframes t-reveal {
+	0% {
+		opacity: 0;
+		filter: blur(var(--blur-small));
+	}
+	100% {
+		opacity: 1;
+		filter: blur(0);
+	}
+}
+.t-reveal {
+	animation: t-reveal var(--duration-slow) var(--ease-in-out) both;
+}
+
+/* Wizard step change: the incoming panel slides in from its direction. */
+@keyframes t-page-in {
+	0% {
+		opacity: 0;
+		transform: translateX(calc(var(--distance-base) * 2 * var(--dir, 1)));
+		filter: blur(var(--blur-medium));
+	}
+	100% {
+		opacity: 1;
+		transform: translateX(0);
+		filter: blur(0);
+	}
+}
+.t-page {
+	animation: t-page-in var(--duration-fast) var(--ease-smooth-out) both;
+}
+
+/* Status dot: a live pulse for in-progress states only. */
+@keyframes t-status-ping {
+	0% {
+		transform: scale(1);
+		opacity: 0.55;
+	}
+	80%,
+	100% {
+		transform: scale(2.4);
+		opacity: 0;
+	}
+}
+.t-ping {
+	animation: t-status-ping 1600ms var(--ease-out) infinite;
+}
+
+/* Error shake for a step that fails validation. */
+@keyframes t-shake {
+	0%,
+	100% {
+		transform: translateX(0);
+	}
+	20% {
+		transform: translateX(calc(var(--distance-base) * -1));
+	}
+	40% {
+		transform: translateX(var(--distance-base));
+	}
+	60% {
+		transform: translateX(calc(var(--distance-small) * -1));
+	}
+	80% {
+		transform: translateX(var(--distance-small));
+	}
+}
+.t-shake {
+	animation: t-shake 400ms var(--ease-smooth-out);
+}
+
+.t-press {
+	transition-property: scale, background-color, color, border-color, box-shadow;
+	transition-duration: var(--duration-quick);
+	transition-timing-function: var(--ease-smooth-out);
+}
+.t-press:active:not(:disabled) {
+	scale: 0.96;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 1ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 1ms !important;
+	}
+	.t-ping,
+	.t-skel {
+		animation: none !important;
+	}
+	.t-press:active:not(:disabled) {
+		scale: 1;
+	}
+}

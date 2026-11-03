@@ -1,0 +1,84 @@
+{
+	"schema": 1,
+	"id": "bytebase",
+	"name": "Bytebase",
+	"description": "Bytebase is a database management tool that allows you to manage your databases with ease. It provides a simple and effective solution for managing your databases from anywhere.",
+	"category": "database",
+	"tags": [
+		"database",
+		"self-hosted"
+	],
+	"logo": "logos/bytebase.png",
+	"website": "https://www.bytebase.com/",
+	"docs": "https://www.bytebase.com/docs",
+	"version": "3.3.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/bytebase",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "bytebase",
+			"dependsOn": [
+				"bytebase-db"
+			],
+			"env": {
+				"PG_URL": "postgres://postgres:${{ inputs.dbPassword }}@${{ services.bytebase-db.host }}:5432/bytebase"
+			},
+			"volumes": [
+				{
+					"name": "data",
+					"target": "/var/opt/bytebase"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "bytebase/bytebase:3.3.0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "bytebase-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "bytebase"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "13"
+		}
+	]
+}

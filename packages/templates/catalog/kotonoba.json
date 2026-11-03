@@ -1,0 +1,65 @@
+{
+	"schema": 1,
+	"id": "kotonoba",
+	"name": "Kotonoba",
+	"description": "A high-performance, self-hosted, multi-tenant blog CMS built with Next.js 16, SQLite, Tailwind CSS v4, and Docker.",
+	"category": "cms",
+	"tags": [
+		"blog",
+		"i18n",
+		"nextjs",
+		"web"
+	],
+	"logo": "logos/kotonoba.svg",
+	"website": "https://github.com/trixtylab/kotonoba",
+	"docs": "https://github.com/TrixtyLab/kotonoba/tree/master/docs",
+	"version": "1.0.19",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/kotonoba",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "jwtSecret",
+			"label": "JWT secret",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "kotonoba",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"DB_PATH": "/app/data/kotonoba.db",
+				"UPLOAD_DIR": "/app/data/uploads",
+				"JWT_SECRET": "${{ inputs.jwtSecret }}",
+				"SITE_URL": "https://${{ inputs.mainDomain }}",
+				"ADMIN_DOMAIN": "${{ inputs.mainDomain }}"
+			},
+			"volumes": [
+				{
+					"name": "blog-data",
+					"target": "/app/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/trixtylab/kotonoba:1.0.19",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

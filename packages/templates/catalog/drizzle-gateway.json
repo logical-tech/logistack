@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "drizzle-gateway",
+	"name": "Drizzle Gateway",
+	"description": "Free self-hosted Drizzle Studio on steroids",
+	"category": "devtools",
+	"tags": [
+		"drizzle",
+		"gateway",
+		"self-hosted",
+		"open-source",
+		"low-code",
+		"database"
+	],
+	"logo": "logos/drizzle-gateway.jpg",
+	"website": "https://gateway.drizzle.team/",
+	"docs": "https://gateway.drizzle.team/",
+	"version": "sha256:3f09490584ad",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/drizzle-gateway.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "drizzleDomain",
+			"label": "Drizzle domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "drizzlePassword",
+			"label": "Drizzle password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "drizzle-gateway",
+			"dependsOn": [],
+			"env": {
+				"STORE_PATH": "/app",
+				"MASTERPASS": "${{ inputs.drizzlePassword }}"
+			},
+			"volumes": [
+				{
+					"name": "drizzle-gateway-data",
+					"target": "/app"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/drizzle-team/gateway@sha256:3f09490584ad97cb5fa6d2a7335b405b8ac96e3b17a427830930f4ff70fe3993",
+			"ports": [],
+			"public": {
+				"port": 4983,
+				"domain": "drizzleDomain"
+			}
+		}
+	]
+}

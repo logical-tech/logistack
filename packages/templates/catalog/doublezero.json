@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "doublezero",
+	"name": "Double Zero",
+	"description": "00 is a self hostable SES dashboard for sending and monitoring emails with AWS",
+	"category": "communication",
+	"tags": [
+		"email"
+	],
+	"logo": "logos/doublezero.svg",
+	"docs": "https://github.com/technomancy-dev/00",
+	"version": "v0.2.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/doublezero",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "secretKeyBase",
+			"label": "Secret key base",
+			"type": "base64",
+			"bytes": 64
+		}
+	],
+	"services": [
+		{
+			"name": "doublezero",
+			"dependsOn": [],
+			"env": {
+				"AWS_ACCESS_KEY_ID": "your-aws-access-key",
+				"AWS_SECRET_ACCESS_KEY": "your-aws-secret-key",
+				"AWS_REGION": "your-aws-region",
+				"SQS_URL": "your-aws-sqs-url",
+				"SYSTEM_EMAIL": "",
+				"SECRET_KEY_BASE": "${{ inputs.secretKeyBase }}",
+				"PHX_HOST": "${{ inputs.mainDomain }}",
+				"DATABASE_PATH": "./00.db"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/doublezero/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "liltechnomancer/double-zero:0.2.1",
+			"ports": [],
+			"public": {
+				"port": 4000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

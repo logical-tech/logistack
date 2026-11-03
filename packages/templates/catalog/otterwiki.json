@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "otterwiki",
+	"name": "Otter Wiki",
+	"description": "An Otter Wiki is a simple, lightweight, and fast wiki engine built with Python and Flask. It provides a user-friendly interface for creating and managing wiki content with markdown support.",
+	"category": "productivity",
+	"tags": [
+		"wiki",
+		"documentation",
+		"knowledge-base",
+		"markdown"
+	],
+	"logo": "logos/otterwiki.png",
+	"website": "https://otterwiki.com/",
+	"docs": "https://github.com/redimp/otterwiki/wiki",
+	"version": "2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/otterwiki",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "otterwiki",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "otterwiki-data",
+					"target": "/app-data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redimp/otterwiki:2",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

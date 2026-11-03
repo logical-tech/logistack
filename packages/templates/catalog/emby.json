@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "emby",
+	"name": "Emby",
+	"description": "A media server software that allows you to organize, stream, and access your multimedia content effortlessly.",
+	"category": "media",
+	"tags": [
+		"media",
+		"server",
+		"movies",
+		"tv",
+		"music"
+	],
+	"docs": "https://emby.media/support/articles/Home.html",
+	"version": "sha256:4c3d0b88b7d8",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/emby.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "embyDomain",
+			"label": "Emby domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "emby",
+			"dependsOn": [],
+			"env": {
+				"PUID": "1000",
+				"PGID": "1000",
+				"TZ": "Europe/Madrid"
+			},
+			"volumes": [
+				{
+					"name": "emby-config",
+					"target": "/config"
+				},
+				{
+					"name": "emby-tvshows",
+					"target": "/tvshows"
+				},
+				{
+					"name": "emby-movies",
+					"target": "/movies"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "lscr.io/linuxserver/emby@sha256:4c3d0b88b7d8b79ee656ff016fd049b51585753ddbb9db984d6c230c39b4df74",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8096"
+				]
+			},
+			"public": {
+				"port": 8096,
+				"domain": "embyDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,177 @@
+{
+	"schema": 1,
+	"id": "portabase",
+	"name": "Portabase",
+	"description": "Self-hosted database backup & monitoring platform",
+	"category": "storage",
+	"tags": [
+		"backup",
+		"database",
+		"monitoring",
+		"open-source",
+		"postgres",
+		"mysql",
+		"mariadb",
+		"mongodb",
+		"sqlite",
+		"firebird",
+		"valkey",
+		"redis",
+		"mssql",
+		"docker-volumes",
+		"s3",
+		"gcs",
+		"azure",
+		"google-drive",
+		"discord",
+		"telegram"
+	],
+	"logo": "logos/portabase.svg",
+	"website": "https://portabase.io/",
+	"docs": "https://portabase.io/docs",
+	"version": "1.28.1",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/portabase.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "portabaseDomain",
+			"label": "Portabase domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "portabasePassword",
+			"label": "Portabase password",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "smtpHost",
+			"label": "SMTP host",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpPort",
+			"label": "SMTP port",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpUser",
+			"label": "SMTP user",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpPassword",
+			"label": "SMTP password",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "smtpFrom",
+			"label": "SMTP from",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "postgresUser2",
+			"label": "Postgres user",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "postgresDb",
+			"label": "Postgres DB",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "portabase",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"PROJECT_URL": "https://${{ inputs.portabaseDomain }}",
+				"PROJECT_SECRET": "${{ inputs.portabasePassword }}",
+				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/portabase?schema=public",
+				"PROJECT_NAME": "Portabase",
+				"TZ": "Europe/Paris",
+				"LOG_LEVEL": "info",
+				"RETENTION_CRON": "0 7 * * *",
+				"STALE_BACKUP_THRESHOLD_HOURS": "6",
+				"BACKUP_FOLDER_NAME": "backups",
+				"TELEMETRY": "true",
+				"SKIP_ONBOARDING": "false",
+				"API_ENABLED": "false",
+				"OPENAPI_ENABLED": "false",
+				"MCP_ENABLED": "false",
+				"SMTP_HOST": "${{ inputs.smtpHost }}",
+				"SMTP_PORT": "${{ inputs.smtpPort }}",
+				"SMTP_USER": "${{ inputs.smtpUser }}",
+				"SMTP_PASSWORD": "${{ inputs.smtpPassword }}",
+				"SMTP_FROM": "${{ inputs.smtpFrom }}",
+				"SMTP_SECURE": "false"
+			},
+			"volumes": [
+				{
+					"name": "portabase-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "portabase/portabase:1.28.1",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://localhost/api/health"
+				]
+			},
+			"public": {
+				"port": 80,
+				"domain": "portabaseDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "portabase",
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": []
+		}
+	]
+}

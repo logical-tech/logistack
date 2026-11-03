@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "go2rtc",
+	"name": "go2rtc",
+	"description": "Ultimate camera streaming application with support for dozens formats and protocols.",
+	"category": "media",
+	"tags": [
+		"streaming",
+		"webrtc",
+		"video",
+		"home-assistant"
+	],
+	"logo": "logos/go2rtc.png",
+	"website": "https://go2rtc.org/",
+	"docs": "https://go2rtc.org/",
+	"version": "1.9.14",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/go2rtc",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "go2rtc",
+			"dependsOn": [],
+			"env": {
+				"TZ": ""
+			},
+			"volumes": [
+				{
+					"name": "go2rtc-config",
+					"target": "/config"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "alexxit/go2rtc:1.9.14",
+			"ports": [
+				{
+					"target": 1984,
+					"protocol": "tcp"
+				},
+				{
+					"target": 8554,
+					"protocol": "tcp"
+				},
+				{
+					"target": 8555,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 1984,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

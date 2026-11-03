@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "shiori",
+	"name": "Shiori",
+	"description": "Shiori is a simple self-hosted bookmark manager with offline archive support and a web interface.",
+	"category": "productivity",
+	"tags": [
+		"bookmarks",
+		"read-it-later",
+		"archiving",
+		"self-hosted"
+	],
+	"logo": "logos/shiori.svg",
+	"website": "https://go-shiori.github.io/shiori/",
+	"docs": "https://go-shiori.github.io/shiori/",
+	"version": "v1.8.0-2-g585ea34",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/shiori",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "shioriDomain",
+			"label": "Shiori domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "shiori",
+			"dependsOn": [],
+			"env": {
+				"SHIORI_DIR": "/srv/shiori"
+			},
+			"volumes": [
+				{
+					"name": "shiori-data",
+					"target": "/srv/shiori"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/go-shiori/shiori:v1.8.0-2-g585ea34",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "shioriDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

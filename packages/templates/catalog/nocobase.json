@@ -1,0 +1,97 @@
+{
+	"schema": 1,
+	"id": "nocobase",
+	"name": "Nocobase",
+	"description": "NocoBase is the most extensible AI-powered no-code/low-code platform.",
+	"category": "devtools",
+	"tags": [
+		"nocode",
+		"lowcode",
+		"database",
+		"builder"
+	],
+	"logo": "logos/nocobase.png",
+	"docs": "https://docs.nocobase.com/",
+	"version": "1.9.33",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/nocobase.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "nocobaseDomain",
+			"label": "Nocobase domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "appkeySecret",
+			"label": "Appkey secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "alnum"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "nocobase",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"APP_KEY": "${{ inputs.appkeySecret }}",
+				"DB_DIALECT": "postgres",
+				"DB_HOST": "${{ services.postgres.host }}",
+				"DB_PORT": "5432",
+				"DB_DATABASE": "nocobase-db",
+				"DB_USER": "${{ inputs.postgresUser }}",
+				"DB_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "nocobase-storage",
+					"target": "/app/nocobase/storage"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "nocobase/nocobase:1.9.33",
+			"ports": [],
+			"public": {
+				"port": 13000,
+				"domain": "nocobaseDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "nocobase-db"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		}
+	]
+}

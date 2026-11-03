@@ -1,0 +1,172 @@
+{
+	"schema": 1,
+	"id": "bonfire",
+	"name": "Bonfire",
+	"description": "Federated social networking toolkit for communities: customizable digital spaces with ActivityPub federation, flexible boundaries and moderation tools.",
+	"category": "other",
+	"tags": [
+		"social",
+		"fediverse",
+		"activitypub"
+	],
+	"website": "https://bonfirenetworks.org/",
+	"docs": "https://docs.bonfirenetworks.org/",
+	"version": "1.0.5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/bonfire",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "secretKeyBase",
+			"label": "Secret key base",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "signingSalt",
+			"label": "Signing salt",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "encryptionSalt",
+			"label": "Encryption salt",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "releaseCookie",
+			"label": "Release cookie",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "meiliMasterKey",
+			"label": "Meili master key",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "bonfire",
+			"dependsOn": [
+				"db",
+				"search"
+			],
+			"env": {
+				"HOSTNAME": "${{ inputs.mainDomain }}",
+				"PUBLIC_PORT": "80",
+				"SERVER_PORT": "4000",
+				"APP_NAME": "Bonfire",
+				"LANG": "en_US.UTF-8",
+				"SECRET_KEY_BASE": "${{ inputs.secretKeyBase }}",
+				"SIGNING_SALT": "${{ inputs.signingSalt }}",
+				"ENCRYPTION_SALT": "${{ inputs.encryptionSalt }}",
+				"RELEASE_COOKIE": "${{ inputs.releaseCookie }}",
+				"POSTGRES_HOST": "${{ services.db.host }}",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_DB": "bonfire_db",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"DB_MIGRATE_INDEXES_CONCURRENTLY": "false",
+				"SEARCH_ADAPTER": "meili",
+				"SEARCH_MEILI_INSTANCE": "http://${{ services.search.host }}:7700",
+				"MEILI_MASTER_KEY": "${{ inputs.meiliMasterKey }}",
+				"MAIL_BACKEND": "none",
+				"MAIL_SERVER": "",
+				"MAIL_PORT": "",
+				"MAIL_USER": "",
+				"MAIL_PASSWORD": "",
+				"MAIL_DOMAIN": "",
+				"MAIL_FROM": "",
+				"MAIL_KEY": "",
+				"UPLOAD_LIMIT": "20"
+			},
+			"volumes": [
+				{
+					"name": "bonfire-uploads",
+					"target": "/opt/app/data/uploads"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "bonfirenetworks/bonfire:1.0.5-social-amd64",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:4000"
+				]
+			},
+			"public": {
+				"port": 4000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_DB": "bonfire_db",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgis/postgis:17-3.5-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U postgres -d bonfire_db"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "search",
+			"dependsOn": [],
+			"env": {
+				"MEILI_MASTER_KEY": "${{ inputs.meiliMasterKey }}",
+				"MEILI_ENV": "production",
+				"MEILI_NO_ANALYTICS": "true"
+			},
+			"volumes": [
+				{
+					"name": "search-data",
+					"target": "/meili_data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "getmeili/meilisearch:v1.11",
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

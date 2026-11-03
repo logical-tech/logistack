@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "cloudbeaver",
+	"name": "Cloudbeaver",
+	"description": "CloudBeaver is a lightweight web application designed for comprehensive data management.",
+	"category": "devtools",
+	"tags": [
+		"dbeaver",
+		"data management",
+		"data",
+		"database",
+		"mysql",
+		"postgres",
+		"sqlite",
+		"sql",
+		"mongodb"
+	],
+	"logo": "logos/cloudbeaver.svg",
+	"docs": "https://dbeaver.com/docs/cloudbeaver/",
+	"version": "24",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/cloudbeaver.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "cloudbeaverDomain",
+			"label": "Cloudbeaver domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "cloudbeaver",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "cloudbeaver-data",
+					"target": "/opt/cloudbeaver/workspace"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "dbeaver/cloudbeaver:24",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:8978/"
+				]
+			},
+			"public": {
+				"port": 8978,
+				"domain": "cloudbeaverDomain"
+			}
+		}
+	]
+}

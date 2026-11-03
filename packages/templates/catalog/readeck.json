@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "readeck",
+	"name": "Readeck",
+	"description": "Simple web application that lets you save the precious readable content of web pages you like and want to keep forever.",
+	"category": "productivity",
+	"tags": [
+		"read-it-later",
+		"pocket-alternative",
+		"omnivore-alternative",
+		"instapaper-alternative"
+	],
+	"logo": "logos/readeck.svg",
+	"docs": "https://readeck.org/en/docs/",
+	"version": "sha256:17dea468f4f7",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/readeck.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "readeckDomain",
+			"label": "Readeck domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "readeck",
+			"dependsOn": [],
+			"env": {
+				"READECK_USE_X_FORWARDED": "true"
+			},
+			"volumes": [
+				{
+					"name": "readeck-data",
+					"target": "/readeck"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "codeberg.org/readeck/readeck@sha256:17dea468f4f713930338062f58a3a5e0d04e37d2961ddb827792e223f3db91b4",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"/bin/readeck",
+					"healthcheck",
+					"-config",
+					"config.toml"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "readeckDomain"
+			}
+		}
+	]
+}

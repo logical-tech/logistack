@@ -1,0 +1,90 @@
+{
+	"schema": 1,
+	"id": "parseable",
+	"name": "Parseable",
+	"description": "Fast observability and log analytics platform on object storage",
+	"category": "monitoring",
+	"tags": [
+		"observability",
+		"logging",
+		"analytics",
+		"monitoring"
+	],
+	"logo": "logos/parseable.svg",
+	"website": "https://www.parseable.com/",
+	"docs": "https://www.parseable.com/docs",
+	"version": "v1.6.5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/parseable",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "parseableUsername",
+			"label": "Parseable username",
+			"type": "username"
+		},
+		{
+			"key": "parseablePassword",
+			"label": "Parseable password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "parseable",
+			"dependsOn": [],
+			"env": {
+				"P_ADDR": "0.0.0.0:8000",
+				"P_USERNAME": "${{ inputs.parseableUsername }}",
+				"P_PASSWORD": "${{ inputs.parseablePassword }}",
+				"P_STAGING_DIR": "/parseable/staging",
+				"P_FS_DIR": "/parseable/data"
+			},
+			"volumes": [
+				{
+					"name": "parseable-staging",
+					"target": "/parseable/staging"
+				},
+				{
+					"name": "parseable-data",
+					"target": "/parseable/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "parseable/parseable:v1.6.0",
+			"command": [
+				"parseable",
+				"local-store"
+			],
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				},
+				{
+					"target": 8001,
+					"protocol": "tcp"
+				},
+				{
+					"target": 8002,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

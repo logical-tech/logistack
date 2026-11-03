@@ -1,0 +1,128 @@
+{
+	"schema": 1,
+	"id": "libredesk",
+	"name": "Libredesk",
+	"description": "Open source, self-hosted customer support desk. Single binary app.",
+	"category": "storage",
+	"tags": [
+		"storage",
+		"object-storage"
+	],
+	"logo": "logos/libredesk.svg",
+	"website": "https://libredesk.io/",
+	"docs": "https://docs.libredesk.io/introduction",
+	"version": "sha256:1c5a234b113b",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/libredesk",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "libredeskSystemUserPassword",
+			"label": "Libredesk system user password",
+			"type": "base64",
+			"bytes": 32
+		},
+		{
+			"key": "pgUsername",
+			"label": "Pg username",
+			"type": "username"
+		},
+		{
+			"key": "pgPassword",
+			"label": "Pg password",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "libredeskDomain",
+			"label": "Libredesk domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "libredesk",
+			"dependsOn": [
+				"db",
+				"redis"
+			],
+			"env": {
+				"LIBREDESK_SYSTEM_USER_PASSWORD": "${{ inputs.libredeskSystemUserPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "files-uploads",
+					"target": "/libredesk/uploads"
+				}
+			],
+			"files": [
+				{
+					"target": "/libredesk/config.toml",
+					"content": "\n[app]\n# Log level: info, debug, warn, error, fatal\nlog_level = \"debug\"\n# Environment: dev, prod.\n# Setting to \"dev\" will enable color logging in terminal.\nenv = \"dev\"\n# Whether to automatically check for application updates on start up, app updates are shown as a banner in the admin panel.\ncheck_updates = true\n\n# HTTP server.\n[app.server]\n# Address to bind the HTTP server to.\naddress = \"0.0.0.0:9000\"\n# Unix socket path (leave empty to use TCP address instead)\nsocket = \"\"\n# Do NOT disable secure cookies in production environment if you don't know exactly what you're doing!\ndisable_secure_cookies = false\n# Request read and write timeouts.\nread_timeout = \"5s\"\nwrite_timeout = \"5s\"\n# Maximum request body size in bytes (100MB)\n# If you are using proxy, you may need to configure them to allow larger request bodies.\nmax_body_size = 104857600\n# Size of the read buffer for incoming requests\nread_buffer_size = 4096\n# Keepalive settings.\nkeepalive_timeout = \"10s\"\n\n# File upload provider to use, either `fs` or `s3`.\n[upload]\nprovider = \"fs\"\n\n# Filesystem provider.\n[upload.fs]\n# Directory where uploaded files are stored, make sure this directory exists and is writable by the application.\nupload_path = 'uploads'\n\n# S3 provider.\n[upload.s3]\n# S3 endpoint URL (required only for non-AWS S3-compatible providers like MinIO).\n# Leave empty to use default AWS endpoints.\nurl = \"\"\n\n# AWS S3 credentials, keep empty to use attached IAM roles.\naccess_key = \"\"\nsecret_key = \"\"\n\n# AWS region, e.g., \"us-east-1\", \"eu-west-1\", etc.\nregion = \"ap-south-1\"\n# S3 bucket name where files will be stored.\nbucket = \"bucket-name\"\n# Optional prefix path within the S3 bucket where files will be stored.\n# Example, if set to \"uploads/media\", files will be stored under that path.\n# Useful for organizing files inside a shared bucket.\nbucket_path = \"\"\n# S3 signed URL expiry duration (e.g., \"30m\", \"1h\")\nexpiry = \"30m\"\n\n# Postgres.\n[db]\n# If running locally, use `localhost`.\nhost = \"db\"\n# Database port, default is 5432.\nport = 5432\n# Update the following values with your database credentials.\nuser = \"${{ inputs.pgUsername }}\"\npassword = \"${{ inputs.pgPassword }}\"\ndatabase = \"libredesk\"\nssl_mode = \"disable\"\n# Maximum number of open database connections\nmax_open = 30\n# Maximum number of idle connections in the pool\nmax_idle = 30\n# Maximum time a connection can be reused before being closed\nmax_lifetime = \"300s\"\n\n# Redis.\n[redis]\n# If running locally, use `localhost:6379`.\naddress = \"redis:6379\"\npassword = \"\"\ndb = 0\n\n[message]\n# Number of workers processing outgoing message queue\noutgoing_queue_workers = 10\n# Number of workers processing incoming message queue\nincoming_queue_workers = 10\n# How often to scan for outgoing messages to process, keep it low to process messages quickly.\nmessage_outgoing_scan_interval = \"50ms\"\n# Maximum number of messages that can be queued for incoming processing\nincoming_queue_size = 5000\n# Maximum number of messages that can be queued for outgoing processing\noutgoing_queue_size = 5000\n\n[notification]\n# Number of concurrent notification workers\nconcurrency = 2\n# Maximum number of notifications that can be queued\nqueue_size = 2000\n\n[automation]\n# Number of workers processing automation rules\nworker_count = 10\n\n[autoassigner]\n# How often to run automatic conversation assignment\nautoassign_interval = \"5m\"\n\n[webhook]\n# Number of webhook delivery workers\nworkers = 5\n# Maximum number of webhook deliveries that can be queued\nqueue_size = 10000\n# HTTP timeout for webhook requests\ntimeout = \"15s\"\n\n[conversation]\n# How often to check for conversations to unsnooze\nunsnooze_interval = \"5m\"\n\n[sla]\n# How often to evaluate SLA compliance for conversations\nevaluation_interval = \"5m\"\n\n",
+					"secret": true
+				}
+			],
+			"kind": "application",
+			"image": "libredesk/libredesk@sha256:1c5a234b113b6fa7b4170219a4e1063d8a9e4a396d4811b2ea03fdfcd02c63de",
+			"command": [
+				"sh",
+				"-c",
+				"./libredesk --install --idempotent-install --yes --config /libredesk/config.toml && ./libredesk --upgrade --yes --config /libredesk/config.toml && ./libredesk --config /libredesk/config.toml"
+			],
+			"ports": [
+				{
+					"target": 9000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 9000,
+				"domain": "libredeskDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.pgUsername }}",
+				"POSTGRES_PASSWORD": "${{ inputs.pgPassword }}",
+				"POSTGRES_DB": "libredesk"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [
+				{
+					"target": 6379,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		}
+	]
+}

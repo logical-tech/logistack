@@ -1,0 +1,121 @@
+{
+	"schema": 1,
+	"id": "labelstudio",
+	"name": "Labelstudio",
+	"description": "Label Studio is a multi-type data labeling and annotation tool with standardized output format",
+	"category": "ai",
+	"tags": [
+		"workflow",
+		"orchestration",
+		"data-pipeline",
+		"python",
+		"labelstudio",
+		"ai",
+		"elasticsearch",
+		"datasets",
+		"data",
+		"machine-learning",
+		"data-science",
+		"nlp",
+		"images",
+		"vision"
+	],
+	"logo": "logos/labelstudio.png",
+	"docs": "https://labelstud.io/guide/",
+	"version": "sha256:afcc516a2277",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/labelstudio.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "labelstudioDomain",
+			"label": "Labelstudio domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "postgresUser",
+			"label": "Postgres user",
+			"type": "username"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "labelstudioPassword",
+			"label": "Labelstudio password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "labelstudio",
+			"dependsOn": [
+				"postgres"
+			],
+			"env": {
+				"CSRF_TRUSTED_ORIGINS": "https://${{ inputs.labelstudioDomain }}",
+				"EXPERIMENTAL_FEATURES": "false",
+				"DJANGO_DB": "default",
+				"POSTGRE_NAME": "labelstudio",
+				"POSTGRE_USER": "${{ inputs.postgresUser }}",
+				"POSTGRE_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRE_PORT": "5432",
+				"POSTGRE_HOST": "${{ services.postgres.host }}",
+				"LABEL_STUDIO_HOST": "https://${{ inputs.labelstudioDomain }}",
+				"SSRF_PROTECTION_ENABLED": "true",
+				"LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK": "true",
+				"DATA_UPLOAD_MAX_NUMBER_FILES": "10000",
+				"LABEL_STUDIO_USERNAME": "admin@example.com",
+				"LABEL_STUDIO_PASSWORD": "${{ inputs.labelstudioPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "labelstudio-data",
+					"target": "/label-studio/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "heartexlabs/label-studio@sha256:afcc516a22775a39d0d66f4c2ddc95d01be3e3d3862b21fcf4f9de34b4ad4e12",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f http://localhost:8080/health || exit 1"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "labelstudioDomain"
+			}
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "${{ inputs.postgresUser }}",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "labelstudio"
+			},
+			"volumes": [
+				{
+					"name": "pg-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16-alpine"
+		}
+	]
+}

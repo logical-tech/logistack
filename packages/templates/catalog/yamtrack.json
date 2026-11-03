@@ -1,0 +1,103 @@
+{
+	"schema": 1,
+	"id": "yamtrack",
+	"name": "Yamtrack",
+	"description": "Yamtrack is a self hosted media tracker for movies, tv shows, anime, manga, video games and books.",
+	"category": "productivity",
+	"tags": [
+		"self-hosted",
+		"automation",
+		"tracker",
+		"media",
+		"movies",
+		"shows",
+		"anime",
+		"manga",
+		"games",
+		"books",
+		"comics",
+		"redis"
+	],
+	"logo": "logos/yamtrack.svg",
+	"website": "https://github.com/fuzzygrim/yamtrack",
+	"docs": "https://github.com/FuzzyGrim/Yamtrack/wiki",
+	"version": "sha256:78497b454b2b",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/yamtrack.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "yamtrackDomain",
+			"label": "Yamtrack domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "secretPassword",
+			"label": "Secret password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "yamtrack",
+			"dependsOn": [
+				"redis"
+			],
+			"env": {
+				"URLS": "https://${{ inputs.yamtrackDomain }}",
+				"TZ": "Europe/Berlin",
+				"SECRET": "${{ inputs.secretPassword }}",
+				"REGISTRATION": "true",
+				"REDIS_URL": "redis://${{ services.redis.host }}:6379"
+			},
+			"volumes": [
+				{
+					"name": "yamtrack-data",
+					"target": "/yamtrack/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/fuzzygrim/yamtrack@sha256:78497b454b2b52d3b1062f6fd238351d714cff0895db4369e49ace36f4622e75",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"wget --quiet --tries=1 --spider http://127.0.0.1:8000/health/ || exit 1"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "yamtrackDomain"
+			}
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "yamtrack-redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			}
+		}
+	]
+}

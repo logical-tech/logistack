@@ -1,0 +1,76 @@
+{
+	"schema": 1,
+	"id": "mailcatcher-ng",
+	"name": "MailCatcher NG",
+	"description": "MailCatcher NG runs a super simple SMTP server which catches any message sent to it to display in a web interface. Point your app's SMTP settings at mailcatcher-ng:1025 and inspect every captured email in the browser.",
+	"category": "communication",
+	"tags": [
+		"email",
+		"smtp",
+		"development"
+	],
+	"logo": "logos/mailcatcher-ng.svg",
+	"website": "https://spaquet.github.io/mailcatcher/",
+	"docs": "https://spaquet.github.io/docker-alpine-mailcatcher/",
+	"version": "1.6.8",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/mailcatcher-ng",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "mailcatcher-ng",
+			"dependsOn": [],
+			"env": {
+				"MAIL_LIMIT": "50"
+			},
+			"volumes": [
+				{
+					"name": "mailcatcher-data",
+					"target": "/home/mailcatcher/.mailcatcher"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "stpaquet/alpinemailcatcher:latest@sha256:499c0eabca5e82b23d030706ba9d5b8b27bba5a5f34a43154ee5e68b07cba52c",
+			"command": [
+				"sh",
+				"-c",
+				"mailcatcher --foreground --smtp-port=1025 --http-port=1080 --ip=0.0.0.0 --messages-limit=$MAIL_LIMIT --persistence --no-quit"
+			],
+			"ports": [
+				{
+					"target": 1025,
+					"protocol": "tcp"
+				},
+				{
+					"target": 1080,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://127.0.0.1:1080"
+				]
+			},
+			"public": {
+				"port": 1080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

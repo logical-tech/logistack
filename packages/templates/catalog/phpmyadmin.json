@@ -1,0 +1,85 @@
+{
+	"schema": 1,
+	"id": "phpmyadmin",
+	"name": "Phpmyadmin",
+	"description": "phpMyAdmin is an open-source web interface for managing MySQL and MariaDB databases.",
+	"category": "database",
+	"tags": [
+		"database",
+		"database management"
+	],
+	"logo": "logos/phpmyadmin.png",
+	"website": "https://www.phpmyadmin.net/",
+	"docs": "https://www.phpmyadmin.net/docs/",
+	"version": "5.2.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/phpmyadmin",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "rootPassword",
+			"label": "Root password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "userPassword",
+			"label": "User password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.rootPassword }}",
+				"MYSQL_DATABASE": "phpmyadmin",
+				"MYSQL_USER": "phpmyadmin",
+				"MYSQL_PASSWORD": "${{ inputs.userPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "mysql",
+			"version": "5.7"
+		},
+		{
+			"name": "phpmyadmin",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"PMA_HOST": "${{ services.db.host }}",
+				"PMA_USER": "phpmyadmin",
+				"PMA_PASSWORD": "${{ inputs.userPassword }}",
+				"PMA_ARBITRARY": "1",
+				"UPLOAD_LIMIT": "512M",
+				"MAX_EXECUTION_TIME": "600"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "phpmyadmin:5.2.3",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

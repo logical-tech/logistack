@@ -1,0 +1,47 @@
+{
+	"schema": 1,
+	"id": "navi-music",
+	"name": "NaviMusic",
+	"description": "A Discord music bot that plays YouTube and Spotify tracks and playlists in voice channels.",
+	"category": "media",
+	"tags": [
+		"discord",
+		"music",
+		"bot"
+	],
+	"logo": "logos/navi-music.png",
+	"website": "https://github.com/andre-carbajal/NaviMusic",
+	"docs": "https://github.com/andre-carbajal/NaviMusic#configuration",
+	"version": "4.1.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/navi-music",
+		"license": "MIT"
+	},
+	"inputs": [],
+	"services": [
+		{
+			"name": "navi-music",
+			"dependsOn": [],
+			"env": {
+				"DISCORD_TOKEN": "",
+				"SPOTIFY_CLIENT_ID": "",
+				"SPOTIFY_CLIENT_SECRET": "",
+				"YOUTUBE_POTOKEN": "",
+				"YOUTUBE_VISITOR": "",
+				"YOUTUBE_OAUTH2": ""
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "anvian/navi-music:4.1.0",
+			"entrypoint": [
+				"sh",
+				"-c",
+				"java $JAVA_OPTS -jar /app/NaviMusic.jar nogui --spring.profiles.active=prod; code=$?; if [ \"$code\" -eq 0 ]; then echo \"NaviMusic is idle. Set DISCORD_TOKEN (and optionally Spotify/YouTube credentials) in the Environment tab, then redeploy.\"; tail -f /dev/null; fi; exit $code"
+			],
+			"ports": [],
+			"restart": "any"
+		}
+	]
+}

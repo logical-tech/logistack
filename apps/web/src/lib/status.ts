@@ -1,0 +1,134 @@
+import type { DeploymentStatus, NodeStatus, ObservedStatus } from "./api/types";
+
+/** Colour roles from the token sheet. One tone means one thing everywhere. */
+export type Tone = "ok" | "busy" | "info" | "warn" | "bad" | "idle";
+
+export type StatusMeta = {
+	label: string;
+	tone: Tone;
+	/** In-flight states pulse; settled states stay still. */
+	live?: boolean;
+};
+
+export const SERVICE_STATUS: Record<ObservedStatus, StatusMeta> = {
+	running: { label: "Running", tone: "ok" },
+	starting: { label: "Starting", tone: "busy", live: true },
+	unhealthy: { label: "Unhealthy", tone: "warn" },
+	stopped: { label: "Stopped", tone: "idle" },
+	failed: { label: "Failed", tone: "bad" },
+	unknown: { label: "Unknown", tone: "idle" },
+};
+
+export const DEPLOYMENT_STATUS: Record<DeploymentStatus, StatusMeta> = {
+	queued: { label: "Queued", tone: "idle", live: true },
+	cloning: { label: "Cloning", tone: "busy", live: true },
+	building: { label: "Building", tone: "busy", live: true },
+	pushing: { label: "Pushing", tone: "busy", live: true },
+	deploying: { label: "Deploying", tone: "info", live: true },
+	healthy: { label: "Ready", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	cancelled: { label: "Cancelled", tone: "idle" },
+	superseded: { label: "Superseded", tone: "idle" },
+};
+
+/** Pending until the worker's proxy sync lands; error when Caddy or the route refused. */
+export const DOMAIN_STATUS: Record<"pending" | "active" | "error", StatusMeta> =
+	{
+		pending: { label: "Pending", tone: "busy", live: true },
+		active: { label: "Active", tone: "ok" },
+		error: { label: "Error", tone: "bad" },
+	};
+
+export const NODE_STATUS: Record<NodeStatus, StatusMeta> = {
+	ready: { label: "Ready", tone: "ok" },
+	pending: { label: "Joining", tone: "busy", live: true },
+	draining: { label: "Draining", tone: "warn" },
+	down: { label: "Down", tone: "bad" },
+};
+
+/** `pending` waits on a person (install the GitHub App), so it reads as attention, not progress. */
+export const GIT_PROVIDER_STATUS: Record<
+	"connected" | "pending" | "error",
+	StatusMeta
+> = {
+	connected: { label: "Connected", tone: "ok" },
+	pending: { label: "Setup pending", tone: "warn" },
+	error: { label: "Unreachable", tone: "bad" },
+};
+
+/** Backup, verify, restore and schedule runs. `skipped` and `cancelled` were concurrency's doing, not failures. */
+export const RUN_STATUS: Record<
+	"running" | "succeeded" | "failed" | "skipped" | "cancelled",
+	StatusMeta
+> = {
+	running: { label: "Running", tone: "busy", live: true },
+	succeeded: { label: "Succeeded", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	skipped: { label: "Skipped", tone: "idle" },
+	cancelled: { label: "Cancelled", tone: "idle" },
+};
+
+/** An in-app update run as a whole, and each of its steps. */
+export const UPDATE_STATUS: Record<
+	"queued" | "running" | "succeeded" | "failed",
+	StatusMeta
+> = {
+	queued: { label: "Starting", tone: "idle", live: true },
+	running: { label: "Updating", tone: "info", live: true },
+	succeeded: { label: "Updated", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+};
+
+export const UPDATE_STEP_STATUS: Record<
+	"pending" | "running" | "done" | "failed" | "rolled_back",
+	StatusMeta
+> = {
+	pending: { label: "Waiting", tone: "idle" },
+	running: { label: "In progress", tone: "info", live: true },
+	done: { label: "Done", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	rolled_back: { label: "Rolled back", tone: "warn" },
+};
+
+/** Worst first: a project reads as its most urgent service. */
+const SEVERITY: ObservedStatus[] = [
+	"failed",
+	"unhealthy",
+	"starting",
+	"running",
+	"unknown",
+	"stopped",
+];
+
+export type ProjectHealth =
+	| { kind: "empty" }
+	| { kind: "status"; status: ObservedStatus; running: number; total: number };
+
+export function projectHealth(statuses: ObservedStatus[]): ProjectHealth {
+	if (statuses.length === 0) return { kind: "empty" };
+	const present = new Set(statuses);
+	const status = SEVERITY.find((s) => present.has(s)) ?? "unknown";
+	const running = statuses.filter((s) => s === "running").length;
+	return { kind: "status", status, running, total: statuses.length };
+}
+
+/** Sort key so lists and strips read worst-first. */
+export const severityRank = (s: ObservedStatus) => SEVERITY.indexOf(s);
+
+export const TONE_DOT: Record<Tone, string> = {
+	ok: "bg-ok",
+	busy: "bg-busy",
+	info: "bg-info",
+	warn: "bg-warn",
+	bad: "bg-bad",
+	idle: "bg-idle",
+};
+
+export const TONE_TEXT: Record<Tone, string> = {
+	ok: "text-ok-text",
+	busy: "text-busy-text",
+	info: "text-info-text",
+	warn: "text-warn-text",
+	bad: "text-bad-text",
+	idle: "text-idle-text",
+};

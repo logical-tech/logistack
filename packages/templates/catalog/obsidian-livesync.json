@@ -1,0 +1,82 @@
+{
+	"schema": 1,
+	"id": "obsidian-livesync",
+	"name": "Obsidian Livesync",
+	"description": "Self-hosted sync backend for Obsidian LiveSync plugin using CouchDB",
+	"category": "storage",
+	"tags": [
+		"obsidian",
+		"couchdb",
+		"sync",
+		"notes",
+		"markdown",
+		"database"
+	],
+	"logo": "logos/obsidian-livesync.svg",
+	"website": "https://obsidian.md/sync",
+	"docs": "https://github.com/vrtmrz/obsidian-livesync/blob/main/docs/setup_own_server.md",
+	"version": "3.4.2",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/obsidian-livesync.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "couchdbDomain",
+			"label": "Couchdb domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "couchdbUser",
+			"label": "Couchdb user",
+			"type": "username"
+		},
+		{
+			"key": "couchdbPassword",
+			"label": "Couchdb password",
+			"type": "password",
+			"length": 64
+		}
+	],
+	"services": [
+		{
+			"name": "couchdb",
+			"dependsOn": [],
+			"env": {
+				"COUCHDB_USER": "${{ inputs.couchdbUser }}",
+				"COUCHDB_PASSWORD": "${{ inputs.couchdbPassword }}",
+				"MAX_DOCUMENT_SIZE": "52428800",
+				"MAX_HTTP_REQUEST_SIZE": "67108864"
+			},
+			"volumes": [
+				{
+					"name": "couchdb-data",
+					"target": "/opt/couchdb/data"
+				}
+			],
+			"files": [
+				{
+					"target": "/opt/couchdb/etc/local.ini",
+					"content": "[couchdb]\nsingle_node=true\nmax_document_size = ${MAX_DOCUMENT_SIZE}\n\n[chttpd]\nrequire_valid_user = true\nmax_http_request_size = ${MAX_HTTP_REQUEST_SIZE}\n\n[chttpd_auth]\nrequire_valid_user = true\nauthentication_redirect = /_utils/session.html\n\n[httpd]\nWWW-Authenticate = Basic realm=\"couchdb\"\nenable_cors = true\n\n[cors]\norigins = app://obsidian.md,capacitor://localhost,http://localhost\ncredentials = true\nheaders = accept, authorization, content-type, origin, referer\nmethods = GET, PUT, POST, HEAD, DELETE\nmax_age = 3600\n"
+				}
+			],
+			"kind": "application",
+			"image": "couchdb:3.4.2",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"curl -f -u \"${COUCHDB_USER}:${COUCHDB_PASSWORD}\" http://localhost:5984/_up"
+				]
+			},
+			"public": {
+				"port": 5984,
+				"domain": "couchdbDomain"
+			}
+		}
+	]
+}

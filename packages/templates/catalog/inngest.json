@@ -1,0 +1,138 @@
+{
+	"schema": 1,
+	"id": "inngest",
+	"name": "Inngest",
+	"description": "Durable workflow engine for background jobs, queues and scheduled tasks.",
+	"category": "automation",
+	"tags": [
+		"queue",
+		"workflow",
+		"jobs",
+		"events",
+		"background",
+		"automation"
+	],
+	"logo": "logos/inngest.png",
+	"docs": "https://www.inngest.com/docs/self-hosting",
+	"version": "v1.27.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/inngest.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "inngestDomain",
+			"label": "Inngest domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "eventkeyHex",
+			"label": "Eventkey key",
+			"type": "secret",
+			"length": 32,
+			"charset": "hex"
+		},
+		{
+			"key": "signingkeyHex",
+			"label": "Signingkey key",
+			"type": "secret",
+			"length": 32,
+			"charset": "hex"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "inngest",
+			"dependsOn": [
+				"postgres",
+				"redis"
+			],
+			"env": {
+				"INNGEST_EVENT_KEY": "${{ inputs.eventkeyHex }}",
+				"INNGEST_SIGNING_KEY": "${{ inputs.signingkeyHex }}",
+				"INNGEST_POSTGRES_URI": "postgres://inngest:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/inngest",
+				"INNGEST_REDIS_URI": "redis://${{ services.redis.host }}:6379"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "inngest/inngest:v1.27.0",
+			"command": [
+				"inngest",
+				"start",
+				"--host",
+				"0.0.0.0"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"inngest",
+					"alpha",
+					"doctor",
+					"healthcheck"
+				]
+			},
+			"public": {
+				"port": 8288,
+				"domain": "inngestDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "postgres",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "inngest",
+				"POSTGRES_USER": "inngest",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "postgres-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17"
+		},
+		{
+			"name": "redis",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "redis-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:7-alpine",
+			"command": [
+				"redis-server",
+				"--appendonly",
+				"yes"
+			],
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

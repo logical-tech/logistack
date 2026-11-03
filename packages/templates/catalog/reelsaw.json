@@ -1,0 +1,115 @@
+{
+	"schema": 1,
+	"id": "reelsaw",
+	"name": "Reelsaw",
+	"description": "Reelsaw is a self-hosted, AI-powered video clipper: paste a YouTube link or upload a video and it transcribes it, asks a language model for the most clippable moments, reframes the speaker into vertical 9:16 with face tracking, cuts fillers and burns in word-highlight captions. Open source (AGPL-3.0), any model provider (OpenAI, Anthropic, Google, Groq, Deepgram, or a local Ollama and Whisper), and an MCP server so agents can drive it.",
+	"category": "media",
+	"tags": [
+		"video",
+		"ai",
+		"self-hosted"
+	],
+	"logo": "logos/reelsaw.png",
+	"website": "https://reelsaw.com/",
+	"docs": "https://github.com/osbytes/reelsaw#readme",
+	"version": "v0.18.2",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/reelsaw",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "betterAuthSecret",
+			"label": "Better auth secret",
+			"type": "base64",
+			"bytes": 48
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		}
+	],
+	"services": [
+		{
+			"name": "reelsaw",
+			"dependsOn": [
+				"db"
+			],
+			"env": {
+				"PORT": "3000",
+				"DATA_DIR": "/data",
+				"LOG_FILE": "/data/logs/reelsaw.log",
+				"RUN_HTTP": "true",
+				"RUN_WORKERS": "true",
+				"TRUST_PROXY": "true",
+				"DATABASE_URL": "postgres://reelsaw:${{ inputs.dbPassword }}@${{ services.db.host }}:5432/reelsaw",
+				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
+				"SIGNUP_MODE": "open",
+				"AI_MODEL": "openai:gpt-4o-mini",
+				"TRANSCRIPTION_MODEL": "openai:whisper-1",
+				"OPENAI_API_KEY": "",
+				"ANTHROPIC_API_KEY": "",
+				"GOOGLE_GENERATIVE_AI_API_KEY": "",
+				"GROQ_API_KEY": "",
+				"DEEPGRAM_API_KEY": ""
+			},
+			"volumes": [
+				{
+					"name": "data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/osbytes/reelsaw:0.18.2",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-fsS",
+					"http://127.0.0.1:3000/api/health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "reelsaw",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
+				"POSTGRES_DB": "reelsaw"
+			},
+			"volumes": [
+				{
+					"name": "pgdata",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "17-alpine"
+		}
+	]
+}

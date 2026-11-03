@@ -1,0 +1,71 @@
+{
+	"schema": 1,
+	"id": "code-server",
+	"name": "code-server",
+	"description": "code-server is a version of VS Code that runs in your browser.",
+	"category": "devtools",
+	"tags": [
+		"ide",
+		"development",
+		"vscode",
+		"self-hosted",
+		"code",
+		"editor",
+		"remote",
+		"collaboration"
+	],
+	"logo": "logos/code-server.png",
+	"website": "https://coder.com/docs/code-server",
+	"docs": "https://coder.com/docs/code-server",
+	"version": "4.121.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/code-server",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "password",
+			"label": "Password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "code-server",
+			"dependsOn": [],
+			"env": {
+				"PASSWORD": "${{ inputs.password }}",
+				"TZ": "UTC"
+			},
+			"volumes": [
+				{
+					"name": "code-server-home",
+					"target": "/home/coder"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "codercom/code-server:4.121.0",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"user": "1000:1000",
+			"restart": "any"
+		}
+	]
+}

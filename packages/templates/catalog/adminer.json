@@ -1,0 +1,52 @@
+{
+	"schema": 1,
+	"id": "adminer",
+	"name": "Adminer",
+	"description": "Adminer is a lightweight, web-based database management tool.",
+	"category": "database",
+	"tags": [
+		"databases",
+		"developer-tools",
+		"mysql",
+		"postgresql"
+	],
+	"logo": "logos/adminer.svg",
+	"website": "https://www.adminer.org/",
+	"docs": "https://www.adminer.org/en/plugins/",
+	"version": "4.8.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/adminer",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "adminer",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "adminer:4.8.1",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

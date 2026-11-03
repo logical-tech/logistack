@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "enshrouded",
+	"name": "Enshrouded",
+	"description": "Enshrouded steam dedicated server.",
+	"category": "other",
+	"tags": [
+		"gaming"
+	],
+	"version": "1.0.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/enshrouded",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "serverPassword",
+			"label": "Server password",
+			"type": "password",
+			"length": 15
+		}
+	],
+	"services": [
+		{
+			"name": "enshrouded",
+			"dependsOn": [],
+			"env": {
+				"SERVER_NAME": "Enshrouded Dokploy",
+				"SERVER_PASSWORD": "${{ inputs.serverPassword }}",
+				"SERVER_SLOT_COUNT": "6",
+				"UPDATE_CRON": "0 3 * * *",
+				"PUID": "4711",
+				"PGID": "4711"
+			},
+			"volumes": [
+				{
+					"name": "enshrouded-persistent-data",
+					"target": "/opt/enshrouded"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mornedhels/enshrouded-server@sha256:160d469d7a2dbed3a8dac2b1904df387302bfa0f524a26344582e1b76ca46fe4",
+			"ports": [
+				{
+					"target": 15637,
+					"published": 15637,
+					"protocol": "udp",
+					"mode": "host"
+				},
+				{
+					"target": 27015,
+					"published": 27015,
+					"protocol": "udp",
+					"mode": "host"
+				}
+			],
+			"restart": "any"
+		}
+	]
+}

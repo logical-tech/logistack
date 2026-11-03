@@ -1,0 +1,66 @@
+{
+	"schema": 1,
+	"id": "waxum",
+	"name": "Waxum",
+	"description": "Waxum is a WhatsApp REST API gateway written in Rust, shipped as a single native binary. Multi-session, multi-database (SQLite/Postgres/MySQL), 130+ REST endpoints: text/image/video/audio/document/sticker/location/contact/poll messages, reactions, scheduled and bulk (blast) sending, voice/video calls, HMAC-signed webhooks, JWT/Bearer auth, full-text message search, Swagger docs, and Prometheus metrics.",
+	"category": "devtools",
+	"tags": [
+		"api",
+		"whatsapp",
+		"messaging",
+		"automation"
+	],
+	"website": "https://waxum.imtaqin.id/",
+	"docs": "https://waxum.imtaqin.id/",
+	"version": "0.13.5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/waxum",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "superadminToken",
+			"label": "Superadmin token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "waxum",
+			"dependsOn": [],
+			"env": {
+				"SUPERADMIN_TOKEN": "${{ inputs.superadminToken }}",
+				"WHATSAPP_STORAGE_PATH": "/app/whatsapp_sessions",
+				"SQLITE_PATH": "/app/whatsapp_sessions/waxum.db"
+			},
+			"volumes": [
+				{
+					"name": "waxum-data",
+					"target": "/app/whatsapp_sessions"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "fdciabdul/waxum:0.13.5",
+			"ports": [
+				{
+					"target": 3451,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3451,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

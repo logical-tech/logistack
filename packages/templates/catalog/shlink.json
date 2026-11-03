@@ -1,0 +1,101 @@
+{
+	"schema": 1,
+	"id": "shlink",
+	"name": "Shlink",
+	"description": "The definitive self-hosted URL shortener",
+	"category": "productivity",
+	"tags": [
+		"links",
+		"shortener",
+		"sharing",
+		"url",
+		"short",
+		"link"
+	],
+	"docs": "https://shlink.io/",
+	"version": "sha256:68a722f76770",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/shlink.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "shlinkDomain",
+			"label": "Shlink domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "shlinkwebDomain",
+			"label": "Shlinkweb domain",
+			"type": "domain",
+			"role": "extra"
+		},
+		{
+			"key": "shlinkapikeySecret",
+			"label": "Shlinkapikey secret",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
+		}
+	],
+	"services": [
+		{
+			"name": "shlink",
+			"dependsOn": [],
+			"env": {
+				"DEFAULT_DOMAIN": "${{ inputs.shlinkDomain }}",
+				"IS_HTTPS_ENABLED": "false",
+				"INITIAL_API_KEY": "${{ inputs.shlinkapikeySecret }}"
+			},
+			"volumes": [
+				{
+					"name": "shlink-data",
+					"target": "/etc/shlink/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "shlinkio/shlink@sha256:68a722f7677008a50ccf3a9e570966bc37d7627fe6a870b86be28c5dcf9085ee",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8080/rest/v3/health"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "shlinkDomain"
+			}
+		},
+		{
+			"name": "shlink-web",
+			"dependsOn": [],
+			"env": {
+				"SHLINK_SERVER_API_KEY": "${{ inputs.shlinkapikeySecret }}",
+				"SHLINK_SERVER_URL": "https://${{ inputs.shlinkDomain }}"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "shlinkio/shlink-web-client@sha256:9ea53f612d361de240555036065e2b8ea0cd0411b0125afaf2f7d39f2a928f18",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:8080"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "shlinkwebDomain"
+			}
+		}
+	]
+}

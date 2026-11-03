@@ -1,0 +1,104 @@
+{
+	"schema": 1,
+	"id": "budget-board",
+	"name": "Budget Board",
+	"description": "Self-hosted budgeting app with a web UI and a server backed by PostgreSQL.",
+	"category": "finance",
+	"tags": [
+		"finance",
+		"postgres",
+		"self-hosted",
+		"docker",
+		"compose"
+	],
+	"logo": "logos/budget-board.png",
+	"website": "https://budgetboard.net/",
+	"docs": "https://budgetboard.net/",
+	"version": "release",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/budget-board",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "budget-board-server",
+			"dependsOn": [
+				"budget-board-db"
+			],
+			"env": {
+				"Logging__LogLevel__Default": "Information",
+				"CLIENT_URL": "http://${{ services.budget-board-client.host }}:6253",
+				"POSTGRES_HOST": "${{ services.budget-board-db.host }}",
+				"POSTGRES_DATABASE": "budgetboard",
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"AUTO_UPDATE_DB": "true"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/teelur/budget-board/server:release",
+			"ports": [],
+			"restart": "any"
+		},
+		{
+			"name": "budget-board-client",
+			"dependsOn": [
+				"budget-board-server"
+			],
+			"env": {
+				"VITE_API_URL": "http://${{ services.budget-board-server.host }}",
+				"PORT": "6253"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/teelur/budget-board/client:release",
+			"ports": [
+				{
+					"target": 6253,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 6253,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "budget-board-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
+				"POSTGRES_DB": "budgetboard"
+			},
+			"volumes": [
+				{
+					"name": "files-db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "16"
+		}
+	]
+}

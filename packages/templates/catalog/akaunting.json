@@ -1,0 +1,134 @@
+{
+	"schema": 1,
+	"id": "akaunting",
+	"name": "Akaunting",
+	"description": "Akaunting is a self-hosted, open-source accounting app for small businesses.",
+	"category": "finance",
+	"tags": [
+		"finance",
+		"accounting",
+		"php",
+		"mariadb",
+		"self-hosted"
+	],
+	"logo": "logos/akaunting.png",
+	"website": "https://akaunting.com/",
+	"docs": "https://akaunting.com/docs",
+	"version": "sha256:50940112be48",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/akaunting",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "mysqlPassword",
+			"label": "Mysql password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "dbPrefix",
+			"label": "DB prefix",
+			"type": "secret",
+			"length": 8,
+			"charset": "hex"
+		},
+		{
+			"key": "companyEmail",
+			"label": "Company email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"type": "text",
+			"default": "admin@example.com"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		}
+	],
+	"services": [
+		{
+			"name": "akaunting",
+			"dependsOn": [
+				"akaunting-db"
+			],
+			"env": {
+				"APP_URL": "${{ inputs.mainDomain }}",
+				"LOCALE": "en-US",
+				"DB_HOST": "${{ services.akaunting-db.host }}",
+				"DB_PORT": "3306",
+				"DB_NAME": "akaunting",
+				"DB_USERNAME": "admin",
+				"DB_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"DB_PREFIX": "${{ inputs.dbPrefix }}_",
+				"COMPANY_NAME": "My Company",
+				"COMPANY_EMAIL": "${{ inputs.companyEmail }}",
+				"ADMIN_EMAIL": "${{ inputs.adminEmail }}",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "akaunting-data",
+					"target": "/var/www/html"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docker.io/akaunting/akaunting@sha256:50940112be48a229a2f567dc50ace9886fe5b14e1fe33f0232e704d0fb96f29f",
+			"ports": [
+				{
+					"target": 80,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "akaunting-db",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_DATABASE": "akaunting",
+				"MYSQL_USER": "admin",
+				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
+				"MYSQL_RANDOM_ROOT_PASSWORD": "yes"
+			},
+			"volumes": [
+				{
+					"name": "akaunting-db",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "mariadb:10.11",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"mysqladmin",
+					"ping",
+					"-h",
+					"localhost"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

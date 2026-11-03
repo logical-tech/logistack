@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "openseo",
+	"name": "OpenSEO",
+	"description": "OpenSEO is an open source, self-hosted alternative to Semrush and Ahrefs for keyword research, rank tracking, backlinks, and site audits.",
+	"category": "analytics",
+	"tags": [
+		"seo",
+		"analytics",
+		"marketing"
+	],
+	"website": "https://openseo.so/",
+	"docs": "https://openseo.so/docs/self-hosting",
+	"version": "0.1.6",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/openseo",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "openseo",
+			"dependsOn": [],
+			"env": {
+				"CLOUDFLARE_INCLUDE_PROCESS_ENV": "true",
+				"PORT": "3001",
+				"ALLOWED_HOST": "${{ inputs.mainDomain }}",
+				"AUTH_MODE": "local_noauth",
+				"DATAFORSEO_API_KEY": "",
+				"OPENROUTER_API_KEY": "",
+				"OPENROUTER_MODEL": "openai/gpt-4o-mini",
+				"OPENSEO_TELEMETRY_DISABLED": ""
+			},
+			"volumes": [
+				{
+					"name": "openseo-data",
+					"target": "/app/.wrangler"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/every-app/open-seo:v0.1.6",
+			"ports": [
+				{
+					"target": 3001,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 3001,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,54 @@
+{
+	"schema": 1,
+	"id": "memos",
+	"name": "Memos",
+	"description": "An open-source, lightweight note-taking solution. The pain-less way to create your meaningful notes. Your Notes, Your Way.",
+	"category": "productivity",
+	"tags": [
+		"note-taking",
+		"microblog",
+		"social-network",
+		"markdown",
+		"productivity",
+		"notes",
+		"bookmarks"
+	],
+	"logo": "logos/memos.png",
+	"website": "https://www.usememos.com/",
+	"docs": "https://github.com/usememos/memos",
+	"version": "sha256:087e7dc6b76b",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/memos.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "memosDomain",
+			"label": "Memos domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "memos",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "memos",
+					"target": "/var/opt/memos"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "neosmemo/memos@sha256:087e7dc6b76b31fcd1107a5767398b2a310ced209adb791efd8760c745dc8034",
+			"ports": [],
+			"public": {
+				"port": 5230,
+				"domain": "memosDomain"
+			}
+		}
+	]
+}

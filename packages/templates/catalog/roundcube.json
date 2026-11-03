@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"id": "roundcube",
+	"name": "Roundcube",
+	"description": "Free and open source webmail software for the masses, written in PHP.",
+	"category": "communication",
+	"tags": [
+		"self-hosted",
+		"email",
+		"webmail"
+	],
+	"logo": "logos/roundcube.svg",
+	"website": "https://roundcube.net/",
+	"docs": "https://roundcube.net/about/",
+	"version": "1.6.9",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/roundcube",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "roundcubemail",
+			"dependsOn": [],
+			"env": {
+				"ROUNDCUBEMAIL_DB_TYPE": "sqlite",
+				"ROUNDCUBEMAIL_SKIN": "elastic",
+				"ROUNDCUBEMAIL_DEFAULT_HOST": "tls://mail.example.com",
+				"ROUNDCUBEMAIL_SMTP_SERVER": "tls://mail.example.com"
+			},
+			"volumes": [
+				{
+					"name": "www",
+					"target": "/var/www/html"
+				},
+				{
+					"name": "db-sqlite",
+					"target": "/var/roundcube/db"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "roundcube/roundcubemail:1.6.9-apache",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

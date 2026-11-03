@@ -1,0 +1,70 @@
+{
+	"schema": 1,
+	"id": "rivet-engine",
+	"name": "Rivet Engine",
+	"description": "Build and scale stateful workloads with long-lived processes",
+	"category": "devtools",
+	"tags": [
+		"stateful",
+		"actors",
+		"realtime",
+		"backend",
+		"serverless",
+		"postgresql"
+	],
+	"logo": "logos/rivet-engine.svg",
+	"docs": "https://www.rivet.dev/docs",
+	"version": "2.2.0",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/rivet-engine.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "rivetDomain",
+			"label": "Rivet domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "tokenSecret",
+			"label": "Token secret",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
+		}
+	],
+	"services": [
+		{
+			"name": "rivet-engine",
+			"dependsOn": [],
+			"env": {
+				"RIVET__FILE_SYSTEM__PATH": "/data",
+				"RIVET__AUTH__ADMIN_TOKEN": "${{ inputs.tokenSecret }}"
+			},
+			"volumes": [
+				{
+					"name": "rivet-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "rivetdev/engine:2.2.0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://127.0.0.1:6420/health"
+				]
+			},
+			"public": {
+				"port": 6420,
+				"domain": "rivetDomain"
+			}
+		}
+	]
+}

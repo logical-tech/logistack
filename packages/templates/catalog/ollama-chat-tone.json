@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"id": "ollama-chat-tone",
+	"name": "Ollama Chat Tone",
+	"description": "Self-contained Ollama chat client with local auth, streaming responses, and per-user conversations.",
+	"category": "ai",
+	"tags": [
+		"chatbot",
+		"ai",
+		"ollama",
+		"docker"
+	],
+	"logo": "logos/ollama-chat-tone.svg",
+	"website": "https://hub.docker.com/r/billnice250/chattone",
+	"docs": "https://hub.docker.com/r/billnice250/chattone",
+	"version": "sha256:2e541c97bbb5",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/ollama-chat-tone",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "ollama-chat-tone",
+			"dependsOn": [],
+			"env": {
+				"APP_NAME": "Ollama Chat Tone",
+				"ADDR": ":8080",
+				"SESSION_SECRET": "change-me......32charsOrMore",
+				"DB_PATH": "/data/app.db",
+				"OLLAMA_URL": "http://your-ollama-host:11434",
+				"OLLAMA_TIMEOUT": "5",
+				"DEFAULT_MODEL": "llama3.2",
+				"OPEN_BROWSER": "false",
+				"BASIC_AUTH_USER": "admin",
+				"BASIC_AUTH_PASSWORD": "change-me"
+			},
+			"volumes": [
+				{
+					"name": "ollama-chat-tone-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "billnice250/chattone@sha256:2e541c97bbb5ed301abc1545e84f2fe2a12ebde07861aabfc85e50531a800fca",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}

@@ -1,0 +1,64 @@
+{
+	"schema": 1,
+	"id": "morphos",
+	"name": "Morphos",
+	"description": "Morphos is a lightweight service for distributed operations and orchestration.",
+	"category": "other",
+	"tags": [
+		"server",
+		"orchestration",
+		"lightweight"
+	],
+	"logo": "logos/morphos.png",
+	"website": "https://github.com/danvergara/morphos-server",
+	"docs": "https://github.com/danvergara/morphos-server#readme",
+	"version": "sha256:3d6f64ef386c",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/morphos",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "morphos-server",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "files-morphos-upload",
+					"target": "/upload"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/danvergara/morphos-server@sha256:3d6f64ef386cbb6a7c5d55526e1a69da2d3661a1996d757897e92bf4369088f5",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"timeout 10s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1"
+				]
+			},
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,62 @@
+{
+	"schema": 1,
+	"id": "typesense",
+	"name": "Typesense",
+	"description": "Typesense is a fast, open-source search engine for building modern search experiences.",
+	"category": "productivity",
+	"tags": [
+		"search",
+		"search-engine",
+		"search-api",
+		"elasticsearch-alternative"
+	],
+	"logo": "logos/typesense.png",
+	"website": "https://typesense.org/",
+	"docs": "https://typesense.org/docs",
+	"version": "29.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/typesense",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "apiKey",
+			"label": "API key",
+			"type": "password",
+			"length": 16
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "typesense",
+			"dependsOn": [],
+			"env": {
+				"TYPESENSE_API_KEY": "${{ inputs.apiKey }}",
+				"TYPESENSE_ENABLE_CORS": "true",
+				"TYPESENSE_DATA_DIR": "/data"
+			},
+			"volumes": [
+				{
+					"name": "typesense-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "typesense/typesense:29.0",
+			"ports": [],
+			"public": {
+				"port": 8108,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

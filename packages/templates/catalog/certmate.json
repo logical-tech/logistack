@@ -1,0 +1,97 @@
+{
+	"schema": 1,
+	"id": "certmate",
+	"name": "CertMate",
+	"description": "CertMate is an SSL certificate management system with a web UI and REST API. It automates issuing and renewing Let's Encrypt certificates via DNS-01 challenges across 20+ DNS providers, with unified backups and multi-account support.",
+	"category": "security",
+	"tags": [
+		"ssl",
+		"certificates",
+		"security",
+		"self-hosted"
+	],
+	"logo": "logos/certmate.png",
+	"website": "https://www.certmate.org/",
+	"docs": "https://www.certmate.org/docs/",
+	"version": "2.21.3",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/certmate",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "secretKey",
+			"label": "Secret key",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "apiBearerToken",
+			"label": "API bearer token",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "certmate",
+			"dependsOn": [],
+			"env": {
+				"FLASK_ENV": "production",
+				"SECRET_KEY": "${{ inputs.secretKey }}",
+				"API_BEARER_TOKEN": "${{ inputs.apiBearerToken }}",
+				"BEHIND_PROXY": "true",
+				"CLOUDFLARE_TOKEN": "",
+				"LETSENCRYPT_EMAIL": "",
+				"LOG_LEVEL": "INFO"
+			},
+			"volumes": [
+				{
+					"name": "certmate-certificates",
+					"target": "/app/certificates"
+				},
+				{
+					"name": "certmate-data",
+					"target": "/app/data"
+				},
+				{
+					"name": "certmate-logs",
+					"target": "/app/logs"
+				},
+				{
+					"name": "certmate-backups",
+					"target": "/app/backups"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "fabriziosalmi/certmate:2.21.3",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"curl",
+					"-f",
+					"http://localhost:8000/health"
+				]
+			},
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

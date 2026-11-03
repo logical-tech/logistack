@@ -1,0 +1,63 @@
+{
+	"schema": 1,
+	"id": "networking-toolbox",
+	"name": "Networking Toolbox",
+	"description": "A collection of handy networking utilities by Lissy93, packaged as a self-hostable web app.",
+	"category": "networking",
+	"tags": [
+		"networking",
+		"tools",
+		"utilities",
+		"web"
+	],
+	"website": "https://github.com/lissy93/networking",
+	"docs": "https://github.com/lissy93/networking#readme",
+	"version": "sha256:c85cfbf1267e",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/networking-toolbox",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "app",
+			"dependsOn": [],
+			"env": {
+				"NODE_ENV": "production",
+				"PORT": "3000",
+				"HOST": "0.0.0.0"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "lissy93/networking-toolbox@sha256:c85cfbf1267e4d48ca6f5cfc4e019049c8a075ce0cd757fc01e22338e484e132",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://127.0.0.1:3000/health"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

@@ -1,0 +1,100 @@
+{
+	"schema": 1,
+	"id": "chatto",
+	"name": "Chatto (single binary)",
+	"description": "A fully-featured real-time chat application for teams and communities. This template deploys the single Chatto binary with embedded NATS. Note: email/password registration requires SMTP to be configured after deployment; voice/video calls are not included in the single-binary setup.",
+	"category": "communication",
+	"tags": [
+		"chat",
+		"communication",
+		"messaging",
+		"self-hosted"
+	],
+	"logo": "logos/chatto.png",
+	"website": "https://chatto.run/",
+	"docs": "https://docs.chatto.run/",
+	"version": "0.4.x",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/chatto",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "cookieSecret",
+			"label": "Cookie secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "coreSecret",
+			"label": "Core secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "assetsSecret",
+			"label": "Assets secret",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "ownerEmail",
+			"label": "Owner email",
+			"type": "text",
+			"default": "admin@example.com"
+		}
+	],
+	"services": [
+		{
+			"name": "chatto",
+			"dependsOn": [],
+			"env": {
+				"CHATTO_WEBSERVER_URL": "https://${{ inputs.mainDomain }}",
+				"CHATTO_WEBSERVER_PORT": "4000",
+				"CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET": "${{ inputs.cookieSecret }}",
+				"CHATTO_CORE_SECRET_KEY": "${{ inputs.coreSecret }}",
+				"CHATTO_CORE_ASSETS_SIGNING_SECRET": "${{ inputs.assetsSecret }}",
+				"CHATTO_NATS_EMBEDDED_ENABLED": "true",
+				"CHATTO_NATS_EMBEDDED_DATA_DIR": "/data",
+				"CHATTO_OWNERS_EMAILS": "${{ inputs.ownerEmail }}",
+				"CHATTO_SMTP_ENABLED": "false",
+				"CHATTO_SMTP_HOST": "",
+				"CHATTO_SMTP_PORT": "587",
+				"CHATTO_SMTP_TLS": "mandatory",
+				"CHATTO_SMTP_USERNAME": "",
+				"CHATTO_SMTP_PASSWORD": "",
+				"CHATTO_SMTP_FROM": ""
+			},
+			"volumes": [
+				{
+					"name": "chatto-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/chattocorp/chatto:0.4",
+			"ports": [
+				{
+					"target": 4000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 4000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

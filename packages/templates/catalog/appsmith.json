@@ -1,0 +1,54 @@
+{
+	"schema": 1,
+	"id": "appsmith",
+	"name": "Appsmith",
+	"description": "Appsmith is a free and open source platform for building internal tools and applications.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"lowcode",
+		"nocode",
+		"no",
+		"low",
+		"platform"
+	],
+	"logo": "logos/appsmith.png",
+	"website": "https://appsmith.com/",
+	"docs": "https://docs.appsmith.com/",
+	"version": "v1.94",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/appsmith",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "appsmith",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "appsmith-data",
+					"target": "/appsmith-stacks"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "appsmith/appsmith-ee:v1.94",
+			"ports": [],
+			"public": {
+				"port": 80,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

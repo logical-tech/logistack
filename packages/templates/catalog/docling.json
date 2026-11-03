@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"id": "docling",
+	"name": "Docling",
+	"description": "Convert documents (PDF, DOCX, PPTX, images, HTML) to Markdown, JSON, and more using AI-powered document processing.",
+	"category": "ai",
+	"tags": [
+		"ai",
+		"document",
+		"pdf",
+		"ocr",
+		"markdown",
+		"extraction",
+		"ibm",
+		"rag",
+		"nlp"
+	],
+	"docs": "https://github.com/DS4SD/docling-serve",
+	"version": "sha256:7a480a1604fa",
+	"source": {
+		"kind": "coolify",
+		"path": "templates/compose/docling.yaml",
+		"license": "Apache-2.0"
+	},
+	"inputs": [
+		{
+			"key": "doclingDomain",
+			"label": "Docling domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "docling-serve",
+			"dependsOn": [],
+			"env": {
+				"DOCLING_SERVE_ENABLE_UI": "true",
+				"DOCLING_SERVE_LOG_LEVEL": "WARNING",
+				"DOCLING_NUM_THREADS": "4"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/docling-project/docling-serve-cpu@sha256:7a480a1604fa3b42efeddc7db9527690d9f9bc903226136013e2bfe6b1a4dfb0",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-qO-",
+					"http://127.0.0.1:5001/health"
+				]
+			},
+			"public": {
+				"port": 5001,
+				"domain": "doclingDomain"
+			}
+		}
+	]
+}

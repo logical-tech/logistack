@@ -1,0 +1,118 @@
+{
+	"schema": 1,
+	"id": "typebot",
+	"name": "Typebot",
+	"description": "Typebot is an open-source chatbot builder platform.",
+	"category": "ai",
+	"tags": [
+		"chatbot",
+		"builder",
+		"open-source"
+	],
+	"logo": "logos/typebot.svg",
+	"website": "https://typebot.io/",
+	"docs": "https://docs.typebot.io/get-started/introduction",
+	"version": "2.27.0",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/typebot",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "encryptionSecret",
+			"label": "Encryption secret",
+			"type": "base64",
+			"bytes": 24
+		},
+		{
+			"key": "builderDomain",
+			"label": "Builder domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "viewerDomain",
+			"label": "Viewer domain",
+			"type": "domain",
+			"role": "extra"
+		}
+	],
+	"services": [
+		{
+			"name": "typebot-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_USER": "typebot",
+				"POSTGRES_DB": "typebot",
+				"POSTGRES_PASSWORD": "typebot"
+			},
+			"volumes": [
+				{
+					"name": "db-data",
+					"target": "/var/lib/postgresql/data"
+				}
+			],
+			"files": [],
+			"kind": "database",
+			"engine": "postgres",
+			"version": "14-alpine"
+		},
+		{
+			"name": "typebot-builder",
+			"dependsOn": [
+				"typebot-db"
+			],
+			"env": {
+				"ENCRYPTION_SECRET": "${{ inputs.encryptionSecret }}",
+				"DATABASE_URL": "postgresql://typebot:typebot@${{ services.typebot-db.host }}:5432/typebot",
+				"NEXTAUTH_URL": "http://${{ inputs.builderDomain }}",
+				"NEXT_PUBLIC_VIEWER_URL": "http://${{ inputs.viewerDomain }}",
+				"ADMIN_EMAIL": "typebot@example.com",
+				"SMTP_HOST": "'Fill'",
+				"SMTP_PORT": "25",
+				"NEXT_PUBLIC_SMTP_FROM": "typebot@example.com",
+				"SMTP_USERNAME": "'Fill'",
+				"SMTP_PASSWORD": "'Fill'",
+				"DEFAULT_WORKSPACE_PLAN": "UNLIMITED"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "baptistearno/typebot-builder:2.27",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "builderDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "typebot-viewer",
+			"dependsOn": [],
+			"env": {
+				"ENCRYPTION_SECRET": "${{ inputs.encryptionSecret }}",
+				"DATABASE_URL": "postgresql://typebot:typebot@${{ services.typebot-db.host }}:5432/typebot",
+				"NEXTAUTH_URL": "http://${{ inputs.builderDomain }}",
+				"NEXT_PUBLIC_VIEWER_URL": "http://${{ inputs.viewerDomain }}",
+				"ADMIN_EMAIL": "typebot@example.com",
+				"SMTP_HOST": "'Fill'",
+				"SMTP_PORT": "25",
+				"NEXT_PUBLIC_SMTP_FROM": "typebot@example.com",
+				"SMTP_USERNAME": "'Fill'",
+				"SMTP_PASSWORD": "'Fill'",
+				"DEFAULT_WORKSPACE_PLAN": "UNLIMITED"
+			},
+			"volumes": [],
+			"files": [],
+			"kind": "application",
+			"image": "baptistearno/typebot-viewer:2.27.0",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "viewerDomain"
+			},
+			"restart": "any"
+		}
+	]
+}

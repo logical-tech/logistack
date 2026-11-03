@@ -1,0 +1,145 @@
+{
+	"schema": 1,
+	"id": "paperless-ngx",
+	"name": "Paperless-ngx",
+	"description": "Paperless-ngx is a document management system that turns scanned paperwork into a searchable archive.",
+	"category": "productivity",
+	"tags": [
+		"documents",
+		"ocr",
+		"productivity",
+		"self-hosted"
+	],
+	"logo": "logos/paperless-ngx.svg",
+	"website": "https://paperless-ngx.com/",
+	"docs": "https://docs.paperless-ngx.com/",
+	"version": "2.20.15",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/paperless-ngx",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "paperlessSecretKey",
+			"label": "Paperless secret key",
+			"type": "password",
+			"length": 64
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "paperless-ngx",
+			"dependsOn": [
+				"paperless-ngx-db",
+				"paperless-ngx-broker"
+			],
+			"env": {
+				"PAPERLESS_REDIS": "redis://${{ services.paperless-ngx-broker.host }}:6379",
+				"PAPERLESS_DBHOST": "${{ services.paperless-ngx-db.host }}",
+				"PAPERLESS_DBNAME": "paperless",
+				"PAPERLESS_DBUSER": "paperless",
+				"PAPERLESS_DBPASS": "${{ inputs.postgresPassword }}",
+				"PAPERLESS_SECRET_KEY": "${{ inputs.paperlessSecretKey }}",
+				"PAPERLESS_URL": "http://${{ inputs.mainDomain }}",
+				"PAPERLESS_TIME_ZONE": "UTC",
+				"PAPERLESS_OCR_LANGUAGE": "eng"
+			},
+			"volumes": [
+				{
+					"name": "paperless-data",
+					"target": "/usr/src/paperless/data"
+				},
+				{
+					"name": "paperless-media",
+					"target": "/usr/src/paperless/media"
+				},
+				{
+					"name": "paperless-export",
+					"target": "/usr/src/paperless/export"
+				},
+				{
+					"name": "paperless-consume",
+					"target": "/usr/src/paperless/consume"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/paperless-ngx/paperless-ngx:2.20.15",
+			"ports": [
+				{
+					"target": 8000,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "paperless-ngx-db",
+			"dependsOn": [],
+			"env": {
+				"POSTGRES_DB": "paperless",
+				"POSTGRES_USER": "paperless",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "paperless-db",
+					"target": "/var/lib/postgresql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "postgres:18-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"sh",
+					"-c",
+					"pg_isready -U paperless -d paperless"
+				]
+			},
+			"restart": "any"
+		},
+		{
+			"name": "paperless-ngx-broker",
+			"dependsOn": [],
+			"env": {},
+			"volumes": [
+				{
+					"name": "paperless-redis",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "redis:8-alpine",
+			"ports": [],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"redis-cli",
+					"ping"
+				]
+			},
+			"restart": "any"
+		}
+	]
+}

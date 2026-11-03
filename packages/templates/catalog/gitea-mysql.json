@@ -1,0 +1,122 @@
+{
+	"schema": 1,
+	"id": "gitea-mysql",
+	"name": "Gitea (MySQL)",
+	"description": "Gitea bundled with MySQL 8.",
+	"category": "devtools",
+	"tags": [
+		"git",
+		"scm",
+		"mysql",
+		"developer-tools",
+		"self-hosted"
+	],
+	"logo": "logos/gitea-mysql.png",
+	"website": "https://gitea.io/",
+	"docs": "https://docs.gitea.com/",
+	"version": "1.24.4",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/gitea-mysql",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "gitea",
+			"dependsOn": [
+				"mysql"
+			],
+			"env": {
+				"USER_UID": "1000",
+				"USER_GID": "1000",
+				"GITEA__database__DB_TYPE": "mysql",
+				"GITEA__database__HOST": "${{ services.mysql.host }}:3306",
+				"GITEA__database__NAME": "gitea",
+				"GITEA__database__USER": "gitea",
+				"GITEA__database__PASSWD": "${{ inputs.dbPassword }}"
+			},
+			"volumes": [
+				{
+					"name": "gitea-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docker.gitea.com/gitea:1.24.4",
+			"ports": [
+				{
+					"target": 3000,
+					"protocol": "tcp"
+				},
+				{
+					"target": 22,
+					"protocol": "tcp"
+				}
+			],
+			"healthcheck": {
+				"type": "command",
+				"command": [
+					"wget",
+					"-q",
+					"--spider",
+					"http://localhost:3000/"
+				]
+			},
+			"public": {
+				"port": 3000,
+				"domain": "mainDomain"
+			},
+			"restart": "any"
+		},
+		{
+			"name": "mysql",
+			"dependsOn": [],
+			"env": {
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}",
+				"MYSQL_USER": "gitea",
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_DATABASE": "gitea"
+			},
+			"volumes": [
+				{
+					"name": "mysql-data",
+					"target": "/var/lib/mysql"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docker.io/library/mysql:8",
+			"command": [
+				"--default-authentication-plugin=mysql_native_password"
+			],
+			"ports": [
+				{
+					"target": 3306,
+					"protocol": "tcp"
+				}
+			],
+			"restart": "any"
+		}
+	]
+}

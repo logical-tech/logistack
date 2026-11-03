@@ -1,0 +1,73 @@
+{
+	"schema": 1,
+	"id": "stirling",
+	"name": "Stirling PDF",
+	"description": "A locally hosted one-stop shop for all your PDF needs",
+	"category": "other",
+	"tags": [
+		"pdf",
+		"tools"
+	],
+	"logo": "logos/stirling.svg",
+	"website": "https://www.stirlingpdf.com/",
+	"docs": "https://docs.stirlingpdf.com/",
+	"version": "0.30.1",
+	"source": {
+		"kind": "dokploy",
+		"path": "blueprints/stirling",
+		"license": "MIT"
+	},
+	"inputs": [
+		{
+			"key": "mainDomain",
+			"label": "Main domain",
+			"type": "domain",
+			"role": "primary"
+		}
+	],
+	"services": [
+		{
+			"name": "stirling-pdf",
+			"dependsOn": [],
+			"env": {
+				"DOCKER_ENABLE_SECURITY": "false",
+				"LANGS": "en_GB"
+			},
+			"volumes": [
+				{
+					"name": "stirling-pdf-trainingdata",
+					"target": "/usr/share/tessdata"
+				},
+				{
+					"name": "stirling-pdf-extraconfigs",
+					"target": "/configs"
+				},
+				{
+					"name": "stirling-pdf-customfiles",
+					"target": "/customFiles"
+				},
+				{
+					"name": "stirling-pdf-logs",
+					"target": "/logs"
+				},
+				{
+					"name": "stirling-pdf-pipeline",
+					"target": "/pipeline"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "docker.stirlingpdf.com/stirlingtools/stirling-pdf@sha256:c6872dd056b0046a14c5de1e9970283e7f1e1ff685bb08090c6b37a231127d31",
+			"ports": [
+				{
+					"target": 8080,
+					"protocol": "tcp"
+				}
+			],
+			"public": {
+				"port": 8080,
+				"domain": "mainDomain"
+			}
+		}
+	]
+}
