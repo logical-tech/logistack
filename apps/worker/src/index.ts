@@ -11,6 +11,7 @@ import { createDockerClient, type DockerEvent } from "@logistack/docker";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
 import { eq, notInArray } from "drizzle-orm";
+import { ensureStackDbNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { createBus, log, setLogLevel } from "./bus.ts";
 import { checkCertificates } from "./certs.ts";
@@ -230,6 +231,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		);
 	for (const s of stranded) await enqueueDeploy(ctx.queues, s.serviceId);
 	await enqueueProxySync(ctx.queues, "boot");
+	await ensureStackDbNetwork(ctx).catch((e) =>
+		log("error", "could not attach the database network", {
+			error: e instanceof Error ? e.message : String(e),
+		}),
+	);
 	log("info", "worker started", { resumed: stranded.length });
 
 	return {

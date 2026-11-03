@@ -69,6 +69,53 @@ export async function ensureEnvNetwork(
 	return net.Id;
 }
 
+/**
+ * Installs from before the database explorer have no ls-db, and the in-app updater only swaps
+ * images. On a stack install, create it as a stack network (so a later `docker stack deploy`
+ * adopts it) and attach the api, then the worker itself; once attached this is a no-op.
+ */
+export async function ensureStackDbNetwork(ctx: Ctx): Promise<void> {
+	const stack = ctx.cfg.LS_STACK_NAME;
+	const names = [`${stack}_logistack-api`, `${stack}_logistack-worker`];
+	if (!(await inspectService(ctx, names[0] as string))) return;
+	const name = ctx.cfg.LS_DB_NETWORK;
+	const net = await ensure(
+		() =>
+			ctx.docker.networks.inspect(name).catch((e) => {
+				if (notFound(e)) return undefined;
+				throw e;
+			}),
+		() =>
+			ctx.docker.networks.create({
+				Name: name,
+				Driver: "overlay",
+				Attachable: true,
+				Scope: "swarm",
+				Labels: { "com.docker.stack.namespace": stack },
+			}),
+	);
+	for (const svcName of names) {
+		const svc = await inspectService(ctx, svcName);
+		const nets = svc?.Spec.TaskTemplate.Networks ?? [];
+		if (!svc || nets.some((n) => n.Target === net.Id || n.Target === name))
+			continue;
+		log("info", "attaching service to the database network", {
+			service: svcName,
+			network: name,
+		});
+		await upsertService(ctx, undefined, svc.Spec, (current) => ({
+			...current.Spec,
+			TaskTemplate: {
+				...current.Spec.TaskTemplate,
+				Networks: [
+					...(current.Spec.TaskTemplate.Networks ?? []),
+					{ Target: net.Id },
+				],
+			},
+		}));
+	}
+}
+
 async function ensureFiles(
 	ctx: Ctx,
 	input: CompileServiceInput,
