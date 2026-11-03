@@ -568,6 +568,38 @@ export const storage = router()
 	)
 	.openapi(
 		mutation(
+			"storage.folder_create",
+			createRoute({
+				method: "post",
+				path: "/storage/{id}/buckets/{bucket}/folder",
+				tags: ["storage"],
+				security,
+				summary: "Create an empty folder (a key ending in /)",
+				middleware: [requirePermission("write", svc)],
+				request: {
+					params: BucketParams,
+					...body(
+						z.object({
+							key: ObjectKey.refine((k) => k.endsWith("/"), "must end in /"),
+						}),
+					),
+				},
+				responses: {
+					201: json(z.object({ key: z.string() }), "Created"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { id, bucket } = c.req.valid("param");
+			const { key } = c.req.valid("json");
+			const s = await openStorage(c, id);
+			await s.client.createFolder(bucket, key);
+			return c.json({ key }, 201);
+		},
+	)
+	.openapi(
+		mutation(
 			"storage.object_delete",
 			createRoute({
 				method: "post",

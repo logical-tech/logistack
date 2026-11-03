@@ -609,6 +609,13 @@ export function storageClient(conn: StorageConnection) {
 			}
 		},
 
+		/** S3 has no folders: an empty object whose key ends in `/` makes one show up in listings. */
+		async createFolder(bucket: string, key: string): Promise<void> {
+			await signed("create folder", "PUT", `/${bucket}/${encodeKey(key)}`, {
+				body: "",
+			});
+		},
+
 		/** The engine's response, streamed: status, length and type headers included. */
 		download(bucket: string, key: string): Promise<Response> {
 			return signed("download", "GET", `/${bucket}/${encodeKey(key)}`);

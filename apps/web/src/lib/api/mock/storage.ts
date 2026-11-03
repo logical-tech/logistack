@@ -623,6 +623,16 @@ export const mockStorage: StorageApi = {
 					if (k.endsWith("/") ? o.startsWith(k) : o === k) b.objects.delete(o);
 			await delay(null, 400);
 		},
+		createFolder: async (id, name, key) => {
+			bucketOf(id, name).objects.set(key, {
+				key,
+				size: 0,
+				lastModified: new Date().toISOString(),
+				etag: etag(),
+				contentType: "application/x-directory",
+			});
+			await delay(null, 250);
+		},
 		move: async (id, name, from, to) => {
 			const b = bucketOf(id, name);
 			const o = objectOf(id, name, from);

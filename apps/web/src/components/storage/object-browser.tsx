@@ -4,6 +4,7 @@ import {
 	Database,
 	Download,
 	Folder,
+	FolderPlus,
 	Globe,
 	Link2,
 	Loader2,
@@ -50,6 +51,7 @@ import { BucketSettingsDialog, CreateBucketDialog } from "./bucket-dialogs";
 import {
 	download,
 	errorText,
+	NewFolderDialog,
 	ObjectSheet,
 	RenameDialog,
 	ShareDialog,
@@ -304,6 +306,7 @@ export function ObjectBrowser({
 	const [open, setOpen] = useState<Target | null>(null);
 	const [sharing, setSharing] = useState<Target | null>(null);
 	const [renaming, setRenaming] = useState<Target | null>(null);
+	const [makingFolder, setMakingFolder] = useState(false);
 	const [deleting, setDeleting] = useState<string[] | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const drag = useRef(0);
@@ -488,10 +491,21 @@ export function ObjectBrowser({
 								Delete {count}
 							</Button>
 						) : (
-							<Button size="sm" onClick={() => picker.current?.click()}>
-								<UploadIcon data-icon="inline-start" />
-								Upload
-							</Button>
+							<>
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={!bucket}
+									onClick={() => setMakingFolder(true)}
+								>
+									<FolderPlus data-icon="inline-start" />
+									New folder
+								</Button>
+								<Button size="sm" onClick={() => picker.current?.click()}>
+									<UploadIcon data-icon="inline-start" />
+									Upload
+								</Button>
+							</>
 						)}
 						<input
 							ref={picker}
@@ -741,6 +755,15 @@ export function ObjectBrowser({
 				target={sharing}
 				onClose={() => setSharing(null)}
 			/>
+			{bucket && (
+				<NewFolderDialog
+					serviceId={serviceId}
+					bucket={bucket}
+					prefix={prefix}
+					open={makingFolder}
+					onClose={() => setMakingFolder(false)}
+				/>
+			)}
 			<RenameDialog
 				serviceId={serviceId}
 				target={renaming}

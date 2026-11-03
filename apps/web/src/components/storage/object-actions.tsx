@@ -471,3 +471,90 @@ export function RenameDialog({
 		</Dialog>
 	);
 }
+
+export function NewFolderDialog({
+	serviceId,
+	bucket,
+	prefix,
+	open,
+	onClose,
+}: {
+	serviceId: string;
+	bucket: string;
+	prefix: string;
+	open: boolean;
+	onClose: () => void;
+}) {
+	const [name, setName] = useState("");
+	const [error, setError] = useState<string>();
+	useEffect(() => {
+		if (open) {
+			setName("");
+			setError(undefined);
+		}
+	}, [open]);
+	const create = useStorageMutation(serviceId, (key: string) =>
+		storageApi.objects.createFolder(serviceId, bucket, key),
+	);
+	const submit = (e: FormEvent) => {
+		e.preventDefault();
+		const clean = name.trim().replace(/^\/+|\/+$/g, "");
+		if (!clean) return setError("Enter a folder name.");
+		const key = `${prefix}${clean}/`;
+		const parsed = ObjectKey.safeParse(key);
+		if (!parsed.success)
+			return setError(parsed.error.issues[0]?.message ?? "Invalid name.");
+		create.mutate(key, {
+			onSuccess: () => {
+				toast.success(`Created ${clean}/`);
+				onClose();
+			},
+			onError: (err) => setError(errorText(err)),
+		});
+	};
+	return (
+		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="sm:max-w-md">
+				<form onSubmit={submit} className="grid gap-4">
+					<DialogHeader>
+						<DialogTitle>New folder</DialogTitle>
+						<DialogDescription>
+							S3 has no real folders: LogiStack stores an empty marker object so
+							the folder shows up before it holds any files.
+						</DialogDescription>
+					</DialogHeader>
+					<Field
+						id="folder-name"
+						label="Name"
+						error={error}
+						hint={`In ${bucket}/${prefix}. Use a slash to nest folders.`}
+					>
+						<Input
+							id="folder-name"
+							value={name}
+							onChange={(e) => {
+								setName(e.target.value);
+								setError(undefined);
+							}}
+							aria-invalid={error ? true : undefined}
+							aria-describedby="folder-name-msg"
+							spellCheck={false}
+							autoCapitalize="none"
+							className="font-mono"
+							autoFocus
+						/>
+					</Field>
+					<DialogFooter>
+						<Button type="button" variant="ghost" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={create.isPending}>
+							{create.isPending && <Loader2 className="animate-spin" />}
+							Create
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}

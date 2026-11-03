@@ -71,6 +71,8 @@ export type StorageApi = {
 			onProgress: (loaded: number) => void,
 		): UploadHandle;
 		remove(id: string, bucket: string, keys: string[]): Promise<void>;
+		/** `key` ends in `/`. */
+		createFolder(id: string, bucket: string, key: string): Promise<void>;
 		move(id: string, bucket: string, from: string, to: string): Promise<void>;
 		share(
 			id: string,
@@ -166,6 +168,9 @@ const http: StorageApi = {
 		upload,
 		remove: async (id, bucket, keys) => {
 			await ok(b.delete.$post({ ...pb(id, bucket), json: { keys } }));
+		},
+		createFolder: async (id, bucket, key) => {
+			await ok(b.folder.$post({ ...pb(id, bucket), json: { key } }));
 		},
 		move: (id, bucket, from, to) =>
 			done(
