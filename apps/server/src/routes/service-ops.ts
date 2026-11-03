@@ -132,6 +132,18 @@ export async function serviceTasks(
 		.parse(row?.tasks ?? []);
 }
 
+/** A running replica with its node: `taskId`'s, else the first. */
+export async function runningTask(
+	c: Context<Env>,
+	serviceId: string,
+	taskId?: string,
+): Promise<{ id: string; nodeId: string } | undefined> {
+	const t = (await serviceTasks(c, serviceId)).find(
+		(t) => t.state === "running" && t.nodeId && (!taskId || t.id === taskId),
+	);
+	return t?.nodeId ? { id: t.id, nodeId: t.nodeId } : undefined;
+}
+
 function actorTrigger(actor: Actor) {
 	return actor.kind === "user" ? ("manual" as const) : ("api" as const);
 }
@@ -640,13 +652,8 @@ export const serviceOps = router()
 			const serviceId = c.req.valid("param").id;
 			const input = c.req.valid("json");
 			const actor = requireActor(c);
-			const running = (await serviceTasks(c, serviceId)).filter(
-				(t) => t.state === "running" && t.nodeId,
-			);
-			const task = input.taskId
-				? running.find((t) => t.id === input.taskId)
-				: running[0];
-			if (!task?.nodeId)
+			const task = await runningTask(c, serviceId, input.taskId);
+			if (!task)
 				throw new Failure(
 					"conflict",
 					"no running replica to open a terminal in",

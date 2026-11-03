@@ -1,7 +1,7 @@
 import type { RowFilter, RowSort } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Database, Loader2, RotateCw, Unplug } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonRows } from "@/components/panel";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/service-ops";
 import { EMPTY_STAGED, type Staged } from "./cells";
 import { DataGrid } from "./data-grid";
+import { DumpRestore } from "./dump-restore";
 import { SchemaTree, TablePicker } from "./schema-tree";
 import { SqlPanel } from "./sql-panel";
 
@@ -62,14 +63,36 @@ export function ServiceDatabase({
 	// The web app learns a missing write grant from the api's 403 on the first save.
 	const [forbidden, setForbidden] = useState(false);
 	const engine = spec ? ENGINE[spec.engine] : "This engine";
+	// Dumps run in the replica itself, so they work before the explorer can connect.
+	const bar = (leading?: ReactNode) => (
+		<div className="mb-3 flex items-center gap-2">
+			{leading}
+			{spec && running && (
+				<div className="ml-auto">
+					<DumpRestore
+						serviceId={service.id}
+						name={service.name}
+						engine={spec.engine}
+					/>
+				</div>
+			)}
+		</div>
+	);
 
 	if (!supported)
 		return (
-			<EmptyState
-				icon={Database}
-				title={`Browsing ${engine} is coming soon`}
-				description="The explorer reads and edits Postgres tables today. MySQL, MariaDB, MongoDB and Redis follow in the next releases."
-			/>
+			<>
+				{running && bar()}
+				<EmptyState
+					icon={Database}
+					title={`Browsing ${engine} is coming soon`}
+					description={
+						running
+							? `Download a dump or restore one from the menu above. Browsing and editing ${engine} follow in the next releases.`
+							: "The explorer reads and edits Postgres tables today. MySQL, MariaDB, MongoDB and Redis follow in the next releases."
+					}
+				/>
+			</>
 		);
 	if (!running)
 		return (
@@ -97,67 +120,70 @@ export function ServiceDatabase({
 			</div>
 		);
 	if (schema.isError)
-		return reasonOf(schema.error) === "unreachable" ? (
-			<EmptyState
-				icon={Unplug}
-				title={
-					redeployed
-						? "Waiting for the redeploy"
-						: "Redeploy to open the explorer"
-				}
-				description={
-					redeployed
-						? "The explorer connects as soon as the new deployment is healthy. Data stays on its volume."
-						: "This database was deployed before the explorer existed, so it isn't on the explorer's private network yet. A redeploy attaches it; data stays on its volume."
-				}
-			>
-				<Button
-					disabled={deploy.isPending || redeployed}
-					onClick={() =>
-						deploy.mutate(undefined, {
-							onSuccess: () => {
-								setRedeployed(true);
-								toast.success(`Redeploying ${service.name}`);
-							},
-							onError: (e) =>
-								toast.error("Couldn't redeploy", {
-									description: errorText(e),
-								}),
-						})
-					}
-				>
-					{deploy.isPending || redeployed ? (
-						<Loader2 className="animate-spin" data-icon="inline-start" />
-					) : (
-						<RotateCw data-icon="inline-start" />
-					)}
-					{redeployed ? "Redeploying" : "Redeploy"}
-				</Button>
-			</EmptyState>
-		) : (
-			<EmptyState
-				icon={Database}
-				title="Couldn't read the schema"
-				description={errorText(schema.error)}
-			>
-				<Button variant="outline" onClick={() => schema.refetch()}>
-					Try again
-				</Button>
-			</EmptyState>
+		return (
+			<>
+				{bar()}
+				{reasonOf(schema.error) === "unreachable" ? (
+					<EmptyState
+						icon={Unplug}
+						title={
+							redeployed
+								? "Waiting for the redeploy"
+								: "Redeploy to open the explorer"
+						}
+						description={
+							redeployed
+								? "The explorer connects as soon as the new deployment is healthy. Data stays on its volume."
+								: "This database was deployed before the explorer existed, so it isn't on the explorer's private network yet. A redeploy attaches it; data stays on its volume."
+						}
+					>
+						<Button
+							disabled={deploy.isPending || redeployed}
+							onClick={() =>
+								deploy.mutate(undefined, {
+									onSuccess: () => {
+										setRedeployed(true);
+										toast.success(`Redeploying ${service.name}`);
+									},
+									onError: (e) =>
+										toast.error("Couldn't redeploy", {
+											description: errorText(e),
+										}),
+								})
+							}
+						>
+							{deploy.isPending || redeployed ? (
+								<Loader2 className="animate-spin" data-icon="inline-start" />
+							) : (
+								<RotateCw data-icon="inline-start" />
+							)}
+							{redeployed ? "Redeploying" : "Redeploy"}
+						</Button>
+					</EmptyState>
+				) : (
+					<EmptyState
+						icon={Database}
+						title="Couldn't read the schema"
+						description={errorText(schema.error)}
+					>
+						<Button variant="outline" onClick={() => schema.refetch()}>
+							Try again
+						</Button>
+					</EmptyState>
+				)}
+			</>
 		);
 
-	const switcher = (
-		<div className="mb-3 flex items-center">
-			<Segmented
-				label="Explorer view"
-				value={at.view}
-				onChange={(view) => onNavigate({ view })}
-				options={[
-					{ value: "data", label: "Data" },
-					{ value: "sql", label: "SQL" },
-				]}
-			/>
-		</div>
+	const switcher = bar(
+		<Segmented
+			label="Explorer view"
+			value={at.view}
+			onChange={(view) => onNavigate({ view })}
+			options={[
+				{ value: "data", label: "Data" },
+				{ value: "sql", label: "SQL" },
+			]}
+		/>,
 	);
 	const frame =
 		"isolate flex h-[min(76dvh,46rem)] min-h-[28rem] overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border";
@@ -186,11 +212,14 @@ export function ServiceDatabase({
 		all[0];
 	if (!current)
 		return (
-			<EmptyState
-				icon={Database}
-				title={`${schema.data.database} has no tables yet`}
-				description="Tables your app's migrations create appear here, ready to browse and edit."
-			/>
+			<>
+				{bar()}
+				<EmptyState
+					icon={Database}
+					title={`${schema.data.database} has no tables yet`}
+					description="Tables your app's migrations create appear here, ready to browse and edit. A dump restored from the menu above fills them too."
+				/>
+			</>
 		);
 	const tableKey = `${current.schema}.${current.table.name}`;
 	const pending = (key: string) => {

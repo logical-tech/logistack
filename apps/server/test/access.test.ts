@@ -418,6 +418,7 @@ describe.skipIf(!hasDocker)("access control", () => {
 				destructiveHint: true,
 			});
 			expect(byName.project_delete.inputSchema.required).toContain("confirm");
+			expect(byName.database_restore.inputSchema.required).toContain("confirm");
 			expect(byName.get_projects.annotations.readOnlyHint).toBe(true);
 			// Schemas are self-contained for clients that do not resolve $ref.
 			expect(JSON.stringify(tools)).not.toContain("#/components");

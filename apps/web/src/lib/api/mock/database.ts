@@ -662,7 +662,79 @@ export const mockDatabase: DatabaseApi = {
 		if (!run) throw new ApiError(404, "run not found", "not_found");
 		run();
 	},
+	dump: async (id) => {
+		await delay(null);
+		if (id.startsWith("svc_booking"))
+			throw new ApiError(
+				403,
+				"You need read:secrets on this service to download a dump.",
+				"forbidden",
+			);
+		const svc = mockDb.services.find((x) => x.id === id);
+		const engine = svc?.spec.kind === "database" ? svc.spec.engine : "postgres";
+		const stamp = new Date()
+			.toISOString()
+			.replace(/[-:]/g, "")
+			.replace("T", "-")
+			.slice(0, 15);
+		const a = document.createElement("a");
+		a.href = URL.createObjectURL(
+			new Blob([`-- mock ${engine} dump of ${svc?.name ?? id}\n`]),
+		);
+		a.download = `${svc?.slug ?? id}-${stamp}.${DUMP_EXT[engine]}`;
+		a.click();
+		setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+	},
+	restore: (id, file, onProgress) => {
+		const started = Date.now();
+		const duration = Math.min(8000, Math.max(1600, file.size / 20_000));
+		let timer: ReturnType<typeof setInterval> | undefined;
+		let reject: (e: unknown) => void = () => {};
+		const done = new Promise<{ bytes: number }>((resolve, fail) => {
+			reject = fail;
+			if (id.startsWith("svc_booking"))
+				return fail(
+					new ApiError(
+						403,
+						"You need admin on this service to restore it.",
+						"forbidden",
+					),
+				);
+			timer = setInterval(() => {
+				const t = Math.min(1, (Date.now() - started) / duration);
+				onProgress(Math.round(file.size * t));
+				if (t < 1) return;
+				clearInterval(timer);
+				// Files named like a broken dump fail the way pg_restore does.
+				if (/corrupt|truncated|broken/i.test(file.name))
+					return fail(
+						new ApiError(409, "the restore failed (exit 1)", "conflict", {
+							reason: "tool_failed",
+							exitCode: 1,
+							stderr:
+								"pg_restore: error: could not read input file: end of file\npg_restore: error: input file appears to be truncated",
+						}),
+					);
+				resolve({ bytes: file.size });
+			}, 120);
+		});
+		return {
+			done,
+			abort: () => {
+				clearInterval(timer);
+				reject(new DOMException("Cancelled", "AbortError"));
+			},
+		};
+	},
 };
+
+const DUMP_EXT = {
+	postgres: "dump",
+	mysql: "sql",
+	mariadb: "sql",
+	mongo: "archive",
+	redis: "rdb",
+} as const;
 
 // SQL editor
 

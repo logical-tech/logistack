@@ -1,11 +1,25 @@
 import type { DatabaseEngine } from "@logistack/contracts";
-import { decrypt, dockerName } from "@logistack/core";
+import {
+	DUMP_EXTENSION,
+	decrypt,
+	dockerName,
+	dumpScript,
+	restoreScript,
+} from "@logistack/core";
 import { envVar, service } from "@logistack/db";
 import { type DatabaseClient, databaseClient } from "@logistack/providers";
+import {
+	ExecFailed,
+	feed,
+	NodeRunnerError,
+	tail,
+} from "@logistack/worker/node-runner";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
+import { recordAudit } from "./audit.ts";
 import type { Deps, Env } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
+import { runningTask } from "./routes/service-ops.ts";
 
 const ports: Record<DatabaseEngine, number> = {
 	postgres: 5432,
@@ -51,6 +65,17 @@ async function credentials(deps: Deps, serviceId: string) {
 	) as Record<string, string>;
 }
 
+async function databaseRow(c: Context<Env>, serviceId: string) {
+	const [row] = await c.var.deps.db
+		.select({ slug: service.slug, spec: service.spec })
+		.from(service)
+		.where(eq(service.id, serviceId));
+	if (!row) throw notFound("service");
+	if (row.spec.kind !== "database")
+		throw new Failure("bad_request", "not a database service");
+	return { slug: row.slug, engine: row.spec.engine };
+}
+
 // One pool per service, replaced when the credentials change. Pools close idle connections themselves.
 const clients = new Map<string, { key: string; client: DatabaseClient }>();
 
@@ -60,14 +85,7 @@ export async function openDatabase(
 	serviceId: string,
 ): Promise<DatabaseService> {
 	const deps = c.var.deps;
-	const [row] = await deps.db
-		.select({ slug: service.slug, spec: service.spec })
-		.from(service)
-		.where(eq(service.id, serviceId));
-	if (!row) throw notFound("service");
-	if (row.spec.kind !== "database")
-		throw new Failure("bad_request", "not a database service");
-	const engine = row.spec.engine;
+	const { slug, engine } = await databaseRow(c, serviceId);
 	if (engine !== "postgres")
 		throw new Failure(
 			"bad_request",
@@ -99,7 +117,7 @@ export async function openDatabase(
 		cached = { key, client: databaseClient(conn) };
 		clients.set(serviceId, cached);
 	}
-	return { id: serviceId, slug: row.slug, engine, client: cached.client };
+	return { id: serviceId, slug, engine, client: cached.client };
 }
 
 // shortcut: in memory, so a cancel must reach the api replica running the query; share it (Redis) when the api scales out.
@@ -136,4 +154,189 @@ export function cancelRun(serviceId: string, actorId: string, runId: string) {
 	if (run?.serviceId !== serviceId || run.actorId !== actorId) return false;
 	run.abort.abort();
 	return true;
+}
+
+const DUMP_TIMEOUT_S = 6 * 3600;
+
+/** `<slug>-<YYYYMMDD-HHmmss>.<ext>`, in UTC. */
+export function dumpFilename(slug: string, engine: DatabaseEngine, at: Date) {
+	const stamp = at
+		.toISOString()
+		.replace(/[-:]/g, "")
+		.replace("T", "-")
+		.slice(0, 15);
+	return `${slug}-${stamp}.${DUMP_EXTENSION[engine]}`;
+}
+
+const nodeFailure = (e: unknown) =>
+	e instanceof NodeRunnerError
+		? new Failure("conflict", e.message, { reason: e.code })
+		: e;
+
+/** The replica a dump or restore runs in. */
+async function replica(c: Context<Env>, serviceId: string) {
+	const task = await runningTask(c, serviceId);
+	if (!task)
+		throw new Failure("conflict", "the database has no running replica", {
+			reason: "not_running",
+		});
+	return task;
+}
+
+/** What a dump checks before it starts: a database service with a running replica. */
+export async function dumpTarget(c: Context<Env>, serviceId: string) {
+	return {
+		...(await databaseRow(c, serviceId)),
+		task: await replica(c, serviceId),
+	};
+}
+
+/**
+ * Streams the engine's dump tool out of the running replica as an attachment. Errors before the
+ * first byte are ordinary JSON errors. A failure after it errors the body stream, so the response
+ * ends without its terminating chunk and clients (browsers, curl) mark the download failed
+ * instead of keeping a truncated file. Audited when the stream ends, with its size.
+ */
+export async function dumpResponse(
+	c: Context<Env>,
+	serviceId: string,
+): Promise<Response> {
+	const { slug, engine, task } = await dumpTarget(c, serviceId);
+	const filename = dumpFilename(slug, engine, new Date());
+	const started = Date.now();
+	let bytes = 0;
+	let stderr = "";
+	let audited = false;
+	/** One row per dump, however it ends: done, failed, or dropped by the client. */
+	const audit = async (error?: unknown) => {
+		if (audited) return;
+		audited = true;
+		await recordAudit(c, {
+			action: "database.dump",
+			resourceId: serviceId,
+			diff: {
+				filename,
+				taskId: task.id,
+				bytes,
+				durationMs: Date.now() - started,
+				...(error !== undefined && {
+					error: error instanceof Error ? error.message : String(error),
+				}),
+			},
+			outcome: error === undefined ? "success" : "error",
+		});
+	};
+	const job = c.var.deps.nodes.runJob(
+		task.nodeId,
+		{
+			kind: "exec",
+			target: { kind: "task", taskId: task.id },
+			cmd: ["sh"],
+			script: dumpScript(engine),
+			timeoutSec: DUMP_TIMEOUT_S,
+			outputLimitBytes: Number.MAX_SAFE_INTEGER,
+		},
+		{ signal: c.req.raw.signal },
+	);
+	const it = job[Symbol.asyncIterator]();
+	const dec = new TextDecoder();
+	/** The next stdout chunk; at the end, undefined or `ExecFailed` on a non-zero exit. */
+	const next = async (): Promise<Uint8Array | undefined> => {
+		for (;;) {
+			const r = await it.next();
+			if (r.done) {
+				const { exitCode } = await job.result;
+				if (exitCode !== 0) throw new ExecFailed(exitCode, stderr.trim());
+				return undefined;
+			}
+			if (r.value.stream === "stdout") {
+				bytes += r.value.data.byteLength;
+				return r.value.data;
+			}
+			stderr = tail(stderr + dec.decode(r.value.data, { stream: true }), 4000);
+		}
+	};
+
+	let first: Uint8Array | undefined;
+	try {
+		first = await next();
+	} catch (e) {
+		await audit(e);
+		if (e instanceof ExecFailed)
+			throw new Failure("conflict", `the dump failed (exit ${e.code})`, {
+				reason: "tool_failed",
+				exitCode: e.code,
+				stderr: e.stderr,
+			});
+		throw nodeFailure(e);
+	}
+	if (!first) await audit();
+	const body = new ReadableStream<Uint8Array>({
+		start(ctrl) {
+			if (first) ctrl.enqueue(first);
+			else ctrl.close();
+		},
+		async pull(ctrl) {
+			try {
+				const data = await next();
+				if (data) return ctrl.enqueue(data);
+				ctrl.close();
+				await audit();
+			} catch (e) {
+				ctrl.error(e);
+				await audit(e);
+			}
+		},
+		async cancel() {
+			await audit("the client stopped the download");
+			await it.return?.();
+		},
+	});
+	return new Response(body, {
+		headers: {
+			"content-type": "application/octet-stream",
+			"content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+			"x-content-type-options": "nosniff",
+			"cache-control": "private, no-store",
+		},
+	});
+}
+
+/**
+ * Pipes `body` into the engine's restore tool in the running replica, replacing what the
+ * database holds. A non-zero exit is a 409 with the tool's exit code and the tail of its stderr.
+ */
+export async function restoreFrom(
+	c: Context<Env>,
+	serviceId: string,
+	body: ReadableStream<Uint8Array>,
+) {
+	const db = await databaseRow(c, serviceId);
+	if (db.engine === "redis")
+		throw new Failure("bad_request", "restore is not supported for redis");
+	const task = await replica(c, serviceId);
+	const exec = c.var.deps.nodes.exec(
+		task.nodeId,
+		{
+			target: { kind: "task", taskId: task.id },
+			cmd: ["sh", "-c", restoreScript(db.engine)],
+			stdin: true,
+		},
+		{ signal: c.req.raw.signal },
+	);
+	let bytes = 0;
+	try {
+		await feed(exec, body, (n) => {
+			bytes = n;
+		});
+	} catch (e) {
+		if (e instanceof ExecFailed)
+			throw new Failure("conflict", `the restore failed (exit ${e.code})`, {
+				reason: "tool_failed",
+				exitCode: e.code,
+				stderr: e.stderr,
+			});
+		throw nodeFailure(e);
+	}
+	return { bytes };
 }

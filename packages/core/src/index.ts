@@ -1,5 +1,6 @@
 export * from "./compile-service.ts";
 export * from "./crypto.ts";
+export * from "./db-scripts.ts";
 export * from "./deployment.ts";
 export * from "./env.ts";
 export * from "./folders.ts";

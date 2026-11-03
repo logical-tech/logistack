@@ -42,7 +42,72 @@ export type DatabaseApi = {
 	query(id: string, input: QueryRequest): Promise<QueryResult>;
 	/** 404 once the run has finished. */
 	cancel(id: string, runId: string): Promise<void>;
+	/**
+	 * Starts the browser download of a full dump once a HEAD has checked it can: 403 without
+	 * read:secrets, 409 without a running replica.
+	 */
+	dump(id: string): Promise<void>;
+	/** Streams the file into the engine's restore tool; 403 without admin, 409 `tool_failed` with stderr. */
+	restore(
+		id: string,
+		file: File,
+		onProgress: (loaded: number) => void,
+	): RestoreHandle;
 };
+
+export type RestoreHandle = {
+	done: Promise<{ bytes: number }>;
+	abort: () => void;
+};
+
+const dumpPath = (id: string) =>
+	`/api/databases/${encodeURIComponent(id)}/dump`;
+
+/** A HEAD has no body, so its refusal is named here. */
+const headFailure: Record<number, [string, string]> = {
+	403: [
+		"You need read:secrets on this service to download a dump.",
+		"forbidden",
+	],
+	404: ["This service no longer exists.", "not_found"],
+	409: ["The database has no running replica to dump.", "conflict"],
+};
+
+function restoreUpload(
+	id: string,
+	file: File,
+	onProgress: (loaded: number) => void,
+): RestoreHandle {
+	const xhr = new XMLHttpRequest();
+	const done = new Promise<{ bytes: number }>((resolve, reject) => {
+		xhr.upload.onprogress = (e) => onProgress(e.loaded);
+		xhr.onload = () => {
+			const body = (() => {
+				try {
+					return JSON.parse(xhr.responseText);
+				} catch {
+					return undefined;
+				}
+			})();
+			if (xhr.status >= 200 && xhr.status < 300) return resolve(body);
+			reject(
+				new ApiError(
+					xhr.status,
+					body?.error?.message ?? `Restore failed with ${xhr.status}`,
+					body?.error?.code,
+					body?.error?.details,
+				),
+			);
+		};
+		xhr.onerror = () => reject(new Error("The connection dropped."));
+		xhr.onabort = () => reject(new DOMException("Cancelled", "AbortError"));
+	});
+	xhr.open("POST", `/api/databases/${encodeURIComponent(id)}/restore`);
+	xhr.withCredentials = true;
+	xhr.setRequestHeader("Content-Type", "application/octet-stream");
+	xhr.send(file);
+	return { done, abort: () => xhr.abort() };
+}
 
 const PAGE = "200";
 const d = client.api.databases[":id"];
@@ -71,13 +136,32 @@ const http: DatabaseApi = {
 		ok(d.query.$post({ param: { id }, json })) as Promise<QueryResult>,
 	cancel: (id, runId) =>
 		done(d.query[":runId"].$delete({ param: { id, runId } })),
+	dump: async (id) => {
+		const res = await fetch(dumpPath(id), {
+			method: "HEAD",
+			credentials: "include",
+		});
+		if (!res.ok) {
+			const [message, code] = headFailure[res.status] ?? [
+				`The dump couldn't start (${res.status}).`,
+				"internal",
+			];
+			throw new ApiError(res.status, message, code);
+		}
+		// Navigating streams the dump straight to disk; the browser marks a broken stream failed.
+		const a = document.createElement("a");
+		a.href = dumpPath(id);
+		a.download = "";
+		a.click();
+	},
+	restore: restoreUpload,
 };
 
 export const databaseApi: DatabaseApi = isMock
 	? (await import("./mock/database")).mockDatabase
 	: http;
 
-/** The api's `details.reason` on a database error: unreachable, stale, auth, query. */
+/** The api's `details.reason` on a database error: unreachable, stale, auth, query, tool_failed, not_running. */
 export const reasonOf = (e: unknown) =>
 	e instanceof ApiError
 		? (e.details as { reason?: string } | undefined)?.reason
@@ -121,4 +205,17 @@ export function useWriteRows(id: string, ref: TableRef) {
 		mutationFn: (ops: RowPatch[]) => databaseApi.write(id, ref, ops),
 		onSuccess: () => qc.invalidateQueries({ queryKey: key(id) }),
 	});
+}
+
+/** Restores a file, then refreshes everything read from the database. */
+export function useRestore(id: string) {
+	const qc = useQueryClient();
+	return (file: File, onProgress: (loaded: number) => void) => {
+		const handle = databaseApi.restore(id, file, onProgress);
+		handle.done.then(
+			() => qc.invalidateQueries({ queryKey: key(id) }),
+			() => {},
+		);
+		return handle;
+	};
 }

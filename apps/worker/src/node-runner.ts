@@ -56,6 +56,51 @@ export type NodeExec = NodeStream<OutputChunk, { code: number | null }> & {
 	close(): void;
 };
 
+/** The last `n` characters, marked as cut. */
+export const tail = (s: string, n = 2000) =>
+	s.length > n ? `…${s.slice(-n)}` : s;
+
+/** A fed exec exited non-zero; `stderr` is its tail. */
+export class ExecFailed extends Error {
+	override name = "ExecFailed";
+	constructor(
+		readonly code: number | null,
+		readonly stderr: string,
+	) {
+		super(`exit ${code}: ${tail(stderr, 600)}`);
+	}
+}
+
+/** Streams `source` into the exec's stdin, then waits for its exit; throws `ExecFailed` on a non-zero one. */
+export async function feed(
+	exec: NodeExec,
+	source: AsyncIterable<Uint8Array>,
+	onBytes: (n: number) => void = () => {},
+): Promise<void> {
+	let err = "";
+	const dec = new TextDecoder();
+	const drain = (async () => {
+		for await (const c of exec)
+			if (c.stream === "stderr")
+				err = tail(err + dec.decode(c.data, { stream: true }), 4000);
+	})();
+	let bytes = 0;
+	try {
+		for await (const chunk of source) {
+			await exec.write(chunk);
+			bytes += chunk.byteLength;
+			onBytes(bytes);
+		}
+		await exec.end();
+	} catch (e) {
+		exec.close();
+		throw e;
+	}
+	await drain.catch(() => {});
+	const { code } = await exec.result;
+	if (code !== 0) throw new ExecFailed(code, err.trim());
+}
+
 export type NodeRunner = {
 	/** `nodeId` is the Swarm node id. A job runs to completion even if nobody iterates its output. */
 	runJob(

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { AGENT_WS_PATH } from "@logistack/contracts";
 import { Scalar } from "@scalar/hono-api-reference";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
@@ -71,7 +71,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		await next();
 	});
 	app.use(requestLogger);
-	// Bun.serve allows object-sized bodies for storage uploads; everything else keeps the old ceiling.
+	// Bun.serve allows object-sized bodies for storage uploads and database restores; everything else keeps the old ceiling.
 	const limited = bodyLimit({
 		maxSize: 128 * 1024 * 1024,
 		onError: (c) =>
@@ -80,12 +80,12 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 				413,
 			),
 	});
-	app.use("/api/*", (c, next) =>
-		c.req.method === "PUT" &&
-		/^\/api\/storage\/[^/]+\/buckets\/[^/]+\/upload$/.test(c.req.path)
-			? next()
-			: limited(c, next),
-	);
+	const streamed = (c: Context<Env>) =>
+		(c.req.method === "PUT" &&
+			/^\/api\/storage\/[^/]+\/buckets\/[^/]+\/upload$/.test(c.req.path)) ||
+		(c.req.method === "POST" &&
+			/^\/api\/databases\/[^/]+\/restore$/.test(c.req.path));
+	app.use("/api/*", (c, next) => (streamed(c) ? next() : limited(c, next)));
 	app.use(
 		"/api/*",
 		cors({ origin: deps.config.WEB_ORIGIN, credentials: true }),

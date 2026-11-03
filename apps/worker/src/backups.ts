@@ -5,7 +5,15 @@ import {
 	LIVE_CHANNEL,
 	type LiveMessage,
 } from "@logistack/contracts";
-import { decrypt, dockerName, newId, storageEngineDefs } from "@logistack/core";
+import {
+	DUMP_EXTENSION,
+	decrypt,
+	dockerName,
+	dumpScript,
+	newId,
+	restoreScript,
+	storageEngineDefs,
+} from "@logistack/core";
 import {
 	backupPolicy,
 	backupRun,
@@ -32,11 +40,8 @@ import {
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { upsertService } from "./apply.ts";
 import {
-	DUMP_EXTENSION,
-	dumpScript,
 	judgeSanity,
 	readyScript,
-	restoreScript,
 	sanityScript,
 	VERIFY_DATA_DIR,
 	VERIFY_ENV,
@@ -48,7 +53,7 @@ import {
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import { svcName } from "./load.ts";
-import type { NodeExec } from "./node-runner.ts";
+import { feed, tail } from "./node-runner.ts";
 import { publicAddress } from "./ssrf.ts";
 
 // Backups, verify restores and restores. Every byte goes node -> agent -> bridge -> this
@@ -63,8 +68,6 @@ type ServiceRow = typeof service.$inferSelect;
 
 const body = (id: string) => id.slice(id.indexOf("_") + 1);
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const tail = (s: string, n = 2000) => (s.length > n ? `…${s.slice(-n)}` : s);
-
 export async function publishLive(ctx: Ctx, msg: LiveMessage) {
 	await ctx.bus.redis.publish(LIVE_CHANNEL, JSON.stringify(msg));
 }
@@ -337,36 +340,6 @@ async function script(
 			`exit ${r.exitCode}: ${tail(err.trim() || out.trim(), 600)}`,
 		);
 	return out;
-}
-
-/** Streams the object into the exec's stdin, then waits for its exit; throws with stderr on failure. */
-async function feed(
-	exec: NodeExec,
-	source: ReadableStream<Uint8Array>,
-	onBytes: (n: number) => void,
-): Promise<void> {
-	let err = "";
-	const dec = new TextDecoder();
-	const drain = (async () => {
-		for await (const c of exec)
-			if (c.stream === "stderr")
-				err = tail(err + dec.decode(c.data, { stream: true }), 4000);
-	})();
-	let bytes = 0;
-	try {
-		for await (const chunk of source) {
-			await exec.write(chunk);
-			bytes += chunk.byteLength;
-			onBytes(bytes);
-		}
-		await exec.end();
-	} catch (e) {
-		exec.close();
-		throw e;
-	}
-	await drain.catch(() => {});
-	const { code } = await exec.result;
-	if (code !== 0) throw new Error(`exit ${code}: ${tail(err.trim(), 600)}`);
 }
 
 type Loaded = {
