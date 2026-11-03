@@ -636,29 +636,19 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 		});
 	});
 
-	test("a viewer runs read-only SQL but cannot write", async () => {
-		const read = await query(
-			"select count(*) from ledger",
-			{},
-			{ cookie: viewer },
-		);
-		expect(read.status).toBe(200);
-		expect(read.json.results[0].rows).toEqual([
-			[{ type: "bigint", value: "1" }],
-		]);
-		const sql = "delete from ledger";
-		const w = await query(sql, { readOnly: false }, { cookie: viewer });
-		expect(w.status).toBe(403);
-		expect([...(await shop`select count(*)::int as n from ledger`)]).toEqual([
-			{ n: 1 },
-		]);
+	test("running SQL needs write, even read-only: the explorer is a superuser", async () => {
+		for (const readOnly of [true, false]) {
+			const r = await query(
+				"copy (select 1) to program 'true'",
+				{ readOnly },
+				{ cookie: viewer },
+			);
+			expect(r.status).toBe(403);
+		}
 		const audit = await h.deps.db
-			.select({ diff: auditLog.diff, outcome: auditLog.outcome })
+			.select({ outcome: auditLog.outcome })
 			.from(auditLog)
 			.where(eq(auditLog.action, "database.query"));
-		expect(audit).toContainEqual({
-			outcome: "denied",
-			diff: { sql, readOnly: false },
-		});
+		expect(audit.filter((a) => a.outcome === "denied").length).toBe(2);
 	});
 });

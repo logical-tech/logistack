@@ -98,7 +98,7 @@ export function SqlPanel({
 				onForbidden();
 				setReadOnly(true);
 				setFailure(
-					"You can read this database but not write to it. Read only is back on.",
+					"Running SQL needs write access to this service, even read-only.",
 				);
 			} else setFailure(e instanceof Error ? e.message : "The run failed.");
 		} finally {

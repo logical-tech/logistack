@@ -10,13 +10,12 @@ import {
 	RowsWrite,
 	RowsWritten,
 } from "@logistack/contracts";
-import type { Resource } from "@logistack/core";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import { cancelRun, openDatabase, runQuery } from "../database.ts";
 import { Failure, notFound, parseInput } from "../errors.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
-import { byParam, check, requirePermission } from "../scope.ts";
+import { byParam, requirePermission } from "../scope.ts";
 
 const Id = z.object({ id: z.string() });
 const TableParams = z.object({
@@ -132,8 +131,8 @@ export const databases = router()
 				security,
 				summary: "Run SQL against a database service",
 				description:
-					"Statements run in order in one transaction, each under a 30 s statement timeout. `readOnly` (the default) needs `read` and runs READ ONLY; otherwise it needs `write`. Each statement returns at most 1000 rows. A failing statement rolls the run back and is reported in `error` with a 200; earlier statements' results are still returned. Every run is audited with its SQL text. Pass a `runId` to cancel the run with `DELETE /databases/{id}/query/{runId}`.",
-				middleware: [requirePermission("read", svc)],
+					"Statements run in order in one transaction, each under a 30 s statement timeout. Needs `write` even when `readOnly` (the default): the explorer connects as the database superuser, and READ ONLY does not stop superuser side effects such as `COPY ... TO PROGRAM`. `readOnly` runs the transaction READ ONLY as a guard against mistakes, not as a privilege boundary. Each statement returns at most 1000 rows. A failing statement rolls the run back and is reported in `error` with a 200; earlier statements' results are still returned. Every run is audited with its SQL text. Pass a `runId` to cancel the run with `DELETE /databases/{id}/query/{runId}`.",
+				middleware: [requirePermission("write", svc)],
 				request: { params: Id, ...body(QueryRequest) },
 				responses: { 200: json(QueryResult, "Results"), ...errors },
 			}),
@@ -143,7 +142,6 @@ export const databases = router()
 			const input = c.req.valid("json");
 			c.set("auditResourceId", id);
 			c.set("auditDiff", { sql: input.sql, readOnly: input.readOnly });
-			if (!input.readOnly) check(c, "write", c.get("resource") as Resource);
 			const db = await openDatabase(c, id);
 			const result = await runQuery(db, requireActor(c).id, input);
 			if (result.error)
