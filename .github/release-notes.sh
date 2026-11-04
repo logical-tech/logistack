@@ -16,6 +16,11 @@ while IFS=$'\x1f' read -r -d $'\x1e' sha subject body; do
 	sha=${sha//[$'\n ']/}
 	[[ $subject =~ ^([a-z]+)(\(([^\)]+)\))?(!)?:\ (.+)$ ]] || continue
 	type=${BASH_REMATCH[1]} scope=${BASH_REMATCH[3]} bang=${BASH_REMATCH[4]} text=${BASH_REMATCH[5]}
+	# GitHub's skip-workflow markers are for CI, not for readers.
+	for marker in '[skip ci]' '[ci skip]' '[no ci]' '[skip actions]' '[actions skip]'; do
+		text=${text//"$marker"/}
+	done
+	text=${text%"${text##*[![:space:]]}"}
 	line="- ${scope:+**$scope:** }$text (${sha:0:7})"$'\n'
 	if [ -n "$bang" ] || [[ $body == *"BREAKING CHANGE"* ]]; then
 		section[breaking]+=$line
