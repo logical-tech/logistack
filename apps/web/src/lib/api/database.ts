@@ -5,6 +5,7 @@
  */
 import type {
 	CollectionRef,
+	CreateRole,
 	DatabaseSchema,
 	DocumentsPage,
 	DocumentWrite,
@@ -63,6 +64,15 @@ export type DatabaseApi = {
 	createDatabase(id: string, name: string): Promise<void>;
 	/** 403 without admin, 400 for the default database. */
 	dropDatabase(id: string, name: string): Promise<void>;
+	/** 403 without admin, 400 when it exists. Attributes and grants follow as SQL. */
+	createRole(id: string, role: CreateRole): Promise<void>;
+	/** 403 without admin, 400 for the explorer's own login. */
+	setRolePassword(
+		id: string,
+		name: string,
+		host: string | undefined,
+		password: string,
+	): Promise<void>;
 	/** MongoDB: canonical Extended JSON documents; 400 for bad JSON or `$where`/`$function`. */
 	documents(
 		id: string,
@@ -196,6 +206,15 @@ const http: DatabaseApi = {
 		ok(d.databases.$post({ param: { id }, json: { name } })).then(() => {}),
 	dropDatabase: (id, name) =>
 		done(d.databases[":name"].$delete({ param: { id, name } })),
+	createRole: (id, role) =>
+		ok(d.roles.$post({ param: { id }, json: role })).then(() => {}),
+	setRolePassword: (id, name, host, password) =>
+		done(
+			d.roles[":name"].password.$put({
+				param: { id, name },
+				json: { password, ...(host !== undefined && { host }) },
+			}),
+		),
 	documents: (id, ref, { cursor, ...find }) =>
 		ok(
 			docs.$get({

@@ -14,6 +14,8 @@ import {
 	type DatabaseEngine,
 	type DatabaseSchema,
 	type DbColumn,
+	type DbForeignKey,
+	type DbRole,
 	type DbRoutine,
 	type DbTable,
 	QUERY_ROWS_LIMIT,
@@ -55,6 +57,7 @@ type MockTable = {
 	unanalyzed?: boolean;
 	/** Rows still listed but already deleted by someone else. */
 	ghosts?: Set<string>;
+	foreignKeys?: DbForeignKey[];
 };
 type InSchema<T> = T & { schema: string };
 type World = {
@@ -66,7 +69,39 @@ type World = {
 	enums?: InSchema<{ name: string; values: string[] }>[];
 	sequences?: InSchema<{ name: string }>[];
 	routines?: InSchema<DbRoutine>[];
+	/** The instance's roles and the explorer's own login, on the service's default database. */
+	user?: string;
+	// shortcut: grants live on the role, so every database of a mock instance shows the same ones.
+	roles?: DbRole[];
 };
+
+const fk = (
+	name: string,
+	columns: string[],
+	refSchema: string,
+	refTable: string,
+	refColumns: string[],
+): DbForeignKey => ({ name, columns, refSchema, refTable, refColumns });
+
+const PG_ALL = [
+	"DELETE",
+	"INSERT",
+	"REFERENCES",
+	"SELECT",
+	"TRIGGER",
+	"TRUNCATE",
+	"UPDATE",
+];
+const pgRole = (name: string, over: Partial<DbRole> = {}): DbRole => ({
+	name,
+	login: true,
+	superuser: false,
+	createDb: false,
+	createRole: false,
+	memberOf: [],
+	grants: [],
+	...over,
+});
 
 function prng(seed: number) {
 	let a = seed;
@@ -302,6 +337,31 @@ function storefront(seed: number): World {
 		engine: "postgres",
 		database: "storefront",
 		schemas: ["public", "audit"],
+		user: "postgres",
+		roles: [
+			pgRole("app", {
+				grants: [
+					{
+						schema: "public",
+						privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+					},
+				],
+			}),
+			pgRole("metabase", { memberOf: ["readonly"] }),
+			pgRole("postgres", {
+				superuser: true,
+				createDb: true,
+				createRole: true,
+				grants: [
+					{ schema: "audit", privileges: PG_ALL },
+					{ schema: "public", privileges: PG_ALL },
+				],
+			}),
+			pgRole("readonly", {
+				login: false,
+				grants: [{ schema: "public", privileges: ["SELECT"] }],
+			}),
+		],
 		enums: [
 			{
 				schema: "public",
@@ -363,6 +423,15 @@ function storefront(seed: number): World {
 					col("metadata", "jsonb", { nullable: true }),
 				],
 				rows: orders,
+				foreignKeys: [
+					fk(
+						"orders_customer_id_fkey",
+						["customer_id"],
+						"public",
+						"customers",
+						["id"],
+					),
+				],
 			},
 			{
 				schema: "public",
@@ -376,6 +445,12 @@ function storefront(seed: number): World {
 					col("unit_price", "numeric(10,2)"),
 				],
 				rows: items,
+				foreignKeys: [
+					fk("order_items_order_id_fkey", ["order_id"], "public", "orders", [
+						"id",
+					]),
+					fk("order_items_sku_fkey", ["sku"], "public", "products", ["sku"]),
+				],
 			},
 			{
 				schema: "public",
@@ -479,6 +554,36 @@ function backoffice(seed: number, engine: DatabaseEngine): World {
 	return {
 		engine,
 		database: "backoffice",
+		user: "root",
+		roles: [
+			{
+				name: "app",
+				host: "%",
+				login: true,
+				superuser: false,
+				grants: [
+					{
+						schema: "backoffice",
+						privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+					},
+				],
+			},
+			{
+				name: "report",
+				host: "10.0.%",
+				login: true,
+				superuser: false,
+				grants: [{ schema: "reporting", privileges: ["SELECT"] }],
+			},
+			{ name: "root", host: "%", login: true, superuser: true, grants: [] },
+			{
+				name: "root",
+				host: "localhost",
+				login: true,
+				superuser: true,
+				grants: [],
+			},
+		],
 		routines: [
 			{
 				schema: "backoffice",
@@ -512,6 +617,15 @@ function backoffice(seed: number, engine: DatabaseEngine): World {
 					col("scan", "mediumblob", { nullable: true }),
 				],
 				rows: invoices,
+				foreignKeys: [
+					fk(
+						"invoices_supplier_fk",
+						["supplier_id"],
+						"backoffice",
+						"suppliers",
+						["id"],
+					),
+				],
 			},
 			{
 				schema: "backoffice",
@@ -820,6 +934,8 @@ export const mockDatabase: DatabaseApi = {
 			engine: w.engine,
 			database: w.database,
 			defaultDatabase: home.database,
+			user: home.user,
+			roles: home.roles,
 			...(pg && { databases: [...databasesOf(id, home)].sort() }),
 			schemas: schemas.map((name) => ({
 				name,
@@ -831,6 +947,7 @@ export const mockDatabase: DatabaseApi = {
 						rows: t.unanalyzed ? null : t.rows.length,
 						editable: editable(t),
 						columns: t.columns,
+						foreignKeys: t.foreignKeys ?? [],
 					})),
 				...(pg && {
 					enums: inSchema(w.enums, name),
@@ -904,6 +1021,56 @@ export const mockDatabase: DatabaseApi = {
 			w.routines = w.routines?.filter((x) => x.schema !== name);
 		}
 		await delay(null, 400);
+	},
+	createRole: async (id, { name, host, login }) => {
+		if (id.startsWith("svc_booking"))
+			throw new ApiError(
+				403,
+				"missing permission 'admin' on service",
+				"forbidden",
+			);
+		const w = worldOf(id);
+		const pg = w.engine === "postgres";
+		w.roles ??= [];
+		const roles = w.roles;
+		if (roles.some((r) => r.name === name && (pg || r.host === (host ?? "%"))))
+			throw new ApiError(
+				400,
+				pg
+					? `role "${name}" already exists`
+					: `Operation CREATE USER failed for '${name}'@'${host ?? "%"}'`,
+				"bad_request",
+				{ reason: "query", engineCode: pg ? "42710" : "ER_CANNOT_USER" },
+			);
+		roles.push(
+			pg
+				? pgRole(name, { login })
+				: {
+						name,
+						host: host ?? "%",
+						login: true,
+						superuser: false,
+						grants: [],
+					},
+		);
+		roles.sort((a, b) => a.name.localeCompare(b.name));
+		await delay(null, 300);
+	},
+	setRolePassword: async (id, name) => {
+		if (id.startsWith("svc_booking"))
+			throw new ApiError(
+				403,
+				"missing permission 'admin' on service",
+				"forbidden",
+			);
+		if (name === worldOf(id).user)
+			throw new ApiError(
+				400,
+				`${name} is the explorer's own login; change it in the service's env instead`,
+				"bad_request",
+				{ reason: "unsupported" },
+			);
+		await delay(null, 300);
 	},
 	rows: async (id, ref, { sort, filter, cursor }) => {
 		const t = tableOf(worldIn(id, ref.database), ref.schema, ref.table);
@@ -1060,6 +1227,8 @@ const WRITES = new Set([
 	"drop",
 	"truncate",
 	"grant",
+	"revoke",
+	"reassign",
 ]);
 
 const TYPNAME: [RegExp, string][] = [
@@ -1223,7 +1392,7 @@ async function statement(
 				"forbidden",
 			);
 		await sleep(80);
-		const ddl = applyDdl(w, text);
+		const ddl = applyRoleSql(id, text) ?? applyDdl(w, text);
 		if (ddl) return { ...empty, command: ddl, affected: null };
 		const command =
 			verb === "CREATE" || verb === "ALTER" || verb === "DROP"
@@ -1572,4 +1741,105 @@ async function runMock(
 		}
 	}
 	return { results, error: null };
+}
+
+const MYSQL_ALL = [
+	"ALTER",
+	"CREATE",
+	"DELETE",
+	"DROP",
+	"INDEX",
+	"INSERT",
+	"SELECT",
+	"UPDATE",
+];
+const ROLE = String.raw`(?:'((?:[^']|'')+)'@'((?:[^']|'')+)'|("(?:[^"]|"")+"|[A-Za-z_][\w$]*))`;
+const roleRef = (m: RegExpExecArray, at: number) =>
+	m[at + 2] !== undefined
+		? { name: unquote(m[at + 2] ?? "") }
+		: { name: (m[at] ?? "").replaceAll("''", "'"), host: m[at + 1] };
+
+/** Role DDL and grants change the mock's roles, so the Roles view follows them. */
+function applyRoleSql(id: string, text: string): string | null {
+	const w = worldOf(id);
+	const find = (r: { name: string; host?: string }) =>
+		w.roles?.find(
+			(x) => x.name === r.name && (r.host === undefined || x.host === r.host),
+		);
+	const privileges = (list: string) =>
+		/^all\b/i.test(list.trim())
+			? w.engine === "postgres"
+				? PG_ALL
+				: MYSQL_ALL
+			: list.split(",").map((p) => p.trim().toUpperCase());
+	let m = new RegExp(
+		String.raw`^drop\s+(role|user)\s+(?:if\s+exists\s+)?${ROLE}`,
+		"i",
+	).exec(text);
+	if (m) {
+		const role = find(roleRef(m, 2));
+		if (role) w.roles = w.roles?.filter((r) => r !== role);
+		return `DROP ${(m[1] ?? "role").toUpperCase()}`;
+	}
+	m = new RegExp(
+		String.raw`^alter\s+role\s+${ROLE}\s+(?:with\s+)?(.*)$`,
+		"is",
+	).exec(text);
+	if (m) {
+		const role = find(roleRef(m, 1));
+		for (const word of (m[4] ?? "").toLowerCase().split(/\s+/)) {
+			const on = !word.startsWith("no");
+			const attr = on ? word : word.slice(2);
+			if (!role) break;
+			if (attr === "superuser") role.superuser = on;
+			if (attr === "createdb") role.createDb = on;
+			if (attr === "createrole") role.createRole = on;
+			if (attr === "login") role.login = on;
+		}
+		return "ALTER ROLE";
+	}
+	m = new RegExp(
+		String.raw`^(grant|revoke)\s+(.+?)\s+on\s+(?:all\s+tables\s+in\s+schema\s+(${NAME})|(${NAME})\.\*)\s+(?:to|from)\s+${ROLE}\s*$`,
+		"is",
+	).exec(text);
+	if (m) {
+		const role = find(roleRef(m, 5));
+		const schema = unquote(m[3] ?? m[4] ?? "");
+		if (role) {
+			const had =
+				role.grants.find((g) => g.schema === schema)?.privileges ?? [];
+			const delta = privileges(m[2] ?? "");
+			const next =
+				m[1]?.toLowerCase() === "grant"
+					? [...new Set([...had, ...delta])].sort()
+					: had.filter((p) => !delta.includes(p));
+			role.grants = [
+				...role.grants.filter((g) => g.schema !== schema),
+				...(next.length ? [{ schema, privileges: next }] : []),
+			].sort((a, b) => a.schema.localeCompare(b.schema));
+		}
+		return (m[1] ?? "").toUpperCase();
+	}
+	m = new RegExp(
+		String.raw`^(grant|revoke)\s+(${NAME})\s+(?:to|from)\s+${ROLE}\s*$`,
+		"is",
+	).exec(text);
+	if (m && w.engine === "postgres") {
+		const role = find(roleRef(m, 3));
+		const group = unquote(m[2] ?? "");
+		if (role)
+			role.memberOf =
+				m[1]?.toLowerCase() === "grant"
+					? [...new Set([...(role.memberOf ?? []), group])].sort()
+					: (role.memberOf ?? []).filter((g) => g !== group);
+		return (m[1] ?? "").toUpperCase() === "GRANT"
+			? "GRANT ROLE"
+			: "REVOKE ROLE";
+	}
+	if (/^(grant|revoke)\b/i.test(text)) return leadingWord(text).toUpperCase();
+	if (/^alter\s+default\s+privileges\b/i.test(text))
+		return "ALTER DEFAULT PRIVILEGES";
+	if (/^reassign\s+owned\b/i.test(text)) return "REASSIGN OWNED";
+	if (/^drop\s+owned\b/i.test(text)) return "DROP OWNED";
+	return null;
 }

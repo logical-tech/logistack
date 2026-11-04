@@ -2,6 +2,7 @@ import {
 	type Cell,
 	type DatabaseSchema,
 	type DbColumn,
+	type DbRole,
 	type DbTable,
 	QUERY_ROWS_LIMIT,
 	type QueryError,
@@ -228,6 +229,18 @@ type RoutineRow = {
 	returns: string | null;
 	arguments: string | null;
 };
+
+type FkRow = {
+	schema: string;
+	table: string;
+	name: string;
+	column: string;
+	refSchema: string;
+	refTable: string;
+	refColumn: string;
+};
+
+type GrantRow = { grantee: string; schema: string; privileges: string };
 
 type Flavor = "mysql" | "mariadb";
 
@@ -510,6 +523,50 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 			.join(" and ");
 	}
 
+	/** Accounts with their grants; undefined when the login may not read mysql.user. */
+	async function accounts(c: PoolConnection): Promise<DbRole[] | undefined> {
+		try {
+			const users = await run<
+				{ name: string; host: string; superuser: number }[]
+			>(
+				c,
+				`select User as name, Host as host, Super_priv = 'Y' as superuser from mysql.user
+				where User not in ('', 'mysql.sys', 'mysql.session', 'mysql.infoschema', 'mariadb.sys')
+				order by User, Host`,
+			);
+			const grants = [
+				...(await run<GrantRow[]>(
+					c,
+					`select GRANTEE as grantee, TABLE_SCHEMA as \`schema\`,
+						group_concat(PRIVILEGE_TYPE order by PRIVILEGE_TYPE) as privileges
+					from information_schema.SCHEMA_PRIVILEGES group by GRANTEE, TABLE_SCHEMA`,
+				)),
+				...(await run<GrantRow[]>(
+					c,
+					`select GRANTEE as grantee, '*' as \`schema\`,
+						group_concat(PRIVILEGE_TYPE order by PRIVILEGE_TYPE) as privileges
+					from information_schema.USER_PRIVILEGES
+					where PRIVILEGE_TYPE <> 'USAGE' group by GRANTEE`,
+				)),
+			];
+			return users.map((u) => ({
+				name: u.name,
+				host: u.host,
+				login: true,
+				// MySQL 8 types the comparison as bigint, which arrives as a string.
+				superuser: Number(u.superuser) === 1,
+				grants: grants
+					.filter((g) => g.grantee === `'${u.name}'@'${u.host}'`)
+					.map((g) => ({
+						schema: g.schema,
+						privileges: g.privileges.split(","),
+					})),
+			}));
+		} catch {
+			return undefined;
+		}
+	}
+
 	return {
 		kind: "sql",
 		introspect: () =>
@@ -541,6 +598,17 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 					order by r.ROUTINE_SCHEMA, r.ROUTINE_NAME`,
 					SYSTEM,
 				);
+				const keyColumns = await run<FkRow[]>(
+					c,
+					`select k.TABLE_SCHEMA as \`schema\`, k.TABLE_NAME as \`table\`, k.CONSTRAINT_NAME as name,
+						k.COLUMN_NAME as \`column\`, k.REFERENCED_TABLE_SCHEMA as refSchema,
+						k.REFERENCED_TABLE_NAME as refTable, k.REFERENCED_COLUMN_NAME as refColumn
+					from information_schema.KEY_COLUMN_USAGE k
+					where k.REFERENCED_TABLE_NAME is not null and k.TABLE_SCHEMA not in (${system})
+					order by k.TABLE_SCHEMA, k.TABLE_NAME, k.CONSTRAINT_NAME, k.ORDINAL_POSITION`,
+					SYSTEM,
+				);
+				const roles = await accounts(c);
 				const tables = new Map<string, Map<string, DbTable>>(
 					schemas.map((s) => [s.name, new Map()]),
 				);
@@ -555,6 +623,7 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 							rows: r.rows === null ? null : Number(r.rows),
 							editable: false,
 							columns: [],
+							foreignKeys: [],
 						};
 						bySchema.set(r.table, t);
 					}
@@ -563,9 +632,28 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 					t.columns.push(col);
 					if (col.primaryKey && t.kind === "table") t.editable = true;
 				}
+				for (const k of keyColumns) {
+					const fks = tables.get(k.schema)?.get(k.table)?.foreignKeys;
+					if (!fks) continue;
+					let fk = fks.find((f) => f.name === k.name);
+					if (!fk) {
+						fk = {
+							name: k.name,
+							columns: [],
+							refSchema: k.refSchema,
+							refTable: k.refTable,
+							refColumns: [],
+						};
+						fks.push(fk);
+					}
+					fk.columns.push(k.column);
+					fk.refColumns.push(k.refColumn);
+				}
 				return {
 					engine: conn.engine,
 					database: conn.database || conn.engine,
+					user: conn.user,
+					...(roles && { roles }),
 					schemas: [...tables].map(([name, t]) => ({
 						name,
 						tables: [...t.values()],
@@ -871,6 +959,26 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 				);
 			await using("drop_database", async (c) => {
 				await run(c, `drop database ${ident(name)}`);
+			});
+		},
+		// Bound as literals; both engines redact IDENTIFIED BY from their logs.
+		createRole: ({ name, host = "%", password }) =>
+			using("create_role", async (c) => {
+				await run(
+					c,
+					`create user ?@?${password ? " identified by ?" : ""}`,
+					password ? [name, host, password] : [name, host],
+				);
+			}),
+		setPassword: async (name, host = "%", password) => {
+			if (name === conn.user)
+				throw new DatabaseError(
+					"set_password",
+					`${name} is the explorer's own login; change it in the service's env instead`,
+					"unsupported",
+				);
+			await using("set_password", async (c) => {
+				await run(c, "alter user ?@? identified by ?", [name, host, password]);
 			});
 		},
 		close: () => new Promise<void>((resolve) => pool.end(() => resolve())),

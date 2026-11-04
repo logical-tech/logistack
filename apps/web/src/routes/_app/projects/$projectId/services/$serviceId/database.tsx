@@ -7,12 +7,16 @@ import {
 	ServiceDatabase,
 } from "@/components/database/service-database";
 import { overviewQuery } from "@/lib/api/service-ops";
+import { stepParam } from "@/lib/search";
 
 export const Route = createFileRoute(
 	"/_app/projects/$projectId/services/$serviceId/database",
 )({
 	validateSearch: z.object({
-		view: z.enum(["data", "sql"]).optional().catch(undefined),
+		view: z
+			.enum(["data", "diagram", "sql", "roles"])
+			.optional()
+			.catch(undefined),
 		database: z.string().max(128).optional().catch(undefined),
 		schema: z.string().max(63).optional().catch(undefined),
 		table: z.string().max(63).optional().catch(undefined),
@@ -27,6 +31,9 @@ export const Route = createFileRoute(
 			.optional()
 			.catch(undefined),
 		match: z.string().max(1024).optional().catch(undefined),
+		role: z.string().max(320).optional().catch(undefined),
+		newRole: z.boolean().optional().catch(undefined),
+		step: stepParam,
 	}),
 	component: DatabaseTab,
 });
@@ -46,17 +53,20 @@ function DatabaseTab() {
 		filter: search.filter ?? [],
 		find: search.find ?? {},
 		match: search.match ?? "*",
+		role: search.role,
+		newRole: search.newRole ?? false,
+		step: search.step,
 	};
 	return (
 		<ServiceDatabase
 			service={service}
 			at={at}
-			onNavigate={(next) => {
+			onNavigate={(next, opts) => {
 				const to = { ...at, ...next };
 				// Empty sort and filter are the defaults, so they stay out of the URL.
 				navigate({
 					search: {
-						view: to.view === "sql" ? "sql" : undefined,
+						view: to.view === "data" ? undefined : to.view,
 						database: to.database,
 						schema: to.schema,
 						table: to.table,
@@ -64,8 +74,18 @@ function DatabaseTab() {
 						filter: to.filter.length ? to.filter : undefined,
 						find: Object.values(to.find).some(Boolean) ? to.find : undefined,
 						match: to.match === "*" ? undefined : to.match,
+						role: to.view === "roles" ? to.role : undefined,
+						newRole: to.view === "roles" && to.newRole ? true : undefined,
+						step: to.view === "roles" && to.newRole ? to.step : undefined,
 					},
-					replace: !("table" in next || "view" in next || "database" in next),
+					replace:
+						opts?.replace ??
+						!(
+							"table" in next ||
+							"view" in next ||
+							"database" in next ||
+							"newRole" in next
+						),
 				});
 			}}
 		/>

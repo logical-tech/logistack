@@ -1,5 +1,6 @@
 import type {
 	CollectionRef,
+	CreateRole,
 	DatabaseEngine,
 	DatabaseSchema,
 	DocumentsPage,
@@ -87,6 +88,14 @@ export type SqlClient = Common & {
 	createDatabase(name: string): Promise<void>;
 	/** `missing` when there is none; MySQL system schemas are `unsupported`. */
 	dropDatabase(name: string): Promise<void>;
+	/** Postgres sends a SCRAM verifier, never the password; MySQL binds it as a literal. */
+	createRole(role: CreateRole): Promise<void>;
+	/** `host` is MySQL's; the explorer's own login is `unsupported`. */
+	setPassword(
+		name: string,
+		host: string | undefined,
+		password: string,
+	): Promise<void>;
 };
 
 /** MongoDB: documents in canonical Extended JSON, never rows. */

@@ -1,14 +1,17 @@
 import type { RowFilter, RowSort } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
 import {
+	ArrowLeft,
 	Database,
 	Loader2,
+	Maximize2,
+	Minimize2,
 	Plus,
 	RotateCw,
 	SquareTerminal,
 	Unplug,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { SkeletonRows } from "@/components/panel";
@@ -16,12 +19,20 @@ import { ENGINE } from "@/components/projects/service-list";
 import { Segmented } from "@/components/segmented";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { type DocumentsFind, reasonOf, schemaQuery } from "@/lib/api/database";
 import {
 	type ServiceOverview,
 	useServiceMutation,
 } from "@/lib/api/service-ops";
+import { cn } from "@/lib/utils";
 import { EMPTY_STAGED, type Staged } from "./cells";
 import { DataGrid } from "./data-grid";
 import {
@@ -36,11 +47,14 @@ import {
 import { DocumentList } from "./document-list";
 import { DumpRestore } from "./dump-restore";
 import { KeyBrowser, RedisConsole } from "./key-browser";
+import { RoleWizard } from "./role-wizard";
+import { RolesView } from "./roles-view";
+import { SchemaDiagram } from "./schema-diagram";
 import { SchemaTree, TablePicker, type TreeActions } from "./schema-tree";
 import { defaultSchema } from "./sql-editor";
 import { prependSqlDraft, SqlPanel } from "./sql-panel";
 
-export type DatabaseView = "data" | "sql";
+export type DatabaseView = "data" | "diagram" | "sql" | "roles";
 
 export type DatabaseLocation = {
 	view: DatabaseView;
@@ -54,6 +68,11 @@ export type DatabaseLocation = {
 	find: DocumentsFind;
 	/** Redis: the SCAN pattern; `schema` is the logical database. */
 	match: string;
+	/** Roles view: the chosen role's `roleKey`. */
+	role: string | undefined;
+	/** Roles view: the new-role wizard is open, at `step`. */
+	newRole: boolean;
+	step: string | undefined;
 };
 
 const errorText = (e: unknown) =>
@@ -67,7 +86,10 @@ export function ServiceDatabase({
 }: {
 	service: ServiceOverview;
 	at: DatabaseLocation;
-	onNavigate: (next: Partial<DatabaseLocation>) => void;
+	onNavigate: (
+		next: Partial<DatabaseLocation>,
+		opts?: { replace?: boolean },
+	) => void;
 }) {
 	const spec = service.spec.kind === "database" ? service.spec : null;
 	const supported =
@@ -96,18 +118,45 @@ export function ServiceDatabase({
 	const [newDatabase, setNewDatabase] = useState(false);
 	const [dropDatabase, setDropDatabase] = useState<string | null>(null);
 	const [dropObject, setDropObject] = useState<DbObject | null>(null);
+	// Full screen: the explorer covers the page, so wide tables show more columns and rows.
+	const [full, setFull] = useState(false);
+	useEffect(() => {
+		if (!full) return;
+		const onKey = (e: KeyboardEvent) => {
+			// Esc closes an open dialog or menu first.
+			if (
+				e.key === "Escape" &&
+				!document.querySelector("[role=dialog], [role=menu], [role=listbox]")
+			)
+				setFull(false);
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [full]);
 	const engine = spec ? ENGINE[spec.engine] : "This engine";
 	// Dumps run in the replica itself, so they work before the explorer can connect.
 	const bar = (leading?: ReactNode) => (
 		<div className="mb-3 flex items-center gap-2">
 			{leading}
 			{spec && running && (
-				<div className="ml-auto">
+				<div className="ml-auto flex items-center gap-1.5">
 					<DumpRestore
 						serviceId={service.id}
 						name={service.name}
 						engine={spec.engine}
 					/>
+					{schema.isSuccess && (
+						<Button
+							variant="outline"
+							size="icon-sm"
+							aria-pressed={full}
+							aria-label={full ? "Exit full screen" : "Full screen"}
+							title={full ? "Exit full screen (Esc)" : "Full screen"}
+							onClick={() => setFull((x) => !x)}
+						>
+							{full ? <Minimize2 /> : <Maximize2 />}
+						</Button>
+					)}
 				</div>
 			)}
 		</div>
@@ -229,14 +278,24 @@ export function ServiceDatabase({
 			</>
 		);
 
-	const frame =
-		"isolate flex h-[min(76dvh,46rem)] min-h-[28rem] overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border";
+	const frame = cn(
+		"isolate flex overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border",
+		full ? "min-h-0 flex-1" : "h-[min(76dvh,46rem)] min-h-[28rem]",
+	);
+	const shell = (node: ReactNode) =>
+		full ? (
+			<div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background p-3 sm:p-4">
+				{node}
+			</div>
+		) : (
+			node
+		);
 	if (schema.data.engine === "redis") {
 		const db = Math.min(
 			Number(at.schema) || 0,
 			Math.max(0, schema.data.schemas.length - 1),
 		);
-		return (
+		return shell(
 			<>
 				{bar(
 					<Segmented
@@ -275,7 +334,7 @@ export function ServiceDatabase({
 						/>
 					)}
 				</div>
-			</>
+			</>,
 		);
 	}
 
@@ -286,18 +345,55 @@ export function ServiceDatabase({
 	const dialect = dialectOf(data);
 	const pg = dialect === "postgres";
 	const markForbidden = () => setForbidden(true);
+	const databases = data.databases ?? [];
 	const switcher = mongo
 		? bar()
 		: bar(
-				<Segmented
-					label="Explorer view"
-					value={at.view}
-					onChange={(view) => onNavigate({ view })}
-					options={[
-						{ value: "data", label: "Data" },
-						{ value: "sql", label: "SQL" },
-					]}
-				/>,
+				<>
+					<Segmented
+						label="Explorer view"
+						value={at.view}
+						onChange={(view) =>
+							onNavigate({ view, newRole: false, step: undefined })
+						}
+						options={[
+							{ value: "data", label: "Data" },
+							{ value: "diagram", label: "Diagram" },
+							{ value: "sql", label: "SQL" },
+							{ value: "roles", label: "Roles" },
+						]}
+					/>
+					{/* Data and SQL pick the database in the tree and editor; these views have no tree. */}
+					{(at.view === "diagram" || at.view === "roles") &&
+						databases.length > 1 && (
+							<Select
+								value={data.database}
+								onValueChange={(name) =>
+									onNavigate({
+										database: name === data.defaultDatabase ? undefined : name,
+										schema: undefined,
+										table: undefined,
+										sort: [],
+										filter: [],
+										newRole: false,
+										step: undefined,
+									})
+								}
+							>
+								<SelectTrigger size="sm" className="w-44" aria-label="Database">
+									<Database data-icon="inline-start" />
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{databases.map((d) => (
+										<SelectItem key={d} value={d}>
+											{d}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+				</>,
 			);
 	const dialogs = !mongo && (
 		<>
@@ -409,8 +505,82 @@ export function ServiceDatabase({
 				onDrop: setDropObject,
 			};
 
+	if (at.view === "diagram" && !mongo)
+		return shell(
+			<>
+				{switcher}
+				<section aria-label="Schema diagram" className={frame}>
+					<SchemaDiagram
+						key={at.database ?? ""}
+						schema={data}
+						focus={at.schema}
+						onOpen={(schema, table) =>
+							onNavigate({ view: "data", schema, table, sort: [], filter: [] })
+						}
+					/>
+				</section>
+			</>,
+		);
+
+	if (at.view === "roles" && !mongo && at.newRole)
+		return shell(
+			<>
+				{switcher}
+				<section
+					aria-label={pg ? "New role" : "New account"}
+					className="rounded-xl bg-card p-5 shadow-card ring-1 ring-border sm:p-8"
+				>
+					<div className="mb-8 flex items-center gap-3">
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							aria-label="Back to roles"
+							onClick={() => onNavigate({ newRole: false, step: undefined })}
+						>
+							<ArrowLeft />
+						</Button>
+						<h2 className="text-base font-semibold">
+							{pg
+								? `New role on ${service.name}`
+								: `New account on ${service.name}`}
+						</h2>
+					</div>
+					<RoleWizard
+						key={at.database ?? ""}
+						serviceId={service.id}
+						schema={data}
+						database={at.database}
+						step={at.step}
+						onStepChange={(step, opts) => onNavigate({ step }, opts)}
+						onDone={(role) =>
+							onNavigate({ newRole: false, step: undefined, role })
+						}
+					/>
+				</section>
+			</>,
+		);
+
+	if (at.view === "roles" && !mongo)
+		return shell(
+			<>
+				{switcher}
+				<div className={frame}>
+					<RolesView
+						serviceId={service.id}
+						schema={data}
+						database={at.database}
+						selected={at.role}
+						onSelect={(role) => onNavigate({ role }, { replace: true })}
+						onCreate={() => onNavigate({ newRole: true, step: undefined })}
+						forbidden={forbidden}
+						onForbidden={markForbidden}
+					/>
+				</div>
+			</>,
+		);
+
 	if (at.view === "sql" && !mongo)
-		return (
+		return shell(
 			<>
 				{switcher}
 				<section aria-label="SQL editor" className={frame}>
@@ -423,7 +593,7 @@ export function ServiceDatabase({
 						onForbidden={markForbidden}
 					/>
 				</section>
-			</>
+			</>,
 		);
 
 	const schemas = data.schemas;
@@ -435,7 +605,7 @@ export function ServiceDatabase({
 		all.find((x) => x.schema === defaultSchema(data)) ??
 		all[0];
 	if (!current && mongo)
-		return (
+		return shell(
 			<>
 				{bar()}
 				<EmptyState
@@ -443,7 +613,7 @@ export function ServiceDatabase({
 					title="No collections yet"
 					description="Collections your app writes to appear here, ready to browse and edit. A dump restored from the menu above fills them too."
 				/>
-			</>
+			</>,
 		);
 	const tableKey = current ? `${current.schema}.${current.table.name}` : "";
 	const pending = (key: string) => {
@@ -460,7 +630,7 @@ export function ServiceDatabase({
 		? { schema: current.schema, table: current.table.name }
 		: undefined;
 
-	return (
+	return shell(
 		<>
 			{switcher}
 			<div className={frame}>
@@ -550,6 +720,6 @@ export function ServiceDatabase({
 				)}
 			</div>
 			{dialogs}
-		</>
+		</>,
 	);
 }

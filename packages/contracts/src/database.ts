@@ -10,6 +10,16 @@ export const DbColumn = z.object({
 });
 export type DbColumn = z.infer<typeof DbColumn>;
 
+/** A foreign key; `columns[i]` references `refColumns[i]`. */
+export const DbForeignKey = z.object({
+	name: z.string(),
+	columns: z.array(z.string()),
+	refSchema: z.string(),
+	refTable: z.string(),
+	refColumns: z.array(z.string()),
+});
+export type DbForeignKey = z.infer<typeof DbForeignKey>;
+
 export const dbTableKinds = [
 	"table",
 	"view",
@@ -26,6 +36,8 @@ export const DbTable = z.object({
 	/** Rows can be edited in place: a table with a primary key. */
 	editable: z.boolean(),
 	columns: z.array(DbColumn),
+	/** Postgres, MySQL and MariaDB. */
+	foreignKeys: z.array(DbForeignKey).optional(),
 });
 export type DbTable = z.infer<typeof DbTable>;
 
@@ -53,6 +65,30 @@ export const DbRoutine = z.object({
 });
 export type DbRoutine = z.infer<typeof DbRoutine>;
 
+/**
+ * A Postgres role, or a MySQL or MariaDB account (`name`@`host`). `grants` are the privileges it
+ * holds on the browsed database, by schema: Postgres table privileges (SELECT, INSERT...) summed
+ * over the schema's tables; MySQL schema-level grants, with `*` for global ones.
+ */
+export const DbRole = z.object({
+	name: z.string(),
+	/** MySQL and MariaDB: the account's host, `%` for any. */
+	host: z.string().optional(),
+	/** Postgres: false for a group role, which cannot log in. */
+	login: z.boolean(),
+	superuser: z.boolean(),
+	/** Postgres. */
+	createDb: z.boolean().optional(),
+	/** Postgres. */
+	createRole: z.boolean().optional(),
+	/** Postgres: the roles it is a member of. */
+	memberOf: z.array(z.string()).optional(),
+	grants: z.array(
+		z.object({ schema: z.string(), privileges: z.array(z.string()) }),
+	),
+});
+export type DbRole = z.infer<typeof DbRole>;
+
 export const DatabaseSchema = z.object({
 	engine: DatabaseEngine,
 	database: z.string(),
@@ -60,6 +96,10 @@ export const DatabaseSchema = z.object({
 	databases: z.array(z.string()).optional(),
 	/** The database the explorer logs into when none is asked for; it cannot be dropped. */
 	defaultDatabase: z.string().optional(),
+	/** Postgres, MySQL, MariaDB: the explorer's own login, which it never drops or re-passwords. */
+	user: z.string().optional(),
+	/** Postgres, MySQL, MariaDB, sorted. */
+	roles: z.array(DbRole).optional(),
 	schemas: z.array(
 		z.object({
 			name: z.string(),
@@ -86,6 +126,41 @@ export const DatabaseName = z
 
 export const CreateDatabase = z.object({ name: DatabaseName });
 export type CreateDatabase = z.infer<typeof CreateDatabase>;
+
+export const RoleName = z
+	.string()
+	.regex(
+		/^[A-Za-z_][A-Za-z0-9_.-]{0,62}$/,
+		"Start with a letter or _, then use letters, digits, _, . or -, up to 63 characters",
+	);
+export const RoleHost = z
+	.string()
+	.regex(
+		/^[A-Za-z0-9%_.:-]{1,255}$/,
+		"A hostname, an IP or a pattern such as % or 10.0.%",
+	);
+export const RolePassword = z.string().min(8).max(256);
+
+/**
+ * Postgres sends only a SCRAM-SHA-256 verifier computed by the api, so the password never
+ * reaches the engine or its logs; MySQL and MariaDB redact it from theirs. It is never audited.
+ */
+export const CreateRole = z.object({
+	name: RoleName,
+	/** MySQL and MariaDB; `%` when left out. */
+	host: RoleHost.optional(),
+	/** Without one, Postgres refuses password logins and a MySQL account logs in with none. */
+	password: RolePassword.optional(),
+	/** Postgres: false creates a group role. MySQL accounts always log in. */
+	login: z.boolean().default(true),
+});
+export type CreateRole = z.infer<typeof CreateRole>;
+
+export const SetRolePassword = z.object({
+	host: RoleHost.optional(),
+	password: RolePassword,
+});
+export type SetRolePassword = z.infer<typeof SetRolePassword>;
 
 /** A schema-qualified table or view. */
 export const TableRef = z.object({ schema: z.string(), table: z.string() });

@@ -1,6 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
 	CreateDatabase,
+	CreateRole,
 	DatabaseSchema,
 	DocumentsPage,
 	DocumentWrite,
@@ -21,6 +22,7 @@ import {
 	RowsPage,
 	RowsWrite,
 	RowsWritten,
+	SetRolePassword,
 } from "@logistack/contracts";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -386,6 +388,70 @@ export const databases = router()
 				);
 			await closeDatabase(id, name);
 			await client.dropDatabase(name);
+			return c.body(null, 204);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.role.create",
+			createRoute({
+				method: "post",
+				path: "/databases/{id}/roles",
+				tags: ["databases"],
+				security,
+				summary: "Create a role in Postgres, or an account in MySQL or MariaDB",
+				description:
+					"Needs `admin`. The password never reaches the audit log, and Postgres only receives a SCRAM-SHA-256 verifier of it. Attributes, memberships and grants are SQL: run them through `POST /databases/{id}/query`. 400 when the role exists.",
+				middleware: [requirePermission("admin", svc)],
+				request: { params: Id, ...body(CreateRole) },
+				responses: {
+					201: json(z.object({ name: z.string() }), "Created"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const role = c.req.valid("json");
+			c.set("auditResourceId", id);
+			c.set("auditDiff", {
+				name: role.name,
+				host: role.host,
+				login: role.login,
+			});
+			await sqlClient(await openDatabase(c, id)).createRole(role);
+			return c.json({ name: role.name }, 201);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.role.password",
+			createRoute({
+				method: "put",
+				path: "/databases/{id}/roles/{name}/password",
+				tags: ["databases"],
+				security,
+				summary: "Set the password of a database role or account",
+				description:
+					"Needs `admin`; never audited with the password. The explorer's own login is a 400: change it in the service's env and redeploy.",
+				middleware: [requirePermission("admin", svc)],
+				request: {
+					params: z.object({ id: z.string(), name: z.string().min(1) }),
+					...body(SetRolePassword),
+				},
+				responses: { 204: { description: "Set" }, ...errors },
+			}),
+		),
+		async (c) => {
+			const { id, name } = c.req.valid("param");
+			const { host, password } = c.req.valid("json");
+			c.set("auditResourceId", id);
+			c.set("auditDiff", { name, host });
+			await sqlClient(await openDatabase(c, id)).setPassword(
+				name,
+				host,
+				password,
+			);
 			return c.body(null, 204);
 		},
 	)
