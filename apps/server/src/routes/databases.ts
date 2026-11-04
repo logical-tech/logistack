@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	CreateDatabase,
 	DatabaseSchema,
 	DocumentsPage,
 	DocumentWrite,
@@ -25,6 +26,7 @@ import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import {
 	cancelRun,
+	closeDatabase,
 	documentClient,
 	dumpResponse,
 	dumpTarget,
@@ -51,6 +53,17 @@ const CollectionParams = z.object({
 });
 const svc = byParam("service");
 
+const DatabaseParam = z.object({
+	database: z
+		.string()
+		.min(1)
+		.max(128)
+		.optional()
+		.describe(
+			"Postgres, MySQL, MariaDB: the database to open instead of the service's default one",
+		),
+});
+
 const DocumentsParams = z.object({
 	limit: z.coerce.number().int().min(1).max(ROWS_LIMIT).default(100),
 	cursor: z.string().optional(),
@@ -65,7 +78,7 @@ const DocumentsParams = z.object({
 		.describe('Extended JSON projection, e.g. {"name":1}'),
 });
 
-const RowsParams = z.object({
+const RowsParams = DatabaseParam.extend({
 	limit: z.coerce.number().int().min(1).max(ROWS_LIMIT).default(100),
 	cursor: z.string().optional(),
 	sort: z
@@ -122,12 +135,22 @@ export const databases = router()
 			description:
 				"A database deployed before the explorer existed is not on its network yet: the call fails with 409 and `details.reason` `unreachable` until the service is redeployed.",
 			middleware: [requirePermission("read", svc)],
-			request: { params: Id },
+			request: { params: Id, query: DatabaseParam },
 			responses: { 200: json(DatabaseSchema, "Schema"), ...errors },
 		}),
 		async (c) => {
-			const db = await openDatabase(c, c.req.valid("param").id);
-			return c.json(await db.client.introspect(), 200);
+			const db = await openDatabase(
+				c,
+				c.req.valid("param").id,
+				c.req.valid("query").database,
+			);
+			const schema = await db.client.introspect();
+			return c.json(
+				db.client.kind === "sql" && db.defaultDatabase
+					? { ...schema, defaultDatabase: db.defaultDatabase }
+					: schema,
+				200,
+			);
 		},
 	)
 	.openapi(
@@ -152,7 +175,7 @@ export const databases = router()
 				sort: parseInput(z.array(RowSort), jsonParam(q.sort, "sort")),
 				filter: parseInput(z.array(RowFilter), jsonParam(q.filter, "filter")),
 			};
-			const db = await openDatabase(c, id);
+			const db = await openDatabase(c, id, q.database);
 			return c.json(await sqlClient(db).rows({ schema, table }, query), 200);
 		},
 	)
@@ -168,14 +191,18 @@ export const databases = router()
 				description:
 					"Updates and deletes address a row by its full primary key. When one of them does not hit exactly one row the whole batch rolls back with 409 and `details.reason` `stale`. Tables without a primary key and views are rejected with 400.",
 				middleware: [requirePermission("write", svc)],
-				request: { params: TableParams, ...body(RowsWrite) },
+				request: {
+					params: TableParams,
+					query: DatabaseParam,
+					...body(RowsWrite),
+				},
 				responses: { 200: json(RowsWritten, "Written rows"), ...errors },
 			}),
 		),
 		async (c) => {
 			const { id, schema, table } = c.req.valid("param");
 			c.set("auditResourceId", id);
-			const db = await openDatabase(c, id);
+			const db = await openDatabase(c, id, c.req.valid("query").database);
 			return c.json(
 				await sqlClient(db).mutate({ schema, table }, c.req.valid("json").ops),
 				200,
@@ -256,23 +283,24 @@ export const databases = router()
 				description:
 					"Statements run in order in one transaction, each under a 30 s statement timeout. Needs `write` even when `readOnly` (the default): the explorer connects as the database superuser, and READ ONLY does not stop superuser side effects such as `COPY ... TO PROGRAM`. `readOnly` runs the transaction READ ONLY as a guard against mistakes, not as a privilege boundary. Each statement returns at most 1000 rows. A failing statement rolls the run back and is reported in `error` with a 200; earlier statements' results are still returned. Every run is audited with its SQL text. Pass a `runId` to cancel the run with `DELETE /databases/{id}/query/{runId}`.",
 				middleware: [requirePermission("write", svc)],
-				request: { params: Id, ...body(QueryRequest) },
+				request: { params: Id, query: DatabaseParam, ...body(QueryRequest) },
 				responses: { 200: json(QueryResult, "Results"), ...errors },
 			}),
 		),
 		async (c) => {
 			const { id } = c.req.valid("param");
 			const input = c.req.valid("json");
+			const { database } = c.req.valid("query");
+			const diff = {
+				sql: input.sql,
+				readOnly: input.readOnly,
+				...(database && { database }),
+			};
 			c.set("auditResourceId", id);
-			c.set("auditDiff", { sql: input.sql, readOnly: input.readOnly });
-			const db = await openDatabase(c, id);
+			c.set("auditDiff", diff);
+			const db = await openDatabase(c, id, database);
 			const result = await runQuery(db, requireActor(c).id, input);
-			if (result.error)
-				c.set("auditDiff", {
-					sql: input.sql,
-					readOnly: input.readOnly,
-					error: result.error,
-				});
+			if (result.error) c.set("auditDiff", { ...diff, error: result.error });
 			return c.json(result, 200);
 		},
 	)
@@ -296,6 +324,68 @@ export const databases = router()
 			const { id, runId } = c.req.valid("param");
 			c.set("auditResourceId", id);
 			if (!cancelRun(id, requireActor(c).id, runId)) throw notFound("run");
+			return c.body(null, 204);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.create",
+			createRoute({
+				method: "post",
+				path: "/databases/{id}/databases",
+				tags: ["databases"],
+				security,
+				summary: "Create a database in a Postgres, MySQL or MariaDB service",
+				description:
+					"Postgres: a new database owned by the service's superuser. MySQL and MariaDB: a new schema. 400 when one with that name exists.",
+				middleware: [requirePermission("write", svc)],
+				request: { params: Id, ...body(CreateDatabase) },
+				responses: {
+					201: json(CreateDatabase, "Created"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { name } = c.req.valid("json");
+			c.set("auditResourceId", id);
+			c.set("auditDiff", { name });
+			await sqlClient(await openDatabase(c, id)).createDatabase(name);
+			return c.json({ name }, 201);
+		},
+	)
+	.openapi(
+		mutation(
+			"database.drop",
+			createRoute({
+				method: "delete",
+				path: "/databases/{id}/databases/{name}",
+				tags: ["databases"],
+				security,
+				summary: "Drop a database of a Postgres, MySQL or MariaDB service",
+				description:
+					"Deletes the database and everything in it; Postgres ends the sessions open on it first. Needs `admin`. The service's default database (the one the explorer logs into) is a 400, as are MySQL's system schemas. 404 when there is no such database.",
+				middleware: [requirePermission("admin", svc)],
+				request: {
+					params: z.object({ id: z.string(), name: z.string().min(1) }),
+				},
+				responses: { 204: { description: "Dropped" }, ...errors },
+			}),
+		),
+		async (c) => {
+			const { id, name } = c.req.valid("param");
+			c.set("auditResourceId", id);
+			c.set("auditDiff", { name });
+			const db = await openDatabase(c, id);
+			const client = sqlClient(db);
+			if (name === db.defaultDatabase)
+				throw new Failure(
+					"bad_request",
+					`${name} is the service's default database and cannot be dropped`,
+				);
+			await closeDatabase(id, name);
+			await client.dropDatabase(name);
 			return c.body(null, 204);
 		},
 	)

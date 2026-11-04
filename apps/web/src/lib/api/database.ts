@@ -37,6 +37,9 @@ import { ApiError } from "./adapter";
 import { client } from "./client";
 import { done, ok } from "./http";
 
+/** A table, optionally in another database of the instance than the service's default one. */
+export type DbTableRef = TableRef & { database?: string };
+
 export type RowsQuery = {
 	sort: RowSort[];
 	filter: RowFilter[];
@@ -52,10 +55,14 @@ export type DocumentsFind = {
 
 export type DatabaseApi = {
 	/** 409 with `details.reason` `unreachable` until a redeploy puts the service on ls-db. */
-	schema(id: string): Promise<DatabaseSchema>;
-	rows(id: string, ref: TableRef, query: RowsQuery): Promise<RowsPage>;
+	schema(id: string, database?: string): Promise<DatabaseSchema>;
+	rows(id: string, ref: DbTableRef, query: RowsQuery): Promise<RowsPage>;
 	/** One transaction; 409 `stale` when an update or delete misses its row, 403 without write. */
-	write(id: string, ref: TableRef, ops: RowPatch[]): Promise<RowsWritten>;
+	write(id: string, ref: DbTableRef, ops: RowPatch[]): Promise<RowsWritten>;
+	/** Postgres database or MySQL schema; 400 when it exists, 403 without write. */
+	createDatabase(id: string, name: string): Promise<void>;
+	/** 403 without admin, 400 for the default database. */
+	dropDatabase(id: string, name: string): Promise<void>;
 	/** MongoDB: canonical Extended JSON documents; 400 for bad JSON or `$where`/`$function`. */
 	documents(
 		id: string,
@@ -83,7 +90,10 @@ export type DatabaseApi = {
 	/** One allowlisted command; 400 for a denied one, an error reply is a 200. */
 	command(id: string, input: RedisCommand): Promise<RedisReply>;
 	/** A failing statement is `error` in a 200; a write without `write` is a 403. */
-	query(id: string, input: QueryRequest): Promise<QueryResult>;
+	query(
+		id: string,
+		input: QueryRequest & { database?: string },
+	): Promise<QueryResult>;
 	/** 404 once the run has finished. */
 	cancel(id: string, runId: string): Promise<void>;
 	/**
@@ -158,14 +168,19 @@ const d = client.api.databases[":id"];
 const r = d.tables[":schema"][":table"].rows;
 const docs = d.collections[":database"][":collection"].documents;
 
+const on = (database?: string) => (database ? { database } : {});
+
 const http: DatabaseApi = {
-	schema: (id) =>
-		ok(d.schema.$get({ param: { id } })) as Promise<DatabaseSchema>,
-	rows: (id, ref, { sort, filter, cursor }) =>
+	schema: (id, database) =>
+		ok(
+			d.schema.$get({ param: { id }, query: on(database) }),
+		) as Promise<DatabaseSchema>,
+	rows: (id, { database, ...ref }, { sort, filter, cursor }) =>
 		ok(
 			r.$get({
 				param: { id, ...ref },
 				query: {
+					...on(database),
 					limit: PAGE,
 					...(cursor ? { cursor } : {}),
 					...(sort.length ? { sort: JSON.stringify(sort) } : {}),
@@ -173,10 +188,14 @@ const http: DatabaseApi = {
 				},
 			}),
 		) as Promise<RowsPage>,
-	write: (id, ref, ops) =>
+	write: (id, { database, ...ref }, ops) =>
 		ok(
-			r.$post({ param: { id, ...ref }, json: { ops } }),
+			r.$post({ param: { id, ...ref }, query: on(database), json: { ops } }),
 		) as Promise<RowsWritten>,
+	createDatabase: (id, name) =>
+		ok(d.databases.$post({ param: { id }, json: { name } })).then(() => {}),
+	dropDatabase: (id, name) =>
+		done(d.databases[":name"].$delete({ param: { id, name } })),
 	documents: (id, ref, { cursor, ...find }) =>
 		ok(
 			docs.$get({
@@ -222,8 +241,10 @@ const http: DatabaseApi = {
 		ok(d.keys.$post({ param: { id }, json })) as Promise<RedisWritten>,
 	command: (id, json) =>
 		ok(d.command.$post({ param: { id }, json })) as Promise<RedisReply>,
-	query: (id, json) =>
-		ok(d.query.$post({ param: { id }, json })) as Promise<QueryResult>,
+	query: (id, { database, ...json }) =>
+		ok(
+			d.query.$post({ param: { id }, query: on(database), json }),
+		) as Promise<QueryResult>,
 	cancel: (id, runId) =>
 		done(d.query[":runId"].$delete({ param: { id, runId } })),
 	dump: async (id) => {
@@ -261,21 +282,28 @@ export const reasonOf = (e: unknown) =>
 
 const key = (id: string) => ["database", id];
 
-export const schemaQuery = (id: string) =>
+export const schemaQuery = (id: string, database?: string) =>
 	queryOptions({
-		queryKey: [...key(id), "schema"],
-		queryFn: () => databaseApi.schema(id),
+		queryKey: [...key(id), "schema", database ?? null],
+		queryFn: () => databaseApi.schema(id, database),
 		// A 4xx is an answer (unreachable, wrong engine), not a hiccup to retry.
 		retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 1,
 	});
 
 export const rowsQuery = (
 	id: string,
-	ref: TableRef,
+	ref: DbTableRef,
 	query: Omit<RowsQuery, "cursor">,
 ) =>
 	infiniteQueryOptions({
-		queryKey: [...key(id), "rows", ref.schema, ref.table, query],
+		queryKey: [
+			...key(id),
+			"rows",
+			ref.database ?? null,
+			ref.schema,
+			ref.table,
+			query,
+		],
 		queryFn: ({ pageParam }) =>
 			databaseApi.rows(id, ref, {
 				...query,
@@ -364,12 +392,28 @@ export function useWriteDocument(id: string, ref: CollectionRef) {
 }
 
 /** Writes one batch, then refreshes every page and the schema's row estimates. */
-export function useWriteRows(id: string, ref: TableRef) {
+export function useWriteRows(id: string, ref: DbTableRef) {
 	const qc = useQueryClient();
 	return useMutation({
 		mutationFn: (ops: RowPatch[]) => databaseApi.write(id, ref, ops),
 		onSuccess: () => qc.invalidateQueries({ queryKey: key(id) }),
 	});
+}
+
+/** Creates or drops a database, then refreshes the schema and its database list. */
+export function useDatabaseDdl(id: string) {
+	const qc = useQueryClient();
+	const refresh = () => qc.invalidateQueries({ queryKey: key(id) });
+	return {
+		create: useMutation({
+			mutationFn: (name: string) => databaseApi.createDatabase(id, name),
+			onSuccess: refresh,
+		}),
+		drop: useMutation({
+			mutationFn: (name: string) => databaseApi.dropDatabase(id, name),
+			onSuccess: refresh,
+		}),
+	};
 }
 
 /** Restores a file, then refreshes everything read from the database. */

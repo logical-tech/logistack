@@ -35,6 +35,8 @@ const UNREACHABLE = new Set([
 ]);
 // invalid_password, invalid_authorization_specification
 const AUTH = new Set(["28P01", "28000"]);
+// invalid_catalog_name: the database asked for does not exist.
+const MISSING = new Set(["3D000"]);
 
 function wrap(op: string, e: unknown): DatabaseError {
 	const err = e as { code?: string; errno?: string; message?: string };
@@ -44,7 +46,9 @@ function wrap(op: string, e: unknown): DatabaseError {
 			? "unreachable"
 			: code && AUTH.has(code)
 				? "auth"
-				: "query";
+				: code && MISSING.has(code)
+					? "missing"
+					: "query";
 	return new DatabaseError(op, err.message ?? String(e), reason, code);
 }
 
@@ -380,13 +384,14 @@ export function postgresClient(conn: DatabaseConnection): SqlClient {
 		kind: "sql",
 		async introspect(): Promise<DatabaseSchema> {
 			try {
-				const [schemas, columns] = await Promise.all([
-					sql<{ name: string }[]>`
+				const [schemas, columns, databases, enums, sequences, routines] =
+					await Promise.all([
+						sql<{ name: string }[]>`
 						select nspname as name from pg_namespace
 						where nspname not in ('pg_catalog', 'information_schema')
 							and nspname not like 'pg\\_toast%' and nspname not like 'pg\\_temp%'
 						order by nspname`,
-					sql<ColumnRow[]>`
+						sql<ColumnRow[]>`
 						select n.nspname as schema, c.relname as table, c.relkind as kind,
 							case when c.reltuples < 0 then null else c.reltuples::float8 end as rows,
 							a.attname as column, format_type(a.atttypid, a.atttypmod) as type,
@@ -401,7 +406,44 @@ export function postgresClient(conn: DatabaseConnection): SqlClient {
 							and n.nspname not in ('pg_catalog', 'information_schema')
 							and n.nspname not like 'pg\\_toast%' and n.nspname not like 'pg\\_temp%'
 						order by n.nspname, c.relname, a.attnum`,
-				]);
+						sql<{ name: string }[]>`
+						select datname as name from pg_database
+						where not datistemplate and datallowconn order by datname`,
+						sql<{ schema: string; name: string; values: string }[]>`
+						select n.nspname as schema, t.typname as name,
+							json_agg(e.enumlabel order by e.enumsortorder) as "values"
+						from pg_type t
+						join pg_namespace n on n.oid = t.typnamespace
+						join pg_enum e on e.enumtypid = t.oid
+						where n.nspname not in ('pg_catalog', 'information_schema')
+							and not exists (select from pg_depend d where d.classid = 'pg_type'::regclass
+								and d.objid = t.oid and d.deptype = 'e')
+						group by n.nspname, t.typname order by n.nspname, t.typname`,
+						sql<{ schema: string; name: string }[]>`
+						select n.nspname as schema, c.relname as name
+						from pg_class c join pg_namespace n on n.oid = c.relnamespace
+						where c.relkind = 'S' and n.nspname not in ('pg_catalog', 'information_schema')
+							and not exists (select from pg_depend d where d.classid = 'pg_class'::regclass
+								and d.objid = c.oid and d.deptype = 'e')
+						order by n.nspname, c.relname`,
+						sql<
+							{
+								schema: string;
+								name: string;
+								kind: string;
+								arguments: string;
+								returns: string | null;
+							}[]
+						>`
+						select n.nspname as schema, p.proname as name, p.prokind as kind,
+							pg_get_function_identity_arguments(p.oid) as arguments,
+							case when p.prokind = 'f' then pg_get_function_result(p.oid) end as returns
+						from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+						where p.prokind in ('f', 'p') and n.nspname not in ('pg_catalog', 'information_schema')
+							and not exists (select from pg_depend d where d.classid = 'pg_proc'::regclass
+								and d.objid = p.oid and d.deptype = 'e')
+						order by n.nspname, p.proname, 4`,
+					]);
 				const tables = new Map<string, Map<string, DbTable>>(
 					schemas.map((s) => [s.name, new Map()]),
 				);
@@ -430,12 +472,29 @@ export function postgresClient(conn: DatabaseConnection): SqlClient {
 					});
 					if (primaryKey && t.kind === "table") t.editable = true;
 				}
+				const inSchema = <T extends { schema: string }>(
+					rows: T[],
+					name: string,
+				) => rows.filter((r) => r.schema === name);
 				return {
 					engine: "postgres",
 					database: conn.database,
+					databases: databases.map((d) => d.name),
 					schemas: [...tables].map(([name, t]) => ({
 						name,
 						tables: [...t.values()],
+						enums: inSchema(enums, name).map((e) => ({
+							name: e.name,
+							values: JSON.parse(e.values) as string[],
+						})),
+						sequences: inSchema(sequences, name).map((q) => ({ name: q.name })),
+						routines: inSchema(routines, name).map((r) => ({
+							name: r.name,
+							kind:
+								r.kind === "p" ? ("procedure" as const) : ("function" as const),
+							arguments: r.arguments,
+							returns: r.returns,
+						})),
 					})),
 				};
 			} catch (e) {
@@ -603,6 +662,24 @@ export function postgresClient(conn: DatabaseConnection): SqlClient {
 			}
 			await nameTypes(results);
 			return { results, error };
+		},
+		// Outside any transaction: Postgres refuses CREATE and DROP DATABASE inside one.
+		async createDatabase(name) {
+			try {
+				await sql.unsafe(`create database "${name.replaceAll('"', '""')}"`);
+			} catch (e) {
+				throw wrap("create_database", e);
+			}
+		},
+		async dropDatabase(name) {
+			try {
+				// FORCE ends other sessions on it instead of failing while one is open.
+				await sql.unsafe(
+					`drop database "${name.replaceAll('"', '""')}" with (force)`,
+				);
+			} catch (e) {
+				throw wrap("drop_database", e);
+			}
 		},
 		close: () => sql.end({ timeout: 5 }),
 	};

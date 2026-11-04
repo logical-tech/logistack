@@ -34,19 +34,58 @@ export type DbTable = z.infer<typeof DbTable>;
  * the estimated document count and `columns` the top-level fields of a sample, typed by the
  * first value seen (`objectId`, `string`, `date`, `long`...).
  */
+export const DbEnum = z.object({
+	name: z.string(),
+	values: z.array(z.string()),
+});
+export type DbEnum = z.infer<typeof DbEnum>;
+
+export const DbSequence = z.object({ name: z.string() });
+export type DbSequence = z.infer<typeof DbSequence>;
+
+export const DbRoutine = z.object({
+	name: z.string(),
+	kind: z.enum(["function", "procedure"]),
+	/** The argument list as the engine prints it, e.g. `a integer, b text`. */
+	arguments: z.string(),
+	/** The result type; null for a procedure. */
+	returns: z.string().nullable(),
+});
+export type DbRoutine = z.infer<typeof DbRoutine>;
+
 export const DatabaseSchema = z.object({
 	engine: DatabaseEngine,
 	database: z.string(),
+	/** Postgres: every database of the instance that takes connections, sorted. */
+	databases: z.array(z.string()).optional(),
+	/** The database the explorer logs into when none is asked for; it cannot be dropped. */
+	defaultDatabase: z.string().optional(),
 	schemas: z.array(
 		z.object({
 			name: z.string(),
 			tables: z.array(DbTable),
 			/** Redis: keys in this logical database (whose name is its index); it has no tables. */
 			keys: z.number().optional(),
+			/** Postgres, in sort order. Objects owned by extensions are left out. */
+			enums: z.array(DbEnum).optional(),
+			/** Postgres. */
+			sequences: z.array(DbSequence).optional(),
+			/** Postgres functions and procedures; MySQL and MariaDB stored routines. */
+			routines: z.array(DbRoutine).optional(),
 		}),
 	),
 });
 export type DatabaseSchema = z.infer<typeof DatabaseSchema>;
+
+export const DatabaseName = z
+	.string()
+	.regex(
+		/^[A-Za-z_][A-Za-z0-9_-]{0,62}$/,
+		"Start with a letter or _, then use letters, digits, _ or -, up to 63 characters",
+	);
+
+export const CreateDatabase = z.object({ name: DatabaseName });
+export type CreateDatabase = z.infer<typeof CreateDatabase>;
 
 /** A schema-qualified table or view. */
 export const TableRef = z.object({ schema: z.string(), table: z.string() });

@@ -50,7 +50,16 @@ export type DatabaseService = {
 	slug: string;
 	engine: DatabaseEngine;
 	client: DatabaseClient;
+	/** The database the login opens when none is asked for. */
+	defaultDatabase: string;
 };
+
+/** Engines whose explorer can open another database of the same instance. */
+const MULTI_DATABASE = new Set<DatabaseEngine>([
+	"postgres",
+	"mysql",
+	"mariadb",
+]);
 
 const ENV_KEYS = [
 	"POSTGRES_USER",
@@ -144,13 +153,28 @@ async function databaseRow(c: Context<Env>, serviceId: string) {
 	return { slug: row.slug, engine: row.spec.engine };
 }
 
-// One pool per service, replaced when the credentials change. Pools close idle connections themselves.
+// One pool per service and database, replaced when the credentials change. Pools close idle connections themselves.
+// shortcut: a pool per database name ever asked for stays in the map (with no open connection once idle); evict on `missing` if names get abused.
 const clients = new Map<string, { key: string; client: DatabaseClient }>();
+const poolKey = (serviceId: string, database: string) =>
+	`${serviceId}\0${database}`;
 
-/** The database service behind `serviceId` with a pooled client logged in as its superuser. */
+/** Closes and forgets the pool on one database of a service, e.g. before it is dropped. */
+export async function closeDatabase(serviceId: string, database: string) {
+	const cached = clients.get(poolKey(serviceId, database));
+	clients.delete(poolKey(serviceId, database));
+	await cached?.client.close().catch(() => {});
+}
+
+/**
+ * The database service behind `serviceId` with a pooled client logged in as its superuser.
+ * On Postgres, MySQL and MariaDB `database` opens that database (MySQL: the session's default
+ * schema) instead of the login's own; other engines ignore it.
+ */
 export async function openDatabase(
 	c: Context<Env>,
 	serviceId: string,
+	database?: string,
 ): Promise<DatabaseService> {
 	const deps = c.var.deps;
 	const { slug, engine } = await databaseRow(c, serviceId);
@@ -160,9 +184,14 @@ export async function openDatabase(
 			"bad_request",
 			`the explorer does not support ${engine} yet`,
 		);
-	const { user, passwordKey, password, database } = login(
-		await credentials(deps, serviceId),
-	);
+	const {
+		user,
+		passwordKey,
+		password,
+		database: defaultDatabase,
+	} = login(await credentials(deps, serviceId));
+	const target =
+		database && MULTI_DATABASE.has(engine) ? database : defaultDatabase;
 	if (!password)
 		throw new Failure(
 			"conflict",
@@ -176,17 +205,24 @@ export async function openDatabase(
 		),
 		user,
 		password,
-		database,
+		database: target,
 		statementTimeoutMs: deps.databaseStatementTimeoutMs,
 	};
 	const key = Bun.hash(JSON.stringify(conn)).toString(16);
-	let cached = clients.get(serviceId);
+	const slot = poolKey(serviceId, target);
+	let cached = clients.get(slot);
 	if (cached?.key !== key) {
 		cached?.client.close().catch(() => {});
 		cached = { key, client: databaseClient(conn) };
-		clients.set(serviceId, cached);
+		clients.set(slot, cached);
 	}
-	return { id: serviceId, slug, engine, client: cached.client };
+	return {
+		id: serviceId,
+		slug,
+		engine,
+		client: cached.client,
+		defaultDatabase,
+	};
 }
 
 /** The client of a SQL engine; Mongo has collections and Redis keys, not tables. */

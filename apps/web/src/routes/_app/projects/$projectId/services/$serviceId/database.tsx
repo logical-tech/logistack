@@ -13,6 +13,7 @@ export const Route = createFileRoute(
 )({
 	validateSearch: z.object({
 		view: z.enum(["data", "sql"]).optional().catch(undefined),
+		database: z.string().max(128).optional().catch(undefined),
 		schema: z.string().max(63).optional().catch(undefined),
 		table: z.string().max(63).optional().catch(undefined),
 		sort: z.array(RowSort).max(8).optional().catch(undefined),
@@ -38,6 +39,7 @@ function DatabaseTab() {
 	if (!service) return null;
 	const at: DatabaseLocation = {
 		view: search.view ?? "data",
+		database: search.database,
 		schema: search.schema,
 		table: search.table,
 		sort: search.sort ?? [],
@@ -55,6 +57,7 @@ function DatabaseTab() {
 				navigate({
 					search: {
 						view: to.view === "sql" ? "sql" : undefined,
+						database: to.database,
 						schema: to.schema,
 						table: to.table,
 						sort: to.sort.length ? to.sort : undefined,
@@ -62,7 +65,7 @@ function DatabaseTab() {
 						find: Object.values(to.find).some(Boolean) ? to.find : undefined,
 						match: to.match === "*" ? undefined : to.match,
 					},
-					replace: !("table" in next || "view" in next),
+					replace: !("table" in next || "view" in next || "database" in next),
 				});
 			}}
 		/>

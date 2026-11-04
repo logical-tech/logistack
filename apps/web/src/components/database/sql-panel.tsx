@@ -1,6 +1,6 @@
 import type { DatabaseSchema } from "@logistack/contracts";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Play, Square } from "lucide-react";
+import { Database, Loader2, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
@@ -17,6 +17,20 @@ export const MOD =
 		: "Ctrl";
 
 const draftKey = (id: string) => `logistack.sql.${id}`;
+
+/** Puts `text` at the top of the editor's draft, which the panel reads when it mounts. */
+export function prependSqlDraft(
+	id: string,
+	schema: DatabaseSchema,
+	text: string,
+) {
+	try {
+		sessionStorage.setItem(
+			draftKey(id),
+			`${text.trimEnd()}\n\n${readDraft(id, schema)}`,
+		);
+	} catch {}
+}
 
 function readDraft(id: string, schema: DatabaseSchema) {
 	try {
@@ -45,11 +59,14 @@ type Running = { runId: string; since: number; cancelling: boolean };
 /** The SQL tab: an editor over the results of its last run. */
 export function SqlPanel({
 	serviceId,
+	database,
 	schema,
 	forbidden,
 	onForbidden,
 }: {
 	serviceId: string;
+	/** Postgres: the database runs go to, when not the service's default one. */
+	database?: string;
 	schema: DatabaseSchema;
 	/** The api refused a write: the member has read only. */
 	forbidden: boolean;
@@ -85,6 +102,7 @@ export function SqlPanel({
 				sql: target.text,
 				readOnly: !writes,
 				runId,
+				database,
 			});
 			setLast({ ...result, sql: target.text, readOnly: !writes });
 			setTab(result.error ? result.results.length : 0);
@@ -169,9 +187,19 @@ export function SqlPanel({
 						</span>
 					)}
 				</span>
+				{schema.databases && (
+					<span
+						className="ml-auto flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+						title="Runs go to this database"
+					>
+						<Database className="size-3.5 shrink-0" aria-hidden />
+						<span className="truncate">{schema.database}</span>
+					</span>
+				)}
 				<div
 					className={cn(
-						"ml-auto flex items-center gap-2 text-xs font-medium",
+						"flex items-center gap-2 text-xs font-medium",
+						!schema.databases && "ml-auto",
 						forbidden && "text-muted-foreground",
 					)}
 					title={
