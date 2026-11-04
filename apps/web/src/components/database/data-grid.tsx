@@ -11,6 +11,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
 	ArrowDown,
 	ArrowUp,
+	Dices,
 	KeyRound,
 	ListFilter,
 	Loader2,
@@ -63,6 +64,7 @@ import {
 	type Values,
 } from "./cells";
 import { KIND } from "./schema-tree";
+import { FillTableDialog } from "./test-data";
 
 const ROW = 36;
 const SELECT_W = 40;
@@ -257,6 +259,7 @@ export function DataGrid({
 	const [editing, setEditing] = useState(false);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [confirming, setConfirming] = useState(false);
+	const [generating, setGenerating] = useState(false);
 	const [saveError, setSaveError] = useState<{
 		stale: boolean;
 		text: string;
@@ -584,6 +587,17 @@ export function DataGrid({
 							>
 								<Plus data-icon="inline-start" />
 								Add row
+							</Button>
+						)}
+						{writable && table.kind === "table" && table.editable && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => setGenerating(true)}
+								title="Fill the table with fake rows"
+							>
+								<Dices data-icon="inline-start" />
+								Generate
 							</Button>
 						)}
 					</>
@@ -963,6 +977,14 @@ export function DataGrid({
 				confirmLabel="Save and delete"
 				pending={write.isPending}
 				onConfirm={save}
+			/>
+			<FillTableDialog
+				open={generating}
+				onOpenChange={setGenerating}
+				serviceId={serviceId}
+				database={database}
+				schema={schema}
+				table={table}
 			/>
 		</>
 	);

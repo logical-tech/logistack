@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
 	ArrowLeft,
 	Database,
+	Dices,
 	Loader2,
 	Maximize2,
 	Minimize2,
@@ -53,6 +54,7 @@ import { SchemaDiagram } from "./schema-diagram";
 import { SchemaTree, TablePicker, type TreeActions } from "./schema-tree";
 import { defaultSchema } from "./sql-editor";
 import { prependSqlDraft, SqlPanel } from "./sql-panel";
+import { PresetDialog, sqlDialectOf } from "./test-data";
 
 export type DatabaseView = "data" | "diagram" | "sql" | "roles";
 
@@ -119,6 +121,7 @@ export function ServiceDatabase({
 	const [newDatabase, setNewDatabase] = useState(false);
 	const [dropDatabase, setDropDatabase] = useState<string | null>(null);
 	const [dropObject, setDropObject] = useState<DbObject | null>(null);
+	const [presetting, setPresetting] = useState(false);
 	// Full screen: the explorer covers the page, so wide tables show more columns and rows.
 	const [full, setFull] = useState(false);
 	useEffect(() => {
@@ -366,6 +369,17 @@ export function ServiceDatabase({
 							...(sqlite ? [] : [{ value: "roles" as const, label: "Roles" }]),
 						]}
 					/>
+					{sqlDialectOf(data) && (
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={forbidden}
+							onClick={() => setPresetting(true)}
+						>
+							<Dices data-icon="inline-start" />
+							Sample dataset
+						</Button>
+					)}
 					{/* Data and SQL pick the database in the tree and editor; these views have no tree. */}
 					{(at.view === "diagram" || at.view === "roles") &&
 						databases.length > 1 && (
@@ -400,6 +414,24 @@ export function ServiceDatabase({
 			);
 	const dialogs = !mongo && (
 		<>
+			{sqlDialectOf(data) && (
+				<PresetDialog
+					open={presetting}
+					onOpenChange={setPresetting}
+					serviceId={service.id}
+					data={data}
+					schema={at.schema ?? defaultSchema(data)}
+					onCreated={(table) =>
+						onNavigate({
+							view: "data",
+							schema: at.schema ?? defaultSchema(data),
+							table,
+							sort: [],
+							filter: [],
+						})
+					}
+				/>
+			)}
 			{newTable !== null && (
 				<NewTableDialog
 					open
@@ -719,6 +751,16 @@ export function ServiceDatabase({
 								<SquareTerminal data-icon="inline-start" />
 								Open SQL editor
 							</Button>
+							{sqlDialectOf(data) && (
+								<Button
+									variant="outline"
+									disabled={forbidden}
+									onClick={() => setPresetting(true)}
+								>
+									<Dices data-icon="inline-start" />
+									Add a sample dataset
+								</Button>
+							)}
 						</EmptyState>
 					</section>
 				)}

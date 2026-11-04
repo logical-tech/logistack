@@ -4,6 +4,7 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { LogoMark } from "@/components/brand";
+import { UpdateBadge } from "@/components/shell/update-badge";
 import { StatusDot } from "@/components/status";
 import {
 	DropdownMenu,
@@ -243,6 +244,7 @@ export function AppSidebar() {
 				))}
 			</SidebarContent>
 			<SidebarFooter>
+				<UpdateBadge />
 				<FooterStatus />
 			</SidebarFooter>
 			<SidebarRail />
