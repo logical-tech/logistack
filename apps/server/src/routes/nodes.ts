@@ -1,14 +1,18 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	DiskUsage,
 	LiveHostSample,
 	NodeJoin,
 	NodeJoinInput,
 	NodeJoinStep,
 	NodeUpdate,
 	NodeView,
+	PruneReport,
+	PruneTarget,
 } from "@logistack/contracts";
 import { nodeLabels } from "@logistack/core";
 import { type Db, node, nodeJoin, sshKey } from "@logistack/db";
+import { NodeRunnerError } from "@logistack/worker/node-runner";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -136,6 +140,21 @@ export function canStart(
 		: `run the ${before} step first`;
 }
 
+const PruneInput = z.object({
+	targets: z.array(PruneTarget).min(1),
+	untilHours: z.int().min(0).max(8_760).default(24),
+});
+
+const DiskResult = z.object({
+	usage: DiskUsage,
+	report: PruneReport.nullable(),
+});
+
+const nodeFailure = (e: unknown) =>
+	e instanceof NodeRunnerError
+		? new Failure("conflict", e.message, { reason: e.code })
+		: e;
+
 export const nodes = router()
 	.openapi(
 		createRoute({
@@ -174,6 +193,65 @@ export const nodes = router()
 				c.req.valid("param").id,
 			);
 			return c.json(one(await views(config.REDIS_URL, [row])), 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/nodes/{id}/disk",
+			tags,
+			security,
+			summary:
+				"What fills a node's disk: images, containers, volumes, build cache, logs",
+			middleware: [requirePermission("read", inOrganization)],
+			request: { params: IdParam },
+			responses: { 200: json(DiskUsage, "Breakdown"), ...errors },
+		}),
+		async (c) => {
+			const { db, nodes } = c.var.deps;
+			const row = await ownNode(
+				db,
+				requireActor(c).organizationId,
+				c.req.valid("param").id,
+			);
+			const { usage } = await nodes
+				.disk(row.swarmNodeId, { op: "usage" })
+				.catch((e) => {
+					throw nodeFailure(e);
+				});
+			return c.json(usage, 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"node.prune",
+			createRoute({
+				method: "post",
+				path: "/nodes/{id}/disk/prune",
+				tags,
+				security,
+				summary:
+					"Remove unused images, build cache and stopped LogiStack containers on a node",
+				middleware: [requirePermission("admin", inOrganization)],
+				request: { params: IdParam, ...body(PruneInput) },
+				responses: { 200: json(DiskResult, "Pruned"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { db, nodes } = c.var.deps;
+			const row = await ownNode(
+				db,
+				requireActor(c).organizationId,
+				c.req.valid("param").id,
+			);
+			const input = c.req.valid("json");
+			c.set("auditResourceId", row.id);
+			const result = await nodes
+				.disk(row.swarmNodeId, { op: "prune", ...input })
+				.catch((e) => {
+					throw nodeFailure(e);
+				});
+			return c.json(result, 200);
 		},
 	)
 	.openapi(

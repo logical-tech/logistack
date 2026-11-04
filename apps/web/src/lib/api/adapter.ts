@@ -10,6 +10,7 @@ import type {
 	CreateFolderInput,
 	CreateProjectInput,
 	CreateServiceInput,
+	DiskUsage,
 	DnsCheck,
 	Environment,
 	EnvironmentId,
@@ -31,6 +32,8 @@ import type {
 	ProjectDetail,
 	ProjectId,
 	ProjectSummary,
+	PruneInput,
+	PruneResult,
 	Service,
 	ServiceId,
 	SetupInput,
@@ -76,6 +79,9 @@ export type ApiAdapter = {
 		update(id: NodeId, input: NodeUpdate): Promise<ClusterNode>;
 		/** Drains, leaves the swarm, then deletes the node; returns at once. */
 		remove(id: NodeId): Promise<ClusterNode>;
+		/** Asks the node's agent; takes seconds on hosts with many volumes. */
+		disk(id: NodeId): Promise<DiskUsage>;
+		prune(id: NodeId, input: PruneInput): Promise<PruneResult>;
 	};
 	joins: {
 		/** Creates the Add-server run and queues its SSH test. */

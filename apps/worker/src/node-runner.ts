@@ -5,10 +5,13 @@ import {
 	type AgentRpcRequest,
 	agentRpcChannel,
 	agentRpcReplyChannel,
+	type DiskRequest,
+	type DiskUsage,
 	type ExecStartInput,
 	type JobSpecInput,
 	type LogsFollowInput,
 	MAX_CHUNK_BYTES,
+	type PruneReport,
 	parseFrame,
 } from "@logistack/contracts";
 import { RedisClient } from "bun";
@@ -114,10 +117,21 @@ export type NodeRunner = {
 		req: LogsFollowInput,
 		opts?: RunOptions,
 	): NodeStream<LogLine, void>;
+	/** Disk breakdown of the node, after a prune when `req.op` is `prune`. */
+	disk(
+		nodeId: string,
+		req: DiskRequest,
+		opts?: RunOptions,
+	): Promise<DiskResult>;
 	close(): void;
 };
 
-type Start = Extract<AgentRpcRequest, { type: "job" | "exec" | "logs" }>;
+export type DiskResult = { usage: DiskUsage; report: PruneReport | null };
+
+type Start = Extract<
+	AgentRpcRequest,
+	{ type: "job" | "exec" | "logs" | "disk" }
+>;
 type Step<T, R> = { item: T } | { done: R } | undefined;
 
 const decode = (b64: string) => new Uint8Array(Buffer.from(b64, "base64"));
@@ -300,6 +314,19 @@ export async function createNodeRunner(
 							: undefined,
 				{ timeoutMs: (job.timeoutSec + 60) * 1000, ...run },
 			).iterator;
+		},
+
+		disk(nodeId, req, run = {}) {
+			return open<never, DiskResult>(
+				nodeId,
+				{ type: "disk", id: crypto.randomUUID(), req },
+				(m) =>
+					m.type === "disk"
+						? { done: { usage: m.usage, report: m.report } }
+						: undefined,
+				// A df walks every volume and a prune can delete gigabytes.
+				{ timeoutMs: 10 * 60_000, ...run },
+			).iterator.result;
 		},
 
 		exec(nodeId, req, run = {}) {

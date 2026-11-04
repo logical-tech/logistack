@@ -8,13 +8,14 @@ import {
 import { Queue } from "bullmq";
 import { redisConnection } from "./queues.ts";
 
-// BullMQ Job Schedulers for backup policies and schedules. Postgres holds the desired state;
+// BullMQ Job Schedulers for backup policies, schedules and the node cleanup. Postgres holds the desired state;
 // the api upserts after each change and every worker converges all of them at boot, so a
 // tick fires once per iteration however many workers run. The api imports this file too.
 
 export type RunQueues = {
 	backup: Queue<BackupJob>;
 	schedule: Queue<ScheduleJob>;
+	maintenance: Queue;
 };
 
 const keep = { removeOnComplete: { count: 200 }, removeOnFail: { count: 500 } };
@@ -24,6 +25,7 @@ export function openRunQueues(redisUrl: string): RunQueues {
 	return {
 		backup: new Queue<BackupJob>(BACKUP_QUEUE, { connection }),
 		schedule: new Queue<ScheduleJob>(SCHEDULE_QUEUE, { connection }),
+		maintenance: new Queue("maintenance", { connection }),
 	};
 }
 
@@ -71,6 +73,21 @@ export async function syncScheduleScheduler(q: RunQueues, s: ScheduleTimes) {
 			{ name: "tick", data: { scheduleId: s.id }, opts: keep },
 		);
 	else await q.schedule.removeJobScheduler(s.id);
+}
+
+export const CLEANUP_SCHEDULER = "node-cleanup";
+
+export async function syncCleanupScheduler(
+	q: Pick<RunQueues, "maintenance">,
+	c: { enabled: boolean; cron: string; timezone: string },
+) {
+	if (c.enabled)
+		await q.maintenance.upsertJobScheduler(
+			CLEANUP_SCHEDULER,
+			{ pattern: c.cron, tz: c.timezone },
+			{ name: "cleanup", opts: keep },
+		);
+	else await q.maintenance.removeJobScheduler(CLEANUP_SCHEDULER);
 }
 
 /** Converges every Job Scheduler to the rows: upserts the wanted ones, removes the rest. */

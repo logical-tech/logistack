@@ -7,7 +7,7 @@ import { NodeRole } from "./enums.ts";
 // token and presents it from then on. Every frame is one JSON text message parsed with AgentMessage or
 // ServerMessage. Requests carry an `id` chosen by the server; every reply for that request
 // carries the same `id` and the stream ends with exactly one terminal message
-// (`exec.exit`, `job.result`, `rpc.error`, or `logs.end`).
+// (`exec.exit`, `job.result`, `disk.result`, `rpc.error`, or `logs.end`).
 //
 // Backpressure:
 // - Output is chunked to at most MAX_CHUNK_BYTES raw bytes (base64 in `data`) and log lines are
@@ -143,6 +143,65 @@ export const JobSpec = z.discriminatedUnion("kind", [
 export type JobSpec = z.infer<typeof JobSpec>;
 export type JobSpecInput = z.input<typeof JobSpec>;
 
+const DiskCategory = z.object({
+	count: z.number().int().nonnegative(),
+	bytes: Bytes,
+	/** What a prune could free; 0 where no prune applies (volumes are never pruned, logs need rotation). */
+	reclaimableBytes: Bytes,
+});
+
+/** Where a node's disk goes, from the engine's `/system/df` plus the container log files. */
+export const DiskUsage = z.object({
+	at: z.number(),
+	dockerRootDir: z.string(),
+	/** The filesystem holding the Docker root dir; null when the agent cannot statfs it. */
+	filesystem: z.object({ totalBytes: Bytes, usedBytes: Bytes }).nullable(),
+	images: DiskCategory,
+	containers: DiskCategory,
+	volumes: DiskCategory,
+	buildCache: DiskCategory,
+	/** json-file logs under the root dir; null when the agent cannot read them. */
+	logs: DiskCategory.nullable(),
+	/** Largest volumes first. */
+	topVolumes: z
+		.array(
+			z.object({
+				name: z.string(),
+				bytes: Bytes,
+				inUse: z.boolean(),
+				/** `logistack.resource` when LogiStack created it. */
+				resourceId: z.string().optional(),
+			}),
+		)
+		.max(20),
+});
+export type DiskUsage = z.infer<typeof DiskUsage>;
+
+/** Volumes are left out on purpose: an unused volume can still be someone's only copy of data. */
+export const pruneTargets = ["containers", "images", "buildCache"] as const;
+export const PruneTarget = z.enum(pruneTargets);
+export type PruneTarget = z.infer<typeof PruneTarget>;
+
+export const PruneReport = z.array(
+	z.object({
+		target: PruneTarget,
+		deleted: z.number().int().nonnegative(),
+		reclaimedBytes: Bytes,
+	}),
+);
+export type PruneReport = z.infer<typeof PruneReport>;
+
+export const DiskRequest = z.discriminatedUnion("op", [
+	z.object({ op: z.literal("usage") }),
+	z.object({
+		op: z.literal("prune"),
+		targets: z.array(PruneTarget).min(1),
+		/** Only objects older than this; 0 prunes everything unused. */
+		untilHours: z.number().int().min(0).max(8_760),
+	}),
+]);
+export type DiskRequest = z.infer<typeof DiskRequest>;
+
 export const rpcErrorCodes = [
 	"not_found",
 	"bad_request",
@@ -196,6 +255,12 @@ export const AgentMessage = z.discriminatedUnion("type", [
 		bytes: Bytes,
 		truncated: z.boolean(),
 		durationMs: Bytes,
+	}),
+	/** Usage after the request, so a prune also answers with what is left. */
+	z.object({
+		...req("disk.result"),
+		usage: DiskUsage,
+		report: PruneReport.nullable(),
 	}),
 	z.object({
 		...req("rpc.error"),
@@ -256,6 +321,7 @@ export const ServerMessage = z.discriminatedUnion("type", [
 	z.object(req("logs.stop")),
 	z.object({ ...req("run.job"), job: JobSpec }),
 	z.object(req("job.cancel")),
+	z.object({ ...req("disk.run"), request: DiskRequest }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
 export type ServerMessageInput = z.input<typeof ServerMessage>;

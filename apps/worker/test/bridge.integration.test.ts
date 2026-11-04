@@ -337,6 +337,14 @@ describe.skipIf(!hasDocker || !process.env.BRIDGE_IT)(
 			expect(await jobContainers(name)).toHaveLength(0);
 		}, 30_000);
 
+		// Usage only: a prune here would delete the dev machine's unused images.
+		test("disk usage from the worker: the agent answers with its engine's breakdown", async () => {
+			const { usage, report } = await runner.disk(nodeId, { op: "usage" });
+			expect(report).toBeNull();
+			expect(usage.dockerRootDir).toBeTruthy();
+			expect(usage.images.count).toBeGreaterThan(0);
+		}, 60_000);
+
 		test("exec from the worker: stdin in, stdout and stderr out, exit code", async () => {
 			const h = runner.exec(nodeId, {
 				target: { kind: "task", taskId },

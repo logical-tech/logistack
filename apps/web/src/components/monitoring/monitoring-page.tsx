@@ -46,7 +46,7 @@ export function MonitoringPage({
 					items={[
 						{ id: "overview", label: "Overview" },
 						{ id: "nodes", label: "Nodes" },
-						{ id: "alerts", label: "Alerts" },
+						{ id: "alerts", label: "Settings" },
 					]}
 				/>
 			</div>

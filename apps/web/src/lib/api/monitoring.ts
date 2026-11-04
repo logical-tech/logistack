@@ -13,6 +13,7 @@ import type {
 	MetricRange,
 	NodeId,
 	NodeUpdate,
+	PruneInput,
 	ServiceId,
 } from "./types";
 
@@ -31,6 +32,26 @@ export const nodeQuery = (id: NodeId) =>
 		queryFn: () => api.nodes.get(id),
 		refetchInterval: POLL,
 	});
+
+/** No polling: a df walks every volume on the node. */
+export const diskQuery = (id: NodeId) =>
+	queryOptions({
+		queryKey: ["nodes", id, "disk"],
+		queryFn: () => api.nodes.disk(id),
+		staleTime: 60_000,
+		retry: false,
+	});
+
+export function usePruneNode(id: NodeId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (input: PruneInput) => api.nodes.prune(id, input),
+		onSuccess: (r) => {
+			qc.setQueryData(diskQuery(id).queryKey, r.usage);
+			void qc.invalidateQueries({ queryKey: ["metrics"] });
+		},
+	});
+}
 
 export const hostMetricsQuery = (q: {
 	range: MetricRange;

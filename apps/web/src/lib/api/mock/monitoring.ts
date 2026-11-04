@@ -7,6 +7,7 @@ import { type ApiAdapter, ApiError } from "../adapter";
 import type {
 	ClusterNode,
 	ContainerPoint,
+	DiskUsage,
 	HostPoint,
 	MetricRange,
 	MonitoringSettings,
@@ -287,8 +288,68 @@ function containerPoint(seed: number, t: number): ContainerPoint {
 	};
 }
 
+const disks = new Map<string, DiskUsage>();
+
+function mockDisk(seed: number): DiskUsage {
+	const k = 1 + (seed % 3) * 0.4;
+	return {
+		at: Date.now(),
+		dockerRootDir: "/var/lib/docker",
+		filesystem: { totalBytes: 160 * GiB, usedBytes: 96 * GiB * k * 0.8 },
+		images: {
+			count: 64,
+			bytes: 31 * GiB * k,
+			reclaimableBytes: 22 * GiB * k,
+		},
+		containers: { count: 41, bytes: 1.4 * GiB, reclaimableBytes: 900 * MiB },
+		volumes: { count: 18, bytes: 24 * GiB * k, reclaimableBytes: 0 },
+		buildCache: {
+			count: 212,
+			bytes: 9.6 * GiB * k,
+			reclaimableBytes: 8.1 * GiB * k,
+		},
+		logs: { count: 46, bytes: 3.2 * GiB, reclaimableBytes: 0 },
+		topVolumes: [
+			{
+				name: "ls-svc-k3m9q2-data",
+				bytes: 11.2 * GiB * k,
+				inUse: true,
+				resourceId: "svc_postgres",
+			},
+			{ name: "ls-registry-data", bytes: 6.8 * GiB * k, inUse: true },
+			{ name: "ls-buildkit-cache", bytes: 3.9 * GiB, inUse: true },
+			{
+				name: "ls-svc-p8x1w0-data",
+				bytes: 1.6 * GiB,
+				inUse: false,
+				resourceId: "svc_old",
+			},
+			{ name: "3f1c9a0e2b7d", bytes: 420 * MiB, inUse: false },
+		],
+	};
+}
+
 let settings: MonitoringSettings = {
 	retention: { rawHours: 24, minuteDays: 7, hourDays: 90 },
+	cleanup: {
+		enabled: true,
+		cron: "0 3 * * *",
+		timezone: "UTC",
+		targets: ["containers", "images", "buildCache"],
+		untilHours: 24,
+	},
+	lastCleanup: {
+		at: Date.now() - 9 * HOUR,
+		nodes: [
+			{
+				nodeId: "node_fra1",
+				hostname: "fra-1",
+				reclaimedBytes: 4.7 * GiB,
+				report: [],
+				error: null,
+			},
+		],
+	},
 	thresholds: [
 		{
 			id: "thr_cpu",
@@ -536,6 +597,41 @@ export const monitoringAdapter: Pick<
 			n.status = "draining";
 			return delay(view(n), 500);
 		},
+		disk: (id) => {
+			if (!findNode(id)) return fail(404, "node not found");
+			let d = disks.get(id);
+			if (!d) {
+				d = mockDisk([...id].reduce((a, c) => a + c.charCodeAt(0), 0));
+				disks.set(id, d);
+			}
+			return delay(d, 1_200);
+		},
+		prune: (id, input) => {
+			const d = disks.get(id) ?? mockDisk(0);
+			const report = input.targets.map((target) => {
+				const c = d[target];
+				return {
+					target,
+					deleted: Math.round(c.count * 0.6),
+					reclaimedBytes: c.reclaimableBytes,
+				};
+			});
+			const freed = report.reduce((a, r) => a + r.reclaimedBytes, 0);
+			const usage: DiskUsage = { ...d, at: Date.now() };
+			for (const t of input.targets)
+				usage[t] = {
+					...d[t],
+					bytes: d[t].bytes - d[t].reclaimableBytes,
+					reclaimableBytes: 0,
+				};
+			if (usage.filesystem)
+				usage.filesystem = {
+					...usage.filesystem,
+					usedBytes: usage.filesystem.usedBytes - freed,
+				};
+			disks.set(id, usage);
+			return delay({ usage, report }, 1_800);
+		},
 	},
 	joins: {
 		create: (input) => {
@@ -637,7 +733,9 @@ export const monitoringAdapter: Pick<
 				if (t.nodeId && !findNode(t.nodeId)) return fail(404, "node not found");
 			}
 			settings = {
+				...settings,
 				retention: input.retention,
+				cleanup: input.cleanup ?? settings.cleanup,
 				thresholds: input.thresholds.map((t) => ({
 					...t,
 					id: t.id ?? rid("thr"),

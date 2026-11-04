@@ -43,7 +43,7 @@ export async function serveAgentRpc(
 
 	async function run(
 		nodeId: string,
-		m: Extract<AgentRpcRequest, { type: "job" | "exec" | "logs" }>,
+		m: Extract<AgentRpcRequest, { type: "job" | "exec" | "logs" | "disk" }>,
 		a: Active,
 	) {
 		const ping = setInterval(
@@ -60,6 +60,11 @@ export async function serveAgentRpc(
 							? { type: "output", stream: e.stream, data: b64(e.data) }
 							: { ...e, type: "result" },
 					);
+			} else if (m.type === "disk") {
+				await reply(m.id, {
+					type: "disk",
+					...(await agents.disk(nodeId, m.req, { signal })),
+				});
 			} else if (m.type === "logs") {
 				for await (const l of agents.followLogs(nodeId, m.req, { signal }))
 					await reply(m.id, { type: "line", ...l });
@@ -103,7 +108,12 @@ export async function serveAgentRpc(
 			});
 			return;
 		}
-		if (m.type === "job" || m.type === "exec" || m.type === "logs") {
+		if (
+			m.type === "job" ||
+			m.type === "exec" ||
+			m.type === "logs" ||
+			m.type === "disk"
+		) {
 			if (active.has(m.id)) return;
 			const a: Active = {
 				abort: new AbortController(),

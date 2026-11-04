@@ -13,6 +13,7 @@ import {
 	type Frame,
 	LABEL_MANAGED,
 } from "@logistack/docker";
+import { runDisk } from "./disk.ts";
 import { resolveTarget, TargetNotFoundError } from "./docker.ts";
 import { BackpressureError, type Link } from "./link.ts";
 
@@ -80,7 +81,11 @@ function toRpcError(e: unknown): RpcError {
 }
 
 /** Serves the server's requests on one connection; `closeAll` on disconnect. */
-export function createSessions(docker: DockerClient, link: Link) {
+export function createSessions(
+	docker: DockerClient,
+	link: Link,
+	hostRoot = "/",
+) {
 	const sessions = new Map<string, Session>();
 
 	async function run(id: string, session: Session, body: () => Promise<void>) {
@@ -250,6 +255,14 @@ export function createSessions(docker: DockerClient, link: Link) {
 		);
 	}
 
+	function disk(m: Extract<ServerMessage, { type: "disk.run" }>) {
+		// The engine API has no way to cancel a df or prune midway; closing only drops the reply.
+		return run(m.id, { close: () => {} }, async () => {
+			const r = await runDisk(docker, hostRoot, m.request);
+			await link.sendStream({ type: "disk.result", id: m.id, ...r });
+		});
+	}
+
 	return {
 		handle(m: ServerMessage): void {
 			switch (m.type) {
@@ -269,6 +282,9 @@ export function createSessions(docker: DockerClient, link: Link) {
 					return;
 				case "run.job":
 					void runJob(m.id, m.job);
+					return;
+				case "disk.run":
+					void disk(m);
 					return;
 				case "exec.close":
 				case "logs.stop":

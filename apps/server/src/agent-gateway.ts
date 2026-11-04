@@ -3,10 +3,13 @@ import {
 	AGENT_NODE_HEADER,
 	AGENT_WS_PATH,
 	AgentMessage,
+	type DiskRequest,
+	type DiskUsage,
 	HIGH_WATER_BYTES,
 	type JobSpecInput,
 	MAX_CHUNK_BYTES,
 	MAX_QUEUED_MESSAGES,
+	type PruneReport,
 	parseFrame,
 	type RpcErrorCode,
 	type ServerMessageInput,
@@ -131,6 +134,11 @@ export type Agents = {
 		job: JobSpecInput,
 		opts?: CallOptions,
 	): AsyncGenerator<JobEvent>;
+	disk(
+		nodeId: string,
+		req: DiskRequest,
+		opts?: CallOptions,
+	): Promise<{ usage: DiskUsage; report: PruneReport | null }>;
 };
 
 type Inbound = Extract<AgentMessage, { id: string }>;
@@ -140,7 +148,13 @@ type Conn = {
 	calls: Map<string, Call>;
 };
 
-const TERMINAL = new Set(["exec.exit", "job.result", "logs.end", "rpc.error"]);
+const TERMINAL = new Set([
+	"exec.exit",
+	"job.result",
+	"disk.result",
+	"logs.end",
+	"rpc.error",
+]);
 
 /** One request's replies: a bounded queue drained by an async iterator. */
 class Call {
@@ -551,6 +565,20 @@ export function mountAgentGateway(
 					yield { type: "result", ...result };
 				}
 			}
+		},
+
+		async disk(nodeId, req, opts) {
+			const { replies } = start(
+				nodeId,
+				{ type: "disk.run", id: crypto.randomUUID(), request: req },
+				// The agent closes any session by id on a cancel; a disk request has nothing to stop.
+				"job.cancel",
+				opts?.signal,
+			);
+			for await (const m of replies)
+				if (m.type === "disk.result")
+					return { usage: m.usage, report: m.report };
+			throw new AgentError("internal", "disk request ended without a result");
 		},
 	};
 }

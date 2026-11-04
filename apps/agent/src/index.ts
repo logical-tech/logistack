@@ -219,14 +219,14 @@ async function main() {
 			let heartbeat: Timer | undefined;
 			ws.onopen = () => {
 				link = new Link(ws);
-				sessions = createSessions(docker, link);
+				sessions = createSessions(docker, link, cfg.HOST_ROOT);
 				link.send({
 					type: "hello",
 					protocol: AGENT_PROTOCOL_VERSION,
 					nodeId: cfg.LOGISTACK_NODE_ID,
 					hostname: cfg.LOGISTACK_NODE_HOSTNAME,
 					version: pkg.version,
-					capabilities: ["exec", "logs", "jobs", "metrics", "events"],
+					capabilities: ["exec", "logs", "jobs", "metrics", "events", "disk"],
 					...swarm,
 				});
 				link.send({ type: "metrics", at: Date.now(), ...latest });

@@ -88,6 +88,10 @@ export type ClusterNode = Ok<Api["nodes"]["$get"]>[number];
 export type NodeId = ClusterNode["id"];
 export type NodeUpdate = Body<Api["nodes"][":id"]["$patch"]>;
 export type LiveHostSample = NonNullable<ClusterNode["live"]>;
+export type DiskUsage = Ok<Api["nodes"][":id"]["disk"]["$get"]>;
+export type PruneInput = Body<Api["nodes"][":id"]["disk"]["prune"]["$post"]>;
+export type PruneResult = Ok<Api["nodes"][":id"]["disk"]["prune"]["$post"]>;
+export type PruneTarget = PruneInput["targets"][number];
 
 export type HostMetrics = Ok<Api["metrics"]["hosts"]["$get"]>;
 export type HostSeries = HostMetrics["series"][number];

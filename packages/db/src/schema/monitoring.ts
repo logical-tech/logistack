@@ -1,7 +1,9 @@
 import type {
+	CleanupRun,
 	NodeJoinState,
 	NodeJoinStep,
 	PreflightCheck,
+	PruneTarget,
 	ThresholdMetric,
 } from "@logistack/contracts";
 import { sql } from "drizzle-orm";
@@ -24,7 +26,7 @@ import { sshKey } from "./integrations.ts";
 // range-partitioned by day, which Drizzle cannot declare; they live in 0004_metrics.sql and
 // are read and written with plain SQL in apps/worker/src/metrics-store.ts.
 
-/** Instance-wide retention; one row. */
+/** Instance-wide retention and node cleanup schedule; one row. */
 export const monitoringSettings = pgTable(
 	"monitoring_settings",
 	{
@@ -32,6 +34,15 @@ export const monitoringSettings = pgTable(
 		rawRetentionHours: integer("raw_retention_hours").notNull().default(24),
 		minuteRetentionDays: integer("minute_retention_days").notNull().default(7),
 		hourRetentionDays: integer("hour_retention_days").notNull().default(90),
+		cleanupEnabled: boolean("cleanup_enabled").notNull().default(true),
+		cleanupCron: text("cleanup_cron").notNull().default("0 3 * * *"),
+		cleanupTimezone: text("cleanup_timezone").notNull().default("UTC"),
+		cleanupTargets: jsonb("cleanup_targets")
+			.$type<PruneTarget[]>()
+			.notNull()
+			.default(["containers", "images", "buildCache"]),
+		cleanupUntilHours: integer("cleanup_until_hours").notNull().default(24),
+		lastCleanup: jsonb("last_cleanup").$type<CleanupRun>(),
 		...timestamps,
 	},
 	(t) => [

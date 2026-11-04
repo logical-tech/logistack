@@ -1,15 +1,24 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	Cleanup,
 	ContainerMetricsResponse,
+	DEFAULT_CLEANUP,
 	HostMetricsResponse,
 	MetricRange,
 	MonitoringSettings,
 	MonitoringSettingsInput,
 } from "@logistack/contracts";
-import { metricThreshold, monitoringSettings, node } from "@logistack/db";
+import {
+	type Db,
+	metricThreshold,
+	monitoringSettings,
+	node,
+} from "@logistack/db";
+import { syncCleanupScheduler } from "@logistack/worker/schedulers";
 import { and, eq, notInArray } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
+import { Cron, Timezone } from "../cron.ts";
 import { Failure, notFound } from "../errors.ts";
 import {
 	containerSeries,
@@ -18,6 +27,7 @@ import {
 	windowFor,
 } from "../metrics-query.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
+import { runQueues } from "../run-queues.ts";
 import { byParam, inOrganization, requirePermission } from "../scope.ts";
 
 const tags = ["monitoring"];
@@ -33,6 +43,29 @@ const HostQuery = RangeQuery.extend({
 		.default("false")
 		.transform((v) => v === "true"),
 });
+
+const SettingsInput = MonitoringSettingsInput.extend({
+	cleanup: Cleanup.extend({ cron: Cron, timezone: Timezone }).optional(),
+});
+
+async function loadCleanup(db: Db) {
+	const [row] = await db
+		.select()
+		.from(monitoringSettings)
+		.where(eq(monitoringSettings.id, "singleton"));
+	return {
+		cleanup: row
+			? {
+					enabled: row.cleanupEnabled,
+					cron: row.cleanupCron,
+					timezone: row.cleanupTimezone,
+					targets: row.cleanupTargets,
+					untilHours: row.cleanupUntilHours,
+				}
+			: DEFAULT_CLEANUP,
+		lastCleanup: row?.lastCleanup ?? null,
+	};
+}
 
 export const metrics = router()
 	.openapi(
@@ -183,6 +216,7 @@ export const metrics = router()
 			return c.json(
 				{
 					retention: await loadRetention(db.$client),
+					...(await loadCleanup(db)),
 					thresholds: thresholds.map((t) => ({
 						id: t.id,
 						metric: t.metric,
@@ -205,9 +239,9 @@ export const metrics = router()
 				tags,
 				security,
 				summary:
-					"Replace retention (instance-wide) and the organization's thresholds",
+					"Replace retention and node cleanup (instance-wide) and the organization's thresholds",
 				middleware: [requirePermission("admin", inOrganization)],
-				request: body(MonitoringSettingsInput),
+				request: body(SettingsInput),
 				responses: { 200: json(MonitoringSettings, "Saved"), ...errors },
 			}),
 		),
@@ -235,6 +269,13 @@ export const metrics = router()
 					rawRetentionHours: input.retention.rawHours,
 					minuteRetentionDays: input.retention.minuteDays,
 					hourRetentionDays: input.retention.hourDays,
+					...(input.cleanup && {
+						cleanupEnabled: input.cleanup.enabled,
+						cleanupCron: input.cleanup.cron,
+						cleanupTimezone: input.cleanup.timezone,
+						cleanupTargets: input.cleanup.targets,
+						cleanupUntilHours: input.cleanup.untilHours,
+					}),
 				};
 				await tx
 					.insert(monitoringSettings)
@@ -278,6 +319,15 @@ export const metrics = router()
 				}
 				return out;
 			});
-			return c.json({ retention: input.retention, thresholds: saved }, 200);
+			const cleanup = await loadCleanup(db);
+			if (input.cleanup)
+				await syncCleanupScheduler(
+					runQueues(c.var.deps.config.REDIS_URL),
+					cleanup.cleanup,
+				);
+			return c.json(
+				{ retention: input.retention, thresholds: saved, ...cleanup },
+				200,
+			);
 		},
 	);

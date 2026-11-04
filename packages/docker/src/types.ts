@@ -36,6 +36,7 @@ export interface SystemInfo {
 	MemTotal: number;
 	Containers: number;
 	Images: number;
+	DockerRootDir: string;
 	Swarm: {
 		NodeID: string;
 		NodeAddr: string;
@@ -477,6 +478,49 @@ export interface Volume {
 	Scope: "local" | "global";
 	Options: Record<string, string> | null;
 	CreatedAt?: string;
+}
+
+// ---- Disk usage / prune ----
+
+/** `GET /system/df`; the engine fills `UsageData` with -1 when it did not measure. */
+export interface SystemDf {
+	LayersSize: number;
+	Images: {
+		Id: string;
+		RepoTags: string[] | null;
+		Created: number;
+		Size: number;
+		SharedSize: number;
+		Containers: number;
+		Labels: Labels | null;
+	}[];
+	Containers: {
+		Id: string;
+		Names: string[];
+		Image: string;
+		State: string;
+		SizeRw?: number;
+		SizeRootFs?: number;
+		Labels: Labels | null;
+	}[];
+	Volumes: (Volume & {
+		UsageData: { Size: number; RefCount: number } | null;
+	})[];
+	BuildCache: {
+		ID: string;
+		Type: string;
+		InUse: boolean;
+		Shared: boolean;
+		Size: number;
+		LastUsedAt: string | null;
+	}[];
+}
+
+export interface PruneResponse {
+	SpaceReclaimed: number;
+	ContainersDeleted?: string[] | null;
+	ImagesDeleted?: { Untagged?: string; Deleted?: string }[] | null;
+	CachesDeleted?: string[] | null;
 }
 
 // ---- Configs / secrets ----

@@ -138,6 +138,9 @@ export const httpAdapter: ApiAdapter = {
 		get: (id) => ok(api.nodes[":id"].$get({ param: { id } })),
 		update: (id, json) => ok(api.nodes[":id"].$patch({ param: { id }, json })),
 		remove: (id) => ok(api.nodes[":id"].$delete({ param: { id } })),
+		disk: (id) => ok(api.nodes[":id"].disk.$get({ param: { id } })),
+		prune: (id, json) =>
+			ok(api.nodes[":id"].disk.prune.$post({ param: { id }, json })),
 	},
 	joins: {
 		create: (json) => ok(api.nodes.joins.$post({ json })),

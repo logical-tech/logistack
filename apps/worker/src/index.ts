@@ -15,6 +15,7 @@ import { ensureStackDbNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { createBus, log, setLogLevel } from "./bus.ts";
 import { checkCertificates } from "./certs.ts";
+import { loadCleanup, runCleanup } from "./cleanup.ts";
 import { reportCommitStatus } from "./commit-status.ts";
 import { type Config, loadConfig } from "./config.ts";
 import type { Ctx } from "./ctx.ts";
@@ -34,7 +35,11 @@ import {
 } from "./queues.ts";
 import { reconcilePass, sweepOrphans } from "./reconcile.ts";
 import { pruneImages } from "./retention.ts";
-import { type RunQueues, syncAllSchedulers } from "./schedulers.ts";
+import {
+	type RunQueues,
+	syncAllSchedulers,
+	syncCleanupScheduler,
+} from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
@@ -140,6 +145,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				if (job.name === "certificates") await checkCertificates(ctx);
 				else if (job.name === "retention") await pruneImages(ctx);
 				else if (job.name === "update-check") await checkForUpdate(ctx);
+				else if (job.name === "cleanup") await runCleanup(ctx);
 				else await sweepOrphans(ctx);
 			},
 			{
@@ -170,6 +176,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		await ctx.db.select().from(backupPolicy),
 		await ctx.db.select().from(schedule),
 	);
+	await syncCleanupScheduler(ctx.queues, await loadCleanup(ctx.db));
 
 	if (cfg.LS_RECONCILE_INTERVAL_MS > 0) {
 		const every = cfg.LS_RECONCILE_INTERVAL_MS;

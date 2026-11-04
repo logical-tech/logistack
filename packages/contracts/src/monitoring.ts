@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PruneReport, PruneTarget, pruneTargets } from "./agent.ts";
 import { NodeRole, NodeStatus } from "./enums.ts";
 import { UpdateState, UpdateSteps } from "./updates.ts";
 
@@ -172,15 +173,53 @@ export const DEFAULT_RETENTION: Retention = {
 	hourDays: 90,
 };
 
+/** Instance-wide scheduled prune of every connected node. */
+export const Cleanup = z.object({
+	enabled: z.boolean(),
+	/** Five-field cron. */
+	cron: z.string(),
+	timezone: z.string(),
+	targets: z.array(PruneTarget),
+	/** Keep anything newer, so a rollback right after a deploy still finds its image. */
+	untilHours: z.int().min(0).max(8_760),
+});
+export type Cleanup = z.infer<typeof Cleanup>;
+
+export const DEFAULT_CLEANUP: Cleanup = {
+	enabled: true,
+	cron: "0 3 * * *",
+	timezone: "UTC",
+	targets: [...pruneTargets],
+	untilHours: 24,
+};
+
+export const CleanupRun = z.object({
+	at: z.number(),
+	nodes: z.array(
+		z.object({
+			nodeId: z.string(),
+			hostname: z.string(),
+			reclaimedBytes: z.number().nonnegative(),
+			report: PruneReport,
+			error: z.string().nullable(),
+		}),
+	),
+});
+export type CleanupRun = z.infer<typeof CleanupRun>;
+
 export const MonitoringSettings = z.object({
 	retention: Retention,
 	thresholds: z.array(Threshold),
+	cleanup: Cleanup,
+	lastCleanup: CleanupRun.nullable(),
 });
 export type MonitoringSettings = z.infer<typeof MonitoringSettings>;
 
 export const MonitoringSettingsInput = z.object({
 	retention: Retention,
 	thresholds: z.array(ThresholdInput.extend({ id: z.string().optional() })),
+	/** Omitted keeps the current schedule. */
+	cleanup: Cleanup.optional(),
 });
 export type MonitoringSettingsInput = z.infer<typeof MonitoringSettingsInput>;
 

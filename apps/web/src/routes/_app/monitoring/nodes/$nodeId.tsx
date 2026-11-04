@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { z } from "zod";
+import { DiskPanel } from "@/components/monitoring/disk-usage";
 import { HostCharts, RangePicker } from "@/components/monitoring/host-charts";
 import { NodeActions } from "@/components/monitoring/node-actions";
 import {
@@ -147,6 +148,7 @@ function NodeDetail() {
 								: "No samples yet: the node's agent has not reported."
 						}
 					/>
+					<DiskPanel node={node} />
 				</section>
 				<aside className="grid content-start gap-4">
 					<section

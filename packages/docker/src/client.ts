@@ -21,6 +21,7 @@ import type {
 	Network,
 	NetworkCreateRequest,
 	NodeSpec,
+	PruneResponse,
 	RegistryAuth,
 	SecretSpec,
 	Service,
@@ -32,6 +33,7 @@ import type {
 	SwarmInitRequest,
 	SwarmNode,
 	SwarmSecret,
+	SystemDf,
 	SystemInfo,
 	Task,
 	VersionInfo,
@@ -147,6 +149,21 @@ export function createDockerClient(opts: DockerClientOptions = {}) {
 		ping: async () => (await t.stream("GET", "/_ping")).text(),
 		info: () => get<SystemInfo>("/info"),
 		version: () => get<VersionInfo>("/version"),
+		/** Can take seconds on hosts with many volumes: the engine walks each one. */
+		df: () => get<SystemDf>("/system/df"),
+		prune: {
+			containers: (filters?: Filters) =>
+				post<PruneResponse>("/containers/prune", undefined, {
+					query: { filters },
+				}),
+			/** `dangling: ["false"]` removes every unused image, not only untagged ones. */
+			images: (filters?: Filters) =>
+				post<PruneResponse>("/images/prune", undefined, {
+					query: { filters },
+				}),
+			build: (query: { all?: boolean; filters?: Filters } = {}) =>
+				post<PruneResponse>("/build/prune", undefined, { query }),
+		},
 
 		swarm: {
 			inspect: () => get<Swarm>("/swarm"),

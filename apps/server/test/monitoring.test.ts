@@ -371,5 +371,34 @@ describe.skipIf(!hasDocker)("monitoring api", () => {
 			},
 		});
 		expect(bad.status).toBe(400);
+
+		// Disabled, so the scheduler sync only removes: an enabled one would let a dev worker prune this machine.
+		const cleanup = {
+			enabled: false,
+			cron: "30 4 * * 0",
+			timezone: "Europe/Rome",
+			targets: ["images"],
+			untilHours: 48,
+		};
+		const withCleanup = await h.call("PUT", "/api/monitoring/settings", {
+			...as(),
+			body: { ...body, cleanup },
+		});
+		expect(withCleanup.status).toBe(200);
+		expect(withCleanup.json.cleanup).toEqual(cleanup);
+		const kept = await h.call("PUT", "/api/monitoring/settings", {
+			...as(),
+			body,
+		});
+		expect(kept.json.cleanup).toEqual(cleanup);
+		for (const wrong of [{ cron: "every day" }, { timezone: "Mars/Base" }])
+			expect(
+				(
+					await h.call("PUT", "/api/monitoring/settings", {
+						...as(),
+						body: { ...body, cleanup: { ...cleanup, ...wrong } },
+					})
+				).status,
+			).toBe(400);
 	});
 });

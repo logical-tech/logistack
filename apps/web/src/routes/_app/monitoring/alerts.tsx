@@ -4,9 +4,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2, Plus, ServerCrash, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { CronField } from "@/components/backups/cron-field";
 import { MonitoringPage } from "@/components/monitoring/monitoring-page";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -22,13 +24,17 @@ import {
 	useSaveMonitoring,
 } from "@/lib/api/monitoring";
 import type {
+	PruneTarget,
 	MonitoringSettingsInput as SettingsInput,
 	ThresholdMetric,
 } from "@/lib/api/types";
+import { cronError } from "@/lib/cron";
+import { relativeTime } from "@/lib/format";
+import { formatBytes } from "@/lib/metrics";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/monitoring/alerts")({
-	staticData: { crumb: "Alerts" },
+	staticData: { crumb: "Settings" },
 	loader: ({ context }) => {
 		void context.queryClient.prefetchQuery(monitoringSettingsQuery);
 		void context.queryClient.prefetchQuery(nodesQuery);
@@ -46,7 +52,25 @@ const WINDOWS = [60, 300, 600, 900, 1_800, 3_600];
 const minutes = (s: number) => (s < 3_600 ? `${s / 60} min` : `${s / 3_600} h`);
 const ALL = "__all";
 
-type Draft = SettingsInput;
+type Draft = SettingsInput & { cleanup: NonNullable<SettingsInput["cleanup"]> };
+
+const TARGETS: { value: PruneTarget; label: string; hint: string }[] = [
+	{
+		value: "images",
+		label: "Unused images",
+		hint: "Any image no container uses, LogiStack's or not.",
+	},
+	{
+		value: "buildCache",
+		label: "Build cache",
+		hint: "Docker's builder cache and LogiStack's BuildKit cache.",
+	},
+	{
+		value: "containers",
+		label: "Stopped containers",
+		hint: "Only LogiStack's, such as old Swarm tasks.",
+	},
+];
 
 /** First message per dotted path, e.g. `thresholds.0.percent`. */
 function validate(d: Draft): Record<string, string> {
@@ -54,6 +78,10 @@ function validate(d: Draft): Record<string, string> {
 	const out: Record<string, string> = {};
 	if (!r.success)
 		for (const i of r.error.issues) out[i.path.join(".")] ??= i.message;
+	const cron = cronError(d.cleanup.cron);
+	if (cron) out["cleanup.cron"] ??= cron;
+	if (d.cleanup.enabled && !d.cleanup.targets.length)
+		out["cleanup.targets"] ??= "Pick at least one thing to clean up";
 	return out;
 }
 
@@ -148,6 +176,11 @@ function Alerts() {
 		});
 	const setRetention = (patch: Partial<Draft["retention"]>) =>
 		setDraft({ ...draft, retention: { ...draft.retention, ...patch } });
+	const setCleanup = (patch: Partial<Draft["cleanup"]>) =>
+		setDraft({ ...draft, cleanup: { ...draft.cleanup, ...patch } });
+	const last = settings.lastCleanup;
+	const lastFreed = last?.nodes.reduce((a, n) => a + n.reclaimedBytes, 0) ?? 0;
+	const lastFailed = last?.nodes.filter((n) => n.error) ?? [];
 
 	function onSave() {
 		setAttempted(true);
@@ -156,7 +189,7 @@ function Alerts() {
 			onSuccess: (saved) => {
 				setDraft(structuredClone(saved));
 				setAttempted(false);
-				toast.success("Alert settings saved");
+				toast.success("Monitoring settings saved");
 			},
 			onError: (e) =>
 				toast.error("Couldn't save", {
@@ -395,6 +428,103 @@ function Alerts() {
 							hint="30 days and beyond."
 						/>
 					</div>
+				</Panel>
+
+				<Panel
+					id="cleanup"
+					title="Cleanup"
+					actions={
+						<Switch
+							checked={draft.cleanup.enabled}
+							onCheckedChange={(enabled) => setCleanup({ enabled })}
+							aria-label="Clean up nodes on a schedule"
+						/>
+					}
+					bodyClassName="p-4 sm:p-5"
+				>
+					<p className="mb-5 max-w-[62ch] text-sm text-muted-foreground">
+						Every connected node prunes what Docker keeps around after deploys
+						and builds. Running services keep their images and volumes are never
+						touched. Each node's Disk panel shows what is taking space.
+					</p>
+					<div
+						className={cn(
+							"grid gap-6 transition-opacity",
+							!draft.cleanup.enabled && "opacity-55",
+						)}
+					>
+						<CronField
+							id="cleanup-cron"
+							label="Runs"
+							cron={draft.cleanup.cron}
+							timezone={draft.cleanup.timezone}
+							onCron={(cron) => setCleanup({ cron })}
+							onTimezone={(timezone) => setCleanup({ timezone })}
+							error={errors["cleanup.cron"]}
+						/>
+						<fieldset className="grid gap-3">
+							<legend className="mb-3 text-sm font-medium">Removes</legend>
+							{TARGETS.map((t) => (
+								<label
+									key={t.value}
+									htmlFor={`cleanup-${t.value}`}
+									className="flex items-start gap-3"
+								>
+									<Checkbox
+										id={`cleanup-${t.value}`}
+										className="mt-0.5"
+										checked={draft.cleanup.targets.includes(t.value)}
+										onCheckedChange={(on) =>
+											setCleanup({
+												targets: on
+													? [...draft.cleanup.targets, t.value]
+													: draft.cleanup.targets.filter((x) => x !== t.value),
+											})
+										}
+									/>
+									<span className="grid gap-0.5">
+										<span className="text-sm">{t.label}</span>
+										<span className="text-xs text-muted-foreground">
+											{t.hint}
+										</span>
+									</span>
+								</label>
+							))}
+							{errors["cleanup.targets"] && (
+								<p className="text-xs text-bad-text">
+									{errors["cleanup.targets"]}
+								</p>
+							)}
+						</fieldset>
+						<div className="sm:max-w-[16rem]">
+							<NumberField
+								id="cleanup-age"
+								label="Keep anything newer than"
+								value={draft.cleanup.untilHours}
+								onChange={(untilHours) => setCleanup({ untilHours })}
+								min={0}
+								max={8_760}
+								unit="hours"
+								error={errors["cleanup.untilHours"]}
+								hint="A rollback right after a deploy then needs no pull."
+							/>
+						</div>
+					</div>
+					{last && (
+						<p className="mt-5 border-t pt-4 text-xs text-muted-foreground tabular">
+							Last run {relativeTime(new Date(last.at).toISOString())}:{" "}
+							{last.nodes.length
+								? `freed ${formatBytes(lastFreed)} on ${last.nodes.length} ${last.nodes.length === 1 ? "node" : "nodes"}`
+								: "no node was connected"}
+							{lastFailed.length > 0 && (
+								<span className="text-bad-text">
+									{" "}
+									· failed on {lastFailed.map((n) => n.hostname).join(", ")}:{" "}
+									{lastFailed[0]?.error}
+								</span>
+							)}
+						</p>
+					)}
 				</Panel>
 
 				<div className="sticky bottom-4 flex items-center justify-end gap-3">
