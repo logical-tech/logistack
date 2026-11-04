@@ -5,7 +5,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { api } from ".";
-import type { ProjectId } from "./types";
+import type { CreateEnvironmentInput, ProjectId } from "./types";
 
 export const projectsQuery = queryOptions({
 	queryKey: ["projects"],
@@ -20,6 +20,16 @@ export const projectQuery = (id: ProjectId) =>
 
 export const useProjects = () => useQuery(projectsQuery);
 export const useProject = (id: ProjectId) => useQuery(projectQuery(id));
+
+export function useCreateEnvironment(projectId: ProjectId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (input: CreateEnvironmentInput) =>
+			api.projects.createEnvironment(projectId, input),
+		onSuccess: () =>
+			qc.invalidateQueries({ queryKey: projectQuery(projectId).queryKey }),
+	});
+}
 
 export function useCreateProject() {
 	const qc = useQueryClient();

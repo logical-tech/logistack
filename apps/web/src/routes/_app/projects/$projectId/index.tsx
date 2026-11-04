@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Boxes, Folder, Plus } from "lucide-react";
+import { useState } from "react";
 import { z } from "zod";
 import { EmptyState } from "@/components/empty-state";
 import { Page, PageHeader } from "@/components/page-header";
 import { SkeletonRows } from "@/components/panel";
+import { CreateEnvironmentDialog } from "@/components/projects/create-dialogs";
 import { ServiceList } from "@/components/projects/service-list";
 import { SignalStrip } from "@/components/signal-strip";
 import { SlidingTabs } from "@/components/sliding-tabs";
@@ -73,6 +75,7 @@ function ProjectDetail() {
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data: project } = useQuery(projectQuery(projectId));
 	const { data: folders = [] } = useQuery(foldersQuery);
+	const [creatingEnv, setCreatingEnv] = useState(false);
 
 	if (!project) return null;
 	const env =
@@ -116,9 +119,15 @@ function ProjectDetail() {
 				}
 			/>
 
+			<CreateEnvironmentDialog
+				open={creatingEnv}
+				onOpenChange={setCreatingEnv}
+				projectId={projectId}
+				onCreated={(e) => navigate({ search: { env: e.id }, replace: true })}
+			/>
 			{env ? (
 				<>
-					<div className="mb-5 border-b">
+					<div className="mb-5 flex items-end gap-2 border-b">
 						<SlidingTabs
 							label="Environments"
 							idPrefix="env"
@@ -131,6 +140,15 @@ function ProjectDetail() {
 								label: <EnvTabLabel env={e} />,
 							}))}
 						/>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="mb-1.5 text-muted-foreground"
+							onClick={() => setCreatingEnv(true)}
+						>
+							<Plus data-icon="inline-start" />
+							New environment
+						</Button>
 					</div>
 					<div
 						id="env-panel"
@@ -146,7 +164,12 @@ function ProjectDetail() {
 					icon={Boxes}
 					title="No environments"
 					description="Every project needs at least one environment. Production is created with the project."
-				/>
+				>
+					<Button onClick={() => setCreatingEnv(true)}>
+						<Plus data-icon="inline-start" />
+						New environment
+					</Button>
+				</EmptyState>
 			)}
 		</Page>
 	);

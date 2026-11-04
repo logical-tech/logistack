@@ -84,6 +84,10 @@ export const httpAdapter: ApiAdapter = {
 			return { ...project, environments };
 		},
 		create: (input) => ok(api.projects.$post({ json: input })),
+		createEnvironment: (id, input) =>
+			ok(
+				api.projects[":id"].environments.$post({ param: { id }, json: input }),
+			),
 	},
 	services: {
 		listByEnvironment: (id) =>

@@ -64,6 +64,9 @@ export type ServiceId = Service["id"];
 
 export type CreateFolderInput = Body<Api["folders"]["$post"]>;
 export type CreateProjectInput = Body<Api["projects"]["$post"]>;
+export type CreateEnvironmentInput = Body<
+	Api["projects"][":id"]["environments"]["$post"]
+>;
 /** One wizard submit: the service, its domain, then its first deployment. */
 export type CreateServiceInput = {
 	environmentId: EnvironmentId;

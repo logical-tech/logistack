@@ -201,6 +201,21 @@ export const mockAdapter: ApiAdapter = {
 			});
 			return delay(project, 500);
 		},
+		createEnvironment: (projectId, { name, slug, kind }) => {
+			const at = new Date().toISOString();
+			const env = {
+				id: rid("env"),
+				projectId,
+				name,
+				slug: slug ?? slugify(name),
+				kind,
+				isDefault: false,
+				createdAt: at,
+				updatedAt: at,
+			};
+			db.environments.push(env);
+			return delay(env, 400);
+		},
 	},
 	services: {
 		listByEnvironment: (environmentId) =>

@@ -23,8 +23,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateFolder, useFolders } from "@/lib/api/folders";
-import { useCreateProject } from "@/lib/api/projects";
-import type { Folder, FolderId } from "@/lib/api/types";
+import { useCreateEnvironment, useCreateProject } from "@/lib/api/projects";
+import type {
+	Environment,
+	EnvironmentKind,
+	Folder,
+	FolderId,
+	ProjectId,
+} from "@/lib/api/types";
 import { issuesByKey } from "@/lib/form";
 
 const ROOT = "__root";
@@ -271,6 +277,98 @@ export function CreateProjectDialog({
 						{ordered.map((f) => (
 							<SelectItem key={f.id} value={f.id}>
 								{folderLabel(f, folders)}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</Field>
+		</DialogShell>
+	);
+}
+
+const environmentSchema = z.object({
+	name: z
+		.string()
+		.trim()
+		.min(1, "Name the environment.")
+		.max(60, "Keep it under 60 characters."),
+});
+
+const ENV_KINDS: { value: EnvironmentKind; label: string }[] = [
+	{ value: "staging", label: "Staging" },
+	{ value: "preview", label: "Preview" },
+	{ value: "production", label: "Production" },
+	{ value: "custom", label: "Custom" },
+];
+
+export function CreateEnvironmentDialog({
+	open,
+	onOpenChange,
+	projectId,
+	onCreated,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	projectId: ProjectId;
+	onCreated: (env: Environment) => void;
+}) {
+	const create = useCreateEnvironment(projectId);
+	const [name, setName] = useState("");
+	const [kind, setKind] = useState<EnvironmentKind>("staging");
+	const [errors, setErrors] = useState<Record<string, string>>({});
+
+	function submit(e: FormEvent) {
+		e.preventDefault();
+		const parsed = environmentSchema.safeParse({ name });
+		if (!parsed.success) return setErrors(issuesByKey(parsed.error.issues));
+		create.mutate(
+			{ name: parsed.data.name, kind },
+			{
+				onSuccess: (env) => {
+					toast.success(`Environment “${env.name}” created`);
+					setName("");
+					setErrors({});
+					onOpenChange(false);
+					onCreated(env);
+				},
+				onError: (err) => setErrors({ name: err.message }),
+			},
+		);
+	}
+
+	return (
+		<DialogShell
+			open={open}
+			onOpenChange={onOpenChange}
+			title="New environment"
+			description="An environment is an isolated set of services, variables and domains inside this project."
+			onSubmit={submit}
+			pending={create.isPending}
+			submitLabel="Create environment"
+		>
+			<Field id="env-name" label="Name" error={errors.name}>
+				<Input
+					id="env-name"
+					autoFocus
+					placeholder="Staging"
+					value={name}
+					onChange={(e) => setName(e.target.value)}
+					aria-invalid={errors.name ? true : undefined}
+					aria-describedby="env-name-msg"
+				/>
+			</Field>
+			<Field id="env-kind" label="Kind">
+				<Select
+					value={kind}
+					onValueChange={(v) => setKind(v as EnvironmentKind)}
+				>
+					<SelectTrigger id="env-kind" className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{ENV_KINDS.map((k) => (
+							<SelectItem key={k.value} value={k.value}>
+								{k.label}
 							</SelectItem>
 						))}
 					</SelectContent>

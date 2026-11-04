@@ -6,10 +6,12 @@ import type { TemplatesApi } from "./templates";
 import type {
 	ClusterNode,
 	ContainerMetrics,
+	CreateEnvironmentInput,
 	CreateFolderInput,
 	CreateProjectInput,
 	CreateServiceInput,
 	DnsCheck,
+	Environment,
 	EnvironmentId,
 	Folder,
 	GitSource,
@@ -58,6 +60,10 @@ export type ApiAdapter = {
 		list(): Promise<ProjectSummary[]>;
 		get(id: ProjectId): Promise<ProjectDetail>;
 		create(input: CreateProjectInput): Promise<Project>;
+		createEnvironment(
+			id: ProjectId,
+			input: CreateEnvironmentInput,
+		): Promise<Environment>;
 	};
 	services: {
 		listByEnvironment(environmentId: EnvironmentId): Promise<Service[]>;
