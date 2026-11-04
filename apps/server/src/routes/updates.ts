@@ -52,6 +52,8 @@ const UpdateStatus = z
 		checkedAt: z.string().nullable(),
 		updateAvailable: z.boolean(),
 		autoCheck: z.boolean(),
+		/** `latest` includes prereleases, the builds of `staging`. */
+		beta: z.boolean(),
 		run: UpdateRun.nullable(),
 	})
 	.openapi("UpdateStatus");
@@ -60,23 +62,30 @@ const UpdateStatus = z
 const FRESH_MS = 3_600_000;
 const RETRY_MS = 300_000;
 const FORCE_MIN_MS = 60_000;
-let cached:
-	| { at: number; release: Release | null; error: string | null }
-	| undefined;
+type Check = { at: number; release: Release | null; error: string | null };
+/** One entry per channel, so flipping beta updates never serves the other channel's answer. */
+const cache = new Map<boolean, Check>();
 
-async function latest(force: boolean) {
+async function latest(force: boolean, beta: boolean) {
+	const cached = cache.get(beta);
 	const age = cached ? Date.now() - cached.at : Number.POSITIVE_INFINITY;
 	const ttl = cached?.error ? RETRY_MS : FRESH_MS;
 	if (cached && age < (force ? FORCE_MIN_MS : ttl)) return cached;
+	let next: Check;
 	try {
-		cached = { at: Date.now(), release: await latestRelease(), error: null };
+		next = {
+			at: Date.now(),
+			release: await latestRelease({}, { beta }),
+			error: null,
+		};
 	} catch (e) {
 		const error = e instanceof Error ? e.message : String(e);
 		log("warn", "release check failed", { error });
 		// Keep showing the last release we saw; only the error is new.
-		cached = { at: Date.now(), release: cached?.release ?? null, error };
+		next = { at: Date.now(), release: cached?.release ?? null, error };
 	}
-	return cached;
+	cache.set(beta, next);
+	return next;
 }
 
 const runView = (r: typeof instanceUpdate.$inferSelect) => ({
@@ -110,10 +119,12 @@ export const updates = router()
 		}),
 		async (c) => {
 			const { db, config } = c.var.deps;
-			const [check, [settings], [run]] = await Promise.all([
-				latest(c.req.valid("query").refresh ?? false),
+			const [[settings], [run]] = await Promise.all([
 				db
-					.select({ autoCheck: instanceSettings.autoCheckUpdates })
+					.select({
+						autoCheck: instanceSettings.autoCheckUpdates,
+						beta: instanceSettings.betaUpdates,
+					})
 					.from(instanceSettings),
 				db
 					.select()
@@ -121,6 +132,8 @@ export const updates = router()
 					.orderBy(desc(instanceUpdate.createdAt))
 					.limit(1),
 			]);
+			const beta = settings?.beta ?? false;
+			const check = await latest(c.req.valid("query").refresh ?? false, beta);
 			const current = config.LOGISTACK_VERSION;
 			return c.json(
 				{
@@ -135,6 +148,7 @@ export const updates = router()
 						!!check.release &&
 						compareVersions(check.release.version, current) > 0,
 					autoCheck: settings?.autoCheck ?? true,
+					beta,
 					run: run ? runView(run) : null,
 				},
 				200,
@@ -212,6 +226,34 @@ export const updates = router()
 				.set({ autoCheckUpdates: enabled })
 				.where(eq(instanceSettings.id, "singleton"));
 			c.set("auditDiff", { after: { autoCheckUpdates: enabled } });
+			return c.json({ enabled }, 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"instance.update",
+			createRoute({
+				method: "put",
+				path: "/instance/update/beta",
+				tags,
+				security,
+				summary:
+					"Offer staging builds (prereleases) as updates, not only stable releases",
+				middleware: [requirePermission("admin", inOrganization)],
+				request: body(z.object({ enabled: z.boolean() })),
+				responses: {
+					200: json(z.object({ enabled: z.boolean() }), "Saved"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { enabled } = c.req.valid("json");
+			await c.var.deps.db
+				.update(instanceSettings)
+				.set({ betaUpdates: enabled })
+				.where(eq(instanceSettings.id, "singleton"));
+			c.set("auditDiff", { after: { betaUpdates: enabled } });
 			return c.json({ enabled }, 200);
 		},
 	);

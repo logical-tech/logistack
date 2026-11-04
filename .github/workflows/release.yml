@@ -1,10 +1,20 @@
 name: Release
 
-# Push a tag such as v0.2.0: four multi-arch images on ghcr.io tagged 0.2.0 and latest, then a
-# GitHub Release with notes from the conventional commits since the previous tag.
+# Push a tag such as v0.2.0: the smoke test, then four multi-arch images on ghcr.io tagged 0.2.0 and
+# latest, then a GitHub Release with notes from the conventional commits since the previous tag.
+# Push to staging: the same images as a beta, 0.2.1-beta.<run> after the latest stable 0.2.0, and a
+# GitHub prerelease that instances with beta updates on are offered. No tests, no latest tag.
 on:
   push:
     tags: ["v*"]
+    branches: [staging]
+  # Re-runs a release on a tag ref, or skips its smoke test when that run already covered it.
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: Run the smoke test before a tag's build
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -19,22 +29,59 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
+      tag: ${{ steps.v.outputs.tag }}
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - id: v
         env:
-          TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF: ${{ github.ref_name }}
+          RUN: ${{ github.run_number }}
         run: |
+          if [ "$REF_TYPE" = tag ]; then
+            TAG=$REF
+          elif [ "$REF" = staging ]; then
+            # The patch after the latest stable release anywhere, even one staging hasn't merged:
+            # newer than every stable out, older than the stable release it leads to.
+            # awk reads to the end: an early exit would break the pipe under pipefail.
+            stable=$(git tag --list 'v*' --sort=-v:refname | awk '!/-/ && !f { print; f = 1 }')
+            stable=${stable:-v0.0.0}
+            IFS=. read -r major minor patch <<<"${stable#v}"
+            TAG=v$major.$minor.$((patch + 1))-beta.$RUN
+          else
+            echo "::error::releases come from a v* tag or the staging branch, not $REF"; exit 1
+          fi
           version=${TAG#v}
           [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] ||
             { echo "::error::tag $TAG is not v<semver>"; exit 1; }
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-          if [[ $version == *-* ]]; then echo prerelease=true; else echo prerelease=false; fi >>"$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "version=$version"
+            if [[ $version == *-* ]]; then echo prerelease=true; else echo prerelease=false; fi
+          } >>"$GITHUB_OUTPUT"
+
+  # A tag publishes only what installs and updates: the whole install in docker:dind, then an in-app
+  # update to locally built images. Staging betas skip it.
+  smoke:
+    needs: prepare
+    if: github.ref_type == 'tag' && (github.event_name != 'workflow_dispatch' || inputs.smoke)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: SMOKE_UPDATE=1 bash install/smoke.sh
 
   # One native runner per architecture (no QEMU), each pushing an untagged image by digest.
   build:
-    needs: prepare
+    needs: [prepare, smoke]
+    # A skipped smoke test (a beta, or a dispatch without it) doesn't skip the build; a failed one does.
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.smoke.result != 'failure' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     permissions:
@@ -96,6 +143,7 @@ jobs:
   # Joins the two architectures into one index, tagged <version> and, for a final release, latest.
   merge:
     needs: [prepare, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -144,6 +192,7 @@ jobs:
 
   release:
     needs: [prepare, merge]
+    if: ${{ !cancelled() && needs.merge.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -154,9 +203,11 @@ jobs:
           fetch-depth: 0
       - name: Notes and assets
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.prepare.outputs.tag }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
+          # A beta's tag exists only once the release below creates it; the notes need it locally.
+          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || git tag "$TAG" "$GITHUB_SHA"
           bash .github/release-notes.sh "$TAG" >notes.md
           mkdir dist
           # The attached installer installs this release when run without --version.
@@ -167,12 +218,16 @@ jobs:
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.prepare.outputs.tag }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
           flags=()
           if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); else flags+=(--latest); fi
-          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md "${flags[@]}" \
+          # A pushed tag must exist already; a staging beta's tag is created here, at this commit.
+          # Tags created with this token start no workflow, so the beta doesn't release twice.
+          if [ "$REF_TYPE" = tag ]; then flags+=(--verify-tag); else flags+=(--target "$GITHUB_SHA"); fi
+          gh release create "$TAG" --title "$TAG" --notes-file notes.md "${flags[@]}" \
             dist/install.sh dist/stack.yml
       # GitHub has no API to make a container package public; the first release needs a one-time
       # click per package (docs/INSTALL.md, "Publishing a release"). This only reports it.

@@ -44,3 +44,33 @@ test("no release yet is null, anything else unexpected throws", async () => {
 		latestRelease(answer(Response.json({ tag_name: 1 }))),
 	).rejects.toThrow("unexpected response");
 });
+
+test("beta takes the newest of the recent releases, prereleases included", async () => {
+	const at = (tag: string, extra = {}) => ({
+		...release,
+		tag_name: tag,
+		name: tag,
+		prerelease: tag.includes("-"),
+		...extra,
+	});
+	const seen: string[] = [];
+	const r = await latestRelease(
+		{
+			fetch: async (url) => {
+				seen.push(String(url));
+				return Response.json([
+					at("v0.2.9"),
+					at("v0.2.10-beta.12"),
+					at("v0.2.10-beta.3"),
+					at("v0.3.0-beta.1", { draft: true }),
+					at("nightly"),
+				]);
+			},
+		},
+		{ beta: true },
+	);
+	expect(seen).toEqual([
+		"https://api.github.com/repos/logical-tech/logistack/releases?per_page=30",
+	]);
+	expect(r?.version).toBe("0.2.10-beta.12");
+});

@@ -23,6 +23,7 @@ export type UpdatesApi = {
 	status(refresh?: boolean): Promise<UpdateStatus>;
 	start(version: string): Promise<UpdateRun>;
 	setAutoCheck(enabled: boolean): Promise<{ enabled: boolean }>;
+	setBeta(enabled: boolean): Promise<{ enabled: boolean }>;
 	/** Live `data` frames for a /ws channel; the mock simulates them. */
 	live(channel: string, fn: (data: LiveMessage) => void): () => void;
 };
@@ -33,6 +34,7 @@ const http: UpdatesApi = {
 		ok(a.$get({ query: refresh ? { refresh: "true" } : {} })),
 	start: (version) => ok(a.$post({ json: { version } })),
 	setAutoCheck: (enabled) => ok(a["auto-check"].$put({ json: { enabled } })),
+	setBeta: (enabled) => ok(a.beta.$put({ json: { enabled } })),
 	live: subscribe,
 };
 
@@ -109,5 +111,19 @@ export function useSetAutoCheck() {
 			qc.setQueryData(updateStatusQuery.queryKey, (s) =>
 				s ? { ...s, autoCheck: enabled } : s,
 			),
+	});
+}
+
+export function useSetBeta() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: updatesApi.setBeta,
+		onSuccess: ({ enabled }) => {
+			qc.setQueryData(updateStatusQuery.queryKey, (s) =>
+				s ? { ...s, beta: enabled } : s,
+			);
+			// The latest release depends on the channel, so the status is asked for again.
+			void qc.invalidateQueries({ queryKey: updateStatusQuery.queryKey });
+		},
 	});
 }

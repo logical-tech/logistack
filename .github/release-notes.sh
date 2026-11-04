@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Release notes in Markdown from the conventional commits between the previous v* tag and $1.
+# Release notes in Markdown from the conventional commits between the previous stable v* tag and $1,
+# so a stable release lists everything its betas carried, and each beta everything since stable.
 #   bash .github/release-notes.sh v0.2.0 > notes.md
 # Breaking changes (`type!:` or a BREAKING CHANGE footer) come first, then features, fixes and
 # performance. Other types (docs, test, chore, ci, refactor, merges) stay out of the notes.
@@ -7,7 +8,7 @@ set -euo pipefail
 
 tag=${1:?usage: release-notes.sh <tag>}
 repo=${GITHUB_REPOSITORY:-logical-tech/logistack}
-prev=$(git describe --tags --abbrev=0 --match 'v*' "$tag^" 2>/dev/null || true)
+prev=$(git describe --tags --abbrev=0 --match 'v*' --exclude '*-*' "$tag^" 2>/dev/null || true)
 range=${prev:+$prev..}$tag
 
 declare -A section=([breaking]="" [feat]="" [fix]="" [perf]="")

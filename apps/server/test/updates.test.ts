@@ -26,6 +26,13 @@ const release = {
 	prerelease: false,
 };
 
+const beta = {
+	...release,
+	tag_name: "v0.2.1-beta.4",
+	name: "v0.2.1-beta.4",
+	prerelease: true,
+};
+
 describe.skipIf(!hasDocker)("updates", () => {
 	let h: Harness;
 	let cookie: string;
@@ -40,7 +47,10 @@ describe.skipIf(!hasDocker)("updates", () => {
 		) => {
 			if (String(input).startsWith("https://api.github.com/")) {
 				asked++;
-				return Response.json(release);
+				// The beta channel lists recent releases, prereleases included.
+				return String(input).endsWith("?per_page=30")
+					? Response.json([release, beta])
+					: Response.json(release);
 			}
 			return real(input, init);
 		}) as typeof fetch;
@@ -177,5 +187,33 @@ describe.skipIf(!hasDocker)("updates", () => {
 		expect(r.status).toBe(200);
 		const status = await h.call("GET", "/api/instance/update", as());
 		expect(status.json.autoCheck).toBe(false);
+	});
+
+	test("beta updates offer the newest prerelease until turned off again", async () => {
+		const off = await h.call("GET", "/api/instance/update", as());
+		expect(off.json).toMatchObject({
+			beta: false,
+			latest: { version: "0.2.0" },
+		});
+		const r = await h.call("PUT", "/api/instance/update/beta", {
+			...as(),
+			body: { enabled: true },
+		});
+		expect(r.status).toBe(200);
+		const on = await h.call("GET", "/api/instance/update", as());
+		expect(on.json).toMatchObject({
+			beta: true,
+			latest: { version: "0.2.1-beta.4" },
+			updateAvailable: true,
+		});
+		await h.call("PUT", "/api/instance/update/beta", {
+			...as(),
+			body: { enabled: false },
+		});
+		const back = await h.call("GET", "/api/instance/update", as());
+		expect(back.json).toMatchObject({
+			beta: false,
+			latest: { version: "0.2.0" },
+		});
 	});
 });

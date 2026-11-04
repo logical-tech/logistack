@@ -32,6 +32,8 @@ export const instanceSettings = pgTable(
 		allowPrivateHosts: boolean("allow_private_hosts").notNull().default(false),
 		/** The worker asks GitHub for the latest release once a day and emits `instance.update_available`. */
 		autoCheckUpdates: boolean("auto_check_updates").notNull().default(true),
+		/** Updates follow `staging` builds (GitHub prereleases), not only stable releases. */
+		betaUpdates: boolean("beta_updates").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [

@@ -49,6 +49,7 @@ const state: UpdateStatus = {
 	checkedAt: new Date().toISOString(),
 	updateAvailable: true,
 	autoCheck: true,
+	beta: false,
 	run: null,
 };
 
@@ -153,6 +154,10 @@ export const mockUpdates: UpdatesApi = {
 	},
 	setAutoCheck: (enabled) => {
 		state.autoCheck = enabled;
+		return delay({ enabled });
+	},
+	setBeta: (enabled) => {
+		state.beta = enabled;
 		return delay({ enabled });
 	},
 	live: (channel, fn) => {

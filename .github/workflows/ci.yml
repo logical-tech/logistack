@@ -1,10 +1,14 @@
 name: CI
 
+# develop runs nothing and staging only builds betas (release.yml). Release tags are gated by the
+# smoke test in release.yml, so their commit, already checked here on main, isn't checked again.
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
 
 permissions:
   contents: read
@@ -49,12 +53,37 @@ jobs:
       - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
 
+  # Decides whether this push touches what the smoke test exercises: the installer, the images,
+  # the agent, migrations, Caddy and the in-app update.
+  changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      smoke: ${{ steps.diff.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # A force push leaves no base to diff against: run it.
+          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo smoke=true >>"$GITHUB_OUTPUT"
+          elif git diff --name-only "$BEFORE" HEAD | grep -qE '^(install/|docker/|Dockerfile|\.dockerignore|bun\.lock|(apps|packages)/[a-z-]+/package\.json|apps/agent/|packages/db/drizzle/|packages/(docker|proxy)/|apps/server/src/(index|config)\.ts|apps/server/src/routes/updates\.ts|apps/worker/src/(index|config|build|instance-update|update-runner)\.ts)'; then
+            echo smoke=true >>"$GITHUB_OUTPUT"
+          else
+            echo smoke=false >>"$GITHUB_OUTPUT"
+          fi
+
   # The whole install in docker:dind, then an in-app update to locally built images. About
-  # 10 minutes from a cold cache, so it runs on main and on release tags, not on every PR.
+  # 10 minutes from a cold cache, so it runs beside check, and only when the push touches it.
   smoke:
     name: Install and update smoke test
-    if: github.event_name == 'push'
-    needs: [check, scripts]
+    needs: changes
+    if: needs.changes.outputs.smoke == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:

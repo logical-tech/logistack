@@ -1,6 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import {
+	ArrowRight,
+	ExternalLink,
+	Loader2,
+	RefreshCw,
+	TriangleAlert,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -17,6 +23,7 @@ import {
 	type UpdateStepId,
 	useCheckNow,
 	useSetAutoCheck,
+	useSetBeta,
 	useStartUpdate,
 	useUpdateStatus,
 } from "@/lib/api/updates";
@@ -99,6 +106,7 @@ function Updates() {
 	const check = useCheckNow();
 	const start = useStartUpdate();
 	const autoCheck = useSetAutoCheck();
+	const beta = useSetBeta();
 	const [confirming, setConfirming] = useState(false);
 
 	const busy = isActive(s?.run);
@@ -168,7 +176,11 @@ function Updates() {
 									<ArrowRight className="size-4" />
 								</div>
 								<VersionCell
-									label="Latest release"
+									label={
+										s.latest?.version.includes("-")
+											? "Latest beta"
+											: "Latest release"
+									}
 									version={s.latest ? tag(s.latest.version) : "None yet"}
 								>
 									{s.latest?.publishedAt && (
@@ -263,6 +275,61 @@ function Updates() {
 							}
 						/>
 					</div>
+				</Panel>
+
+				<Panel id="channel" title="Release channel">
+					<div className="flex items-start justify-between gap-6 p-4 sm:px-5">
+						<div className="min-w-0">
+							<label htmlFor="beta-switch" className="text-sm font-medium">
+								Beta updates
+							</label>
+							<p
+								id="beta-msg"
+								className="mt-1 max-w-[60ch] text-sm text-pretty text-muted-foreground"
+							>
+								Offer the builds of the staging branch as updates, ahead of the
+								stable release they lead to. Turning this off doesn't roll back:
+								the instance stays on its beta until a newer stable release is
+								out.
+							</p>
+						</div>
+						<Switch
+							id="beta-switch"
+							aria-describedby="beta-msg"
+							checked={s?.beta ?? false}
+							disabled={!s || !admin || beta.isPending}
+							onCheckedChange={(on) =>
+								beta.mutate(on, {
+									onSuccess: () =>
+										toast(on ? "Beta updates on" : "Beta updates off"),
+									onError: (err) =>
+										toast.error("Couldn't change the setting", {
+											description: err.message,
+										}),
+								})
+							}
+						/>
+					</div>
+					{s?.beta && (
+						<div className="px-4 pb-4 sm:px-5">
+							<div className="t-reveal flex items-start gap-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm">
+								<TriangleAlert
+									className="mt-0.5 size-4 shrink-0 text-warn-text"
+									aria-hidden
+								/>
+								<p className="max-w-[68ch] text-pretty">
+									<span className="font-medium">
+										Betas aren't ready for production.
+									</span>{" "}
+									<span className="text-muted-foreground">
+										They pass the build but not the full test suite, and a
+										migration they bring can't be undone. Keep this off on
+										servers that host anything you depend on.
+									</span>
+								</p>
+							</div>
+						</div>
+					)}
 				</Panel>
 			</div>
 

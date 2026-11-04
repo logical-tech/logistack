@@ -1,0 +1,1 @@
+ALTER TABLE "instance_settings" ADD COLUMN "beta_updates" boolean DEFAULT false NOT NULL;

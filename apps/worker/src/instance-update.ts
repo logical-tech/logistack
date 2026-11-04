@@ -120,11 +120,12 @@ export async function checkForUpdate(ctx: Ctx, deps: Deps = {}): Promise<void> {
 	const [s] = await ctx.db
 		.select({
 			on: instanceSettings.autoCheckUpdates,
+			beta: instanceSettings.betaUpdates,
 			url: instanceSettings.publicUrl,
 		})
 		.from(instanceSettings);
 	if (!s?.on) return;
-	const latest = await latestRelease(deps);
+	const latest = await latestRelease(deps, { beta: s.beta });
 	const current = ctx.cfg.LOGISTACK_VERSION;
 	if (!latest || compareVersions(latest.version, current) <= 0) return;
 	if ((await ctx.bus.redis.get(NOTIFIED_KEY)) === latest.version) return;
