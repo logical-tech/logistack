@@ -111,11 +111,105 @@ export function describeCron(expr: string): string | null {
 	return `Monthly on the ${ordinal(day)} at ${at}`;
 }
 
-export const CRON_PRESETS = [
-	{ value: "0 * * * *", label: "Hourly" },
-	{ value: "0 3 * * *", label: "Daily" },
-	{ value: "0 3 * * 0", label: "Weekly" },
-] as const;
+/** The shapes the visual builder edits; anything else stays a raw expression. */
+export type SimpleCron =
+	| { every: "minutes"; step: number }
+	| { every: "hours"; step: number; minute: number }
+	| { every: "day"; hour: number; minute: number }
+	| { every: "week"; days: number[]; hour: number; minute: number }
+	| { every: "month"; day: number; hour: number; minute: number };
+
+export type CronEvery = SimpleCron["every"];
+
+const step = (n: number) => (n === 1 ? "*" : `*/${n}`);
+
+export function toCron(s: SimpleCron): string {
+	switch (s.every) {
+		case "minutes":
+			return `${step(s.step)} * * * *`;
+		case "hours":
+			return `${s.minute} ${step(s.step)} * * *`;
+		case "day":
+			return `${s.minute} ${s.hour} * * *`;
+		case "week": {
+			const days = [...new Set(s.days)].sort((a, b) => a - b).join(",");
+			return `${s.minute} ${s.hour} * * ${days === "1,2,3,4,5" ? "1-5" : days || "*"}`;
+		}
+		case "month":
+			return `${s.minute} ${s.hour} ${s.day} * *`;
+	}
+}
+
+/** "*" → 1, "*\/N" → N, anything else null. */
+function stepOf(field: string) {
+	if (field === "*") return 1;
+	const m = /^\*\/(\d+)$/.exec(field);
+	return m ? Number(m[1]) : null;
+}
+
+/** "1-5", "0,6", "1,3-4" → day numbers 0-6 (7 counts as Sunday); null for steps or names. */
+function weekdays(field: string): number[] | null {
+	const out = new Set<number>();
+	for (const part of field.split(",")) {
+		const range = /^(\d)(?:-(\d))?$/.exec(part);
+		if (!range) return null;
+		const from = Number(range[1]);
+		const to = range[2] === undefined ? from : Number(range[2]);
+		if (from > 7 || to > 7 || to < from) return null;
+		for (let d = from; d <= to; d++) out.add(d % 7);
+	}
+	return [...out].sort((a, b) => a - b);
+}
+
+/** The builder form of an expression, or null when it needs the raw editor. */
+export function fromCron(expr: string): SimpleCron | null {
+	if (cronError(expr)) return null;
+	const [m = "", h = "", dom = "", mon = "", dow = ""] = expr
+		.trim()
+		.split(/\s+/);
+	if (mon !== "*") return null;
+	const minute = num(m);
+	const daily = dom === "*" && dow === "*";
+
+	if (daily && h === "*" && minute === null) {
+		const n = stepOf(m);
+		return n ? { every: "minutes", step: n } : null;
+	}
+	if (minute === null) return null;
+	if (daily && stepOf(h))
+		return { every: "hours", step: stepOf(h) as number, minute };
+	const hour = num(h);
+	if (hour === null) return null;
+	if (daily) return { every: "day", hour, minute };
+	if (dom === "*") {
+		const days = weekdays(dow);
+		return days ? { every: "week", days, hour, minute } : null;
+	}
+	const day = num(dom);
+	if (day !== null && dow === "*") return { every: "month", day, hour, minute };
+	return null;
+}
+
+/** Another frequency, keeping the time of day where both have one. */
+export function switchEvery(
+	from: SimpleCron | null,
+	every: CronEvery,
+): SimpleCron {
+	const hour = from && "hour" in from ? from.hour : 3;
+	const minute = from && "minute" in from ? from.minute : 0;
+	switch (every) {
+		case "minutes":
+			return { every, step: 15 };
+		case "hours":
+			return { every, step: 1, minute };
+		case "day":
+			return { every, hour, minute };
+		case "week":
+			return { every, days: [1], hour, minute };
+		case "month":
+			return { every, day: 1, hour, minute };
+	}
+}
 
 /** "Tue 4 Nov, 03:00 CET" in the schedule's own zone. */
 export function formatInZone(iso: string, timezone: string) {

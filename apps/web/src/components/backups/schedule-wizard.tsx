@@ -393,7 +393,7 @@ const STEPS: WizardStep<V>[] = [
 		id: "when",
 		title: "When it runs",
 		description:
-			"Five cron fields. The preview shows the next runs in the chosen zone.",
+			"Pick a frequency and a time, or write a cron expression. The preview shows the next runs in the chosen zone.",
 		schema: z.object({
 			cron: z
 				.string()

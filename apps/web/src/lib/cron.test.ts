@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { cronError, describeCron, nextRuns } from "./cron";
+import {
+	cronError,
+	describeCron,
+	fromCron,
+	nextRuns,
+	switchEvery,
+	toCron,
+} from "./cron";
 
 test("common shapes read as words", () => {
 	expect(describeCron("0 3 * * *")).toBe("Every day at 03:00");
@@ -38,4 +45,64 @@ test("next runs follow the time zone", () => {
 	expect(nextRuns("0 3 * * *", "UTC", 1, from)).toEqual([
 		"2026-11-04T03:00:00.000Z",
 	]);
+});
+
+test("builder shapes round-trip through cron", () => {
+	for (const expr of [
+		"*/15 * * * *",
+		"* * * * *",
+		"30 * * * *",
+		"0 */6 * * *",
+		"0 3 * * *",
+		"30 9 * * 1-5",
+		"0 4 * * 1,4",
+		"0 5 * * 0",
+		"15 1 1 * *",
+	])
+		expect(
+			toCron(fromCron(expr) as NonNullable<ReturnType<typeof fromCron>>),
+		).toBe(expr);
+});
+
+test("weekday fields normalise", () => {
+	expect(fromCron("0 3 * * 7")).toEqual({
+		every: "week",
+		days: [0],
+		hour: 3,
+		minute: 0,
+	});
+	expect(fromCron("0 3 * * 1-3,5")).toMatchObject({ days: [1, 2, 3, 5] });
+	expect(
+		toCron({ every: "week", days: [5, 1, 2, 3, 4], hour: 9, minute: 0 }),
+	).toBe("0 9 * * 1-5");
+});
+
+test("expressions the builder cannot show stay raw", () => {
+	expect(fromCron("0 3 * 1 *")).toBeNull();
+	expect(fromCron("0 2,14 * * *")).toBeNull();
+	expect(fromCron("5-10 3 * * *")).toBeNull();
+	expect(fromCron("0 3 1 * 1")).toBeNull();
+	expect(fromCron("0 3 * * */2")).toBeNull();
+	expect(fromCron("nope")).toBeNull();
+});
+
+test("switching frequency keeps the time of day", () => {
+	const daily = { every: "day", hour: 22, minute: 30 } as const;
+	expect(switchEvery(daily, "week")).toEqual({
+		every: "week",
+		days: [1],
+		hour: 22,
+		minute: 30,
+	});
+	expect(switchEvery(daily, "hours")).toEqual({
+		every: "hours",
+		step: 1,
+		minute: 30,
+	});
+	expect(switchEvery(null, "month")).toEqual({
+		every: "month",
+		day: 1,
+		hour: 3,
+		minute: 0,
+	});
 });
