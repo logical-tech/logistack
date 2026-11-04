@@ -36,7 +36,7 @@ import {
 	placeholder,
 } from "@codemirror/view";
 import type { DatabaseSchema } from "@logistack/contracts";
-import { type SqlDialect, splitSql } from "@logistack/core";
+import { type SqlDialect, splitSql } from "@logistack/core/sql";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import {
 	editorHighlight,
