@@ -21,6 +21,7 @@ import type {
 	TableRef,
 } from "@logistack/contracts";
 import { ProviderError } from "../http.ts";
+import { libsqlClient } from "./libsql.ts";
 import { mongoClient } from "./mongo.ts";
 import { mysqlClient } from "./mysql.ts";
 import { postgresClient } from "./postgres.ts";
@@ -132,6 +133,7 @@ export function databaseClient(conn: DatabaseConnection): DatabaseClient {
 		return mysqlClient(conn);
 	if (conn.engine === "mongo") return mongoClient(conn);
 	if (conn.engine === "redis") return redisClient(conn);
+	if (conn.engine === "libsql") return libsqlClient(conn);
 	throw new DatabaseError(
 		"open",
 		`the explorer does not support ${conn.engine} yet`,

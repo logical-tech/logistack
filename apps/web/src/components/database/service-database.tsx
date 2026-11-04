@@ -97,7 +97,8 @@ export function ServiceDatabase({
 		spec?.engine === "mysql" ||
 		spec?.engine === "mariadb" ||
 		spec?.engine === "mongo" ||
-		spec?.engine === "redis";
+		spec?.engine === "redis" ||
+		spec?.engine === "libsql";
 	const running = service.status.observed === "running";
 	const [redeployed, setRedeployed] = useState(false);
 	const schema = useQuery({
@@ -172,7 +173,7 @@ export function ServiceDatabase({
 					description={
 						running
 							? `Download a dump or restore one from the menu above. Browsing and editing ${engine} follow in the next releases.`
-							: "The explorer reads and edits Postgres, MySQL and MariaDB tables, MongoDB collections and Redis keys."
+							: "The explorer reads and edits Postgres, MySQL, MariaDB and libSQL tables, MongoDB collections and Redis keys."
 					}
 				/>
 			</>
@@ -340,6 +341,8 @@ export function ServiceDatabase({
 
 	// Mongo has no SQL editor: finds run from the document list.
 	const mongo = schema.data.engine === "mongo";
+	// One database, token auth: no roles, and DDL goes through the SQL editor.
+	const sqlite = schema.data.engine === "libsql";
 	const noun = mongo ? "collections" : "tables";
 	const data = schema.data;
 	const dialect = dialectOf(data);
@@ -360,7 +363,7 @@ export function ServiceDatabase({
 							{ value: "data", label: "Data" },
 							{ value: "diagram", label: "Diagram" },
 							{ value: "sql", label: "SQL" },
-							{ value: "roles", label: "Roles" },
+							...(sqlite ? [] : [{ value: "roles" as const, label: "Roles" }]),
 						]}
 					/>
 					{/* Data and SQL pick the database in the tree and editor; these views have no tree. */}
@@ -482,28 +485,29 @@ export function ServiceDatabase({
 		prependSqlDraft(service.id, data, text);
 		onNavigate({ view: "sql" });
 	};
-	const actions: TreeActions | undefined = mongo
-		? undefined
-		: {
-				dialect,
-				databases: data.databases,
-				defaultDatabase: data.defaultDatabase,
-				onDatabase: (name) =>
-					onNavigate({
-						database: name === data.defaultDatabase ? undefined : name,
-						schema: undefined,
-						table: undefined,
-						sort: [],
-						filter: [],
-					}),
-				onNewDatabase: () => setNewDatabase(true),
-				onDropDatabase: setDropDatabase,
-				onNew: (s, what) =>
-					what === "table"
-						? setNewTable(s)
-						: openSqlWith(templateSql(dialect, what, s)),
-				onDrop: setDropObject,
-			};
+	const actions: TreeActions | undefined =
+		mongo || sqlite
+			? undefined
+			: {
+					dialect,
+					databases: data.databases,
+					defaultDatabase: data.defaultDatabase,
+					onDatabase: (name) =>
+						onNavigate({
+							database: name === data.defaultDatabase ? undefined : name,
+							schema: undefined,
+							table: undefined,
+							sort: [],
+							filter: [],
+						}),
+					onNewDatabase: () => setNewDatabase(true),
+					onDropDatabase: setDropDatabase,
+					onNew: (s, what) =>
+						what === "table"
+							? setNewTable(s)
+							: openSqlWith(templateSql(dialect, what, s)),
+					onDrop: setDropObject,
+				};
 
 	if (at.view === "diagram" && !mongo)
 		return shell(
@@ -522,7 +526,7 @@ export function ServiceDatabase({
 			</>,
 		);
 
-	if (at.view === "roles" && !mongo && at.newRole)
+	if (at.view === "roles" && !mongo && !sqlite && at.newRole)
 		return shell(
 			<>
 				{switcher}
@@ -560,7 +564,7 @@ export function ServiceDatabase({
 			</>,
 		);
 
-	if (at.view === "roles" && !mongo)
+	if (at.view === "roles" && !mongo && !sqlite)
 		return shell(
 			<>
 				{switcher}

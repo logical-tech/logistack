@@ -73,6 +73,7 @@ const ENV_KEYS = [
 	"MONGO_INITDB_ROOT_PASSWORD",
 	"MONGO_INITDB_DATABASE",
 	"REDIS_PASSWORD",
+	"LIBSQL_AUTH_TOKEN",
 ];
 
 type Login = {
@@ -121,6 +122,13 @@ const LOGIN: Partial<
 		passwordKey: "REDIS_PASSWORD",
 		password: env.REDIS_PASSWORD,
 		database: "0",
+	}),
+	// sqld checks a signed JWT; the full-access one is the "password".
+	libsql: (env) => ({
+		user: "",
+		passwordKey: "LIBSQL_AUTH_TOKEN",
+		password: env.LIBSQL_AUTH_TOKEN,
+		database: "main",
 	}),
 };
 
