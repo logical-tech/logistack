@@ -5,13 +5,21 @@ import {
 	type DbTable,
 } from "@logistack/contracts";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Plus, X } from "lucide-react";
+import { ArrowLeft, ChevronsUpDown, Loader2, Plus, X } from "lucide-react";
 import { type CSSProperties, type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
 import {
 	Dialog,
 	DialogContent,
@@ -21,6 +29,11 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { ApiError } from "@/lib/api";
 import { databaseApi } from "@/lib/api/database";
 import { cn } from "@/lib/utils";
@@ -96,44 +109,211 @@ const isForbidden = (e: unknown) => e instanceof ApiError && e.status === 403;
 const errorText = (e: unknown) =>
 	e instanceof Error ? e.message : "Something went wrong.";
 
-const TYPES: Record<Dialect, string[]> = {
+type TypeGroup = { label: string; types: [type: string, hint: string][] };
+
+/** Common column types by family; any other type is typed into the search. */
+const TYPES: Record<Dialect, TypeGroup[]> = {
 	postgres: [
-		"bigint",
-		"integer",
-		"smallint",
-		"numeric(12,2)",
-		"double precision",
-		"boolean",
-		"text",
-		"varchar(255)",
-		"uuid",
-		"date",
-		"timestamptz",
-		"timestamp",
-		"interval",
-		"jsonb",
-		"bytea",
-		"inet",
-		"text[]",
+		{
+			label: "Numbers",
+			types: [
+				["bigint", "8-byte integer"],
+				["integer", "4-byte integer"],
+				["smallint", "2-byte integer"],
+				["numeric(12,2)", "exact decimal, for money"],
+				["real", "4-byte float"],
+				["double precision", "8-byte float"],
+			],
+		},
+		{
+			label: "Text",
+			types: [
+				["text", "any length"],
+				["varchar(255)", "up to 255 characters"],
+				["char(2)", "fixed length"],
+			],
+		},
+		{
+			label: "Date and time",
+			types: [
+				["timestamptz", "instant, with time zone"],
+				["timestamp", "without time zone"],
+				["date", "calendar day"],
+				["time", "time of day"],
+				["interval", "duration"],
+			],
+		},
+		{
+			label: "Other",
+			types: [
+				["boolean", "true or false"],
+				["uuid", "128-bit identifier"],
+				["jsonb", "binary JSON, indexable"],
+				["json", "JSON text"],
+				["bytea", "binary data"],
+				["inet", "IP address"],
+				["text[]", "array of text"],
+				["integer[]", "array of integers"],
+			],
+		},
 	],
 	mysql: [
-		"bigint",
-		"int",
-		"smallint",
-		"tinyint(1)",
-		"decimal(12,2)",
-		"double",
-		"varchar(255)",
-		"char(36)",
-		"text",
-		"longtext",
-		"json",
-		"date",
-		"datetime",
-		"timestamp",
-		"blob",
+		{
+			label: "Numbers",
+			types: [
+				["bigint", "8-byte integer"],
+				["int", "4-byte integer"],
+				["smallint", "2-byte integer"],
+				["tinyint", "1-byte integer"],
+				["decimal(12,2)", "exact decimal, for money"],
+				["double", "8-byte float"],
+				["float", "4-byte float"],
+			],
+		},
+		{
+			label: "Text",
+			types: [
+				["varchar(255)", "up to 255 characters"],
+				["char(36)", "fixed length, e.g. a UUID"],
+				["text", "up to 64 KB"],
+				["mediumtext", "up to 16 MB"],
+				["longtext", "up to 4 GB"],
+			],
+		},
+		{
+			label: "Date and time",
+			types: [
+				["datetime", "date and time"],
+				["timestamp", "UTC instant"],
+				["date", "calendar day"],
+				["time", "time of day"],
+				["year", "4-digit year"],
+			],
+		},
+		{
+			label: "Other",
+			types: [
+				["tinyint(1)", "boolean"],
+				["json", "JSON document"],
+				["binary(16)", "e.g. a binary UUID"],
+				["blob", "binary, up to 64 KB"],
+				["longblob", "binary, up to 4 GB"],
+			],
+		},
 	],
 };
+
+/** A searchable list of column types; a type that isn't listed is used as typed. */
+function TypeCombobox({
+	dialect,
+	value,
+	onChange,
+	label,
+	invalid,
+	title,
+}: {
+	dialect: Dialect;
+	value: string;
+	onChange: (type: string) => void;
+	label: string;
+	invalid?: boolean;
+	title?: string;
+}) {
+	const [open, setOpen] = useState(false);
+	const [query, setQuery] = useState("");
+	const typed = query.trim();
+	const known = TYPES[dialect].some((g) =>
+		g.types.some(([t]) => t === typed.toLowerCase()),
+	);
+	const pick = (type: string) => {
+		onChange(type);
+		setOpen(false);
+	};
+	return (
+		<Popover
+			open={open}
+			onOpenChange={(o) => {
+				setOpen(o);
+				if (o) setQuery("");
+			}}
+		>
+			<PopoverTrigger asChild>
+				<Button
+					type="button"
+					variant="outline"
+					role="combobox"
+					aria-expanded={open}
+					aria-label={label}
+					aria-invalid={invalid || undefined}
+					title={title}
+					className="h-8 w-full justify-between px-2.5 font-normal aria-invalid:ring-1 aria-invalid:ring-destructive"
+				>
+					<span
+						className={cn(
+							"truncate font-mono text-xs",
+							!value && "font-sans text-sm text-muted-foreground",
+						)}
+					>
+						{value || "type"}
+					</span>
+					<ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-72 p-0" align="start">
+				{/* Substring, not fuzzy: "time" should not find numeric(12,2) through its hint. */}
+				<Command
+					filter={(item, search, keywords) =>
+						`${item} ${keywords?.join(" ") ?? ""}`
+							.toLowerCase()
+							.includes(search.trim().toLowerCase())
+							? 1
+							: 0
+					}
+				>
+					<CommandInput
+						value={query}
+						onValueChange={setQuery}
+						placeholder="Search or type any type"
+					/>
+					<CommandList className="max-h-72">
+						<CommandEmpty>No type matches.</CommandEmpty>
+						{typed && !known && (
+							<CommandGroup>
+								<CommandItem
+									value={`\u0000${typed}`}
+									onSelect={() => pick(typed)}
+								>
+									<span className="text-muted-foreground">Use</span>
+									<span className="truncate font-mono text-xs">{typed}</span>
+								</CommandItem>
+							</CommandGroup>
+						)}
+						{TYPES[dialect].map((g) => (
+							<CommandGroup key={g.label} heading={g.label}>
+								{g.types.map(([type, hint]) => (
+									<CommandItem
+										key={type}
+										value={type}
+										keywords={[hint]}
+										data-checked={value === type}
+										onSelect={() => pick(type)}
+									>
+										<span className="min-w-0 flex-1 truncate font-mono text-xs">
+											{type}
+										</span>
+										<span className="truncate text-xs text-muted-foreground">
+											{hint}
+										</span>
+									</CommandItem>
+								))}
+							</CommandGroup>
+						))}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	);
+}
 
 /** The default a new key column gets: Postgres identity, MySQL auto_increment. */
 const AUTO: Record<Dialect, string> = {
@@ -314,7 +494,6 @@ export function NewTableDialog({
 		}
 	}
 
-	const typesId = `${uid}-types`;
 	return (
 		<Dialog open={open} onOpenChange={close}>
 			<DialogContent className="sm:max-w-2xl" data-new-table={uid}>
@@ -353,11 +532,6 @@ export function NewTableDialog({
 						</Field>
 						<fieldset className="grid min-w-0 gap-2">
 							<legend className="mb-2 text-sm font-medium">Columns</legend>
-							<datalist id={typesId}>
-								{TYPES[dialect].map((t) => (
-									<option key={t} value={t} />
-								))}
-							</datalist>
 							<div
 								className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_3rem_3rem_2rem] gap-2 px-0.5 text-xs text-muted-foreground sm:grid"
 								aria-hidden
@@ -394,19 +568,13 @@ export function NewTableDialog({
 													className="h-8"
 												/>
 											</div>
-											<Input
+											<TypeCombobox
+												dialect={dialect}
 												value={c.type}
-												onChange={(ev) =>
-													patch(c.key, { type: ev.target.value })
-												}
-												list={typesId}
-												placeholder="type"
-												aria-label={`Type of ${label}`}
-												aria-invalid={!!e?.type || undefined}
+												onChange={(type) => patch(c.key, { type })}
+												label={`Type of ${label}`}
+												invalid={!!e?.type}
 												title={e?.type}
-												spellCheck={false}
-												autoComplete="off"
-												className="h-8"
 											/>
 											<Input
 												value={c.default}
