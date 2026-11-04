@@ -1,14 +1,19 @@
 import { MonitoringSettingsInput } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Loader2, Plus, ServerCrash, X } from "lucide-react";
+import { ChevronDown, Loader2, Plus, ServerCrash, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CronField } from "@/components/backups/cron-field";
+import { TimezonePicker } from "@/components/backups/cron-field";
 import { MonitoringPage } from "@/components/monitoring/monitoring-page";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -58,17 +63,17 @@ const TARGETS: { value: PruneTarget; label: string; hint: string }[] = [
 	{
 		value: "images",
 		label: "Unused images",
-		hint: "Any image no container uses, LogiStack's or not.",
+		hint: "Images no running app uses. They download again if needed.",
 	},
 	{
 		value: "buildCache",
 		label: "Build cache",
-		hint: "Docker's builder cache and LogiStack's BuildKit cache.",
+		hint: "Leftovers from builds. The next build may take a bit longer.",
 	},
 	{
 		value: "containers",
 		label: "Stopped containers",
-		hint: "Only LogiStack's, such as old Swarm tasks.",
+		hint: "Old copies of your apps that are no longer running.",
 	},
 ];
 
@@ -83,6 +88,162 @@ function validate(d: Draft): Record<string, string> {
 	if (d.cleanup.enabled && !d.cleanup.targets.length)
 		out["cleanup.targets"] ??= "Pick at least one thing to clean up";
 	return out;
+}
+
+type CleanupDraft = Draft["cleanup"];
+type Frequency = "daily" | "weekly" | "custom";
+
+const SIMPLE_CRON = /^(\d{1,2}) (\d{1,2}) \* \* (\*|0)$/;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** The common case as "every day at 03:00"; cron, time zone and targets stay one click away. */
+function CleanupSchedule({
+	cleanup,
+	onChange,
+	errors,
+}: {
+	cleanup: CleanupDraft;
+	onChange: (patch: Partial<CleanupDraft>) => void;
+	errors: Record<string, string>;
+}) {
+	const m = SIMPLE_CRON.exec(cleanup.cron);
+	const [custom, setCustom] = useState(!m);
+	const freq: Frequency =
+		custom || !m ? "custom" : m[3] === "0" ? "weekly" : "daily";
+	const minute = m ? Number(m[1]) : 0;
+	const hour = m ? Number(m[2]) : 3;
+	const cronFor = (f: Frequency, h: number, min: number) =>
+		`${min} ${h} * * ${f === "weekly" ? "0" : "*"}`;
+	const advancedErrors =
+		errors["cleanup.targets"] || errors["cleanup.untilHours"];
+
+	return (
+		<div className="grid gap-5">
+			<fieldset className="m-0 grid min-w-0 gap-2 border-0 p-0">
+				<legend className="mb-2 text-sm font-medium">Runs</legend>
+				<div className="flex flex-wrap items-center gap-2 text-sm">
+					<Select
+						value={freq}
+						onValueChange={(f: Frequency) => {
+							setCustom(f === "custom");
+							if (f !== "custom") onChange({ cron: cronFor(f, hour, minute) });
+						}}
+					>
+						<SelectTrigger className="w-40" aria-label="How often">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="daily">Every day</SelectItem>
+							<SelectItem value="weekly">Every Sunday</SelectItem>
+							<SelectItem value="custom">Custom (cron)</SelectItem>
+						</SelectContent>
+					</Select>
+					{freq === "custom" ? (
+						<Input
+							aria-label="Cron expression"
+							value={cleanup.cron}
+							onChange={(e) => onChange({ cron: e.target.value })}
+							aria-invalid={errors["cleanup.cron"] ? true : undefined}
+							className="w-40 font-mono"
+							spellCheck={false}
+						/>
+					) : (
+						<>
+							<span className="text-muted-foreground">at</span>
+							<Input
+								aria-label="Time"
+								type="time"
+								step={60}
+								required
+								value={`${pad2(hour)}:${pad2(minute)}`}
+								onChange={(e) => {
+									const [h, min] = e.target.value.split(":").map(Number);
+									if (Number.isInteger(h) && Number.isInteger(min))
+										onChange({
+											cron: cronFor(freq, h as number, min as number),
+										});
+								}}
+								className="w-28 tabular"
+							/>
+						</>
+					)}
+					<span className="text-muted-foreground">{cleanup.timezone}</span>
+				</div>
+				{errors["cleanup.cron"] && (
+					<p className="text-xs text-bad-text">{errors["cleanup.cron"]}</p>
+				)}
+			</fieldset>
+
+			<Collapsible className="group/adv" defaultOpen={!!advancedErrors}>
+				<CollapsibleTrigger className="flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+					Advanced options
+					<ChevronDown
+						className="size-4 transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-data-[state=open]/adv:rotate-180"
+						aria-hidden
+					/>
+				</CollapsibleTrigger>
+				<CollapsibleContent className="grid gap-6 pt-4">
+					<div className="grid gap-2 sm:max-w-[16rem]">
+						<label htmlFor="cleanup-tz" className="text-sm font-medium">
+							Time zone
+						</label>
+						<TimezonePicker
+							id="cleanup-tz"
+							value={cleanup.timezone}
+							onChange={(timezone) => onChange({ timezone })}
+						/>
+					</div>
+					<fieldset className="grid gap-3">
+						<legend className="mb-3 text-sm font-medium">What to delete</legend>
+						{TARGETS.map((t) => (
+							<label
+								key={t.value}
+								htmlFor={`cleanup-${t.value}`}
+								className="flex items-start gap-3"
+							>
+								<Checkbox
+									id={`cleanup-${t.value}`}
+									className="mt-0.5"
+									checked={cleanup.targets.includes(t.value)}
+									onCheckedChange={(on) =>
+										onChange({
+											targets: on
+												? [...cleanup.targets, t.value]
+												: cleanup.targets.filter((x) => x !== t.value),
+										})
+									}
+								/>
+								<span className="grid gap-0.5">
+									<span className="text-sm">{t.label}</span>
+									<span className="text-xs text-muted-foreground">
+										{t.hint}
+									</span>
+								</span>
+							</label>
+						))}
+						{errors["cleanup.targets"] && (
+							<p className="text-xs text-bad-text">
+								{errors["cleanup.targets"]}
+							</p>
+						)}
+					</fieldset>
+					<div className="sm:max-w-[16rem]">
+						<NumberField
+							id="cleanup-age"
+							label="Skip anything newer than"
+							value={cleanup.untilHours}
+							onChange={(untilHours) => onChange({ untilHours })}
+							min={0}
+							max={8_760}
+							unit="hours"
+							error={errors["cleanup.untilHours"]}
+							hint="Keeps the last deploy's image, so a quick rollback needs no download."
+						/>
+					</div>
+				</CollapsibleContent>
+			</Collapsible>
+		</div>
+	);
 }
 
 function NumberField({
@@ -432,86 +593,29 @@ function Alerts() {
 
 				<Panel
 					id="cleanup"
-					title="Cleanup"
+					title="Automatic cleanup"
 					actions={
 						<Switch
 							checked={draft.cleanup.enabled}
 							onCheckedChange={(enabled) => setCleanup({ enabled })}
-							aria-label="Clean up nodes on a schedule"
+							aria-label="Clean up nodes automatically"
 						/>
 					}
-					bodyClassName="p-4 sm:p-5"
+					bodyClassName="grid gap-5 p-4 sm:p-5"
 				>
-					<p className="mb-5 max-w-[62ch] text-sm text-muted-foreground">
-						Every connected node prunes what Docker keeps around after deploys
-						and builds. Running services keep their images and volumes are never
-						touched. Each node's Disk panel shows what is taking space.
+					<p className="max-w-[62ch] text-sm text-muted-foreground">
+						Frees disk space by deleting what Docker leaves behind after deploys
+						and builds. Running apps and their data are never touched.
 					</p>
-					<div
-						className={cn(
-							"grid gap-6 transition-opacity",
-							!draft.cleanup.enabled && "opacity-55",
-						)}
-					>
-						<CronField
-							id="cleanup-cron"
-							label="Runs"
-							cron={draft.cleanup.cron}
-							timezone={draft.cleanup.timezone}
-							onCron={(cron) => setCleanup({ cron })}
-							onTimezone={(timezone) => setCleanup({ timezone })}
-							error={errors["cleanup.cron"]}
+					{draft.cleanup.enabled && (
+						<CleanupSchedule
+							cleanup={draft.cleanup}
+							onChange={setCleanup}
+							errors={errors}
 						/>
-						<fieldset className="grid gap-3">
-							<legend className="mb-3 text-sm font-medium">Removes</legend>
-							{TARGETS.map((t) => (
-								<label
-									key={t.value}
-									htmlFor={`cleanup-${t.value}`}
-									className="flex items-start gap-3"
-								>
-									<Checkbox
-										id={`cleanup-${t.value}`}
-										className="mt-0.5"
-										checked={draft.cleanup.targets.includes(t.value)}
-										onCheckedChange={(on) =>
-											setCleanup({
-												targets: on
-													? [...draft.cleanup.targets, t.value]
-													: draft.cleanup.targets.filter((x) => x !== t.value),
-											})
-										}
-									/>
-									<span className="grid gap-0.5">
-										<span className="text-sm">{t.label}</span>
-										<span className="text-xs text-muted-foreground">
-											{t.hint}
-										</span>
-									</span>
-								</label>
-							))}
-							{errors["cleanup.targets"] && (
-								<p className="text-xs text-bad-text">
-									{errors["cleanup.targets"]}
-								</p>
-							)}
-						</fieldset>
-						<div className="sm:max-w-[16rem]">
-							<NumberField
-								id="cleanup-age"
-								label="Keep anything newer than"
-								value={draft.cleanup.untilHours}
-								onChange={(untilHours) => setCleanup({ untilHours })}
-								min={0}
-								max={8_760}
-								unit="hours"
-								error={errors["cleanup.untilHours"]}
-								hint="A rollback right after a deploy then needs no pull."
-							/>
-						</div>
-					</div>
+					)}
 					{last && (
-						<p className="mt-5 border-t pt-4 text-xs text-muted-foreground tabular">
+						<p className="text-xs text-muted-foreground tabular">
 							Last run {relativeTime(new Date(last.at).toISOString())}:{" "}
 							{last.nodes.length
 								? `freed ${formatBytes(lastFreed)} on ${last.nodes.length} ${last.nodes.length === 1 ? "node" : "nodes"}`
