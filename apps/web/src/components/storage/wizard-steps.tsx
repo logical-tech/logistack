@@ -1,7 +1,8 @@
-import type { StorageEngine } from "@logistack/contracts";
+import { type StorageEngine, storageIcon } from "@logistack/contracts";
 import { Check, Minus } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { z } from "zod";
+import { BrandIcon } from "@/components/brand-icon";
 import { Field } from "@/components/field";
 import { Segmented } from "@/components/segmented";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,9 @@ function EnginePicker({
 						)}
 					>
 						<span className="flex items-start gap-3">
+							<span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-foreground transition-colors duration-(--duration-quick) group-data-[state=checked]:bg-foreground group-data-[state=checked]:text-background">
+								<BrandIcon slug={storageIcon[id]} />
+							</span>
 							<span className="min-w-0 flex-1">
 								<span className="flex items-baseline gap-2">
 									<span className="text-sm font-semibold">{e.label}</span>

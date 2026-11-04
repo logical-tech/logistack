@@ -1,19 +1,5 @@
-import {
-	BellRing,
-	Cloud,
-	Hash,
-	type LucideIcon,
-	Mail,
-	MessageCircle,
-	MessagesSquare,
-	Send,
-	Server,
-	Smartphone,
-	Users,
-	Vibrate,
-	Waypoints,
-	Webhook,
-} from "lucide-react";
+import { type LucideIcon, Mail, Webhook } from "lucide-react";
+import { brandMark } from "@/components/brand-icon";
 import type {
 	AcmeDirectory,
 	ChannelKind,
@@ -29,21 +15,21 @@ export const DNS_KINDS: Record<
 > = {
 	cloudflare: {
 		label: "Cloudflare",
-		icon: Cloud,
+		icon: brandMark("cloudflare"),
 		blurb: "API token scoped to the zones LogiStack may edit.",
 		where:
 			"My Profile → API Tokens → Create Token → “Edit zone DNS”, limited to the zones you choose.",
 	},
 	route53: {
 		label: "Amazon Route 53",
-		icon: Waypoints,
+		icon: brandMark("aws"),
 		blurb: "IAM access key with Route 53 record permissions.",
 		where:
 			"An IAM user or role with route53:ListHostedZones, ListResourceRecordSets and ChangeResourceRecordSets.",
 	},
 	hetzner: {
 		label: "Hetzner DNS",
-		icon: Server,
+		icon: brandMark("hetzner"),
 		blurb: "Hetzner Cloud API token with read and write access.",
 		where:
 			"Hetzner Console → your project → Security → API tokens → Read & Write.",
@@ -56,12 +42,12 @@ export const CHANNEL_KINDS: Record<
 > = {
 	slack: {
 		label: "Slack",
-		icon: Hash,
+		icon: brandMark("slack"),
 		blurb: "An incoming webhook for one channel.",
 	},
 	discord: {
 		label: "Discord",
-		icon: MessagesSquare,
+		icon: brandMark("discord"),
 		blurb: "A channel webhook, as an embed coloured by severity.",
 	},
 	email: {
@@ -71,32 +57,32 @@ export const CHANNEL_KINDS: Record<
 	},
 	telegram: {
 		label: "Telegram",
-		icon: Send,
+		icon: brandMark("telegram"),
 		blurb: "A bot posting to a chat or group.",
 	},
 	teams: {
 		label: "Microsoft Teams",
-		icon: Users,
+		icon: brandMark("microsoftteams"),
 		blurb: "A Workflows incoming webhook.",
 	},
 	mattermost: {
 		label: "Mattermost",
-		icon: MessageCircle,
+		icon: brandMark("mattermost"),
 		blurb: "An incoming webhook on your server.",
 	},
 	ntfy: {
 		label: "ntfy",
-		icon: BellRing,
+		icon: brandMark("ntfy"),
 		blurb: "Push to a topic on ntfy.sh or your own server.",
 	},
 	gotify: {
 		label: "Gotify",
-		icon: Smartphone,
+		icon: brandMark("gotify"),
 		blurb: "Push through a self-hosted Gotify.",
 	},
 	pushover: {
 		label: "Pushover",
-		icon: Vibrate,
+		icon: brandMark("pushover"),
 		blurb: "Push to your Pushover devices.",
 	},
 	webhook: {

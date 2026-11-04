@@ -23,6 +23,7 @@ import { databases } from "./routes/databases.ts";
 import { dnsProviders } from "./routes/dns-providers.ts";
 import { domains } from "./routes/domains.ts";
 import { envVars } from "./routes/env-vars.ts";
+import { files } from "./routes/files.ts";
 import { folders } from "./routes/folders.ts";
 import { git } from "./routes/git.ts";
 import { health } from "./routes/health.ts";
@@ -30,6 +31,7 @@ import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
 import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
+import { networkMapRoutes } from "./routes/network-map.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
@@ -37,6 +39,7 @@ import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
 import { s3Destinations } from "./routes/s3-destinations.ts";
 import { schedules } from "./routes/schedules.ts";
+import { serviceAuth } from "./routes/service-auth.ts";
 import { serviceOps } from "./routes/service-ops.ts";
 import { services } from "./routes/services.ts";
 import { setup } from "./routes/setup.ts";
@@ -44,6 +47,7 @@ import { sshKeys } from "./routes/ssh-keys.ts";
 import { sso } from "./routes/sso.ts";
 import { storage } from "./routes/storage.ts";
 import { templates } from "./routes/templates.ts";
+import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
 import { webhooks } from "./routes/webhooks.ts";
 import { realtime } from "./ws.ts";
@@ -137,6 +141,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
 		.route("/api", nodes)
+		.route("/api", networkMapRoutes)
 		.route("/api", members)
 		.route("/api", apiKeys)
 		.route("/api", sshKeys)
@@ -148,9 +153,12 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", registries)
 		.route("/api", webhooks)
 		.route("/api", s3Destinations)
+		.route("/api", tunnels)
+		.route("/api", serviceAuth)
 		.route("/api", backups)
 		.route("/api", schedules)
 		.route("/api", templates)
+		.route("/api", files)
 		.route("/api", storage)
 		.route("/api", databases)
 		.route("/", realtime)

@@ -202,6 +202,7 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 					domains: hostname ? [hostname] : [],
 					nodeId: null,
 					createdBy: null,
+					icon: null,
 					importedFrom: `template:${t.id}:${instance}/${s.name}`,
 					createdAt: at,
 					updatedAt: at,

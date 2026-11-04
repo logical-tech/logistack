@@ -28,6 +28,7 @@ export const idPrefixes = {
 	metricThreshold: "thr",
 	instanceUpdate: "upd",
 	storageAccessKey: "sak",
+	cloudflareTunnel: "cft",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];
@@ -45,7 +46,7 @@ export function newId(prefix: IdPrefix): string {
 
 const ID_PATTERN = /^[a-z0-9]+_([0-9a-z]+)$/;
 
-export type DockerKind = "svc" | "db" | "env" | "vol" | "cfg" | "sec";
+export type DockerKind = "svc" | "db" | "env" | "vol" | "cfg" | "sec" | "cft";
 
 /** Docker object name derived from an id, never from user input: `dockerName("svc", "svc_ab12") === "ls-svc-ab12"`. */
 export function dockerName(kind: DockerKind, id: string): string {

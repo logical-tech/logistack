@@ -4,6 +4,7 @@ import type {
 	Channel,
 	CustomCertificate,
 	DnsProvider,
+	DnsRecordSet,
 	DnsZone,
 	DomainListItem,
 	ManagedCertificate,
@@ -82,6 +83,7 @@ const row = (
 	isGenerated: false,
 	dnsProviderId: null,
 	dnsRecordId: null,
+	tunnel: false,
 	customCertificateId: null,
 	redirectTo: null,
 	status: "active",
@@ -379,6 +381,76 @@ const zoneFor = (hostname: string) => {
 const fail = (message: string) =>
 	Promise.reject(new ApiError(400, message, "bad_request"));
 
+const rec = (
+	name: string,
+	type: DnsRecordSet["type"],
+	values: string[],
+	over: Partial<DnsRecordSet> = {},
+): DnsRecordSet => ({
+	id: rid("rec"),
+	name,
+	type,
+	ttl: 1,
+	values,
+	domain: null,
+	...over,
+});
+
+/** Record sets per zone id, seeded for the zones above. */
+const zoneRecords = new Map<string, DnsRecordSet[]>([
+	[
+		"z_logical",
+		[
+			rec("logical.it", "A", [IP], { proxied: true }),
+			rec("www.logical.it", "CNAME", ["logical.it"], { proxied: true }),
+			rec("app.logical.it", "A", [IP], {
+				proxied: false,
+				domain: { id: "dom_app", hostname: "app.logical.it" },
+			}),
+			rec("api.logical.it", "A", [IP], {
+				proxied: true,
+				domain: { id: "dom_api", hostname: "api.logical.it" },
+			}),
+			rec("logical.it", "MX", ["10 mx1.improvmx.com"], { proxied: undefined }),
+			rec("logical.it", "MX", ["20 mx2.improvmx.com"], { proxied: undefined }),
+			rec("logical.it", "TXT", ["v=spf1 include:spf.improvmx.com ~all"], {
+				comment: "Mail forwarding",
+			}),
+			rec("_dmarc.logical.it", "TXT", ["v=DMARC1; p=quarantine"], {
+				ttl: 3600,
+			}),
+			rec("logical.it", "CAA", ['0 issue "letsencrypt.org"'], { ttl: 3600 }),
+			rec("_sip._tcp.logical.it", "SRV", ["10 5 5060 sip.logical.it"], {
+				ttl: 300,
+			}),
+		],
+	],
+	[
+		"z_nordwind",
+		[
+			rec(
+				"nordwind.de",
+				"NS",
+				["hydrogen.ns.hetzner.com", "oxygen.ns.hetzner.com"],
+				{
+					ttl: 3600,
+					readOnly: "Protected at Hetzner, unprotect it in the Hetzner Console",
+				},
+			),
+			rec("nordwind.de", "A", [IP], { ttl: 300 }),
+			rec("shop.nordwind.de", "AAAA", ["2a01:4f8:c0c:1234::1"], { ttl: 300 }),
+			rec(
+				"nordwind.de",
+				"MX",
+				["10 mail.nordwind.de", "20 backup.nordwind.de"],
+				{
+					ttl: 3600,
+				},
+			),
+		],
+	],
+]);
+
 /** Each hostname resolves on Cloudflare first, then on Google a few polls later. */
 const polls = new Map<string, number>();
 
@@ -447,6 +519,47 @@ export const networkingMock: NetworkingApi = {
 		},
 		zones: (id) =>
 			delay({ zones: providers.find((p) => p.id === id)?.zones ?? [] }),
+		records: (id, zoneId) => {
+			const p = providers.find((x) => x.id === id);
+			const zone = p?.zones.find((z) => z.id === zoneId);
+			if (!p || !zone)
+				return Promise.reject(new ApiError(404, "zone not found", "not_found"));
+			return delay({
+				provider: { id: p.id, name: p.name, kind: p.kind },
+				zone,
+				records: zoneRecords.get(zoneId) ?? [],
+			});
+		},
+		createRecord: (_id, zoneId, body) => {
+			const list = zoneRecords.get(zoneId) ?? [];
+			const r = rec(body.name, body.type, body.values, {
+				ttl: body.ttl,
+				proxied: body.proxied,
+				comment: body.comment || undefined,
+			});
+			zoneRecords.set(zoneId, [...list, r]);
+			return delay(r);
+		},
+		updateRecord: (_id, zoneId, recordId, body) => {
+			const list = zoneRecords.get(zoneId) ?? [];
+			const r = list.find((x) => x.id === recordId);
+			if (!r) return fail("record not found");
+			Object.assign(r, {
+				name: body.name,
+				values: body.values,
+				ttl: body.ttl,
+				proxied: body.proxied,
+				comment: body.comment || undefined,
+			});
+			return delay(r);
+		},
+		removeRecord: (_id, zoneId, recordId) => {
+			zoneRecords.set(
+				zoneId,
+				(zoneRecords.get(zoneId) ?? []).filter((x) => x.id !== recordId),
+			);
+			return delay(undefined);
+		},
 		match: (_serviceId, hostname) => {
 			const m = zoneFor(hostname);
 			return delay(
@@ -515,6 +628,7 @@ export const networkingMock: NetworkingApi = {
 					pathPrefix: body.pathPrefix ?? null,
 					dnsProviderId: body.dnsProviderId ?? null,
 					dnsRecordId: body.dnsRecordId ?? null,
+					tunnel: body.tunnel ?? false,
 					customCertificateId: body.customCertificateId ?? null,
 					redirectTo: body.redirectTo ?? null,
 					tls: !body.https

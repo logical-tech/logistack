@@ -1,4 +1,4 @@
-import type { ServiceSpec } from "@logistack/contracts";
+import type { ServiceIcon, ServiceSpec } from "@logistack/contracts";
 import { sql } from "drizzle-orm";
 import {
 	type AnyPgColumn,
@@ -107,6 +107,8 @@ export const service = pgTable(
 		}),
 		/** Provenance of an imported service, e.g. `dokploy:<appName>/<service>`; re-imports match on it. */
 		importedFrom: text("imported_from"),
+		/** A brand icon slug (`postgresql`, `nginx`, …); null falls back to the engine or image icon, then the kind's. */
+		icon: text("icon").$type<ServiceIcon>(),
 		...timestamps,
 	},
 	(t) => [
@@ -154,3 +156,12 @@ export const mount = pgTable(
 		),
 	],
 );
+
+/** HTTP basic auth the proxy puts in front of every domain of a service; bcrypt hashes only. */
+export const serviceBasicAuth = pgTable("service_basic_auth", {
+	serviceId: text("service_id")
+		.primaryKey()
+		.references(() => service.id, { onDelete: "cascade" }),
+	users: jsonb("users").$type<{ username: string; hash: string }[]>().notNull(),
+	...timestamps,
+});

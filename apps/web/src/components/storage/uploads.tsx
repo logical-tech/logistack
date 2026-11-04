@@ -28,9 +28,26 @@ export type Upload = {
 const PARALLEL = 3;
 let seq = 0;
 
-/** Upload queue for one storage service: per-file progress, cancel, and a refresh as each lands. */
-export function useUploads(serviceId: string) {
+export type UploadSender = (
+	serviceId: string,
+	bucket: string,
+	key: string,
+	file: File,
+	onProgress: (loaded: number) => void,
+) => UploadHandle;
+
+/**
+ * Upload queue: per-file progress, cancel, and a refresh as each lands. Object storage by
+ * default; `send` and `queryKey` point it at another target, like a service volume.
+ */
+export function useUploads(
+	serviceId: string,
+	send: UploadSender = storageApi.objects.upload,
+	queryKey: readonly unknown[] = ["storage", serviceId],
+) {
 	const qc = useQueryClient();
+	const target = useRef({ send, queryKey });
+	target.current = { send, queryKey };
 	const [uploads, setUploads] = useState<Upload[]>([]);
 	const files = useRef(new Map<string, File>());
 	const handles = useRef(new Map<string, UploadHandle>());
@@ -68,7 +85,7 @@ export function useUploads(serviceId: string) {
 			const file = files.current.get(u.id);
 			if (!file) continue;
 			patch(u.id, { state: "uploading" });
-			const handle = storageApi.objects.upload(
+			const handle = target.current.send(
 				serviceId,
 				u.bucket,
 				u.key,
@@ -80,7 +97,7 @@ export function useUploads(serviceId: string) {
 				.then(
 					() => {
 						patch(u.id, { state: "done", loaded: u.size });
-						qc.invalidateQueries({ queryKey: ["storage", serviceId] });
+						qc.invalidateQueries({ queryKey: [...target.current.queryKey] });
 					},
 					(e: unknown) =>
 						patch(

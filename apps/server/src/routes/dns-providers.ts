@@ -1,12 +1,18 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { Hostname } from "@logistack/contracts";
+import {
+	DnsRecordSetInput,
+	DnsRecordType,
+	dnsRecordSetIssues,
+	Hostname,
+} from "@logistack/contracts";
 import { dnsProvider, domain } from "@logistack/db";
 import {
 	dohResolvers,
 	findZoneForHostname,
+	type DnsRecord as ProviderRecord,
 	waitForPropagation,
 } from "@logistack/providers";
-import { asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import {
@@ -54,7 +60,7 @@ const DnsRecord = z
 		id: z.string(),
 		zoneId: z.string(),
 		name: z.string(),
-		type: z.enum(["A", "AAAA", "CNAME", "TXT"]),
+		type: DnsRecordType,
 		content: z.string(),
 		ttl: z.number(),
 		proxied: z.boolean().optional(),
@@ -68,6 +74,104 @@ const RecordInput = z.object({
 	/** Cloudflare only: serve through Cloudflare's proxy. */
 	proxied: z.boolean().default(false),
 });
+
+const RecordSet = z
+	.object({
+		/** Pass back to update or delete. Several values can share one id (a Route 53 or Hetzner set). */
+		id: z.string(),
+		name: z.string(),
+		type: DnsRecordType,
+		ttl: z.number(),
+		values: z.array(z.string()),
+		proxied: z.boolean().optional(),
+		comment: z.string().optional(),
+		/** Why the record can only be viewed here. */
+		readOnly: z.string().optional(),
+		/** The LogiStack domain that created this record and keeps it pointed at the server. */
+		domain: z.object({ id: z.string(), hostname: z.string() }).nullable(),
+	})
+	.openapi("DnsRecordSet");
+
+const ZoneParam = z.object({ id: z.string(), zoneId: z.string() });
+const RecordParam = ZoneParam.extend({ recordId: z.string() });
+
+/** Folds per-value records into sets by id, tagging those a domain manages. */
+function recordSets(
+	records: ProviderRecord[],
+	managed: Map<string, { id: string; hostname: string }>,
+): z.infer<typeof RecordSet>[] {
+	const sets = new Map<string, z.infer<typeof RecordSet>>();
+	for (const r of records) {
+		const set = sets.get(r.id);
+		if (set) {
+			set.values.push(r.content);
+			continue;
+		}
+		sets.set(r.id, {
+			id: r.id,
+			name: r.name,
+			type: r.type,
+			ttl: r.ttl,
+			values: [r.content],
+			...(r.proxied !== undefined ? { proxied: r.proxied } : {}),
+			...(r.comment ? { comment: r.comment } : {}),
+			...(r.readOnly ? { readOnly: r.readOnly } : {}),
+			domain: managed.get(r.id) ?? null,
+		});
+	}
+	return [...sets.values()];
+}
+
+async function managedRecords(
+	db: Parameters<typeof providerRow>[0],
+	providerId: string,
+) {
+	const rows = await db
+		.select({
+			id: domain.id,
+			hostname: domain.hostname,
+			recordId: domain.dnsRecordId,
+		})
+		.from(domain)
+		.where(
+			and(eq(domain.dnsProviderId, providerId), isNotNull(domain.dnsRecordId)),
+		);
+	return new Map(
+		rows.map((d) => [d.recordId ?? "", { id: d.id, hostname: d.hostname }]),
+	);
+}
+
+/** The provider row and one of the zones it manages, or 404. */
+async function zoneOf(
+	db: Parameters<typeof providerRow>[0],
+	organizationId: string,
+	id: string,
+	zoneId: string,
+) {
+	const row = await providerRow(db, organizationId, id);
+	const zone = managedZones(row).find((z) => z.id === zoneId);
+	if (!zone) throw new Failure("not_found", "zone not found");
+	return { row, zone, kind: DnsKindSchema.parse(row.kind) };
+}
+
+function checkRecordSet(
+	kind: string,
+	zoneName: string,
+	input: DnsRecordSetInput,
+) {
+	const issues = dnsRecordSetIssues(kind, zoneName, input);
+	if (issues.length)
+		throw new Failure(
+			"validation_failed",
+			issues.map(([, m]) => m).join("; "),
+			issues.map(([path, message]) => ({ path: path.split("."), message })),
+		);
+	return {
+		...input,
+		proxied: kind === "cloudflare" ? input.proxied : undefined,
+		comment: kind === "cloudflare" ? input.comment : undefined,
+	};
+}
 
 const view = (row: DnsProviderRow, domains = 0) => ({
 	id: row.id,
@@ -341,9 +445,9 @@ export const dnsProviders = router()
 			]);
 			if (!m) return c.json({ publicIp: ip, match: null }, 200);
 			const p = await openProvider(masterKey, m.provider);
-			const existing = await viaProvider(() =>
-				p.listRecords(m.zone.id, hostname),
-			);
+			const existing = (
+				await viaProvider(() => p.listRecords(m.zone.id, hostname))
+			).filter((r) => ["A", "AAAA", "CNAME", "TXT"].includes(r.type)); // what a domain can point with, plus ACME TXT
 			return c.json(
 				{
 					publicIp: ip,
@@ -454,5 +558,179 @@ export const dnsProviders = router()
 				})),
 			);
 			return c.json({ ok: resolvers.every((r) => r.ok), resolvers }, 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/dns-providers/{id}/zones/{zoneId}/records",
+			tags,
+			security,
+			summary: "Every record in a managed zone, live from the provider",
+			middleware: [requirePermission("read", inOrganization)],
+			request: { params: ZoneParam },
+			responses: {
+				200: json(
+					z
+						.object({
+							provider: z.object({
+								id: z.string(),
+								name: z.string(),
+								kind: DnsKindSchema,
+							}),
+							zone: Zone,
+							records: z.array(RecordSet),
+						})
+						.openapi("DnsZoneRecords"),
+					"Records",
+				),
+				...errors,
+			},
+		}),
+		async (c) => {
+			const { id, zoneId } = c.req.valid("param");
+			const { db, masterKey } = c.var.deps;
+			const { row, zone, kind } = await zoneOf(
+				db,
+				requireActor(c).organizationId,
+				id,
+				zoneId,
+			);
+			const p = await openProvider(masterKey, row);
+			const [records, managed] = await Promise.all([
+				viaProvider(() => p.listRecords(zone.id)),
+				managedRecords(db, row.id),
+			]);
+			return c.json(
+				{
+					provider: { id: row.id, name: row.name, kind },
+					zone,
+					records: recordSets(records, managed),
+				},
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
+			"dns_record.create",
+			createRoute({
+				method: "post",
+				path: "/dns-providers/{id}/zones/{zoneId}/records",
+				tags,
+				security,
+				summary: "Create a record set in a managed zone",
+				description:
+					"Values use zone-file presentation format (`10 mail.example.com` for MX). Cloudflare takes one value per record; Route 53 and Hetzner refuse a (name, type) that already exists.",
+				middleware: admin,
+				request: { params: ZoneParam, ...body(DnsRecordSetInput) },
+				responses: { 201: json(RecordSet, "Created"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { id, zoneId } = c.req.valid("param");
+			const { db, masterKey } = c.var.deps;
+			const { row, zone, kind } = await zoneOf(
+				db,
+				requireActor(c).organizationId,
+				id,
+				zoneId,
+			);
+			const input = checkRecordSet(kind, zone.name, c.req.valid("json"));
+			const p = await openProvider(masterKey, row);
+			const saved = await viaProvider(() =>
+				p.createRecord({ ...input, zoneId: zone.id }),
+			);
+			const [set] = recordSets(saved, new Map());
+			if (!set) throw new Failure("internal", "provider returned no record");
+			c.set("auditResourceId", set.id);
+			return c.json(set, 201);
+		},
+	)
+	.openapi(
+		mutation(
+			"dns_record.update",
+			createRoute({
+				method: "put",
+				path: "/dns-providers/{id}/zones/{zoneId}/records/{recordId}",
+				tags,
+				security,
+				summary: "Replace a record set, renaming it when the name changed",
+				description:
+					"A domain pointing at the record follows it to its new id. Read-only records (Route 53 aliases, protected sets) are refused by the provider.",
+				middleware: admin,
+				request: { params: RecordParam, ...body(DnsRecordSetInput) },
+				responses: { 200: json(RecordSet, "Updated"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { id, zoneId, recordId } = c.req.valid("param");
+			const { db, masterKey } = c.var.deps;
+			const { row, zone, kind } = await zoneOf(
+				db,
+				requireActor(c).organizationId,
+				id,
+				zoneId,
+			);
+			const input = checkRecordSet(kind, zone.name, c.req.valid("json"));
+			const p = await openProvider(masterKey, row);
+			const saved = await viaProvider(() =>
+				p.updateRecord(recordId, { ...input, zoneId: zone.id }),
+			);
+			const [set] = recordSets(saved, new Map());
+			if (!set) throw new Failure("internal", "provider returned no record");
+			if (set.id !== recordId)
+				await db
+					.update(domain)
+					.set({ dnsRecordId: set.id })
+					.where(
+						and(
+							eq(domain.dnsProviderId, row.id),
+							eq(domain.dnsRecordId, recordId),
+						),
+					);
+			const managed = await managedRecords(db, row.id);
+			c.set("auditResourceId", set.id);
+			return c.json({ ...set, domain: managed.get(set.id) ?? null }, 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"dns_record.delete",
+			createRoute({
+				method: "delete",
+				path: "/dns-providers/{id}/zones/{zoneId}/records/{recordId}",
+				tags,
+				security,
+				summary: "Delete a record set",
+				description:
+					"A domain that created the record stops tracking it; its traffic stops resolving until a record exists again.",
+				middleware: admin,
+				request: { params: RecordParam },
+				responses: { 204: { description: "Deleted" }, ...errors },
+			}),
+		),
+		async (c) => {
+			const { id, zoneId, recordId } = c.req.valid("param");
+			const { db, masterKey } = c.var.deps;
+			const { row, zone } = await zoneOf(
+				db,
+				requireActor(c).organizationId,
+				id,
+				zoneId,
+			);
+			const p = await openProvider(masterKey, row);
+			await viaProvider(() => p.deleteRecord(zone.id, recordId));
+			await db
+				.update(domain)
+				.set({ dnsRecordId: null })
+				.where(
+					and(
+						eq(domain.dnsProviderId, row.id),
+						eq(domain.dnsRecordId, recordId),
+					),
+				);
+			c.set("auditResourceId", recordId);
+			return c.body(null, 204);
 		},
 	);

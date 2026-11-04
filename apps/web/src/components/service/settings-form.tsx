@@ -14,6 +14,7 @@ import {
 	PortRows,
 	ProcessFields,
 } from "@/components/service/host-settings";
+import { ServiceIconPicker } from "@/components/service/service-icon";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -464,6 +465,13 @@ export function SettingsForm({
 						value={name}
 						onChange={(e) => set({ name: e.target.value })}
 					/>
+				</Field>
+				<Field
+					id="service-icon"
+					label="Icon"
+					hint="Saved as soon as you pick one. The default follows the engine or image."
+				>
+					<ServiceIconPicker service={o} />
 				</Field>
 			</Section>
 

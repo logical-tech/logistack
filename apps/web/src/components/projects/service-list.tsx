@@ -1,31 +1,11 @@
 import type { StorageEngine } from "@logistack/contracts";
 import { Link } from "@tanstack/react-router";
-import {
-	Box,
-	Container,
-	Database,
-	GitBranch,
-	Globe,
-	HardDrive,
-	Layers,
-	type LucideIcon,
-} from "lucide-react";
+import { Container, GitBranch, Globe } from "lucide-react";
+import { ServiceGlyph } from "@/components/service/service-icon";
 import { DeploymentStatusLabel, ServiceStatus } from "@/components/status";
-import type {
-	DatabaseEngine,
-	ProjectId,
-	Service,
-	ServiceKind,
-} from "@/lib/api/types";
+import type { DatabaseEngine, ProjectId, Service } from "@/lib/api/types";
 import { relativeTime } from "@/lib/format";
 import { severityRank } from "@/lib/status";
-
-const KIND_ICON: Record<ServiceKind, LucideIcon> = {
-	application: Box,
-	database: Database,
-	compose: Layers,
-	storage: HardDrive,
-};
 
 export const ENGINE: Record<DatabaseEngine, string> = {
 	postgres: "PostgreSQL",
@@ -92,16 +72,16 @@ export function ServiceList({
 	return (
 		<ul className="divide-y overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border">
 			{sorted.map((s) => {
-				const Icon = KIND_ICON[s.kind];
 				const d = s.latestDeployment;
 				return (
 					<li
 						key={s.id}
 						className="relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3.5 transition-colors duration-(--duration-quick) hover:bg-muted/40 md:grid-cols-[auto_minmax(0,1.3fr)_minmax(0,1fr)_7.5rem_9.5rem]"
 					>
-						<span className="row-span-2 grid size-9 place-items-center self-start rounded-lg bg-muted text-muted-foreground md:row-span-1 md:self-center">
-							<Icon className="size-4" strokeWidth={1.75} aria-hidden />
-						</span>
+						<ServiceGlyph
+							service={s}
+							className="row-span-2 self-start md:row-span-1 md:self-center"
+						/>
 						<div className="min-w-0">
 							<Link
 								to="/projects/$projectId/services/$serviceId"

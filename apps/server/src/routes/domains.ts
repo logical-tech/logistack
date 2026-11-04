@@ -7,6 +7,7 @@ import {
 } from "@logistack/contracts";
 import {
 	certificate,
+	cloudflareTunnel,
 	type Db,
 	domain,
 	environment,
@@ -103,7 +104,32 @@ async function assertRoutable(
 	organizationId: string,
 	input: DomainBody,
 ) {
-	if (input.hostname.startsWith("*.") && tlsMode(input) !== "dns-01")
+	if (input.tunnel) {
+		if (!input.dnsProviderId)
+			throw new Failure(
+				"bad_request",
+				"a tunnel domain needs its Cloudflare provider",
+			);
+		if (input.https || input.cert !== "none")
+			throw new Failure(
+				"bad_request",
+				"a tunnel domain is plain HTTP behind Cloudflare: https false, cert none",
+			);
+		const [t] = await db
+			.select({ id: cloudflareTunnel.id })
+			.from(cloudflareTunnel)
+			.where(
+				and(
+					eq(cloudflareTunnel.dnsProviderId, input.dnsProviderId),
+					eq(cloudflareTunnel.organizationId, organizationId),
+				),
+			);
+		if (!t)
+			throw new Failure(
+				"bad_request",
+				"this DNS provider has no Cloudflare Tunnel",
+			);
+	} else if (input.hostname.startsWith("*.") && tlsMode(input) !== "dns-01")
 		throw new Failure(
 			"bad_request",
 			"A wildcard domain needs automatic HTTPS through a DNS provider (DNS-01)",
@@ -180,6 +206,7 @@ const DomainListItem = z
 		isGenerated: z.boolean(),
 		dnsProviderId: z.string().nullable(),
 		dnsRecordId: z.string().nullable(),
+		tunnel: z.boolean(),
 		customCertificateId: z.string().nullable(),
 		redirectTo: z.string().nullable(),
 		status: z.enum(["pending", "active", "error"]),
@@ -275,6 +302,7 @@ export const domains = router()
 						isGenerated: d.isGenerated,
 						dnsProviderId: d.dnsProviderId,
 						dnsRecordId: d.dnsRecordId,
+						tunnel: d.tunnel,
 						customCertificateId: d.customCertificateId,
 						redirectTo: d.redirectTo,
 						status: d.status,
@@ -431,6 +459,7 @@ export const domains = router()
 						redirectTo: null,
 						dnsProviderId: null,
 						dnsRecordId: null,
+						tunnel: false,
 						...input,
 						status: "pending",
 						statusMessage: null,

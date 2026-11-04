@@ -41,6 +41,7 @@ import {
 	syncCleanupScheduler,
 } from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
+import { syncTunnels } from "./tunnels.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
 
@@ -116,7 +117,13 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		log("error", "job failed", { queue, jobId: job?.id, error: err.message });
 
 	const schedules = await createScheduleRunner(ctx);
-	const proxySync = coalesce(() => syncProxy(ctx), cfg.LS_PROXY_COALESCE_MS);
+	const proxySync = coalesce(async () => {
+		await syncProxy(ctx);
+		// After Caddy: a tunnel hostname should already route when Cloudflare starts sending it.
+		await syncTunnels(ctx).catch((e: unknown) =>
+			log("warn", "tunnel sync failed", { error: String(e) }),
+		);
+	}, cfg.LS_PROXY_COALESCE_MS);
 	const workers = [
 		new Worker<{ serviceId: string }>(
 			"deploy",

@@ -3,6 +3,7 @@ import {
 	type CaddyRoute,
 	compileProxy,
 	type ProxyRoute,
+	routeId,
 } from "../src/index.ts";
 import { dashboard, input, routes, settings } from "./fixtures.ts";
 
@@ -240,4 +241,22 @@ test("grace period, access log and admin listen are set", () => {
 	expect(cfg.apps.http.servers.https?.logs).toEqual({
 		default_logger_name: "ls-access",
 	});
+});
+
+test("basic auth runs before the upstream, and never on a redirect", () => {
+	const base = routes.find((r) => r.https && !r.redirectTo) as ProxyRoute;
+	const users = [{ username: "ops", hash: "$2a$10$abc" }];
+	const all = [...httpsRoutes([{ ...base, basicAuth: users }])];
+	const handle = byId(all, routeId(base.domainId))?.handle;
+	expect(handle?.[0]).toEqual({
+		handler: "authentication",
+		providers: {
+			http_basic: {
+				accounts: [{ username: "ops", password: "$2a$10$abc" }],
+				hash: { algorithm: "bcrypt" },
+				realm: "restricted",
+			},
+		},
+	});
+	expect(handle?.[1]?.handler).toBe("reverse_proxy");
 });

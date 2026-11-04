@@ -25,6 +25,8 @@ export const Domain = z.object({
 	isGenerated: z.boolean(),
 	dnsProviderId: z.string().nullable(),
 	dnsRecordId: z.string().nullable(),
+	/** Served through the Cloudflare Tunnel of `dnsProviderId`, not a public port. */
+	tunnel: z.boolean(),
 	status: DomainStatus,
 	statusMessage: z.string().nullable(),
 	createdAt: z.coerce.date(),
@@ -42,6 +44,8 @@ export const DomainInput = z
 		customCertificateId: z.string().nullable().optional(),
 		redirectTo: Hostname.nullable().optional(),
 		dnsProviderId: z.string().nullable().optional(),
+		/** Route through the provider's Cloudflare Tunnel; Cloudflare terminates TLS. */
+		tunnel: z.boolean().optional(),
 	})
 	.refine((d) => (d.cert === "custom") === Boolean(d.customCertificateId), {
 		message:

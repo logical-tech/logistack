@@ -12,6 +12,7 @@ import { SlidingTabs } from "@/components/sliding-tabs";
 import { ApiError } from "@/lib/api";
 import { overviewQuery } from "@/lib/api/service-ops";
 import type { ServiceId } from "@/lib/api/types";
+import { webserverKind } from "@/lib/webservers";
 
 const BASE = "/projects/$projectId/services/$serviceId";
 
@@ -20,6 +21,7 @@ const TABS = [
 	{ id: "overview", label: "Overview", to: BASE },
 	{ id: "storage", label: "Storage", to: `${BASE}/storage` },
 	{ id: "database", label: "Database", to: `${BASE}/database` },
+	{ id: "files", label: "Files", to: `${BASE}/files` },
 	{ id: "deployments", label: "Deployments", to: `${BASE}/deployments` },
 	{ id: "logs", label: "Logs", to: `${BASE}/logs` },
 	{ id: "terminal", label: "Terminal", to: `${BASE}/terminal` },
@@ -82,7 +84,9 @@ function ServiceLayout() {
 					items={TABS.filter(
 						(t) =>
 							(t.id !== "storage" || service.kind === "storage") &&
-							(t.id !== "database" || service.kind === "database"),
+							(t.id !== "database" || service.kind === "database") &&
+							(t.id !== "files" ||
+								Boolean(webserverKind(service.importedFrom))),
 					).map((t) => ({ id: t.id, label: t.label }))}
 				/>
 			</div>

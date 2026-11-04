@@ -28,6 +28,10 @@ export type Propagation = Res<
 	Api["services"][":id"]["dns-propagation"]["$post"]
 >;
 export type CreateDnsProvider = Body<Api["dns-providers"]["$post"]>;
+type RecordsApi = Api["dns-providers"][":id"]["zones"][":zoneId"]["records"];
+export type ZoneRecords = Res<RecordsApi["$get"]>;
+export type DnsRecordSet = ZoneRecords["records"][number];
+export type RecordSetBody = Body<RecordsApi["$post"]>;
 export type UpdateDnsProvider = Body<Api["dns-providers"][":id"]["$patch"]>;
 
 export type DomainListItem = Res<Api["domains"]["$get"]>[number];
@@ -64,6 +68,19 @@ export type NetworkingApi = {
 		update(id: string, patch: UpdateDnsProvider): Promise<DnsProvider>;
 		remove(id: string): Promise<void>;
 		zones(id: string): Promise<{ zones: DnsZone[] }>;
+		records(id: string, zoneId: string): Promise<ZoneRecords>;
+		createRecord(
+			id: string,
+			zoneId: string,
+			body: RecordSetBody,
+		): Promise<DnsRecordSet>;
+		updateRecord(
+			id: string,
+			zoneId: string,
+			recordId: string,
+			body: RecordSetBody,
+		): Promise<DnsRecordSet>;
+		removeRecord(id: string, zoneId: string, recordId: string): Promise<void>;
 		match(serviceId: string, hostname: string): Promise<DnsMatch>;
 		upsertRecord(serviceId: string, input: RecordInput): Promise<DnsRecord>;
 		propagation(
@@ -117,6 +134,35 @@ export const networkingHttp: NetworkingApi = {
 			ok(a()["dns-providers"][":id"].$patch({ ...id(v), json })),
 		remove: (v) => done(a()["dns-providers"][":id"].$delete(id(v))),
 		zones: (v) => ok(a()["dns-providers"][":id"].zones.$get(id(v))),
+		records: (v, zoneId) =>
+			ok(
+				a()["dns-providers"][":id"].zones[":zoneId"].records.$get({
+					param: { id: v, zoneId },
+				}),
+			),
+		createRecord: (v, zoneId, json) =>
+			ok(
+				a()["dns-providers"][":id"].zones[":zoneId"].records.$post({
+					param: { id: v, zoneId },
+					json,
+				}),
+			),
+		// The client splices params in raw; Route 53 and Hetzner ids carry a slash.
+		updateRecord: (v, zoneId, recordId, json) =>
+			ok(
+				a()["dns-providers"][":id"].zones[":zoneId"].records[":recordId"].$put({
+					param: { id: v, zoneId, recordId: encodeURIComponent(recordId) },
+					json,
+				}),
+			),
+		removeRecord: (v, zoneId, recordId) =>
+			done(
+				a()["dns-providers"][":id"].zones[":zoneId"].records[
+					":recordId"
+				].$delete({
+					param: { id: v, zoneId, recordId: encodeURIComponent(recordId) },
+				}),
+			),
 		match: (serviceId, hostname) =>
 			ok(
 				a().services[":id"]["dns-match"].$get({
@@ -185,6 +231,12 @@ export const dnsProvidersQuery = queryOptions({
 	queryKey: ["dns-providers"],
 	queryFn: () => api.networking.dns.list(),
 });
+
+export const zoneRecordsQuery = (id: string, zoneId: string) =>
+	queryOptions({
+		queryKey: ["dns-providers", id, "zones", zoneId, "records"],
+		queryFn: () => api.networking.dns.records(id, zoneId),
+	});
 
 export const domainsQuery = queryOptions({
 	queryKey: ["domains"],

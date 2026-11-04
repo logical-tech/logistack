@@ -138,6 +138,7 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 						message: "started",
 						error: null,
 						at: iso(3_600_000 * (i + 2)),
+						containerName: `ls-svc-${s.id.slice(4)}.${i + 1}.task${i + 1}${s.id.slice(-4)}`,
 					})).slice(0, replicas),
 				},
 				current: deps.find((d) => d.status === "healthy") ?? null,

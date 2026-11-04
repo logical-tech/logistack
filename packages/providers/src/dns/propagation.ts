@@ -12,6 +12,10 @@ const typeCodes: Record<DnsRecordType, number> = {
 	CNAME: 5,
 	TXT: 16,
 	AAAA: 28,
+	NS: 2,
+	MX: 15,
+	SRV: 33,
+	CAA: 257,
 };
 
 export type PropagationOptions = {

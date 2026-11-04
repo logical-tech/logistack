@@ -21,7 +21,7 @@ import {
 	useLogStream,
 	useServiceMutation,
 } from "@/lib/api/service-ops";
-import { formatDuration, relativeTime } from "@/lib/format";
+import { formatDuration, relativeTime, shortImage } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
 
@@ -59,8 +59,8 @@ function What({ d }: { d: DeploymentRow }) {
 			</>
 		);
 	return (
-		<span className="font-mono text-xs">
-			{d.imageRef ?? "Image from the service's source"}
+		<span className="font-mono text-xs" title={d.imageRef ?? undefined}>
+			{d.imageRef ? shortImage(d.imageRef) : "Image from the service's source"}
 		</span>
 	);
 }

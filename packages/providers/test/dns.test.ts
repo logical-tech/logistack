@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
+	dnsRecordSetIssues,
+	dnsValueIssues,
+	formatDnsValue,
+	parseDnsValue,
+} from "@logistack/contracts";
+import {
 	caddyDnsChallenge,
 	cloudflare,
 	findZoneForHostname,
@@ -253,6 +259,126 @@ describe("cloudflare", () => {
 		]);
 	});
 
+	test("MX, SRV and CAA travel in Cloudflare's priority/data fields", async () => {
+		const m = mockFetch((c) => {
+			if (c.method === "GET")
+				return Response.json({
+					result: [
+						{
+							id: "mx",
+							name: "example.com",
+							type: "MX",
+							content: "mail.example.com",
+							priority: 10,
+							ttl: 1,
+							comment: "primary",
+						},
+						{
+							id: "srv",
+							name: "_sip._tcp.example.com",
+							type: "SRV",
+							content: "5 5060 sip.example.com",
+							priority: 10,
+							data: {
+								priority: 10,
+								weight: 5,
+								port: 5060,
+								target: "sip.example.com",
+							},
+							ttl: 300,
+						},
+						{
+							id: "caa",
+							name: "example.com",
+							type: "CAA",
+							content: '0 issue "letsencrypt.org"',
+							data: { flags: 0, tag: "issue", value: "letsencrypt.org" },
+							ttl: 300,
+						},
+						{
+							id: "soa",
+							name: "example.com",
+							type: "SOA",
+							content: "x",
+							ttl: 1,
+						},
+					],
+					result_info: { total_pages: 1 },
+				});
+			return Response.json({ result: { ...(json(c) as object), id: "new" } });
+		});
+		const dns = cloudflare.create({ apiToken: "t" }, m);
+		expect(
+			(await dns.listRecords("z")).map((r) => [r.type, r.content, r.comment]),
+		).toEqual([
+			["MX", "10 mail.example.com", "primary"],
+			["SRV", "10 5 5060 sip.example.com", undefined],
+			["CAA", '0 issue "letsencrypt.org"', undefined],
+		]);
+
+		const [mx] = await dns.createRecord({
+			zoneId: "z",
+			name: "Example.com",
+			type: "MX",
+			ttl: 1,
+			values: ["20 backup.example.com."],
+			comment: "backup",
+		});
+		expect(json(m.calls.at(-1) ?? ({} as never))).toEqual({
+			type: "MX",
+			name: "example.com",
+			ttl: 1,
+			priority: 20,
+			content: "backup.example.com",
+			comment: "backup",
+		});
+		expect(mx?.content).toBe("20 backup.example.com");
+
+		await dns.updateRecord("srv", {
+			zoneId: "z",
+			name: "_sip._tcp.example.com",
+			type: "SRV",
+			ttl: 300,
+			values: ["10 5 5061 sip.example.com"],
+		});
+		const put = m.calls.at(-1);
+		expect(`${put?.method} ${new URL(put?.url ?? "").pathname}`).toBe(
+			"PUT /client/v4/zones/z/dns_records/srv",
+		);
+		expect(json(put ?? ({} as never))).toMatchObject({
+			data: { priority: 10, weight: 5, port: 5061, target: "sip.example.com" },
+		});
+
+		await dns.createRecord({
+			zoneId: "z",
+			name: "app.example.com",
+			type: "A",
+			ttl: 1,
+			values: ["1.2.3.4"],
+			proxied: true,
+		});
+		expect(json(m.calls.at(-1) ?? ({} as never))).toMatchObject({
+			proxied: true,
+			content: "1.2.3.4",
+		});
+	});
+
+	test("a Cloudflare record holds one value", async () => {
+		const m = mockFetch();
+		const err = await cloudflare
+			.create({ apiToken: "t" }, m)
+			.createRecord({
+				zoneId: "z",
+				name: "a.example.com",
+				type: "A",
+				ttl: 1,
+				values: ["1.1.1.1", "2.2.2.2"],
+			})
+			.catch((e) => e);
+		expect(err).toBeInstanceOf(ProviderError);
+		expect(m.calls).toHaveLength(0);
+	});
+
 	test("deleting a missing record succeeds", async () => {
 		const m = mockFetch(() => new Response("{}", { status: 404 }));
 		await cloudflare.create({ apiToken: "t" }, m).deleteRecord("z", "r");
@@ -328,7 +454,7 @@ describe("hetzner", () => {
 								ttl: null,
 								records: [{ value: "1.1.1.1" }, { value: "2.2.2.2" }],
 							},
-							{ name: "@", type: "MX", ttl: 60, records: [{ value: "10 mx" }] },
+							{ name: "@", type: "SOA", ttl: 60, records: [{ value: "x" }] },
 							{
 								name: "@",
 								type: "TXT",
@@ -366,6 +492,75 @@ describe("hetzner", () => {
 				content: "v=spf1 -all",
 				ttl: 60,
 			},
+		]);
+	});
+
+	test("create writes absolute targets; reads strip the dot and flag protected sets", async () => {
+		const m = mockFetch((c) => {
+			const path = new URL(c.url).pathname;
+			if (path === "/v1/zones/42") return zone();
+			if (c.method === "GET")
+				return Response.json({
+					rrsets: [
+						{
+							name: "@",
+							type: "MX",
+							ttl: 300,
+							records: [{ value: "10 mx.example.com." }],
+						},
+						{
+							name: "@",
+							type: "NS",
+							ttl: 3600,
+							records: [{ value: "hydrogen.ns.hetzner.com." }],
+							protection: { change: true },
+						},
+					],
+				});
+			return Response.json({});
+		});
+		const dns = hetzner.create({ apiToken: "t" }, m);
+		await dns.createRecord({
+			zoneId: "42",
+			name: "example.com",
+			type: "MX",
+			ttl: 300,
+			values: ["10 mx.example.com", "20 backup.example.net"],
+		});
+		expect(json(m.calls.at(-1) ?? ({} as never))).toEqual({
+			name: "@",
+			type: "MX",
+			ttl: 300,
+			records: [
+				{ value: "10 mx.example.com." },
+				{ value: "20 backup.example.net." },
+			],
+		});
+		const [mx, ns] = await dns.listRecords("42");
+		expect(mx?.content).toBe("10 mx.example.com");
+		expect(ns?.readOnly).toStartWith("Protected at Hetzner");
+	});
+
+	test("update renames by creating the new rrset, then deleting the old", async () => {
+		const m = mockFetch((c) =>
+			new URL(c.url).pathname === "/v1/zones/42" ? zone() : Response.json({}),
+		);
+		const records = await hetzner
+			.create({ apiToken: "t" }, m)
+			.updateRecord("www/CNAME", {
+				zoneId: "42",
+				name: "web.example.com",
+				type: "CNAME",
+				ttl: 600,
+				values: ["app.example.net"],
+			});
+		expect(records[0]?.id).toBe("web/CNAME");
+		expect(
+			m.calls.slice(1).map((c) => `${c.method} ${new URL(c.url).pathname}`),
+		).toEqual([
+			"GET /v1/zones/42",
+			"POST /v1/zones/42/rrsets",
+			"DELETE /v1/zones/42/rrsets/www/CNAME",
 		]);
 	});
 
@@ -418,7 +613,7 @@ describe("route53", () => {
 		"<ResourceRecordSet><Name>\\052.app.example.com.</Name><Type>AAAA</Type><AliasTarget><DNSName>x</DNSName></AliasTarget></ResourceRecordSet>" +
 		"</ResourceRecordSets><IsTruncated>false</IsTruncated></ListResourceRecordSetsResponse>";
 
-	test("listRecords decodes names, unquotes TXT, skips alias sets", async () => {
+	test("listRecords decodes names, unquotes TXT, lists alias sets read-only", async () => {
 		const m = mockFetch(() => new Response(sets));
 		const records = await route53
 			.create(route53.configSchema.parse(config), m)
@@ -440,7 +635,78 @@ describe("route53", () => {
 				content: "hello",
 				ttl: 60,
 			},
+			{
+				id: "*.app.example.com/AAAA#ro",
+				zoneId: "Z1",
+				name: "*.app.example.com",
+				type: "AAAA",
+				content: "x",
+				ttl: 0,
+				readOnly: "Alias to an AWS resource, edit it in the AWS console",
+			},
 		]);
+	});
+
+	test("create sends a CREATE batch with every value, long TXT split in 255-char strings", async () => {
+		const m = mockFetch(() => new Response("<ChangeInfo/>"));
+		const dns = route53.create(route53.configSchema.parse(config), m);
+		const long = "k".repeat(300);
+		const saved = await dns.createRecord({
+			zoneId: "Z1",
+			name: "s._domainkey.example.com",
+			type: "TXT",
+			ttl: 300,
+			values: [long, "short"],
+		});
+		expect(saved.map((r) => r.content)).toEqual([long, "short"]);
+		expect(saved[0]?.id).toBe("s._domainkey.example.com/TXT");
+		const body = m.calls[0]?.body ?? "";
+		expect(body).toContain("<Action>CREATE</Action>");
+		expect(body).toContain(
+			`<Value>&quot;${"k".repeat(255)}&quot; &quot;${"k".repeat(45)}&quot;</Value>`,
+		);
+		expect(body).toContain("<Value>&quot;short&quot;</Value>");
+	});
+
+	test("update in place is an UPSERT; a rename deletes and creates in one batch", async () => {
+		const m = mockFetch((c) =>
+			c.method === "GET" ? new Response(sets) : new Response("<ChangeInfo/>"),
+		);
+		const dns = route53.create(route53.configSchema.parse(config), m);
+		const input = {
+			zoneId: "Z1",
+			name: "*.app.example.com",
+			type: "A" as const,
+			ttl: 60,
+			values: ["1.1.1.1", "2.2.2.2"],
+		};
+		await dns.updateRecord("*.app.example.com/A", input);
+		expect(m.calls).toHaveLength(1);
+		expect(m.calls[0]?.body).toContain("<Action>UPSERT</Action>");
+		await dns.updateRecord("*.app.example.com/A", {
+			...input,
+			name: "web.example.com",
+		});
+		const batch = m.calls.at(-1)?.body ?? "";
+		expect(batch.indexOf("<Action>DELETE</Action>")).toBeLessThan(
+			batch.indexOf("<Action>CREATE</Action>"),
+		);
+		expect(batch).toContain("<Name>*.app.example.com.</Name>");
+		expect(batch).toContain("<Name>web.example.com.</Name>");
+	});
+
+	test("MX targets lose their trailing dot on read", async () => {
+		const m = mockFetch(
+			() =>
+				new Response(
+					"<ListResourceRecordSetsResponse><ResourceRecordSets><ResourceRecordSet><Name>example.com.</Name><Type>MX</Type><TTL>300</TTL><ResourceRecords><ResourceRecord><Value>10 mx.example.com.</Value></ResourceRecord></ResourceRecords></ResourceRecordSet><ResourceRecordSet><Name>example.com.</Name><Type>NS</Type><TTL>172800</TTL><ResourceRecords><ResourceRecord><Value>ns-1.awsdns-01.org.</Value></ResourceRecord></ResourceRecords></ResourceRecordSet></ResourceRecordSets><IsTruncated>false</IsTruncated></ListResourceRecordSetsResponse>",
+				),
+		);
+		const [mx, ns] = await route53
+			.create(route53.configSchema.parse(config), m)
+			.listRecords("Z1");
+		expect(mx?.content).toBe("10 mx.example.com");
+		expect(ns?.readOnly).toBe("The hosted zone's own name servers");
 	});
 
 	test("upsert sends an UPSERT change batch", async () => {
@@ -541,5 +807,56 @@ describe("waitForPropagation", () => {
 		).catch((e) => e);
 		expect(err).toBeInstanceOf(ProviderError);
 		expect(err.op).toBe("waitForPropagation");
+	});
+});
+
+describe("record values (contracts)", () => {
+	test("parse and format round-trip, CAA quoting included", () => {
+		const caa = formatDnsValue("CAA", {
+			flags: "0",
+			tag: "iodef",
+			value: 'mailto:"x"',
+		});
+		expect(caa).toBe('0 iodef "mailto:\\"x\\""');
+		expect(parseDnsValue("CAA", caa)).toEqual({
+			flags: "0",
+			tag: "iodef",
+			value: 'mailto:"x"',
+		});
+		expect(parseDnsValue("SRV", "10 5 5060 sip.example.com")).toEqual({
+			priority: "10",
+			weight: "5",
+			port: "5060",
+			target: "sip.example.com",
+		});
+		expect(parseDnsValue("TXT", "v=spf1 a -all").text).toBe("v=spf1 a -all");
+	});
+
+	test("issues per type and per provider", () => {
+		expect(dnsValueIssues("A", "1.2.3.4")).toEqual({});
+		expect(dnsValueIssues("A", "1.2.3.256").address).toBeDefined();
+		expect(dnsValueIssues("AAAA", "2001:db8::1")).toEqual({});
+		expect(dnsValueIssues("AAAA", "2001:db8::g")).not.toEqual({});
+		expect(dnsValueIssues("MX", "70000 mx.example.com").priority).toBeDefined();
+		expect(dnsValueIssues("SRV", "0 0 443 .")).toEqual({});
+		const base = {
+			name: "example.com",
+			type: "CNAME" as const,
+			ttl: 1,
+			values: ["a.example.net", "b.example.net"],
+			proxied: true,
+		};
+		expect(
+			dnsRecordSetIssues("cloudflare", "example.com", base).map(([p]) => p),
+		).toEqual(["name", "values", "values"]);
+		expect(
+			dnsRecordSetIssues("hetzner", "example.com", {
+				...base,
+				type: "TXT",
+				name: "x.example.org",
+				ttl: 30,
+				values: ["ok"],
+			}).map(([p]) => p),
+		).toEqual(["name", "ttl", "proxied"]);
 	});
 });

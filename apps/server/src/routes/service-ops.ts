@@ -6,7 +6,13 @@ import {
 	envVarScopes,
 	ObservedState,
 } from "@logistack/contracts";
-import { decrypt, encrypt, type Resource, transition } from "@logistack/core";
+import {
+	decrypt,
+	dockerName,
+	encrypt,
+	type Resource,
+	transition,
+} from "@logistack/core";
 import {
 	deployment,
 	environment,
@@ -51,6 +57,8 @@ export type TaskView = z.infer<typeof TaskView>;
 const ServiceTask = TaskView.extend({
 	/** The node's LogiStack hostname, when the node is enrolled. */
 	hostname: z.string().nullable(),
+	/** Swarm's container name: `<service>.<slot or node>.<task id>`. */
+	containerName: z.string(),
 }).openapi("ServiceTask");
 
 const ServiceOverview = Service.extend({
@@ -144,11 +152,11 @@ export async function runningTask(
 	return t?.nodeId ? { id: t.id, nodeId: t.nodeId } : undefined;
 }
 
-function actorTrigger(actor: Actor) {
+export function actorTrigger(actor: Actor) {
 	return actor.kind === "user" ? ("manual" as const) : ("api" as const);
 }
 
-async function queueDeployment(
+export async function queueDeployment(
 	c: Context<Env>,
 	values: typeof deployment.$inferInsert,
 	payload: Record<string, unknown> = {},
@@ -278,6 +286,7 @@ export const serviceOps = router()
 							...t,
 							hostname:
 								hosts.find((h) => h.swarmNodeId === t.nodeId)?.hostname ?? null,
+							containerName: `${dockerName("svc", id)}.${t.slot ?? t.nodeId}.${t.id}`,
 						})),
 					},
 					current: current ?? null,

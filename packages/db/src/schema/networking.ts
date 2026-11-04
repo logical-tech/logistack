@@ -59,6 +59,8 @@ export const domain = pgTable(
 			onDelete: "set null",
 		}),
 		dnsRecordId: text("dns_record_id"),
+		/** Served through the Cloudflare Tunnel of `dnsProviderId` instead of a public port. */
+		tunnel: boolean("tunnel").notNull().default(false),
 		status: domainStatus("status").notNull().default("pending"),
 		statusMessage: text("status_message"),
 		...timestamps,
@@ -71,3 +73,22 @@ export const domain = pgTable(
 		index("domain_service_id_idx").on(t.serviceId),
 	],
 );
+
+/** One Cloudflare Tunnel per Cloudflare DNS provider; the worker runs its cloudflared and ingress. */
+export const cloudflareTunnel = pgTable("cloudflare_tunnel", {
+	id: id("cft"),
+	organizationId: text("organization_id")
+		.notNull()
+		.references(() => organization.id, { onDelete: "cascade" }),
+	dnsProviderId: text("dns_provider_id")
+		.notNull()
+		.unique()
+		.references(() => dnsProvider.id, { onDelete: "cascade" }),
+	name: text("name").notNull(),
+	accountId: text("account_id").notNull(),
+	/** Cloudflare's tunnel UUID; CNAMEs point at `<tunnelId>.cfargotunnel.com`. */
+	tunnelId: text("tunnel_id").notNull(),
+	tokenEncrypted: text("token_encrypted").notNull(),
+	statusMessage: text("status_message"),
+	...timestamps,
+});

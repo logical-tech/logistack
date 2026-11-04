@@ -7,6 +7,7 @@ import type {
 	Service,
 } from "../types";
 import { mockAccess } from "./access";
+import { registerMockMounts } from "./files";
 import { createMockDb } from "./fixtures";
 import { monitoringAdapter } from "./monitoring";
 import { networkingMock } from "./networking";
@@ -66,7 +67,12 @@ function summarize(projectId: ProjectSummary["id"]): ProjectSummary {
 		environments: envs.map(({ id, name, kind }) => ({ id, name, kind })),
 		services: db.services
 			.filter((s) => envIds.has(s.environmentId))
-			.map((s) => ({ id: s.id, name: s.name, status: s.status.observed })),
+			.map((s) => ({
+				id: s.id,
+				name: s.name,
+				status: s.status.observed,
+				environmentId: s.environmentId,
+			})),
 	};
 }
 
@@ -220,7 +226,15 @@ export const mockAdapter: ApiAdapter = {
 	services: {
 		listByEnvironment: (environmentId) =>
 			delay(db.services.filter((s) => s.environmentId === environmentId)),
-		create: ({ environmentId, name, spec, domain, extraDomains = [] }) => {
+		create: ({
+			environmentId,
+			name,
+			spec,
+			domain,
+			extraDomains = [],
+			mounts,
+			importedFrom,
+		}) => {
 			const id = rid("svc");
 			const at = new Date().toISOString();
 			const deployment: Deployment = {
@@ -262,10 +276,12 @@ export const mockAdapter: ApiAdapter = {
 				),
 				nodeId: null,
 				createdBy: null,
-				importedFrom: null,
+				icon: null,
+				importedFrom: importedFrom ?? null,
 				createdAt: at,
 				updatedAt: at,
 			};
+			if (mounts) registerMockMounts(id, mounts);
 			db.services.push(service);
 			db.deployments.push(deployment);
 			return delay(service, 700);

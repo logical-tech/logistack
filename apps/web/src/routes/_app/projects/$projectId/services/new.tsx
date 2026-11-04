@@ -1,5 +1,6 @@
 import {
 	type BuildConfig,
+	databaseIcon,
 	ServiceSpec as SpecSchema,
 } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
@@ -16,11 +17,14 @@ import {
 	Layers,
 	Link2Off,
 	Lock,
+	Network,
 	PenLine,
+	Server,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { brandMark } from "@/components/brand-icon";
 import { Field } from "@/components/field";
 import { GIT_KIND } from "@/components/integration-kinds";
 import { Page, PageHeader } from "@/components/page-header";
@@ -31,6 +35,10 @@ import {
 	ProcessFields,
 	withRoutedPort,
 } from "@/components/service/host-settings";
+import {
+	LoadBalancerForm,
+	targetSuggestions,
+} from "@/components/service/load-balancer-form";
 import {
 	STORAGE_DEFAULTS,
 	type StorageFields,
@@ -85,7 +93,11 @@ import {
 	type WebhookOutcome,
 } from "@/lib/api/integrations";
 import { projectQuery } from "@/lib/api/projects";
-import { checkSource, useCreateService } from "@/lib/api/services";
+import {
+	checkSource,
+	servicesQuery,
+	useCreateService,
+} from "@/lib/api/services";
 import type {
 	BuildType,
 	DatabaseEngine,
@@ -96,6 +108,17 @@ import type {
 import { stepParam } from "@/lib/search";
 import { STORAGE_ENGINES } from "@/lib/storage-engines";
 import { cn } from "@/lib/utils";
+import {
+	LB_DEFAULTS,
+	type LbSettings,
+	lbIssue,
+	loadBalancerConfig,
+	WEBSERVERS,
+	type WebserverKind,
+	webserverKinds,
+	webserverMarker,
+	webserverMounts,
+} from "@/lib/webservers";
 
 export const Route = createFileRoute("/_app/projects/$projectId/services/new")({
 	validateSearch: z.object({
@@ -106,7 +129,13 @@ export const Route = createFileRoute("/_app/projects/$projectId/services/new")({
 	component: NewService,
 });
 
-type SourceKind = "git" | "image" | "database" | "compose" | "storage";
+type SourceKind =
+	| "git"
+	| "image"
+	| "database"
+	| "compose"
+	| "storage"
+	| "webserver";
 
 type V = StorageFields & {
 	kind: SourceKind;
@@ -124,6 +153,9 @@ type V = StorageFields & {
 	engine: DatabaseEngine;
 	version: string;
 	composeYaml: string;
+	webserver: WebserverKind;
+	/** Load balancer form; the config is generated from it. */
+	lb: LbSettings;
 	domainMode: "generated" | "custom" | "none";
 	hostname: string;
 	https: boolean;
@@ -145,6 +177,8 @@ const DEFAULTS: V = {
 	engine: "postgres",
 	version: "17",
 	composeYaml: "",
+	webserver: "nginx",
+	lb: LB_DEFAULTS,
 	domainMode: "generated",
 	hostname: "",
 	https: true,
@@ -190,6 +224,8 @@ function serviceName(v: V) {
 		return slug(v.image.split("/").pop()?.split(":")[0] ?? "") || "app";
 	if (v.kind === "database") return v.engine;
 	if (v.kind === "storage") return "storage";
+	if (v.kind === "webserver")
+		return v.webserver === "haproxy" ? "lb" : v.webserver;
 	return "stack";
 }
 
@@ -243,6 +279,7 @@ function buildSteps(
 	env: Environment,
 	generatedBase: string,
 	providers: GitProvider[],
+	suggestions: string[],
 ): WizardStep<V>[] {
 	const providerName = (id: string) =>
 		providers.find((p) => p.id === id)?.name ?? "the provider";
@@ -265,6 +302,8 @@ function buildSteps(
 						w.set("kind", k);
 						if (k === "image") w.set("port", "80");
 						if (k === "git") w.set("port", "3000");
+						if (k === "webserver")
+							w.set("port", String(WEBSERVERS[w.values.webserver].port));
 					}}
 					choices={[
 						{
@@ -300,6 +339,13 @@ function buildSteps(
 							description:
 								"An S3-compatible server with buckets, scoped keys and share links.",
 							icon: HardDrive,
+						},
+						{
+							value: "webserver",
+							title: "Web server",
+							description:
+								"Nginx, Caddy, Apache or a load balancer, with its config editable in the browser.",
+							icon: Server,
 						},
 					]}
 				/>
@@ -366,9 +412,20 @@ function buildSteps(
 							),
 					});
 				}
+				if (v.kind === "webserver" && v.webserver === "haproxy") {
+					return z.object({
+						...base,
+						lb: z.custom<LbSettings>(
+							(s) => !lbIssue(s as LbSettings),
+							"Fix the load balancer settings.",
+						),
+					});
+				}
 				return z.object(base);
 			},
-			render: (w) => <ConfigureStep w={w} providers={providers} />,
+			render: (w) => (
+				<ConfigureStep w={w} providers={providers} suggestions={suggestions} />
+			),
 		},
 		...storageSteps<V>({
 			envName: env.name,
@@ -607,12 +664,14 @@ function buildSteps(
 											value: `${ENGINES[v.engine].label} ${v.version}`,
 										},
 									]
-								: [
-										{
-											label: "Compose",
-											value: `${v.composeYaml.split("\n").length} lines`,
-										},
-									];
+								: v.kind === "webserver"
+									? webserverRows(v)
+									: [
+											{
+												label: "Compose",
+												value: `${v.composeYaml.split("\n").length} lines`,
+											},
+										];
 				return (
 					<Summary
 						w={w}
@@ -784,12 +843,51 @@ function NameField({ w }: { w: WizardApi<V> }) {
 function ConfigureStep({
 	w,
 	providers,
+	suggestions,
 }: {
 	w: WizardApi<V>;
 	providers: GitProvider[];
+	suggestions: string[];
 }) {
 	const v = w.values;
 	const name = <NameField w={w} />;
+	if (v.kind === "webserver") {
+		const def = WEBSERVERS[v.webserver];
+		return (
+			<div className="grid gap-6">
+				<ChoiceGroup
+					label="Server"
+					value={v.webserver}
+					onChange={(k) => {
+						w.set("webserver", k);
+						w.set("port", String(WEBSERVERS[k].port));
+					}}
+					columns={2}
+					choices={webserverKinds.map((k) => ({
+						value: k,
+						title: WEBSERVERS[k].label,
+						description: WEBSERVERS[k].description,
+						icon: k === "haproxy" ? Network : Server,
+					}))}
+				/>
+				{v.webserver === "haproxy" && (
+					<LoadBalancerForm
+						idPrefix="wz-lb-"
+						value={v.lb}
+						onChange={(lb) => w.set("lb", lb)}
+						suggestions={suggestions}
+						error={w.error("lb") ? lbIssue(v.lb) : undefined}
+					/>
+				)}
+				{name}
+				<p className="text-sm text-muted-foreground">
+					{def.docroot
+						? "Starts with a working default config and a volume for your files. Edit the config and upload files from the service's Files tab."
+						: "The config is generated from these settings. Change them, or edit the raw config, from the service's Files tab."}
+				</p>
+			</div>
+		);
+	}
 	if (v.kind === "git") {
 		return (
 			<div className="grid gap-4">
@@ -970,7 +1068,7 @@ function ConfigureStep({
 						value: k,
 						title: ENGINES[k].label,
 						description: `Port ${ENGINES[k].port} · ${ENGINES[k].versions.join(", ")}`,
-						icon: Database,
+						icon: brandMark(databaseIcon[k]),
 					}))}
 				/>
 				<div className="grid gap-4 sm:grid-cols-2">
@@ -1025,7 +1123,7 @@ function ConfigureStep({
 }
 
 function toBuild(v: V): BuildConfig {
-	if (v.kind === "image") return { type: "image" };
+	if (v.kind === "image" || v.kind === "webserver") return { type: "image" };
 	if (v.build === "dockerfile")
 		return { type: "dockerfile", dockerfilePath: "Dockerfile", context: "." };
 	if (v.build === "static") return { type: "static", publishDir: "dist" };
@@ -1159,6 +1257,50 @@ function HostAdvanced({ w }: { w: WizardApi<V> }) {
 	);
 }
 
+/** The preset's config: the default, or the load balancer generated from its form. */
+const webserverConfig = (v: V) =>
+	v.webserver === "haproxy"
+		? loadBalancerConfig(v.lb)
+		: WEBSERVERS[v.webserver].defaultConfig;
+
+function webserverRows(v: V) {
+	const def = WEBSERVERS[v.webserver];
+	const mono = (t: string) => <span className="font-mono text-xs">{t}</span>;
+	if (def.docroot)
+		return [
+			{ label: "Server", value: def.label },
+			{ label: "Image", value: mono(def.image) },
+			{ label: "Config file", value: mono(def.config) },
+			{ label: "Static files", value: mono(def.docroot) },
+		];
+	return [
+		{ label: "Server", value: `${def.label}, HAProxy` },
+		{ label: "Image", value: mono(def.image) },
+		{
+			label: "Targets",
+			value: (
+				<span className="grid font-mono text-xs">
+					{v.lb.targets
+						.map((t) => t.trim())
+						.filter(Boolean)
+						.map((t) => (
+							<span key={t}>{t}</span>
+						))}
+				</span>
+			),
+		},
+		{
+			label: "Balancing",
+			value:
+				v.lb.algorithm === "roundrobin" ? "Round robin" : "Fewest connections",
+		},
+		{
+			label: "Health check",
+			value: v.lb.healthPath ? mono(v.lb.healthPath) : "Port only",
+		},
+	];
+}
+
 function toSpec(v: V): ServiceSpec {
 	if (v.kind === "storage")
 		return { kind: "storage", engine: v.storageEngine, resources: {} };
@@ -1183,7 +1325,13 @@ function toSpec(v: V): ServiceSpec {
 		source:
 			v.kind === "git"
 				? gitSource(v)
-				: { type: "image", image: v.image.trim() },
+				: {
+						type: "image",
+						image:
+							v.kind === "webserver"
+								? WEBSERVERS[v.webserver].image
+								: v.image.trim(),
+					},
 		build: toBuild(v),
 		...imageHost(v),
 		replicas: 1,
@@ -1237,9 +1385,17 @@ function NewService() {
 		() => providers.data?.filter((p) => p.state === "connected") ?? [],
 		[providers.data],
 	);
+	const siblings = useQuery({
+		...servicesQuery(env?.id ?? ("" as Environment["id"])),
+		enabled: Boolean(env),
+	});
+	const suggestions = useMemo(
+		() => targetSuggestions(siblings.data ?? []),
+		[siblings.data],
+	);
 	const steps = useMemo(
-		() => (env ? buildSteps(env, base, connected) : []),
-		[env, base, connected],
+		() => (env ? buildSteps(env, base, connected, suggestions) : []),
+		[env, base, connected, suggestions],
 	);
 
 	const onStepChange = useCallback(
@@ -1275,6 +1431,10 @@ function NewService() {
 						environmentId: env.id,
 						name,
 						spec: toSpec(v),
+						...(v.kind === "webserver" && {
+							importedFrom: webserverMarker(v.webserver),
+							mounts: webserverMounts(v.webserver, webserverConfig(v)),
+						}),
 						...(v.kind === "storage"
 							? storageDomains(v)
 							: {

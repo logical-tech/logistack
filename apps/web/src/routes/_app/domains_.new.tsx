@@ -2,6 +2,8 @@ import { Hostname } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
+	Cable,
+	ChevronsUpDown,
 	CircleAlert,
 	FileKey,
 	Globe,
@@ -18,13 +20,25 @@ import { Field } from "@/components/field";
 import { DataChip } from "@/components/integrations/parts";
 import { LivePropagation } from "@/components/integrations/propagation";
 import { Page, PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
-	SelectGroup,
 	SelectItem,
-	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
@@ -51,6 +65,7 @@ import {
 	useInvalidating,
 } from "@/lib/api/networking";
 import { projectsQuery } from "@/lib/api/projects";
+import { tunnelsQuery } from "@/lib/api/tunnels";
 import { DNS_KINDS, TLS_MODES } from "@/lib/integrations";
 import { stepParam } from "@/lib/search";
 
@@ -64,7 +79,7 @@ export const Route = createFileRoute("/_app/domains_/new")({
 	component: DomainWizardPage,
 });
 
-type RecordMode = "create" | "manual" | "keep";
+type RecordMode = "create" | "manual" | "keep" | "tunnel";
 
 type V = {
 	serviceId: string;
@@ -106,6 +121,7 @@ const isWildcard = (v: V) => host(v).startsWith("*.");
 
 /** The TLS modes this domain can use: a linked provider means DNS-01, a wildcard needs it. */
 function tlsChoices(v: V): TlsMode[] {
+	if (v.recordMode === "tunnel") return ["none"];
 	const linked = v.recordMode !== "manual" && Boolean(v.dnsProviderId);
 	if (isWildcard(v)) return v.dnsProviderId ? ["dns-01"] : [];
 	if (linked) return ["dns-01", "custom", "none"];
@@ -147,6 +163,7 @@ function ManualRecord({ v, ip }: { v: V; ip: string }) {
 function DnsStep({ w }: { w: WizardApi<V> }) {
 	const v = w.values;
 	const { data, isPending, error } = useQuery(matchQuery(v.serviceId, host(v)));
+	const { data: tunnels } = useQuery(tunnelsQuery);
 	const match: DnsMatch["match"] | undefined = data?.match;
 	const ip = data?.publicIp ?? "";
 	const { set } = w;
@@ -157,7 +174,8 @@ function DnsStep({ w }: { w: WizardApi<V> }) {
 		set("dnsProviderId", data.match?.providerId ?? "");
 		set("dnsProviderName", data.match?.providerName ?? "");
 		set("dnsKind", data.match?.kind ?? "");
-		if (!data.match && v.recordMode === "create") set("recordMode", "manual");
+		if (!data.match && (v.recordMode === "create" || v.recordMode === "tunnel"))
+			set("recordMode", "manual");
 		if (data.publicIp && !v.recordContent) {
 			set("recordContent", data.publicIp);
 			set("recordType", data.publicIp.includes(":") ? "AAAA" : "A");
@@ -206,7 +224,18 @@ function DnsStep({ w }: { w: WizardApi<V> }) {
 
 	const kind = DNS_KINDS[match.kind];
 	const existing = match.existing.filter((r) => r.type !== "TXT");
+	const tunnel = tunnels?.find((t) => t.dnsProviderId === match.providerId);
 	const choices: Choice<RecordMode>[] = [
+		...(tunnel
+			? [
+					{
+						value: "tunnel" as const,
+						title: "Through the Cloudflare Tunnel",
+						description: `Served via ${tunnel.name}: no open ports, Cloudflare issues the certificate. LogiStack adds the proxied CNAME.`,
+						icon: Cable,
+					},
+				]
+			: []),
 		...(v.dnsRecordId
 			? [
 					{
@@ -350,6 +379,13 @@ function DnsStep({ w }: { w: WizardApi<V> }) {
 				</div>
 			)}
 			{v.recordMode === "manual" && ip && <ManualRecord v={v} ip={ip} />}
+			{v.recordMode === "tunnel" && (
+				<p className="text-sm text-muted-foreground">
+					Visitors reach Cloudflare's edge, which sends the request down the
+					tunnel to this server's proxy. Nothing listens publicly for{" "}
+					<span className="font-mono text-foreground">{host(v)}</span>.
+				</p>
+			)}
 		</div>
 	);
 }
@@ -431,6 +467,111 @@ const TLS_CHOICES: Record<TlsMode, Omit<Choice<TlsMode>, "value">> = {
 	},
 };
 
+type ServiceOption = {
+	id: string;
+	name: string;
+	project: string;
+	/** Only when the project has several, to tell same-named services apart. */
+	environment?: string;
+};
+
+/** Services grouped by project, searchable by service or project name. */
+function ServiceCombobox({
+	id,
+	services,
+	value,
+	onChange,
+	disabled,
+	invalid,
+}: {
+	id: string;
+	services: ServiceOption[];
+	value: string;
+	onChange: (id: string) => void;
+	disabled?: boolean;
+	invalid?: boolean;
+}) {
+	const [open, setOpen] = useState(false);
+	const selected = services.find((s) => s.id === value);
+	const byProject = new Map<string, ServiceOption[]>();
+	for (const s of services)
+		byProject.set(s.project, [...(byProject.get(s.project) ?? []), s]);
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<Button
+					id={id}
+					type="button"
+					variant="outline"
+					role="combobox"
+					aria-expanded={open}
+					aria-invalid={invalid || undefined}
+					disabled={disabled}
+					className="w-full justify-between font-normal aria-invalid:ring-1 aria-invalid:ring-destructive"
+				>
+					{selected ? (
+						<span className="truncate">
+							{selected.name}
+							<span className="text-muted-foreground">
+								{" "}
+								· {selected.project}
+								{selected.environment && ` · ${selected.environment}`}
+							</span>
+						</span>
+					) : (
+						<span className="text-muted-foreground">Pick a service</span>
+					)}
+					<ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				className="w-(--radix-popover-trigger-width) p-0"
+				align="start"
+			>
+				{/* Substring, not fuzzy: "book" should not find "Back office". */}
+				<Command
+					filter={(_item, search, keywords) =>
+						(keywords ?? [])
+							.join(" ")
+							.toLowerCase()
+							.includes(search.trim().toLowerCase())
+							? 1
+							: 0
+					}
+				>
+					<CommandInput placeholder="Search services or projects" />
+					<CommandList className="max-h-72">
+						<CommandEmpty>No service matches.</CommandEmpty>
+						{[...byProject].map(([project, list]) => (
+							<CommandGroup key={project} heading={project}>
+								{list.map((s) => (
+									<CommandItem
+										key={s.id}
+										value={s.id}
+										keywords={[s.name, project, s.environment ?? ""]}
+										data-checked={s.id === value}
+										onSelect={() => {
+											onChange(s.id);
+											setOpen(false);
+										}}
+									>
+										<span className="min-w-0 flex-1 truncate">{s.name}</span>
+										{s.environment && (
+											<span className="shrink-0 text-xs text-muted-foreground">
+												{s.environment}
+											</span>
+										)}
+									</CommandItem>
+								))}
+							</CommandGroup>
+						))}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
 function buildSteps(
 	services: { id: string; name: string; project: string }[],
 	editing: boolean,
@@ -443,42 +584,20 @@ function buildSteps(
 			title: "Which service?",
 			description: "The proxy sends this hostname to one service's port.",
 			schema: z.object({ serviceId: z.string().min(1, "Pick a service.") }),
-			render: (w) => {
-				const byProject = new Map<string, typeof services>();
-				for (const s of services)
-					byProject.set(s.project, [...(byProject.get(s.project) ?? []), s]);
-				return (
-					<div className="grid max-w-md gap-4">
-						<Field
+			render: (w) => (
+				<div className="grid max-w-md gap-4">
+					<Field id="wz-serviceId" label="Service" error={w.error("serviceId")}>
+						<ServiceCombobox
 							id="wz-serviceId"
-							label="Service"
-							error={w.error("serviceId")}
-						>
-							<Select
-								value={w.values.serviceId}
-								onValueChange={(id) => w.set("serviceId", id)}
-								disabled={editing}
-							>
-								<SelectTrigger id="wz-serviceId" className="w-full">
-									<SelectValue placeholder="Pick a service" />
-								</SelectTrigger>
-								<SelectContent>
-									{[...byProject].map(([project, list]) => (
-										<SelectGroup key={project}>
-											<SelectLabel>{project}</SelectLabel>
-											{list.map((s) => (
-												<SelectItem key={s.id} value={s.id}>
-													{s.name}
-												</SelectItem>
-											))}
-										</SelectGroup>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-					</div>
-				);
-			},
+							services={services}
+							value={w.values.serviceId}
+							onChange={(id) => w.set("serviceId", id)}
+							disabled={editing}
+							invalid={Boolean(w.error("serviceId"))}
+						/>
+					</Field>
+				</div>
+			),
 		},
 		{
 			id: "hostname",
@@ -617,7 +736,7 @@ function buildSteps(
 			title: "Propagation",
 			description:
 				"Public resolvers pick the record up at their own pace. You can continue; the proxy keeps retrying until it resolves.",
-			when: (v) => v.recordMode !== "keep",
+			when: (v) => v.recordMode !== "keep" && v.recordMode !== "tunnel",
 			render: (w) => {
 				const v = w.values;
 				if (v.proxied)
@@ -652,6 +771,7 @@ function buildSteps(
 			id: "tls",
 			title: "HTTPS",
 			description: "How the proxy gets a certificate for this hostname.",
+			when: (v) => v.recordMode !== "tunnel",
 			schema: (v) =>
 				z.object({
 					tls: z
@@ -736,18 +856,28 @@ function buildSteps(
 									{
 										label: "Record",
 										value:
-											v.recordMode === "manual"
-												? "Managed by you"
-												: v.recordMode === "keep"
-													? `Kept at ${v.dnsProviderName}`
-													: `${v.recordType} ${v.recordContent} at ${v.dnsProviderName}${v.proxied ? ", proxied" : ""}`,
+											v.recordMode === "tunnel"
+												? `Proxied CNAME to the tunnel at ${v.dnsProviderName}`
+												: v.recordMode === "manual"
+													? "Managed by you"
+													: v.recordMode === "keep"
+														? `Kept at ${v.dnsProviderName}`
+														: `${v.recordType} ${v.recordContent} at ${v.dnsProviderName}${v.proxied ? ", proxied" : ""}`,
 									},
 								],
 							},
 							{
 								stepId: "tls",
 								title: "HTTPS",
-								rows: [{ label: "Certificate", value: TLS_MODES[v.tls].label }],
+								rows: [
+									{
+										label: "Certificate",
+										value:
+											v.recordMode === "tunnel"
+												? "Cloudflare's edge certificate"
+												: TLS_MODES[v.tls].label,
+									},
+								],
 							},
 						]}
 					/>
@@ -758,6 +888,19 @@ function buildSteps(
 }
 
 function toBody(v: V, recordId: string | null): DomainBody {
+	if (v.recordMode === "tunnel")
+		return {
+			hostname: host(v),
+			port: Number(v.port),
+			pathPrefix: v.pathPrefix.trim() || null,
+			https: false,
+			cert: "none",
+			customCertificateId: null,
+			dnsProviderId: v.dnsProviderId,
+			// The worker creates the CNAME; an edit keeps the one it made.
+			dnsRecordId: v.dnsRecordId || null,
+			tunnel: true,
+		};
 	const linked = v.recordMode !== "manual" || v.tls === "dns-01";
 	const dnsRecordId =
 		v.recordMode === "create"
@@ -801,7 +944,15 @@ function DomainWizardPage() {
 	const services = useMemo(
 		() =>
 			(projects ?? []).flatMap((p) =>
-				p.services.map((s) => ({ id: s.id, name: s.name, project: p.name })),
+				p.services.map((s) => ({
+					id: s.id,
+					name: s.name,
+					project: p.name,
+					environment:
+						p.environments.length > 1
+							? p.environments.find((e) => e.id === s.environmentId)?.name
+							: undefined,
+				})),
 			),
 		[projects],
 	);
@@ -826,7 +977,11 @@ function DomainWizardPage() {
 				hostname: current.hostname,
 				port: String(current.port),
 				pathPrefix: current.pathPrefix ?? "",
-				recordMode: current.dnsRecordId ? "keep" : "manual",
+				recordMode: current.tunnel
+					? "tunnel"
+					: current.dnsRecordId
+						? "keep"
+						: "manual",
 				dnsRecordId: current.dnsRecordId ?? "",
 				tls: current.tls,
 				customCertificateId: current.customCertificateId ?? "",

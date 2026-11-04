@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Boxes, Folder, Plus } from "lucide-react";
+import { Boxes, Folder, Plus, Waypoints } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { EmptyState } from "@/components/empty-state";
@@ -105,16 +105,27 @@ function ProjectDetail() {
 				}
 				actions={
 					env && (
-						<Button asChild>
-							<Link
-								to="/projects/$projectId/services/new"
-								params={{ projectId }}
-								search={{ env: env.id }}
-							>
-								<Plus data-icon="inline-start" />
-								New service
-							</Link>
-						</Button>
+						<>
+							<Button variant="outline" asChild>
+								<Link
+									to="/network"
+									search={{ project: projectId, env: env.id }}
+								>
+									<Waypoints data-icon="inline-start" />
+									Network map
+								</Link>
+							</Button>
+							<Button asChild>
+								<Link
+									to="/projects/$projectId/services/new"
+									params={{ projectId }}
+									search={{ env: env.id }}
+								>
+									<Plus data-icon="inline-start" />
+									New service
+								</Link>
+							</Button>
+						</>
 					)
 				}
 			/>

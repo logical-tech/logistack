@@ -219,6 +219,39 @@ async function pendingGitHub(c: Context<Env>, state: string) {
 	return p;
 }
 
+/** No state: the pending app whose own JWT can see the installation owns it. */
+async function adoptInstallation(c: Context<Env>, installationId: string) {
+	const { db, masterKey } = c.var.deps;
+	const rows = await db
+		.select()
+		.from(gitProvider)
+		.where(
+			and(
+				eq(gitProvider.organizationId, requireActor(c).organizationId),
+				eq(gitProvider.kind, "github"),
+			),
+		);
+	for (const row of rows) {
+		const config: StoredConfig = JSON.parse(
+			await decrypt(masterKey, row.configEncrypted),
+		);
+		if (providerState(row.kind, config) !== "pending") continue;
+		try {
+			await asApp(
+				config,
+				"installation",
+				`/app/installations/${installationId}`,
+			);
+		} catch {
+			continue;
+		}
+		await saveConfig(c, row.id, { ...config, installationId });
+		c.set("auditResourceId", row.id);
+		return wizard(row.id, "test");
+	}
+	return "/integrations/git";
+}
+
 const wizard = (providerId: string, step: string, error?: string) =>
 	`/integrations/git/new?${new URLSearchParams({
 		kind: "github",
@@ -296,7 +329,14 @@ export const git = router()
 						webhookUrl:
 							base && row.kind !== "generic" ? webhookUrl(base, row.id) : null,
 						appUrl: htmlUrl,
-						installUrl: htmlUrl ? `${htmlUrl}/installations/new` : null,
+						// The state rides along so GitHub's setup redirect finds this provider again.
+						installUrl: htmlUrl
+							? `${htmlUrl}/installations/new${
+									state === "pending" && typeof config.state === "string"
+										? `?state=${encodeURIComponent(`${row.id}.${config.state}`)}`
+										: ""
+								}`
+							: null,
 						createdAt: row.createdAt.toISOString(),
 					};
 				}),
@@ -477,7 +517,8 @@ export const git = router()
 				request: {
 					query: z.object({
 						installation_id: z.string().regex(/^\d+$/),
-						state: z.string(),
+						// Missing when the app was installed from GitHub's own pages.
+						state: z.string().optional(),
 						setup_action: z.string().optional(),
 					}),
 				},
@@ -486,6 +527,8 @@ export const git = router()
 		),
 		async (c) => {
 			const { installation_id, state } = c.req.valid("query");
+			if (!state)
+				return c.redirect(await adoptInstallation(c, installation_id), 302);
 			const { row, config } = await pendingGitHub(c, state);
 			c.set("auditResourceId", row.id);
 			try {

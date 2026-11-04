@@ -1,5 +1,7 @@
 import type { Template } from "@logistack/contracts";
+import { databaseIcon, imageIcon } from "@logistack/contracts";
 import { Box, Database, Globe, Lock } from "lucide-react";
+import { BrandIcon } from "@/components/brand-icon";
 import { publicRoutes, serviceImage } from "@/lib/templates";
 
 const SOURCE_NAME = { coolify: "Coolify", dokploy: "Dokploy" } as const;
@@ -53,10 +55,18 @@ export function TemplateOverview({
 					{t.services.map((s) => {
 						const route = routes.find((r) => r.service === s.name);
 						const Icon = s.kind === "database" ? Database : Box;
+						const brand =
+							s.kind === "database"
+								? databaseIcon[s.engine]
+								: imageIcon(s.image);
 						return (
 							<li key={s.name} className="flex gap-3 px-4 py-3.5">
-								<span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-									<Icon className="size-4" strokeWidth={1.75} aria-hidden />
+								<span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-foreground/80">
+									{brand ? (
+										<BrandIcon slug={brand} />
+									) : (
+										<Icon className="size-4" strokeWidth={1.75} aria-hidden />
+									)}
 								</span>
 								<div className="grid grid-cols-1 min-w-0 flex-1 gap-1">
 									<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

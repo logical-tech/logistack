@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	defaultServiceIcon,
 	Hostname,
+	isServiceIcon,
 	Template,
 	TemplateCategory,
 	TemplateDeployInput,
@@ -128,6 +130,12 @@ function checkInputs(t: Template, given: Record<string, string>) {
 	if (issues.length)
 		throw new Failure("validation_failed", "invalid template inputs", issues);
 }
+
+/** `uptime-kuma` → `uptimekuma`, when the template is a brand we draw. */
+const templateIcon = (id: string) => {
+	const slug = id.replace(/-/g, "");
+	return isServiceIcon(slug) ? slug : null;
+};
 
 export const templates = router()
 	.openapi(
@@ -304,6 +312,7 @@ export const templates = router()
 							nodeId: nodeIds.get(p.name) ?? null,
 							createdBy: actor.userId,
 							importedFrom: provenance(t.id, name, p.name),
+							icon: defaultServiceIcon(p.spec) ?? templateIcon(t.id),
 						});
 						if (p.env.length)
 							await tx.insert(envVar).values(

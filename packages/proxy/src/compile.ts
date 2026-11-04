@@ -53,6 +53,8 @@ export type ProxyRoute = RouteTls & {
 	pathPrefix?: string;
 	/** Origin to redirect to (`https://example.com`); path and query are preserved. Replaces the upstream. */
 	redirectTo?: string;
+	/** HTTP basic auth in front of the upstream; `hash` is bcrypt, as Caddy checks it. */
+	basicAuth?: { username: string; hash: string }[];
 };
 
 export type ProxySettings = {
@@ -189,6 +191,7 @@ function compileRoute(r: ProxyRoute): CaddyRoute {
 		"@id": routeId(r.domainId),
 		match: [match],
 		handle: [
+			...(r.basicAuth?.length && !r.redirectTo ? [basicAuth(r.basicAuth)] : []),
 			r.redirectTo
 				? redirect(`${r.redirectTo.replace(/\/+$/, "")}{http.request.uri}`)
 				: proxyTo(r.upstream),
@@ -304,6 +307,18 @@ function compareRoutes(a: ProxyRoute, b: ProxyRoute): number {
 const proxyTo = (u: Upstream): CaddyHandler => ({
 	handler: "reverse_proxy",
 	upstreams: [{ dial: `${u.host}:${u.port}` }],
+});
+const basicAuth = (
+	users: NonNullable<ProxyRoute["basicAuth"]>,
+): CaddyHandler => ({
+	handler: "authentication",
+	providers: {
+		http_basic: {
+			accounts: users.map((u) => ({ username: u.username, password: u.hash })),
+			hash: { algorithm: "bcrypt" },
+			realm: "restricted",
+		},
+	},
 });
 const redirect = (location: string): CaddyHandler => ({
 	handler: "static_response",

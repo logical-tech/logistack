@@ -9,6 +9,7 @@ import {
 	project,
 	registry,
 	service,
+	serviceBasicAuth,
 } from "@logistack/db";
 import type { Task } from "@logistack/docker";
 import {
@@ -292,9 +293,11 @@ export async function syncProxy(ctx: Ctx): Promise<void> {
 			domain,
 			organizationId: project.organizationId,
 			projectId: project.id,
+			basicAuth: serviceBasicAuth.users,
 		})
 		.from(domain)
 		.innerJoin(service, eq(service.id, domain.serviceId))
+		.leftJoin(serviceBasicAuth, eq(serviceBasicAuth.serviceId, service.id))
 		.innerJoin(environment, eq(environment.id, service.environmentId))
 		.innerJoin(project, eq(project.id, environment.projectId))
 		.where(eq(service.desiredState, "running"));
@@ -323,7 +326,7 @@ export async function syncProxy(ctx: Ctx): Promise<void> {
 
 	const candidates: ProxyRoute[] = [];
 	const outcome = new Map<string, string | null>();
-	for (const { domain: d } of rows) {
+	for (const { domain: d, basicAuth } of rows) {
 		try {
 			const c = certs.find((x) => x.id === d.customCertificateId);
 			const p = providers.find((x) => x.id === d.dnsProviderId);
@@ -340,7 +343,10 @@ export async function syncProxy(ctx: Ctx): Promise<void> {
 					? { dnsChallenge: await challengeOf(p) }
 					: {}),
 			});
-			if (r.ok) candidates.push(r.route);
+			if (r.ok)
+				candidates.push(
+					basicAuth?.length ? { ...r.route, basicAuth } : r.route,
+				);
 			else outcome.set(d.id, r.error);
 		} catch (e) {
 			outcome.set(d.id, e instanceof Error ? e.message : String(e));

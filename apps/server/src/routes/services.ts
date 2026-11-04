@@ -2,7 +2,9 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
 	ApplicationSource,
 	DesiredState,
+	defaultServiceIcon,
 	ObservedState,
+	ServiceIcon,
 	ServiceSpec,
 } from "@logistack/contracts";
 import {
@@ -14,6 +16,7 @@ import {
 	deployment,
 	domain,
 	envVar,
+	mount,
 	service,
 	serviceStatus,
 } from "@logistack/db";
@@ -40,6 +43,7 @@ import {
 import { checkGit, checkImage } from "../probe.ts";
 import { byParam, inOrganization, requirePermission } from "../scope.ts";
 import { hostPolicy } from "../ssrf.ts";
+import { ConfigContent, MountTarget } from "./files.ts";
 
 /** The service row plus what list views draw: observed state, last deployment, hostnames. */
 const ServiceListItem = Service.extend({
@@ -71,6 +75,30 @@ const ServiceInput = z.object({
 	nodeId: z.string().optional(),
 	/** Set by importers, e.g. `dokploy:<appName>/<service>`; a re-import skips a service that has it. */
 	importedFrom: z.string().min(1).max(255).optional(),
+	/** Defaults to the engine's or image's brand icon. */
+	icon: ServiceIcon.optional(),
+	/** Config files (stored encrypted, mounted as Swarm configs) and named volumes. */
+	mounts: z
+		.array(
+			z.discriminatedUnion("kind", [
+				z.object({
+					kind: z.literal("config"),
+					target: MountTarget,
+					content: ConfigContent,
+				}),
+				z.object({
+					kind: z.literal("volume"),
+					target: MountTarget,
+					name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/),
+				}),
+			]),
+		)
+		.max(8)
+		.refine(
+			(ms) => new Set(ms.map((m) => m.target)).size === ms.length,
+			"duplicate target",
+		)
+		.optional(),
 });
 
 const ServicePatch = patchOf(
@@ -79,6 +107,8 @@ const ServicePatch = patchOf(
 		slug: Slug,
 		spec: ServiceSpec,
 		desiredState: DesiredState,
+		/** null resets to the default icon. */
+		icon: ServiceIcon.nullable(),
 	}),
 );
 
@@ -175,6 +205,7 @@ export const services = router()
 							nodeId: nodeId ?? null,
 							createdBy: requireActor(c).userId,
 							importedFrom: input.importedFrom ?? null,
+							icon: input.icon ?? defaultServiceIcon(spec),
 						})
 						.returning(),
 				);
@@ -185,6 +216,15 @@ export const services = router()
 						: spec.kind === "database"
 							? databaseCredentials(spec.engine)
 							: undefined;
+				for (const m of input.mounts ?? [])
+					await tx.insert(mount).values({
+						serviceId: created.id,
+						kind: m.kind,
+						target: m.target,
+						...(m.kind === "volume"
+							? { volumeName: m.name }
+							: { contentEncrypted: await encrypt(masterKey, m.content) }),
+					});
 				if (minted)
 					await tx.insert(envVar).values(
 						await Promise.all(

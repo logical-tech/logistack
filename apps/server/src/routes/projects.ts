@@ -42,7 +42,12 @@ const ProjectInput = z.object({
 const ProjectListItem = Project.extend({
 	environments: z.array(Environment.pick({ id: true, name: true, kind: true })),
 	services: z.array(
-		z.object({ id: z.string(), name: z.string(), status: ObservedState }),
+		z.object({
+			id: z.string(),
+			name: z.string(),
+			status: ObservedState,
+			environmentId: z.string().optional(),
+		}),
 	),
 }).openapi("ProjectListItem");
 
@@ -97,6 +102,7 @@ export const projects = router()
 								id: service.id,
 								name: service.name,
 								status: sql<ObservedState>`coalesce(${serviceStatus.observed}, 'unknown')`,
+								environmentId: service.environmentId,
 								projectId: environment.projectId,
 							})
 							.from(service)

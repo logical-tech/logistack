@@ -15,6 +15,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppDomainsRouteImport } from './routes/_app/domains'
 import { Route as AppMonitoringRouteRouteImport } from './routes/_app/monitoring/route'
+import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppProjectsRouteRouteImport } from './routes/_app/projects/route'
 import { Route as AppSchedulesRouteImport } from './routes/_app/schedules'
 import { Route as AppStorageRouteImport } from './routes/_app/storage'
@@ -30,6 +31,7 @@ import { Route as AppIntegrationsGitRouteImport } from './routes/_app/integratio
 import { Route as AppIntegrationsNotificationsRouteImport } from './routes/_app/integrations/notifications'
 import { Route as AppIntegrationsRegistriesRouteImport } from './routes/_app/integrations/registries'
 import { Route as AppIntegrationsS3RouteImport } from './routes/_app/integrations/s3'
+import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integrations/tunnels'
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
@@ -54,6 +56,7 @@ import { Route as AppIntegrationsGitNewRouteImport } from './routes/_app/integra
 import { Route as AppIntegrationsNotificationsNewRouteImport } from './routes/_app/integrations/notifications_.new'
 import { Route as AppIntegrationsRegistriesNewRouteImport } from './routes/_app/integrations/registries_.new'
 import { Route as AppIntegrationsS3NewRouteImport } from './routes/_app/integrations/s3_.new'
+import { Route as AppIntegrationsTunnelsNewRouteImport } from './routes/_app/integrations/tunnels_.new'
 import { Route as AppMonitoringNodesIndexRouteImport } from './routes/_app/monitoring/nodes/index'
 import { Route as AppMonitoringNodesNodeIdRouteImport } from './routes/_app/monitoring/nodes/$nodeId'
 import { Route as AppMonitoringNodesNewRouteImport } from './routes/_app/monitoring/nodes/new'
@@ -63,6 +66,7 @@ import { Route as AppSettingsApiKeysNewRouteImport } from './routes/_app/setting
 import { Route as AppSettingsAuthenticationOidcRouteImport } from './routes/_app/settings/authentication_.oidc'
 import { Route as AppSettingsAuthenticationSamlRouteImport } from './routes/_app/settings/authentication_.saml'
 import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/settings/certificates_.new'
+import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
 import { Route as AppProjectsProjectIdServicesNewRouteImport } from './routes/_app/projects/$projectId/services/new'
 import { Route as AppProjectsProjectIdTemplatesIndexRouteImport } from './routes/_app/projects/$projectId/templates/index'
@@ -73,6 +77,7 @@ import { Route as AppProjectsProjectIdServicesServiceIdDatabaseRouteImport } fro
 import { Route as AppProjectsProjectIdServicesServiceIdDeploymentsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/deployments'
 import { Route as AppProjectsProjectIdServicesServiceIdDomainsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/domains'
 import { Route as AppProjectsProjectIdServicesServiceIdEnvironmentRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/environment'
+import { Route as AppProjectsProjectIdServicesServiceIdFilesRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/files'
 import { Route as AppProjectsProjectIdServicesServiceIdLogsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/logs'
 import { Route as AppProjectsProjectIdServicesServiceIdMetricsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/metrics'
 import { Route as AppProjectsProjectIdServicesServiceIdSettingsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/settings'
@@ -105,6 +110,11 @@ const AppDomainsRoute = AppDomainsRouteImport.update({
 const AppMonitoringRouteRoute = AppMonitoringRouteRouteImport.update({
   id: '/monitoring',
   path: '/monitoring',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkRoute = AppNetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjectsRouteRoute = AppProjectsRouteRouteImport.update({
@@ -182,6 +192,11 @@ const AppIntegrationsRegistriesRoute =
 const AppIntegrationsS3Route = AppIntegrationsS3RouteImport.update({
   id: '/integrations/s3',
   path: '/integrations/s3',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppIntegrationsTunnelsRoute = AppIntegrationsTunnelsRouteImport.update({
+  id: '/integrations/tunnels',
+  path: '/integrations/tunnels',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMonitoringIndexRoute = AppMonitoringIndexRouteImport.update({
@@ -310,6 +325,12 @@ const AppIntegrationsS3NewRoute = AppIntegrationsS3NewRouteImport.update({
   path: '/integrations/s3/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIntegrationsTunnelsNewRoute =
+  AppIntegrationsTunnelsNewRouteImport.update({
+    id: '/integrations/tunnels_/new',
+    path: '/integrations/tunnels/new',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppMonitoringNodesIndexRoute = AppMonitoringNodesIndexRouteImport.update({
   id: '/nodes/',
   path: '/nodes/',
@@ -359,6 +380,12 @@ const AppSettingsCertificatesNewRoute =
   AppSettingsCertificatesNewRouteImport.update({
     id: '/settings/certificates_/new',
     path: '/settings/certificates/new',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppIntegrationsDnsProviderIdZoneIdRoute =
+  AppIntegrationsDnsProviderIdZoneIdRouteImport.update({
+    id: '/integrations/dns_/$providerId/$zoneId',
+    path: '/integrations/dns/$providerId/$zoneId',
     getParentRoute: () => AppRoute,
   } as any)
 const AppProjectsProjectIdServicesServiceIdRouteRoute =
@@ -421,6 +448,12 @@ const AppProjectsProjectIdServicesServiceIdEnvironmentRoute =
     path: '/environment',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdServicesServiceIdFilesRoute =
+  AppProjectsProjectIdServicesServiceIdFilesRouteImport.update({
+    id: '/files',
+    path: '/files',
+    getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdLogsRoute =
   AppProjectsProjectIdServicesServiceIdLogsRouteImport.update({
     id: '/logs',
@@ -458,6 +491,7 @@ export interface FileRoutesByFullPath {
   '/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/projects': typeof AppProjectsRouteRouteWithChildren
   '/domains': typeof AppDomainsRoute
+  '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
   '/storage': typeof AppStorageRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
@@ -473,6 +507,7 @@ export interface FileRoutesByFullPath {
   '/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/integrations/s3': typeof AppIntegrationsS3Route
+  '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -495,6 +530,7 @@ export interface FileRoutesByFullPath {
   '/integrations/notifications/new': typeof AppIntegrationsNotificationsNewRoute
   '/integrations/registries/new': typeof AppIntegrationsRegistriesNewRoute
   '/integrations/s3/new': typeof AppIntegrationsS3NewRoute
+  '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
@@ -506,6 +542,7 @@ export interface FileRoutesByFullPath {
   '/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
+  '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -514,6 +551,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   '/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
+  '/projects/$projectId/services/$serviceId/files': typeof AppProjectsProjectIdServicesServiceIdFilesRoute
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -525,6 +563,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/setup': typeof SetupRoute
   '/domains': typeof AppDomainsRoute
+  '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
   '/storage': typeof AppStorageRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
@@ -539,6 +578,7 @@ export interface FileRoutesByTo {
   '/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/integrations/s3': typeof AppIntegrationsS3Route
+  '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -561,6 +601,7 @@ export interface FileRoutesByTo {
   '/integrations/notifications/new': typeof AppIntegrationsNotificationsNewRoute
   '/integrations/registries/new': typeof AppIntegrationsRegistriesNewRoute
   '/integrations/s3/new': typeof AppIntegrationsS3NewRoute
+  '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
@@ -571,6 +612,7 @@ export interface FileRoutesByTo {
   '/backups/$serviceId': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
+  '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -579,6 +621,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   '/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
+  '/projects/$projectId/services/$serviceId/files': typeof AppProjectsProjectIdServicesServiceIdFilesRoute
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -594,6 +637,7 @@ export interface FileRoutesById {
   '/_app/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/_app/projects': typeof AppProjectsRouteRouteWithChildren
   '/_app/domains': typeof AppDomainsRoute
+  '/_app/network': typeof AppNetworkRoute
   '/_app/schedules': typeof AppSchedulesRoute
   '/_app/storage': typeof AppStorageRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
@@ -610,6 +654,7 @@ export interface FileRoutesById {
   '/_app/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/_app/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/_app/integrations/s3': typeof AppIntegrationsS3Route
+  '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
@@ -632,6 +677,7 @@ export interface FileRoutesById {
   '/_app/integrations/notifications_/new': typeof AppIntegrationsNotificationsNewRoute
   '/_app/integrations/registries_/new': typeof AppIntegrationsRegistriesNewRoute
   '/_app/integrations/s3_/new': typeof AppIntegrationsS3NewRoute
+  '/_app/integrations/tunnels_/new': typeof AppIntegrationsTunnelsNewRoute
   '/_app/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/_app/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
   '/_app/schedules_/$scheduleId_/edit': typeof AppSchedulesScheduleIdEditRoute
@@ -643,6 +689,7 @@ export interface FileRoutesById {
   '/_app/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/_app/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
+  '/_app/integrations/dns_/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/_app/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -651,6 +698,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   '/_app/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/_app/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
+  '/_app/projects/$projectId/services/$serviceId/files': typeof AppProjectsProjectIdServicesServiceIdFilesRoute
   '/_app/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/_app/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/_app/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -666,6 +714,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/projects'
     | '/domains'
+    | '/network'
     | '/schedules'
     | '/storage'
     | '/forgot-password'
@@ -681,6 +730,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications'
     | '/integrations/registries'
     | '/integrations/s3'
+    | '/integrations/tunnels'
     | '/monitoring/alerts'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -703,6 +753,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications/new'
     | '/integrations/registries/new'
     | '/integrations/s3/new'
+    | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
     | '/schedules/$scheduleId/edit'
@@ -714,6 +765,7 @@ export interface FileRouteTypes {
     | '/monitoring/nodes/'
     | '/projects/$projectId/'
     | '/projects/$projectId/services/$serviceId'
+    | '/integrations/dns/$providerId/$zoneId'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates/'
@@ -722,6 +774,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/deployments'
     | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
+    | '/projects/$projectId/services/$serviceId/files'
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
     | '/projects/$projectId/services/$serviceId/settings'
@@ -733,6 +786,7 @@ export interface FileRouteTypes {
     | '/'
     | '/setup'
     | '/domains'
+    | '/network'
     | '/schedules'
     | '/storage'
     | '/forgot-password'
@@ -747,6 +801,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications'
     | '/integrations/registries'
     | '/integrations/s3'
+    | '/integrations/tunnels'
     | '/monitoring/alerts'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -769,6 +824,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications/new'
     | '/integrations/registries/new'
     | '/integrations/s3/new'
+    | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
     | '/schedules/$scheduleId/edit'
@@ -779,6 +835,7 @@ export interface FileRouteTypes {
     | '/backups/$serviceId'
     | '/monitoring/nodes'
     | '/projects/$projectId'
+    | '/integrations/dns/$providerId/$zoneId'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates'
@@ -787,6 +844,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/deployments'
     | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
+    | '/projects/$projectId/services/$serviceId/files'
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
     | '/projects/$projectId/services/$serviceId/settings'
@@ -801,6 +859,7 @@ export interface FileRouteTypes {
     | '/_app/monitoring'
     | '/_app/projects'
     | '/_app/domains'
+    | '/_app/network'
     | '/_app/schedules'
     | '/_app/storage'
     | '/_auth/forgot-password'
@@ -817,6 +876,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/notifications'
     | '/_app/integrations/registries'
     | '/_app/integrations/s3'
+    | '/_app/integrations/tunnels'
     | '/_app/monitoring/alerts'
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
@@ -839,6 +899,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/notifications_/new'
     | '/_app/integrations/registries_/new'
     | '/_app/integrations/s3_/new'
+    | '/_app/integrations/tunnels_/new'
     | '/_app/monitoring/nodes/$nodeId'
     | '/_app/monitoring/nodes/new'
     | '/_app/schedules_/$scheduleId_/edit'
@@ -850,6 +911,7 @@ export interface FileRouteTypes {
     | '/_app/monitoring/nodes/'
     | '/_app/projects/$projectId/'
     | '/_app/projects/$projectId/services/$serviceId'
+    | '/_app/integrations/dns_/$providerId/$zoneId'
     | '/_app/projects/$projectId/services/new'
     | '/_app/projects/$projectId/templates/$templateId'
     | '/_app/projects/$projectId/templates/'
@@ -858,6 +920,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/$serviceId/deployments'
     | '/_app/projects/$projectId/services/$serviceId/domains'
     | '/_app/projects/$projectId/services/$serviceId/environment'
+    | '/_app/projects/$projectId/services/$serviceId/files'
     | '/_app/projects/$projectId/services/$serviceId/logs'
     | '/_app/projects/$projectId/services/$serviceId/metrics'
     | '/_app/projects/$projectId/services/$serviceId/settings'
@@ -914,6 +977,13 @@ declare module '@tanstack/react-router' {
       path: '/monitoring'
       fullPath: '/monitoring'
       preLoaderRoute: typeof AppMonitoringRouteRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network': {
+      id: '/_app/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof AppNetworkRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projects': {
@@ -1019,6 +1089,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations/s3'
       fullPath: '/integrations/s3'
       preLoaderRoute: typeof AppIntegrationsS3RouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/integrations/tunnels': {
+      id: '/_app/integrations/tunnels'
+      path: '/integrations/tunnels'
+      fullPath: '/integrations/tunnels'
+      preLoaderRoute: typeof AppIntegrationsTunnelsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/monitoring/': {
@@ -1189,6 +1266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIntegrationsS3NewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/integrations/tunnels_/new': {
+      id: '/_app/integrations/tunnels_/new'
+      path: '/integrations/tunnels/new'
+      fullPath: '/integrations/tunnels/new'
+      preLoaderRoute: typeof AppIntegrationsTunnelsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/monitoring/nodes/': {
       id: '/_app/monitoring/nodes/'
       path: '/nodes'
@@ -1250,6 +1334,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/certificates/new'
       fullPath: '/settings/certificates/new'
       preLoaderRoute: typeof AppSettingsCertificatesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/integrations/dns_/$providerId/$zoneId': {
+      id: '/_app/integrations/dns_/$providerId/$zoneId'
+      path: '/integrations/dns/$providerId/$zoneId'
+      fullPath: '/integrations/dns/$providerId/$zoneId'
+      preLoaderRoute: typeof AppIntegrationsDnsProviderIdZoneIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projects/$projectId/services/$serviceId': {
@@ -1322,6 +1413,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdEnvironmentRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/services/$serviceId/files': {
+      id: '/_app/projects/$projectId/services/$serviceId/files'
+      path: '/files'
+      fullPath: '/projects/$projectId/services/$serviceId/files'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdFilesRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/logs': {
       id: '/_app/projects/$projectId/services/$serviceId/logs'
       path: '/logs'
@@ -1385,6 +1483,7 @@ interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
   AppProjectsProjectIdServicesServiceIdDeploymentsRoute: typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
   AppProjectsProjectIdServicesServiceIdDomainsRoute: typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   AppProjectsProjectIdServicesServiceIdEnvironmentRoute: typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
+  AppProjectsProjectIdServicesServiceIdFilesRoute: typeof AppProjectsProjectIdServicesServiceIdFilesRoute
   AppProjectsProjectIdServicesServiceIdLogsRoute: typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   AppProjectsProjectIdServicesServiceIdMetricsRoute: typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   AppProjectsProjectIdServicesServiceIdSettingsRoute: typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -1405,6 +1504,8 @@ const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjec
       AppProjectsProjectIdServicesServiceIdDomainsRoute,
     AppProjectsProjectIdServicesServiceIdEnvironmentRoute:
       AppProjectsProjectIdServicesServiceIdEnvironmentRoute,
+    AppProjectsProjectIdServicesServiceIdFilesRoute:
+      AppProjectsProjectIdServicesServiceIdFilesRoute,
     AppProjectsProjectIdServicesServiceIdLogsRoute:
       AppProjectsProjectIdServicesServiceIdLogsRoute,
     AppProjectsProjectIdServicesServiceIdMetricsRoute:
@@ -1466,6 +1567,7 @@ interface AppRouteChildren {
   AppMonitoringRouteRoute: typeof AppMonitoringRouteRouteWithChildren
   AppProjectsRouteRoute: typeof AppProjectsRouteRouteWithChildren
   AppDomainsRoute: typeof AppDomainsRoute
+  AppNetworkRoute: typeof AppNetworkRoute
   AppSchedulesRoute: typeof AppSchedulesRoute
   AppStorageRoute: typeof AppStorageRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -1476,6 +1578,7 @@ interface AppRouteChildren {
   AppIntegrationsNotificationsRoute: typeof AppIntegrationsNotificationsRoute
   AppIntegrationsRegistriesRoute: typeof AppIntegrationsRegistriesRoute
   AppIntegrationsS3Route: typeof AppIntegrationsS3Route
+  AppIntegrationsTunnelsRoute: typeof AppIntegrationsTunnelsRoute
   AppSchedulesScheduleIdRoute: typeof AppSchedulesScheduleIdRoute
   AppSchedulesNewRoute: typeof AppSchedulesNewRoute
   AppSettingsApiKeysRoute: typeof AppSettingsApiKeysRoute
@@ -1494,18 +1597,21 @@ interface AppRouteChildren {
   AppIntegrationsNotificationsNewRoute: typeof AppIntegrationsNotificationsNewRoute
   AppIntegrationsRegistriesNewRoute: typeof AppIntegrationsRegistriesNewRoute
   AppIntegrationsS3NewRoute: typeof AppIntegrationsS3NewRoute
+  AppIntegrationsTunnelsNewRoute: typeof AppIntegrationsTunnelsNewRoute
   AppSchedulesScheduleIdEditRoute: typeof AppSchedulesScheduleIdEditRoute
   AppSettingsApiKeysNewRoute: typeof AppSettingsApiKeysNewRoute
   AppSettingsAuthenticationOidcRoute: typeof AppSettingsAuthenticationOidcRoute
   AppSettingsAuthenticationSamlRoute: typeof AppSettingsAuthenticationSamlRoute
   AppSettingsCertificatesNewRoute: typeof AppSettingsCertificatesNewRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
+  AppIntegrationsDnsProviderIdZoneIdRoute: typeof AppIntegrationsDnsProviderIdZoneIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppMonitoringRouteRoute: AppMonitoringRouteRouteWithChildren,
   AppProjectsRouteRoute: AppProjectsRouteRouteWithChildren,
   AppDomainsRoute: AppDomainsRoute,
+  AppNetworkRoute: AppNetworkRoute,
   AppSchedulesRoute: AppSchedulesRoute,
   AppStorageRoute: AppStorageRoute,
   AppIndexRoute: AppIndexRoute,
@@ -1516,6 +1622,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsNotificationsRoute: AppIntegrationsNotificationsRoute,
   AppIntegrationsRegistriesRoute: AppIntegrationsRegistriesRoute,
   AppIntegrationsS3Route: AppIntegrationsS3Route,
+  AppIntegrationsTunnelsRoute: AppIntegrationsTunnelsRoute,
   AppSchedulesScheduleIdRoute: AppSchedulesScheduleIdRoute,
   AppSchedulesNewRoute: AppSchedulesNewRoute,
   AppSettingsApiKeysRoute: AppSettingsApiKeysRoute,
@@ -1534,12 +1641,15 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsNotificationsNewRoute: AppIntegrationsNotificationsNewRoute,
   AppIntegrationsRegistriesNewRoute: AppIntegrationsRegistriesNewRoute,
   AppIntegrationsS3NewRoute: AppIntegrationsS3NewRoute,
+  AppIntegrationsTunnelsNewRoute: AppIntegrationsTunnelsNewRoute,
   AppSchedulesScheduleIdEditRoute: AppSchedulesScheduleIdEditRoute,
   AppSettingsApiKeysNewRoute: AppSettingsApiKeysNewRoute,
   AppSettingsAuthenticationOidcRoute: AppSettingsAuthenticationOidcRoute,
   AppSettingsAuthenticationSamlRoute: AppSettingsAuthenticationSamlRoute,
   AppSettingsCertificatesNewRoute: AppSettingsCertificatesNewRoute,
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,
+  AppIntegrationsDnsProviderIdZoneIdRoute:
+    AppIntegrationsDnsProviderIdZoneIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

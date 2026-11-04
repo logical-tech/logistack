@@ -34,3 +34,6 @@ export function formatDuration(totalSeconds: number): string {
 
 export const daysUntil = (iso: string, now = Date.now()) =>
 	Math.ceil((new Date(iso).getTime() - now) / 86_400_000);
+
+/** `ls-local/<org>/ls-svc-x:dep_y` reads as `ls-svc-x:dep_y`; registry and org add nothing on screen. */
+export const shortImage = (ref: string) => ref.slice(ref.lastIndexOf("/") + 1);

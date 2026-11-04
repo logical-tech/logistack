@@ -5,6 +5,7 @@ import {
 	DeploymentTrigger,
 	DesiredState,
 	EnvironmentKind,
+	ServiceIcon,
 	ServiceKind,
 	ServiceSpec,
 } from "@logistack/contracts";
@@ -118,6 +119,8 @@ export const Service = z
 		desiredState: DesiredState,
 		createdBy: z.string().nullable(),
 		importedFrom: z.string().nullable(),
+		/** Brand icon slug; null shows the engine's or image's default. */
+		icon: ServiceIcon.nullable(),
 		createdAt: Timestamp,
 		updatedAt: Timestamp,
 	})

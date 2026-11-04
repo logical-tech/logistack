@@ -1,14 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Network, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Network, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
-import {
-	ConfirmDelete,
-	DataChip,
-	KindTile,
-} from "@/components/integrations/parts";
+import { ConfirmDelete, KindTile } from "@/components/integrations/parts";
 import { Page, PageHeader } from "@/components/page-header";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
@@ -48,7 +44,19 @@ function ProviderRow({
 			</div>
 			<div className="flex min-w-0 flex-wrap gap-1.5 sm:max-w-[45%] sm:justify-end">
 				{p.zones.map((z) => (
-					<DataChip key={z.id}>{z.name}</DataChip>
+					<Link
+						key={z.id}
+						to="/integrations/dns/$providerId/$zoneId"
+						params={{ providerId: p.id, zoneId: z.id }}
+						aria-label={`Records in ${z.name}`}
+						className="group/zone inline-flex max-w-full items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground transition-colors duration-(--duration-quick) hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+					>
+						<span className="truncate">{z.name}</span>
+						<ChevronRight
+							className="size-3 shrink-0 text-muted-foreground transition-transform duration-(--duration-quick) group-hover/zone:translate-x-0.5"
+							aria-hidden
+						/>
+					</Link>
 				))}
 			</div>
 			<div className="flex items-center justify-between gap-4 sm:w-40 sm:justify-end">

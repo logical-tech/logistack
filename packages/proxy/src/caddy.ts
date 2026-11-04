@@ -56,6 +56,16 @@ export type CaddyMatcher = { host?: string[]; path?: string[] };
 export type CaddyHandler =
 	| { handler: "reverse_proxy"; upstreams: { dial: string }[] }
 	| {
+			handler: "authentication";
+			providers: {
+				http_basic: {
+					accounts: { username: string; password: string }[];
+					hash: { algorithm: "bcrypt" };
+					realm?: string;
+				};
+			};
+	  }
+	| {
 			handler: "static_response";
 			status_code: number;
 			headers?: Record<string, string[]>;

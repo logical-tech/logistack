@@ -3,6 +3,7 @@ import { Play, Rocket, RotateCw, Square } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ServiceGlyph } from "@/components/service/service-icon";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -13,9 +14,8 @@ import {
 } from "@/lib/api/service-ops";
 import type { ProjectId } from "@/lib/api/types";
 
-/** What the service runs, in one line: the image of its current deployment, else its source. */
+/** What the service runs, in one line: its source; the built image lives on the overview. */
 function sourceLabel(o: ServiceOverview) {
-	if (o.current?.imageRef) return o.current.imageRef;
 	const spec = o.spec;
 	if (spec.kind === "database") return `${spec.engine} ${spec.version}`;
 	if (spec.kind === "storage") return `${spec.engine} object storage`;
@@ -65,20 +65,23 @@ export function ServiceHeader({
 
 	return (
 		<header className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-end sm:justify-between">
-			<div className="min-w-0">
-				<h1 className="truncate text-xl font-semibold">{o.name}</h1>
-				<p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-					<ServiceStatus status={o.status.observed} suffix={replicas} />
-					{note && (
-						<span className="text-foreground">
-							Desired {o.desiredState}, {note}
+			<div className="flex min-w-0 items-center gap-3.5">
+				<ServiceGlyph service={o} className="size-11 rounded-xl" />
+				<div className="min-w-0">
+					<h1 className="truncate text-xl font-semibold">{o.name}</h1>
+					<p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+						<ServiceStatus status={o.status.observed} suffix={replicas} />
+						{note && (
+							<span className="text-foreground">
+								Desired {o.desiredState}, {note}
+							</span>
+						)}
+						<span>{o.environmentName}</span>
+						<span className="min-w-0 truncate font-mono text-xs">
+							{sourceLabel(o)}
 						</span>
-					)}
-					<span>{o.environmentName}</span>
-					<span className="min-w-0 truncate font-mono text-xs">
-						{sourceLabel(o)}
-					</span>
-				</p>
+					</p>
+				</div>
 			</div>
 			<div className="flex shrink-0 flex-wrap items-center gap-2">
 				{stopped ? (

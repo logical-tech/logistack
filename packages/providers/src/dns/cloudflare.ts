@@ -1,11 +1,20 @@
+import {
+	formatDnsValue,
+	parseDnsValue,
+	proxiableTypes,
+} from "@logistack/contracts";
 import { z } from "zod";
 import { defineProvider, Http, ProviderError, secret } from "../http.ts";
 import {
 	type DnsProvider,
 	type DnsRecord,
+	type DnsRecordType,
 	isDnsRecordType,
+	mapTarget,
 	normalizeName,
+	type RecordSetInput,
 	unquoteTxt,
+	withoutDot,
 } from "./types.ts";
 
 const API = "https://api.cloudflare.com/client/v4";
@@ -21,7 +30,59 @@ type CfRecord = {
 	content: string;
 	ttl: number;
 	proxied?: boolean;
+	priority?: number;
+	comment?: string | null;
+	data?: Record<string, string | number>;
 };
+
+/** Cloudflare's own shape for a presentation value: MX splits off `priority`, SRV and CAA go in `data`. */
+function toBody(type: DnsRecordType, value: string) {
+	const p = parseDnsValue(type, value);
+	switch (type) {
+		case "MX":
+			return {
+				priority: Number(p.priority),
+				content: withoutDot(p.target ?? ""),
+			};
+		case "SRV":
+			return {
+				data: {
+					priority: Number(p.priority),
+					weight: Number(p.weight),
+					port: Number(p.port),
+					target: withoutDot(p.target ?? ""),
+				},
+			};
+		case "CAA":
+			return { data: { flags: Number(p.flags), tag: p.tag, value: p.value } };
+		default:
+			return { content: mapTarget(type, value, withoutDot) };
+	}
+}
+
+function toValue(type: DnsRecordType, r: CfRecord): string {
+	const d = r.data ?? {};
+	switch (type) {
+		case "TXT":
+			return unquoteTxt(r.content);
+		case "MX":
+			return `${r.priority ?? 0} ${r.content}`;
+		case "SRV":
+			return r.data
+				? `${d.priority} ${d.weight} ${d.port} ${d.target}`
+				: `${r.priority ?? 0} ${r.content}`;
+		case "CAA":
+			return r.data
+				? formatDnsValue("CAA", {
+						flags: String(d.flags),
+						tag: String(d.tag),
+						value: String(d.value),
+					})
+				: r.content;
+		default:
+			return r.content;
+	}
+}
 
 export const cloudflare = defineProvider({
 	configSchema: cloudflareConfig,
@@ -50,11 +111,42 @@ export const cloudflare = defineProvider({
 						zoneId,
 						name: normalizeName(r.name),
 						type: r.type,
-						content: r.type === "TXT" ? unquoteTxt(r.content) : r.content,
+						content: toValue(r.type, r),
 						ttl: r.ttl,
 						proxied: r.proxied ?? false,
+						...(r.comment ? { comment: r.comment } : {}),
 					}
 				: null;
+
+		const recordBody = (input: RecordSetInput) => {
+			if (input.values.length !== 1)
+				throw new ProviderError(
+					"cloudflare",
+					"saveRecord",
+					"a record holds exactly one value",
+				);
+			return {
+				type: input.type,
+				name: normalizeName(input.name),
+				ttl: input.ttl,
+				...toBody(input.type, input.values[0] ?? ""),
+				...(proxiableTypes.includes(input.type)
+					? { proxied: input.proxied ?? false }
+					: {}),
+				...(input.comment !== undefined ? { comment: input.comment } : {}),
+			};
+		};
+
+		const saved = (zoneId: string, r: CfRecord) => {
+			const record = toRecord(zoneId, r);
+			if (!record)
+				throw new ProviderError(
+					"cloudflare",
+					"saveRecord",
+					"unexpected record type",
+				);
+			return record;
+		};
 
 		async function listRecords(zoneId: string, name?: string, type?: string) {
 			const q = new URLSearchParams();
@@ -109,7 +201,7 @@ export const cloudflare = defineProvider({
 					input.name,
 					input.type,
 				);
-				const saved = first
+				const result = first
 					? await send(
 							"upsertRecord",
 							"PUT",
@@ -128,14 +220,25 @@ export const cloudflare = defineProvider({
 						"DELETE",
 						`/zones/${zone}/dns_records/${encodeURIComponent(r.id)}`,
 					);
-				const record = toRecord(input.zoneId, saved);
-				if (!record)
-					throw new ProviderError(
-						"cloudflare",
-						"upsertRecord",
-						"unexpected record type",
-					);
-				return record;
+				return saved(input.zoneId, result);
+			},
+			async createRecord(input) {
+				const r = await send(
+					"createRecord",
+					"POST",
+					`/zones/${encodeURIComponent(input.zoneId)}/dns_records`,
+					recordBody(input),
+				);
+				return [saved(input.zoneId, r)];
+			},
+			async updateRecord(recordId, input) {
+				const r = await send(
+					"updateRecord",
+					"PUT",
+					`/zones/${encodeURIComponent(input.zoneId)}/dns_records/${encodeURIComponent(recordId)}`,
+					recordBody(input),
+				);
+				return [saved(input.zoneId, r)];
 			},
 			async deleteRecord(zoneId, recordId) {
 				try {

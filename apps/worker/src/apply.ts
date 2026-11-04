@@ -5,6 +5,7 @@ import {
 } from "@logistack/core";
 import { node, service } from "@logistack/db";
 import {
+	authForImage,
 	DockerError,
 	DockerVersionConflictError,
 	managedLabels,
@@ -246,6 +247,10 @@ export async function upsertService(
 	spec: ServiceSpec,
 	patch: (current: Service, desired: ServiceSpec) => ServiceSpec = (_c, d) => d,
 ): Promise<Applied> {
+	registryAuth = authForImage(
+		spec.TaskTemplate.ContainerSpec?.Image ?? "",
+		registryAuth,
+	);
 	let before = await inspectService(ctx, spec.Name);
 	if (!before) {
 		try {

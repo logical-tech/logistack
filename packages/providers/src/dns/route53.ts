@@ -6,9 +6,12 @@ import {
 	type DnsRecord,
 	type DnsRecordType,
 	isDnsRecordType,
+	mapTarget,
 	normalizeName,
 	quoteTxt,
+	type RecordSetInput,
 	unquoteTxt,
+	withoutDot,
 } from "./types.ts";
 
 const API = "https://route53.amazonaws.com/2013-04-01";
@@ -48,7 +51,18 @@ const decodeName = (s: string) =>
 		),
 	);
 
-type RRSet = { name: string; type: string; ttl: number; values: string[] };
+type RRSet = {
+	name: string;
+	type: string;
+	ttl: number;
+	values: string[];
+	setId?: string;
+	readOnly?: string;
+};
+type Change = {
+	action: "CREATE" | "UPSERT" | "DELETE";
+	set: { name: string; type: DnsRecordType; ttl: number; values: string[] };
+};
 
 /** Record ids are `<fqdn>/<type>`: Route53 addresses record sets, not records. */
 export const route53 = defineProvider({
@@ -103,17 +117,27 @@ export const route53 = defineProvider({
 				if (next?.type) q.set("type", next.type);
 				const xml = await call("listRecords", `/hostedzone/${zone}/rrset?${q}`);
 				for (const set of tags(xml, "ResourceRecordSet")) {
-					// Weighted/latency/alias sets are not addressable by name/type; leave them alone.
-					if (
-						tag(set, "SetIdentifier") !== undefined ||
-						tag(set, "AliasTarget") !== undefined
-					)
-						continue;
+					// Alias and routing-policy sets are not plain (name, type) sets: listed, never changed.
+					const alias = tag(set, "AliasTarget");
+					const setId = tag(set, "SetIdentifier");
+					const type = tag(set, "Type") ?? "";
+					const values = alias
+						? [decodeName(tag(alias, "DNSName") ?? "")]
+						: tags(set, "Value").map(unescapeXml);
 					out.push({
 						name: decodeName(tag(set, "Name") ?? ""),
-						type: tag(set, "Type") ?? "",
+						type,
 						ttl: Number(tag(set, "TTL") ?? 0),
-						values: tags(set, "Value").map(unescapeXml),
+						values,
+						setId: setId && unescapeXml(setId),
+						readOnly: alias
+							? "Alias to an AWS resource, edit it in the AWS console"
+							: setId
+								? "Uses a routing policy, edit it in the AWS console"
+								: // shortcut: spots the zone's own delegation by its awsdns servers instead of fetching the zone name.
+									type === "NS" && values.every((v) => v.includes(".awsdns-"))
+									? "The hosted zone's own name servers"
+									: undefined,
 					});
 				}
 				const nextName = tag(xml, "NextRecordName");
@@ -129,33 +153,61 @@ export const route53 = defineProvider({
 			const type = s.type;
 			if (!isDnsRecordType(type)) return [];
 			return s.values.map((v) => ({
-				id: `${s.name}/${type}`,
+				// Read-only sets get an id that update and delete refuse to parse.
+				id: `${s.name}/${type}${s.readOnly ? `#${s.setId ?? "ro"}` : ""}`,
 				zoneId,
 				name: s.name,
 				type,
-				content: type === "TXT" ? unquoteTxt(v) : v,
+				content:
+					type === "TXT" ? unquoteTxt(v) : mapTarget(type, v, withoutDot),
 				ttl: s.ttl,
+				...(s.readOnly ? { readOnly: s.readOnly } : {}),
 			}));
 		};
 
-		const change = (
-			zoneId: string,
-			op: string,
-			action: "UPSERT" | "DELETE",
-			s: { name: string; type: DnsRecordType; ttl: number; values: string[] },
-		) =>
+		const toWire = (type: DnsRecordType, v: string) =>
+			type === "TXT" ? quoteTxt(v) : v;
+
+		const change = (zoneId: string, op: string, changes: Change[]) =>
 			call(
 				op,
 				`/hostedzone/${encodeURIComponent(zoneId)}/rrset/`,
-				`<?xml version="1.0" encoding="UTF-8"?><ChangeResourceRecordSetsRequest xmlns="https://route53.amazonaws.com/doc/2013-04-01/"><ChangeBatch><Changes><Change><Action>${action}</Action><ResourceRecordSet><Name>${escapeXml(s.name)}.</Name><Type>${s.type}</Type><TTL>${s.ttl}</TTL><ResourceRecords>${s.values
+				`<?xml version="1.0" encoding="UTF-8"?><ChangeResourceRecordSetsRequest xmlns="https://route53.amazonaws.com/doc/2013-04-01/"><ChangeBatch><Changes>${changes
 					.map(
-						(v) =>
-							`<ResourceRecord><Value>${escapeXml(v)}</Value></ResourceRecord>`,
+						({ action, set: s }) =>
+							`<Change><Action>${action}</Action><ResourceRecordSet><Name>${escapeXml(s.name)}.</Name><Type>${s.type}</Type><TTL>${s.ttl}</TTL><ResourceRecords>${s.values
+								.map(
+									(v) =>
+										`<ResourceRecord><Value>${escapeXml(v)}</Value></ResourceRecord>`,
+								)
+								.join("")}</ResourceRecords></ResourceRecordSet></Change>`,
 					)
-					.join(
-						"",
-					)}</ResourceRecords></ResourceRecordSet></Change></Changes></ChangeBatch></ChangeResourceRecordSetsRequest>`,
+					.join("")}</Changes></ChangeBatch></ChangeResourceRecordSetsRequest>`,
 			);
+
+		function parseId(op: string, recordId: string) {
+			const slash = recordId.lastIndexOf("/");
+			const name = recordId.slice(0, slash);
+			const type = recordId.slice(slash + 1);
+			if (slash < 1 || !isDnsRecordType(type))
+				throw new ProviderError("route53", op, "malformed record id");
+			return { name, type };
+		}
+
+		/** DELETE must repeat the set's current TTL and values exactly. */
+		async function current(zoneId: string, name: string, type: DnsRecordType) {
+			const set = (await rrsets(zoneId, name)).find(
+				(s) => s.type === type && !s.setId && !s.readOnly,
+			);
+			return set && { ...set, type };
+		}
+
+		const wireSet = (input: RecordSetInput) => ({
+			name: normalizeName(input.name),
+			type: input.type,
+			ttl: input.ttl,
+			values: input.values.map((v) => toWire(input.type, v)),
+		});
 
 		return {
 			async verify() {
@@ -187,14 +239,17 @@ export const route53 = defineProvider({
 			},
 			async upsertRecord(input) {
 				const name = normalizeName(input.name);
-				const value =
-					input.type === "TXT" ? quoteTxt(input.content) : input.content;
-				await change(input.zoneId, "upsertRecord", "UPSERT", {
-					name,
-					type: input.type,
-					ttl: input.ttl,
-					values: [value],
-				});
+				await change(input.zoneId, "upsertRecord", [
+					{
+						action: "UPSERT",
+						set: {
+							name,
+							type: input.type,
+							ttl: input.ttl,
+							values: [toWire(input.type, input.content)],
+						},
+					},
+				]);
 				return {
 					...input,
 					id: `${name}/${input.type}`,
@@ -202,22 +257,30 @@ export const route53 = defineProvider({
 					proxied: undefined,
 				};
 			},
+			async createRecord(input) {
+				const set = wireSet(input);
+				await change(input.zoneId, "createRecord", [{ action: "CREATE", set }]);
+				return toRecords(input.zoneId, set);
+			},
+			async updateRecord(recordId, input) {
+				const old = parseId("updateRecord", recordId);
+				const set = wireSet(input);
+				const renamed = old.name !== set.name || old.type !== set.type;
+				const before = renamed
+					? await current(input.zoneId, old.name, old.type)
+					: undefined;
+				// One batch, so a rename either happens whole or not at all.
+				await change(input.zoneId, "updateRecord", [
+					...(before ? [{ action: "DELETE" as const, set: before }] : []),
+					{ action: renamed ? "CREATE" : "UPSERT", set },
+				]);
+				return toRecords(input.zoneId, set);
+			},
 			async deleteRecord(zoneId, recordId) {
-				const slash = recordId.lastIndexOf("/");
-				const name = recordId.slice(0, slash);
-				const type = recordId.slice(slash + 1);
-				if (slash < 1 || !isDnsRecordType(type))
-					throw new ProviderError(
-						"route53",
-						"deleteRecord",
-						"malformed record id",
-					);
-				// DELETE must repeat the set's current TTL and values exactly.
-				const current = (await rrsets(zoneId, name)).find(
-					(s) => s.type === type,
-				);
-				if (!current) return;
-				await change(zoneId, "deleteRecord", "DELETE", { ...current, type });
+				const { name, type } = parseId("deleteRecord", recordId);
+				const set = await current(zoneId, name, type);
+				if (set)
+					await change(zoneId, "deleteRecord", [{ action: "DELETE", set }]);
 			},
 		};
 	},

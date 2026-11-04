@@ -76,6 +76,10 @@ export type CreateServiceInput = {
 	domain: DomainInput | null;
 	/** More domains on other ports, like an object storage console. */
 	extraDomains?: DomainInput[];
+	/** Config files and named volumes, e.g. a web server preset's. */
+	mounts?: Body<Api["environments"][":id"]["services"]["$post"]>["mounts"];
+	/** Provenance marker, e.g. `webserver:nginx`. */
+	importedFrom?: string;
 };
 export type DomainInput =
 	| { kind: "generated"; port: number }

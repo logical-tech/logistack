@@ -2,6 +2,7 @@ import {
 	Activity,
 	Bell,
 	Boxes,
+	Cable,
 	CalendarClock,
 	CircleArrowUp,
 	Container,
@@ -20,6 +21,7 @@ import {
 	ShieldCheck,
 	TerminalSquare,
 	Users,
+	Waypoints,
 } from "lucide-react";
 
 /**
@@ -94,6 +96,19 @@ export const NAV: NavGroup[] = [
 				keywords: ["dns", "tls", "hostnames"],
 			},
 			{
+				to: "/network",
+				title: "Network",
+				icon: Waypoints,
+				description:
+					"How traffic reaches each service: the proxy and tunnels, every domain, and the tasks running on each node.",
+				empty: {
+					title: "Nothing to map yet",
+					body: "Services you deploy show up here with their domains, tunnels, published ports and running tasks.",
+					action: "Choose a project",
+				},
+				keywords: ["map", "topology", "graph", "tunnel", "proxy", "ports"],
+			},
+			{
 				to: "/storage",
 				title: "Storage",
 				icon: HardDrive,
@@ -162,6 +177,14 @@ export const NAV: NavGroup[] = [
 					action: "Connect DNS provider",
 				},
 				keywords: ["cloudflare", "route53"],
+			},
+			{
+				to: "/integrations/tunnels",
+				title: "Cloudflare Tunnels",
+				icon: Cable,
+				description:
+					"Publish services through Cloudflare without opening ports on the server.",
+				keywords: ["cloudflared", "homelab", "nat", "zero trust"],
 			},
 			{
 				to: "/integrations/notifications",

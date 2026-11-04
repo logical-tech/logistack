@@ -15,6 +15,8 @@ import { DOMAIN_STATUS } from "@/lib/status";
 const col = createColumnHelper<BaseFeatures, DomainListItem>();
 
 function Certificate({ d }: { d: DomainListItem }) {
+	if (d.tunnel)
+		return <span className="text-muted-foreground">Cloudflare edge</span>;
 	if (d.tls === "none")
 		return <span className="text-muted-foreground">HTTP only</span>;
 	if (!d.certificate)
@@ -95,7 +97,9 @@ function columns(actions: { onDelete: (d: DomainListItem) => void }) {
 			header: "TLS",
 			meta: { className: "w-24 max-md:hidden" },
 			cell: ({ row: { original: d } }) => (
-				<span className="text-muted-foreground">{TLS_MODES[d.tls].short}</span>
+				<span className="text-muted-foreground">
+					{d.tunnel ? "Tunnel" : TLS_MODES[d.tls].short}
+				</span>
 			),
 		}),
 		col.display({

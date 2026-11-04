@@ -4,7 +4,8 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./sql": "./src/sql.ts"
+		"./sql": "./src/sql.ts",
+		"./network-map": "./src/network-map.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc -p ."

@@ -196,6 +196,7 @@ function service(
 		domains,
 		nodeId: null,
 		createdBy: null,
+		icon: null,
 		importedFrom: null,
 		createdAt: ago(60 * 24 * 30),
 		updatedAt: ago(60 * 24 * 30),

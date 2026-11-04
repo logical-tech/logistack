@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight, GitCommitHorizontal, Globe, Plus } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { CopyButton } from "@/components/copy-button";
 import { Panel } from "@/components/panel";
+import { AddDomainDialog } from "@/components/service/add-domain-dialog";
 import { DeploymentStatusLabel, StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { domainsQuery } from "@/lib/api/networking";
@@ -12,7 +14,7 @@ import {
 	type ServiceTask,
 } from "@/lib/api/service-ops";
 import type { ProjectId } from "@/lib/api/types";
-import { formatDuration, relativeTime } from "@/lib/format";
+import { formatDuration, relativeTime, shortImage } from "@/lib/format";
 import { DOMAIN_STATUS, SERVICE_STATUS, type StatusMeta } from "@/lib/status";
 
 export const Route = createFileRoute(
@@ -98,8 +100,21 @@ function Replicas({ tasks }: { tasks: ServiceTask[] }) {
 									#{t.slot ?? "?"}
 								</span>
 								<div className="min-w-0">
-									<span className="block truncate font-mono text-[13px]">
+									<span className="block truncate text-sm">
 										{t.hostname ?? t.nodeId ?? "Unassigned"}
+									</span>
+									<span className="flex min-w-0 items-center gap-1">
+										<code
+											className="truncate font-mono text-xs text-muted-foreground"
+											title={t.containerName}
+										>
+											{t.containerName}
+										</code>
+										<CopyButton
+											value={t.containerName}
+											label="Copy container name"
+											className="-my-1 size-6 shrink-0"
+										/>
 									</span>
 									{(t.error || t.message) && (
 										<span
@@ -164,12 +179,21 @@ function Current({
 		>
 			{d ? (
 				<div className="grid gap-3 px-4 py-4">
-					<code
-						className="block truncate font-mono text-[13px]"
-						title={d.imageRef ?? ""}
-					>
-						{d.imageRef}
-					</code>
+					{d.imageRef && (
+						<div className="flex min-w-0 items-center gap-1">
+							<code
+								className="truncate font-mono text-[13px]"
+								title={d.imageRef}
+							>
+								{shortImage(d.imageRef)}
+							</code>
+							<CopyButton
+								value={d.imageRef}
+								label="Copy full image reference"
+								className="-my-1 shrink-0"
+							/>
+						</div>
+					)}
 					<div className="flex min-w-0 items-center gap-2 text-sm">
 						{d.commitSha ? (
 							<>
@@ -229,19 +253,19 @@ function Current({
 function Domains({ service: o }: { service: ServiceOverview }) {
 	const { data } = useQuery(domainsQuery);
 	const mine = data?.filter((d) => d.service.id === o.id);
+	const [adding, setAdding] = useState(false);
 	return (
 		<Panel
 			title="Domains"
 			id="domains"
 			actions={
-				<Button variant="ghost" size="sm" asChild>
-					<Link to="/domains/new" search={{ serviceId: o.id }}>
-						<Plus data-icon="inline-start" />
-						Add
-					</Link>
+				<Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
+					<Plus data-icon="inline-start" />
+					Add
 				</Button>
 			}
 		>
+			<AddDomainDialog service={o} open={adding} onOpenChange={setAdding} />
 			{!mine ? (
 				<div className="h-12" />
 			) : mine.length === 0 ? (

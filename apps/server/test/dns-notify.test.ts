@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { auditLog, dnsProvider, notificationChannel } from "@logistack/db";
+import {
+	auditLog,
+	dnsProvider,
+	domain,
+	notificationChannel,
+} from "@logistack/db";
 import { eq } from "drizzle-orm";
 import { channelStatusKey, redisFor } from "../src/redis.ts";
 import {
@@ -326,6 +331,135 @@ describe.skipIf(!hasDocker)("dns, domains, certificates, notifications", () => {
 					c.url.endsWith(`/dns_records/${record.json.id}`),
 			),
 		).toBe(true);
+	});
+
+	test("zone records: list, create, edit, delete, managed ones marked", async () => {
+		const base = `/api/dns-providers/${providerId}/zones/zone-example/records`;
+		const mx = await h.call(
+			"POST",
+			base,
+			as({
+				body: {
+					name: "Example.com",
+					type: "MX",
+					ttl: 1,
+					values: ["10 mail.example.com."],
+					comment: "primary",
+				},
+			}),
+		);
+		expect(mx.status).toBe(201);
+		expect(mx.json).toMatchObject({
+			name: "example.com",
+			type: "MX",
+			values: ["10 mail.example.com"],
+			comment: "primary",
+			domain: null,
+		});
+		expect(cf.records.get(mx.json.id)).toMatchObject({
+			priority: 10,
+			content: "mail.example.com",
+		});
+
+		const invalid = await h.call(
+			"POST",
+			base,
+			as({
+				body: {
+					name: "x.other.org",
+					type: "A",
+					ttl: 30,
+					values: ["1.2.3.999"],
+				},
+			}),
+		);
+		expect(invalid.status).toBe(400);
+		expect(invalid.json.error.message).toContain("Must be inside example.com");
+
+		const a = await h.call(
+			"POST",
+			base,
+			as({
+				body: {
+					name: "shop.example.com",
+					type: "A",
+					ttl: 1,
+					values: ["203.0.113.7"],
+					proxied: true,
+				},
+			}),
+		);
+		const dom = await h.call(
+			"POST",
+			`/api/services/${serviceId}/domains`,
+			as({
+				body: {
+					hostname: "shop.example.com",
+					port: 80,
+					https: true,
+					cert: "auto",
+					dnsProviderId: providerId,
+					dnsRecordId: a.json.id,
+				},
+			}),
+		);
+		expect(dom.status).toBe(201);
+
+		const list = await h.call("GET", base, as());
+		expect(list.status).toBe(200);
+		expect(list.json.zone).toEqual({ id: "zone-example", name: "example.com" });
+		expect(list.json.records).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: mx.json.id, domain: null }),
+				expect.objectContaining({
+					id: a.json.id,
+					proxied: true,
+					domain: { id: dom.json.id, hostname: "shop.example.com" },
+				}),
+			]),
+		);
+
+		const edited = await h.call(
+			"PUT",
+			`${base}/${mx.json.id}`,
+			as({
+				body: {
+					name: "example.com",
+					type: "MX",
+					ttl: 300,
+					values: ["20 mx2.example.com"],
+				},
+			}),
+		);
+		expect(edited.status).toBe(200);
+		expect(edited.json.values).toEqual(["20 mx2.example.com"]);
+
+		const unknownZone = await h.call(
+			"GET",
+			`/api/dns-providers/${providerId}/zones/nope/records`,
+			as(),
+		);
+		expect(unknownZone.status).toBe(404);
+		// Route 53 and Hetzner ids carry a slash; it must survive the path.
+		const slashed = await h.call("DELETE", `${base}/a%2Fb`, as());
+		expect(slashed.status).toBe(204);
+
+		for (const id of [mx.json.id, a.json.id]) {
+			const del = await h.call("DELETE", `${base}/${id}`, as());
+			expect(del.status).toBe(204);
+		}
+		expect(cf.records.size).toBe(0);
+		const [row] = await h.deps.db
+			.select()
+			.from(domain)
+			.where(eq(domain.id, dom.json.id));
+		expect(row?.dnsRecordId).toBeNull();
+		await h.call("DELETE", `/api/domains/${dom.json.id}`, as());
+		const audits = await h.deps.db
+			.select()
+			.from(auditLog)
+			.where(eq(auditLog.action, "dns_record.delete"));
+		expect(audits.length).toBeGreaterThanOrEqual(2);
 	});
 
 	test("wildcards are refused without DNS-01 through a provider owning the zone", async () => {

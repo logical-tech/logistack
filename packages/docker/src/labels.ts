@@ -43,3 +43,30 @@ export function managedFilters(narrow: Partial<ManagedRef> = {}): Filters {
 export function registryAuthHeader(auth: RegistryAuth): string {
 	return Buffer.from(JSON.stringify(auth)).toString("base64url");
 }
+
+/** Registry host of an image reference, Docker's way: a first segment with `.` or `:` (or `localhost`) is a host. */
+export function imageRegistry(image: string): string {
+	const first = image.split("/")[0] ?? "";
+	return image.includes("/") &&
+		(first.includes(".") || first.includes(":") || first === "localhost")
+		? first.toLowerCase()
+		: "docker.io";
+}
+
+/** Credentials only for their own registry: sent to another host they turn a public pull into "denied". */
+export function authForImage(
+	image: string,
+	auth: RegistryAuth | undefined,
+): RegistryAuth | undefined {
+	if (!auth?.serveraddress) return auth;
+	const host = auth.serveraddress
+		.replace(/^[a-z]+:\/\//, "")
+		.replace(/\/.*$/, "")
+		.toLowerCase();
+	const own = imageRegistry(image);
+	const same =
+		own === host ||
+		(own === "docker.io" &&
+			["index.docker.io", "registry-1.docker.io"].includes(host));
+	return same ? auth : undefined;
+}
