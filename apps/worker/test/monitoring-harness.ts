@@ -30,6 +30,24 @@ export function removeContainers(names: string[]) {
 			});
 }
 
+/** Registries rate-limit CI runners (`toomanyrequests`); a few spaced retries ride it out. */
+export function pull(image: string) {
+	const present = () =>
+		Bun.spawnSync(["docker", "image", "inspect", image], {
+			stdout: "ignore",
+			stderr: "ignore",
+		}).exitCode === 0;
+	for (let attempt = 1; !present(); attempt++) {
+		const p = Bun.spawnSync(["docker", "pull", "-q", image], {
+			stderr: "pipe",
+		});
+		if (p.exitCode === 0) return;
+		if (attempt >= 5)
+			throw new Error(`docker pull ${image} failed: ${p.stderr.toString()}`);
+		Bun.sleepSync(2_000 * attempt);
+	}
+}
+
 export function runContainer(
 	name: string,
 	image: string,
@@ -39,6 +57,7 @@ export function runContainer(
 ): string {
 	if (!name.startsWith(MON_PREFIX))
 		throw new Error(`${name} lacks ${MON_PREFIX}`);
+	pull(image);
 	docker(
 		"run",
 		"-d",

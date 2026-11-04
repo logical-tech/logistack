@@ -12,12 +12,26 @@ import {
 
 const name = `ls-test-dbx-${crypto.randomUUID().slice(0, 8)}-libsql`;
 const IMAGE = "ghcr.io/tursodatabase/libsql-server:v0.24.33";
-const hasImage =
-	hasDocker &&
-	Bun.spawnSync(["docker", "image", "inspect", IMAGE], {
-		stdout: "ignore",
-		stderr: "ignore",
-	}).exitCode === 0;
+/** Pulled when missing, retried past registry rate limits; skipped only if it never arrives. */
+const hasImage = (() => {
+	if (!hasDocker) return false;
+	const present = () =>
+		Bun.spawnSync(["docker", "image", "inspect", IMAGE], {
+			stdout: "ignore",
+			stderr: "ignore",
+		}).exitCode === 0;
+	for (let attempt = 1; attempt <= 4 && !present(); attempt++) {
+		if (
+			Bun.spawnSync(["docker", "pull", "-q", IMAGE], {
+				stdout: "ignore",
+				stderr: "ignore",
+			}).exitCode === 0
+		)
+			break;
+		Bun.sleepSync(2_000 * attempt);
+	}
+	return present();
+})();
 
 function docker(...args: string[]) {
 	const p = Bun.spawnSync(["docker", ...args], { stderr: "pipe" });
