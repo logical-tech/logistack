@@ -222,6 +222,7 @@ function FilterAdd({
 /** One table's rows: virtualized, paged as you scroll, edited in place and saved as one batch. */
 export function DataGrid({
 	serviceId,
+	database,
 	schema,
 	table,
 	sort,
@@ -234,6 +235,8 @@ export function DataGrid({
 	onForbidden,
 }: {
 	serviceId: string;
+	/** Postgres: another database of the instance than the service's default one. */
+	database?: string;
 	schema: string;
 	table: DbTable;
 	sort: RowSort[];
@@ -245,7 +248,7 @@ export function DataGrid({
 	forbidden: boolean;
 	onForbidden: () => void;
 }) {
-	const ref = { schema, table: table.name };
+	const ref = { database, schema, table: table.name };
 	const rows = useInfiniteQuery(rowsQuery(serviceId, ref, { sort, filter }));
 	const write = useWriteRows(serviceId, ref);
 	const scroller = useRef<HTMLDivElement>(null);

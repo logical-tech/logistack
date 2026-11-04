@@ -6,12 +6,15 @@
  * with 403, as for a member with read only. Customer 7 was deleted by a teammate after the
  * page loaded: editing it shows the stale conflict. The SQL editor answers `select * from
  * <table>`, literal selects, generate_series, pg_sleep (cancellable), writes and syntax errors.
+ * Postgres services also hold an empty `analytics` database; CREATE and DROP of tables, views,
+ * enums, sequences, functions and schemas change the mock world, so the tree follows them.
  */
 import {
 	type Cell,
 	type DatabaseEngine,
 	type DatabaseSchema,
 	type DbColumn,
+	type DbRoutine,
 	type DbTable,
 	QUERY_ROWS_LIMIT,
 	type QueryColumn,
@@ -21,7 +24,7 @@ import {
 	type RowsPage,
 	type StatementResult,
 } from "@logistack/contracts";
-import { leadingWord, splitSql } from "@logistack/core";
+import { leadingWord, splitSql } from "@logistack/core/sql";
 import { cellText } from "@/components/database/cells";
 import { ApiError } from "../adapter";
 import type { DatabaseApi } from "../database";
@@ -53,10 +56,16 @@ type MockTable = {
 	/** Rows still listed but already deleted by someone else. */
 	ghosts?: Set<string>;
 };
+type InSchema<T> = T & { schema: string };
 type World = {
 	engine: DatabaseEngine;
 	database: string;
 	tables: MockTable[];
+	/** Schemas that may hold no table. */
+	schemas?: string[];
+	enums?: InSchema<{ name: string; values: string[] }>[];
+	sequences?: InSchema<{ name: string }>[];
+	routines?: InSchema<DbRoutine>[];
 };
 
 function prng(seed: number) {
@@ -292,6 +301,35 @@ function storefront(seed: number): World {
 	return {
 		engine: "postgres",
 		database: "storefront",
+		schemas: ["public", "audit"],
+		enums: [
+			{
+				schema: "public",
+				name: "order_status",
+				values: ["pending", "paid", "shipped", "delivered", "refunded"],
+			},
+			{ schema: "public", name: "wood", values: [...WOODS] },
+		],
+		sequences: [
+			{ schema: "public", name: "customers_id_seq" },
+			{ schema: "public", name: "invoice_number_seq" },
+		],
+		routines: [
+			{
+				schema: "public",
+				name: "order_total",
+				kind: "function",
+				arguments: "order_id bigint",
+				returns: "numeric",
+			},
+			{
+				schema: "public",
+				name: "archive_orders",
+				kind: "procedure",
+				arguments: "IN before date",
+				returns: null,
+			},
+		],
 		tables: [
 			{
 				schema: "public",
@@ -441,6 +479,22 @@ function backoffice(seed: number, engine: DatabaseEngine): World {
 	return {
 		engine,
 		database: "backoffice",
+		routines: [
+			{
+				schema: "backoffice",
+				name: "invoice_total",
+				kind: "function",
+				arguments: "supplier int",
+				returns: "decimal(14,2)",
+			},
+			{
+				schema: "backoffice",
+				name: "close_month",
+				kind: "procedure",
+				arguments: "IN month char(7)",
+				returns: null,
+			},
+		],
 		tables: [
 			{
 				schema: "backoffice",
@@ -515,6 +569,38 @@ function backoffice(seed: number, engine: DatabaseEngine): World {
 }
 
 const worlds = new Map<string, World>();
+/** Postgres: the databases of each service's instance, its default one first. */
+const instances = new Map<string, string[]>();
+
+function databasesOf(id: string, w: World) {
+	let list = instances.get(id);
+	if (!list) {
+		list = [w.database, "analytics", "postgres"];
+		instances.set(id, list);
+	}
+	return list;
+}
+
+/** A database other than the service's default one: Postgres only, empty when made here. */
+function worldIn(id: string, database: string | undefined): World {
+	const w = worldOf(id);
+	if (!database || database === w.database || w.engine !== "postgres") return w;
+	if (!databasesOf(id, w).includes(database))
+		throw new ApiError(
+			404,
+			`database "${database}" does not exist`,
+			"not_found",
+			{ reason: "missing", engineCode: "3D000" },
+		);
+	const key = `${id}\0${database}`;
+	let other = worlds.get(key);
+	if (!other) {
+		other = { engine: "postgres", database, tables: [], schemas: ["public"] };
+		worlds.set(key, other);
+	}
+	return other;
+}
+
 function worldOf(id: string): World {
 	if (
 		id === "svc_storefront_staging_postgres" &&
@@ -714,14 +800,27 @@ const engineOf = (id: string) => {
 };
 
 export const mockDatabase: DatabaseApi = {
-	schema: async (id) => {
+	schema: async (id, database) => {
 		if (engineOf(id) === "mongo") return mongoSchema(id);
 		if (engineOf(id) === "redis") return redisSchema(id);
-		const w = worldOf(id);
-		const schemas = [...new Set(w.tables.map((t) => t.schema))];
+		const home = worldOf(id);
+		const w = worldIn(id, database);
+		const pg = w.engine === "postgres";
+		const schemas = [
+			...new Set([...(w.schemas ?? []), ...w.tables.map((t) => t.schema)]),
+		].sort();
+		const inSchema = <T extends { schema: string }>(
+			xs: T[] | undefined,
+			name: string,
+		) =>
+			(xs ?? [])
+				.filter((x) => x.schema === name)
+				.map(({ schema: _, ...rest }) => rest);
 		const value: DatabaseSchema = {
 			engine: w.engine,
 			database: w.database,
+			defaultDatabase: home.database,
+			...(pg && { databases: [...databasesOf(id, home)].sort() }),
 			schemas: schemas.map((name) => ({
 				name,
 				tables: w.tables
@@ -733,12 +832,81 @@ export const mockDatabase: DatabaseApi = {
 						editable: editable(t),
 						columns: t.columns,
 					})),
+				...(pg && {
+					enums: inSchema(w.enums, name),
+					sequences: inSchema(w.sequences, name),
+				}),
+				routines: inSchema(w.routines, name),
 			})),
 		};
 		return delay(value);
 	},
+	createDatabase: async (id, name) => {
+		if (id.startsWith("svc_booking"))
+			throw new ApiError(
+				403,
+				"missing permission 'write' on service",
+				"forbidden",
+			);
+		const w = worldOf(id);
+		if (w.engine === "postgres") {
+			const list = databasesOf(id, w);
+			if (list.includes(name))
+				throw new ApiError(
+					400,
+					`database "${name}" already exists`,
+					"bad_request",
+					{ reason: "query", engineCode: "42P04" },
+				);
+			list.push(name);
+		} else {
+			if (w.tables.some((t) => t.schema === name) || w.schemas?.includes(name))
+				throw new ApiError(
+					400,
+					`Can't create database '${name}'; database exists`,
+					"bad_request",
+					{ reason: "query", engineCode: "ER_DB_CREATE_EXISTS" },
+				);
+			w.schemas = [...(w.schemas ?? [w.database]), name];
+		}
+		await delay(null, 400);
+	},
+	dropDatabase: async (id, name) => {
+		const w = worldOf(id);
+		if (id.startsWith("svc_booking"))
+			throw new ApiError(
+				403,
+				"missing permission 'admin' on service",
+				"forbidden",
+			);
+		if (name === w.database)
+			throw new ApiError(
+				400,
+				`${name} is the service's default database and cannot be dropped`,
+				"bad_request",
+			);
+		if (w.engine === "postgres") {
+			const list = databasesOf(id, w);
+			if (!list.includes(name))
+				throw new ApiError(
+					404,
+					`database "${name}" does not exist`,
+					"not_found",
+				);
+			instances.set(
+				id,
+				list.filter((d) => d !== name),
+			);
+			worlds.delete(`${id}\0${name}`);
+		} else {
+			w.tables = w.tables.filter((t) => t.schema !== name);
+			w.schemas = (w.schemas ?? [w.database]).filter((x) => x !== name);
+			w.routines = w.routines?.filter((x) => x.schema !== name);
+		}
+		await delay(null, 400);
+	},
 	rows: async (id, ref, { sort, filter, cursor }) => {
-		const t = tableOf(worldOf(id), ref.schema, ref.table);
+		const t = tableOf(worldIn(id, ref.database), ref.schema, ref.table);
 		const at = (name: string) => {
 			const i = t.columns.findIndex((c) => c.name === name);
 			if (i < 0)
@@ -776,7 +944,7 @@ export const mockDatabase: DatabaseApi = {
 		return delay(page);
 	},
 	write: async (id, ref, ops) => {
-		const t = tableOf(worldOf(id), ref.schema, ref.table);
+		const t = tableOf(worldIn(id, ref.database), ref.schema, ref.table);
 		if (id.startsWith("svc_booking"))
 			throw new ApiError(
 				403,
@@ -797,8 +965,8 @@ export const mockDatabase: DatabaseApi = {
 	keyValue: mockKeyValue,
 	writeKey: mockWriteKey,
 	command: mockCommand,
-	query: (id, { sql, readOnly = true, runId }) =>
-		runMock(worldOf(id), id, sql, readOnly, runId),
+	query: async (id, { sql, readOnly = true, runId, database }) =>
+		runMock(worldIn(id, database), id, sql, readOnly, runId),
 	cancel: async (_id, runId) => {
 		const run = running.get(runId);
 		if (!run) throw new ApiError(404, "run not found", "not_found");
@@ -1055,6 +1223,8 @@ async function statement(
 				"forbidden",
 			);
 		await sleep(80);
+		const ddl = applyDdl(w, text);
+		if (ddl) return { ...empty, command: ddl, affected: null };
 		const command =
 			verb === "CREATE" || verb === "ALTER" || verb === "DROP"
 				? `${verb} TABLE`
@@ -1157,6 +1327,217 @@ async function statement(
 	}
 	await sleep(60);
 	return { ...empty, command: verb, affected: null };
+}
+
+const NAME = String.raw`(?:"(?:[^"]|"")+"|\x60(?:[^\x60]|\x60\x60)+\x60|[A-Za-z_][\w$]*)`;
+const QUALIFIED = new RegExp(String.raw`^(${NAME})(?:\s*\.\s*(${NAME}))?`);
+
+const unquote = (n: string) =>
+	n.startsWith('"')
+		? n.slice(1, -1).replaceAll('""', '"')
+		: n.startsWith("`")
+			? n.slice(1, -1).replaceAll("``", "`")
+			: n.toLowerCase();
+
+/** `schema.name` or `name` at the start of `text`, and what follows it. */
+function qualified(w: World, text: string) {
+	const m = QUALIFIED.exec(text.trimStart());
+	if (!m?.[1]) return null;
+	const rest = text.trimStart().slice(m[0].length);
+	const fallback = w.engine === "postgres" ? "public" : w.database;
+	return m[2]
+		? { schema: unquote(m[1]), name: unquote(m[2]), rest }
+		: { schema: fallback, name: unquote(m[1]), rest };
+}
+
+/** Splits on commas outside parentheses and quotes. */
+function topLevel(body: string): string[] {
+	const parts: string[] = [];
+	let depth = 0;
+	let quote = "";
+	let start = 0;
+	for (let i = 0; i < body.length; i++) {
+		const ch = body[i] as string;
+		if (quote) {
+			if (ch === quote) quote = "";
+		} else if (ch === "'" || ch === '"' || ch === "`") quote = ch;
+		else if (ch === "(") depth++;
+		else if (ch === ")") depth--;
+		else if (ch === "," && depth === 0) {
+			parts.push(body.slice(start, i).trim());
+			start = i + 1;
+		}
+	}
+	parts.push(body.slice(start).trim());
+	return parts.filter(Boolean);
+}
+
+const STOP =
+	/\s+(not\s+null|null|default|primary\s+key|generated|auto_increment|unique|references|check)\b/i;
+
+function parseColumns(body: string): DbColumn[] {
+	const columns: DbColumn[] = [];
+	const keys: string[] = [];
+	for (const part of topLevel(body)) {
+		const pk = /^primary\s+key\s*\(([^)]*)\)/i.exec(part);
+		if (pk) {
+			keys.push(...(pk[1] ?? "").split(",").map((k) => unquote(k.trim())));
+			continue;
+		}
+		if (/^(constraint|unique|check|foreign)\b/i.test(part)) continue;
+		const m = new RegExp(String.raw`^(${NAME})\s+([\s\S]+)$`).exec(part);
+		if (!m?.[1] || !m[2]) continue;
+		const rest = m[2];
+		const stop = STOP.exec(rest);
+		const type = (stop ? rest.slice(0, stop.index) : rest).trim();
+		const def =
+			/\bdefault\s+(.+?)(?=\s+(not\s+null|null|primary|unique|references|check)\b|$)/i.exec(
+				rest,
+			);
+		const inlinePk = /\bprimary\s+key\b/i.test(rest);
+		columns.push(
+			col(unquote(m[1]), type.toLowerCase(), {
+				pk: inlinePk,
+				nullable: !inlinePk && !/\bnot\s+null\b/i.test(rest),
+				default: /\bauto_increment\b/i.test(rest)
+					? "auto_increment"
+					: (def?.[1]?.trim() ?? undefined),
+			}),
+		);
+	}
+	for (const c of columns)
+		if (keys.includes(c.name))
+			Object.assign(c, { primaryKey: true, nullable: false });
+	return columns;
+}
+
+const exists = (what: string, name: string): MockError => ({
+	message: `${what} "${name}" already exists`,
+	code: "42710",
+});
+const gone = (what: string, name: string): MockError => ({
+	message: `${what} "${name}" does not exist`,
+	code: "42704",
+});
+
+/**
+ * CREATE and DROP of tables, views, enums, sequences, routines and schemas, applied to the mock
+ * world; the command tag, or null when the statement is something else.
+ */
+function applyDdl(w: World, text: string): string | null {
+	const create =
+		/^create\s+(?:or\s+replace\s+)?(table|view|materialized\s+view|type|schema|sequence|function|procedure)\s+(?:if\s+not\s+exists\s+)?/i.exec(
+			text,
+		);
+	const drop =
+		/^drop\s+(table|view|materialized\s+view|foreign\s+table|type|schema|sequence|function|procedure)\s+(?:if\s+exists\s+)?/i.exec(
+			text,
+		);
+	const m = create ?? drop;
+	if (!m?.[1]) return null;
+	const what = m[1].toLowerCase().replace(/\s+/, " ");
+	const tag = `${create ? "CREATE" : "DROP"} ${what.toUpperCase()}`;
+	const rest = text.slice(m[0].length);
+	if (what === "schema") {
+		const name = unquote(QUALIFIED.exec(rest.trim())?.[1] ?? "");
+		const all = new Set([
+			...(w.schemas ?? []),
+			...w.tables.map((t) => t.schema),
+		]);
+		if (create) {
+			if (all.has(name)) throw new Failed(exists("schema", name));
+			w.schemas = [...(w.schemas ?? []), name];
+		} else {
+			if (!all.has(name)) throw new Failed(gone("schema", name));
+			if (w.tables.some((t) => t.schema === name))
+				throw new Failed({
+					message: `cannot drop schema ${name} because other objects depend on it`,
+					code: "2BP01",
+				});
+			w.schemas = w.schemas?.filter((s) => s !== name);
+		}
+		return tag;
+	}
+	const q = qualified(w, rest);
+	if (!q) return null;
+	const same = (x: { schema: string; name: string }) =>
+		x.schema === q.schema && x.name === q.name;
+	const label = `${q.schema}.${q.name}`;
+	if (what === "type" || what === "sequence") {
+		w.enums ??= [];
+		w.sequences ??= [];
+		const list = what === "type" ? w.enums : w.sequences;
+		if (create) {
+			if (list.some(same)) throw new Failed(exists(what, label));
+			if (what === "type")
+				w.enums?.push({
+					schema: q.schema,
+					name: q.name,
+					values: [...q.rest.matchAll(/'((?:[^']|'')*)'/g)].map((v) =>
+						(v[1] ?? "").replaceAll("''", "'"),
+					),
+				});
+			else w.sequences?.push({ schema: q.schema, name: q.name });
+		} else {
+			if (!list.some(same)) throw new Failed(gone(what, label));
+			if (what === "type") w.enums = w.enums?.filter((x) => !same(x));
+			else w.sequences = w.sequences?.filter((x) => !same(x));
+		}
+		return tag;
+	}
+	if (what === "function" || what === "procedure") {
+		const args = /^\s*\(([^)]*)\)/.exec(q.rest)?.[1]?.trim() ?? "";
+		if (create) {
+			w.routines = [
+				...(w.routines ?? []).filter((x) => !same(x)),
+				{
+					schema: q.schema,
+					name: q.name,
+					kind: what,
+					arguments: args,
+					returns:
+						what === "function"
+							? (/\breturns\s+([\w ()[\],]+?)(?=\s+(language|deterministic|return|as|begin)\b|\s*$)/i
+									.exec(q.rest)?.[1]
+									?.trim() ?? "void")
+							: null,
+				},
+			];
+		} else {
+			if (!(w.routines ?? []).some(same)) throw new Failed(gone(what, label));
+			w.routines = w.routines?.filter((x) => !same(x));
+		}
+		return tag;
+	}
+	const kind: DbTable["kind"] =
+		what === "table"
+			? "table"
+			: what === "view"
+				? "view"
+				: what === "materialized view"
+					? "materialized_view"
+					: "foreign_table";
+	if (create) {
+		if (w.tables.some(same)) throw new Failed(exists("relation", label));
+		const body = /^\s*\(([\s\S]*)\)\s*$/.exec(q.rest)?.[1];
+		w.tables.push({
+			schema: q.schema,
+			name: q.name,
+			kind,
+			columns:
+				kind === "table" && body !== undefined
+					? parseColumns(body)
+					: [col("?column?", "integer", { nullable: true })],
+			rows: [],
+		});
+		if (!w.schemas?.includes(q.schema))
+			w.schemas = [...(w.schemas ?? []), q.schema];
+	} else {
+		if (!w.tables.some((t) => same(t) && t.kind === kind))
+			throw new Failed(gone(what, label));
+		w.tables = w.tables.filter((t) => !same(t));
+	}
+	return tag;
 }
 
 async function runMock(

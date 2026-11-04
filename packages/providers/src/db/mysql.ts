@@ -55,7 +55,9 @@ function wrap(op: string, e: unknown): DatabaseError {
 			? "unreachable"
 			: code && AUTH.has(code)
 				? "auth"
-				: "query";
+				: code === "ER_BAD_DB_ERROR" || code === "ER_DB_DROP_EXISTS"
+					? "missing"
+					: "query";
 	return new DatabaseError(op, err.message ?? String(e), reason, code);
 }
 
@@ -218,6 +220,14 @@ const COLUMNS = `
 	left join information_schema.STATISTICS s
 		on s.TABLE_SCHEMA = c.TABLE_SCHEMA and s.TABLE_NAME = c.TABLE_NAME
 		and s.COLUMN_NAME = c.COLUMN_NAME and s.INDEX_NAME = 'PRIMARY'`;
+
+type RoutineRow = {
+	schema: string;
+	name: string;
+	kind: string;
+	returns: string | null;
+	arguments: string | null;
+};
 
 type Flavor = "mysql" | "mariadb";
 
@@ -517,6 +527,20 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 					order by t.TABLE_SCHEMA, t.TABLE_NAME, c.ORDINAL_POSITION`,
 					SYSTEM,
 				);
+				const routines = await run<RoutineRow[]>(
+					c,
+					`select r.ROUTINE_SCHEMA as \`schema\`, r.ROUTINE_NAME as name, r.ROUTINE_TYPE as kind,
+						r.DTD_IDENTIFIER as \`returns\`,
+						(select group_concat(concat_ws(' ', if(r.ROUTINE_TYPE = 'PROCEDURE', p.PARAMETER_MODE, null),
+								p.PARAMETER_NAME, p.DTD_IDENTIFIER) order by p.ORDINAL_POSITION separator ', ')
+							from information_schema.PARAMETERS p
+							where p.SPECIFIC_SCHEMA = r.ROUTINE_SCHEMA and p.SPECIFIC_NAME = r.SPECIFIC_NAME
+								and p.ORDINAL_POSITION > 0) as arguments
+					from information_schema.ROUTINES r
+					where r.ROUTINE_SCHEMA not in (${system})
+					order by r.ROUTINE_SCHEMA, r.ROUTINE_NAME`,
+					SYSTEM,
+				);
 				const tables = new Map<string, Map<string, DbTable>>(
 					schemas.map((s) => [s.name, new Map()]),
 				);
@@ -545,6 +569,17 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 					schemas: [...tables].map(([name, t]) => ({
 						name,
 						tables: [...t.values()],
+						routines: routines
+							.filter((r) => r.schema === name)
+							.map((r) => ({
+								name: r.name,
+								kind:
+									r.kind === "PROCEDURE"
+										? ("procedure" as const)
+										: ("function" as const),
+								arguments: r.arguments ?? "",
+								returns: r.returns,
+							})),
 					})),
 				} satisfies DatabaseSchema;
 			}),
@@ -823,6 +858,21 @@ export function mysqlClient(conn: DatabaseConnection): SqlClient {
 			return { results, error };
 		},
 
+		createDatabase: (name) =>
+			using("create_database", async (c) => {
+				await run(c, `create database ${ident(name)}`);
+			}),
+		dropDatabase: async (name) => {
+			if (SYSTEM.includes(name.toLowerCase()))
+				throw new DatabaseError(
+					"drop_database",
+					`${name} is a system schema`,
+					"unsupported",
+				);
+			await using("drop_database", async (c) => {
+				await run(c, `drop database ${ident(name)}`);
+			});
+		},
 		close: () => new Promise<void>((resolve) => pool.end(() => resolve())),
 	};
 }

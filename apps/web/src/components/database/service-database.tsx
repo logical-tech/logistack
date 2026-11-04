@@ -1,6 +1,13 @@
 import type { RowFilter, RowSort } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { Database, Loader2, RotateCw, Unplug } from "lucide-react";
+import {
+	Database,
+	Loader2,
+	Plus,
+	RotateCw,
+	SquareTerminal,
+	Unplug,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -17,17 +24,28 @@ import {
 } from "@/lib/api/service-ops";
 import { EMPTY_STAGED, type Staged } from "./cells";
 import { DataGrid } from "./data-grid";
+import {
+	type DbObject,
+	DropDatabaseDialog,
+	DropObjectDialog,
+	dialectOf,
+	NewDatabaseDialog,
+	NewTableDialog,
+	templateSql,
+} from "./ddl";
 import { DocumentList } from "./document-list";
 import { DumpRestore } from "./dump-restore";
 import { KeyBrowser, RedisConsole } from "./key-browser";
-import { SchemaTree, TablePicker } from "./schema-tree";
+import { SchemaTree, TablePicker, type TreeActions } from "./schema-tree";
 import { defaultSchema } from "./sql-editor";
-import { SqlPanel } from "./sql-panel";
+import { prependSqlDraft, SqlPanel } from "./sql-panel";
 
 export type DatabaseView = "data" | "sql";
 
 export type DatabaseLocation = {
 	view: DatabaseView;
+	/** Postgres: the database browsed, when not the service's default one. */
+	database: string | undefined;
 	schema: string | undefined;
 	table: string | undefined;
 	sort: RowSort[];
@@ -61,7 +79,7 @@ export function ServiceDatabase({
 	const running = service.status.observed === "running";
 	const [redeployed, setRedeployed] = useState(false);
 	const schema = useQuery({
-		...schemaQuery(service.id),
+		...schemaQuery(service.id, at.database),
 		enabled: supported && running,
 		// After a redeploy, keep asking until the service has joined the network.
 		refetchInterval: (q) =>
@@ -74,6 +92,10 @@ export function ServiceDatabase({
 	const [staged, setStaged] = useState<Record<string, Staged>>({});
 	// The web app learns a missing write grant from the api's 403 on the first save.
 	const [forbidden, setForbidden] = useState(false);
+	const [newTable, setNewTable] = useState<string | null>(null);
+	const [newDatabase, setNewDatabase] = useState(false);
+	const [dropDatabase, setDropDatabase] = useState<string | null>(null);
+	const [dropObject, setDropObject] = useState<DbObject | null>(null);
 	const engine = spec ? ENGINE[spec.engine] : "This engine";
 	// Dumps run in the replica itself, so they work before the explorer can connect.
 	const bar = (leading?: ReactNode) => (
@@ -172,6 +194,27 @@ export function ServiceDatabase({
 							{redeployed ? "Redeploying" : "Redeploy"}
 						</Button>
 					</EmptyState>
+				) : at.database && reasonOf(schema.error) === "missing" ? (
+					<EmptyState
+						icon={Database}
+						title={`${at.database} doesn't exist`}
+						description="It may have been dropped. The service's own database is still there."
+					>
+						<Button
+							variant="outline"
+							onClick={() =>
+								onNavigate({
+									database: undefined,
+									schema: undefined,
+									table: undefined,
+									sort: [],
+									filter: [],
+								})
+							}
+						>
+							Open the default database
+						</Button>
+					</EmptyState>
 				) : (
 					<EmptyState
 						icon={Database}
@@ -239,6 +282,10 @@ export function ServiceDatabase({
 	// Mongo has no SQL editor: finds run from the document list.
 	const mongo = schema.data.engine === "mongo";
 	const noun = mongo ? "collections" : "tables";
+	const data = schema.data;
+	const dialect = dialectOf(data);
+	const pg = dialect === "postgres";
+	const markForbidden = () => setForbidden(true);
 	const switcher = mongo
 		? bar()
 		: bar(
@@ -252,45 +299,153 @@ export function ServiceDatabase({
 					]}
 				/>,
 			);
+	const dialogs = !mongo && (
+		<>
+			{newTable !== null && (
+				<NewTableDialog
+					open
+					onOpenChange={(o) => !o && setNewTable(null)}
+					serviceId={service.id}
+					database={at.database}
+					dialect={dialect}
+					schema={newTable}
+					existing={
+						data.schemas
+							.find((s) => s.name === newTable)
+							?.tables.map((t) => t.name) ?? []
+					}
+					onCreated={(table) =>
+						onNavigate({
+							view: "data",
+							schema: newTable,
+							table,
+							sort: [],
+							filter: [],
+						})
+					}
+					onForbidden={markForbidden}
+				/>
+			)}
+			<NewDatabaseDialog
+				open={newDatabase}
+				onOpenChange={setNewDatabase}
+				serviceId={service.id}
+				noun="database"
+				onCreated={(name) =>
+					pg &&
+					onNavigate({
+						database: name,
+						schema: undefined,
+						table: undefined,
+						sort: [],
+						filter: [],
+					})
+				}
+				onForbidden={markForbidden}
+			/>
+			<DropDatabaseDialog
+				name={dropDatabase}
+				noun="database"
+				serviceId={service.id}
+				onOpenChange={(o) => !o && setDropDatabase(null)}
+				onDropped={(name) => {
+					setDropDatabase(null);
+					if (pg && name === at.database)
+						onNavigate({
+							database: undefined,
+							schema: undefined,
+							table: undefined,
+							sort: [],
+							filter: [],
+						});
+				}}
+			/>
+			<DropObjectDialog
+				object={dropObject}
+				dialect={dialect}
+				serviceId={service.id}
+				database={at.database}
+				onOpenChange={(o) => !o && setDropObject(null)}
+				onDropped={(o) => {
+					setDropObject(null);
+					if (
+						o.kind === "table" &&
+						o.schema === at.schema &&
+						o.name === at.table
+					)
+						onNavigate({ table: undefined, sort: [], filter: [] });
+				}}
+				onForbidden={markForbidden}
+			/>
+		</>
+	);
+	const firstSchema =
+		data.schemas.find((s) => s.name === defaultSchema(data))?.name ??
+		data.schemas[0]?.name;
+	const openSqlWith = (text: string) => {
+		prependSqlDraft(service.id, data, text);
+		onNavigate({ view: "sql" });
+	};
+	const actions: TreeActions | undefined = mongo
+		? undefined
+		: {
+				dialect,
+				databases: data.databases,
+				defaultDatabase: data.defaultDatabase,
+				onDatabase: (name) =>
+					onNavigate({
+						database: name === data.defaultDatabase ? undefined : name,
+						schema: undefined,
+						table: undefined,
+						sort: [],
+						filter: [],
+					}),
+				onNewDatabase: () => setNewDatabase(true),
+				onDropDatabase: setDropDatabase,
+				onNew: (s, what) =>
+					what === "table"
+						? setNewTable(s)
+						: openSqlWith(templateSql(dialect, what, s)),
+				onDrop: setDropObject,
+			};
+
 	if (at.view === "sql" && !mongo)
 		return (
 			<>
 				{switcher}
 				<section aria-label="SQL editor" className={frame}>
 					<SqlPanel
+						key={at.database ?? ""}
 						serviceId={service.id}
-						schema={schema.data}
+						database={at.database}
+						schema={data}
 						forbidden={forbidden}
-						onForbidden={() => setForbidden(true)}
+						onForbidden={markForbidden}
 					/>
 				</section>
 			</>
 		);
 
-	const schemas = schema.data.schemas;
+	const schemas = data.schemas;
 	const all = schemas.flatMap((s) =>
 		s.tables.map((t) => ({ schema: s.name, table: t })),
 	);
 	const current =
 		all.find((x) => x.schema === at.schema && x.table.name === at.table) ??
-		all.find((x) => x.schema === defaultSchema(schema.data)) ??
+		all.find((x) => x.schema === defaultSchema(data)) ??
 		all[0];
-	if (!current)
+	if (!current && mongo)
 		return (
 			<>
 				{bar()}
 				<EmptyState
 					icon={Database}
-					title={
-						mongo
-							? "No collections yet"
-							: `${schema.data.database} has no tables yet`
-					}
-					description={`${mongo ? "Collections your app writes to" : "Tables your app's migrations create"} appear here, ready to browse and edit. A dump restored from the menu above fills them too.`}
+					title="No collections yet"
+					description="Collections your app writes to appear here, ready to browse and edit. A dump restored from the menu above fills them too."
 				/>
 			</>
 		);
-	const tableKey = `${current.schema}.${current.table.name}`;
+	const tableKey = current ? `${current.schema}.${current.table.name}` : "";
 	const pending = (key: string) => {
 		const s = staged[key];
 		return s
@@ -301,62 +456,100 @@ export function ServiceDatabase({
 	};
 	const select = (s: string, t: string) =>
 		onNavigate({ schema: s, table: t, sort: [], filter: [], find: {} });
+	const selected = current
+		? { schema: current.schema, table: current.table.name }
+		: undefined;
 
 	return (
 		<>
 			{switcher}
 			<div className={frame}>
 				<SchemaTree
+					key={at.database ?? ""}
 					noun={noun}
-					database={mongo ? service.name : schema.data.database}
+					database={mongo ? service.name : data.database}
 					schemas={schemas}
-					selected={{ schema: current.schema, table: current.table.name }}
+					selected={selected}
 					pending={pending}
 					onSelect={select}
+					actions={actions}
 				/>
-				<section
-					aria-label={`${mongo ? "Documents" : "Rows"} of ${tableKey}`}
-					className="flex min-w-0 flex-1 flex-col"
-				>
-					<div className="border-b px-3 py-2 md:hidden">
-						<TablePicker
-							schemas={schemas}
-							selected={{ schema: current.schema, table: current.table.name }}
-							onSelect={select}
-							label={mongo ? "Collection" : "Table"}
-						/>
-					</div>
-					{mongo ? (
-						<DocumentList
-							key={tableKey}
-							serviceId={service.id}
-							database={current.schema}
-							collection={current.table}
-							find={at.find}
-							onFind={(find) => onNavigate({ find })}
-							forbidden={forbidden}
-							onForbidden={() => setForbidden(true)}
-						/>
-					) : (
-						<DataGrid
-							key={tableKey}
-							serviceId={service.id}
-							schema={current.schema}
-							table={current.table}
-							sort={at.sort}
-							filter={at.filter}
-							onSort={(sort) => onNavigate({ sort })}
-							onFilter={(filter) => onNavigate({ filter })}
-							staged={staged[tableKey] ?? EMPTY_STAGED}
-							onStage={(next) =>
-								setStaged((all) => ({ ...all, [tableKey]: next }))
-							}
-							forbidden={forbidden}
-							onForbidden={() => setForbidden(true)}
-						/>
-					)}
-				</section>
+				{current && selected ? (
+					<section
+						aria-label={`${mongo ? "Documents" : "Rows"} of ${tableKey}`}
+						className="flex min-w-0 flex-1 flex-col"
+					>
+						<div className="border-b px-3 py-2 md:hidden">
+							<TablePicker
+								schemas={schemas}
+								selected={selected}
+								onSelect={select}
+								label={mongo ? "Collection" : "Table"}
+							/>
+						</div>
+						{mongo ? (
+							<DocumentList
+								key={tableKey}
+								serviceId={service.id}
+								database={current.schema}
+								collection={current.table}
+								find={at.find}
+								onFind={(find) => onNavigate({ find })}
+								forbidden={forbidden}
+								onForbidden={markForbidden}
+							/>
+						) : (
+							<DataGrid
+								key={`${at.database ?? ""}:${tableKey}`}
+								serviceId={service.id}
+								database={at.database}
+								schema={current.schema}
+								table={current.table}
+								sort={at.sort}
+								filter={at.filter}
+								onSort={(sort) => onNavigate({ sort })}
+								onFilter={(filter) => onNavigate({ filter })}
+								staged={staged[tableKey] ?? EMPTY_STAGED}
+								onStage={(next) =>
+									setStaged((all) => ({ ...all, [tableKey]: next }))
+								}
+								forbidden={forbidden}
+								onForbidden={markForbidden}
+							/>
+						)}
+					</section>
+				) : (
+					<section
+						aria-label={`${data.database} is empty`}
+						className="grid min-w-0 flex-1 place-items-center overflow-y-auto p-4 sm:p-8"
+					>
+						<EmptyState
+							icon={Database}
+							title={`${data.database} has no tables yet`}
+							description="Create one here, or write any DDL in the SQL editor. Tables your app's migrations create show up here too."
+							className="w-full max-w-xl bg-transparent dark:bg-transparent"
+						>
+							{firstSchema && (
+								<Button
+									disabled={forbidden}
+									onClick={() => setNewTable(firstSchema)}
+								>
+									<Plus data-icon="inline-start" />
+									Create table
+								</Button>
+							)}
+							<Button
+								variant="outline"
+								onClick={() => onNavigate({ view: "sql" })}
+							>
+								<SquareTerminal data-icon="inline-start" />
+								Open SQL editor
+							</Button>
+						</EmptyState>
+					</section>
+				)}
 			</div>
+			{dialogs}
 		</>
 	);
 }

@@ -27,6 +27,7 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 	let target: { host: string; port: number };
 	let shop: ReturnType<typeof createDb>["$client"];
 	let viewer: string;
+	let developer: string;
 
 	const setEnv = async (key: string, value: string) => {
 		await h.deps.db
@@ -89,6 +90,12 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 			create table ledger (id serial primary key, note text);
 			insert into "select" values ('a', 1), ('b', 2);
 			create table notes (id serial primary key, body text);
+			create type mood as enum ('sad', 'ok', 'happy');
+			alter type mood add value 'meh' before 'ok';
+			create sequence tickets;
+			create function add_one(a integer) returns integer language sql as 'select a + 1';
+			create procedure noop(n text) language sql as 'select 1';
+			create extension citext;
 			create table kinds (
 				id int primary key, big bigint, num numeric, raw bytea, doc jsonb, j json,
 				at timestamptz, ts timestamp, d date, flag boolean, f float8, tags text[]
@@ -119,6 +126,20 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 		await h.call("POST", "/api/auth/organization/accept-invitation", {
 			headers: { cookie: viewer },
 			body: { invitationId: invite.json.id },
+		});
+		const dev = { name: "dev", email: "dev@example.com" };
+		const devInvite = await h.call("POST", "/api/invitations", {
+			headers: { cookie },
+			body: { email: dev.email, role: "developer" },
+		});
+		expect(devInvite.status).toBe(201);
+		await h.call("POST", "/api/auth/sign-up/email", {
+			body: { ...dev, password },
+		});
+		developer = await h.signIn(dev.email, password);
+		await h.call("POST", "/api/auth/organization/accept-invitation", {
+			headers: { cookie: developer },
+			body: { invitationId: devInvite.json.id },
 		});
 	}, 90_000);
 	afterAll(async () => {
@@ -678,5 +699,121 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 			.from(auditLog)
 			.where(eq(auditLog.action, "database.query"));
 		expect(audit.filter((a) => a.outcome === "denied").length).toBe(2);
+	});
+
+	test("enums, sequences and routines, without extension-owned ones", async () => {
+		const r = await schema();
+		expect(r.json.defaultDatabase).toBe("shop");
+		const pub = r.json.schemas.find(
+			(s: { name: string }) => s.name === "public",
+		);
+		expect(pub.enums).toEqual([
+			{ name: "mood", values: ["sad", "meh", "ok", "happy"] },
+		]);
+		expect(pub.sequences).toContainEqual({ name: "tickets" });
+		expect(pub.sequences).toContainEqual({ name: "ledger_id_seq" });
+		expect(pub.routines).toEqual([
+			{
+				name: "add_one",
+				kind: "function",
+				arguments: "a integer",
+				returns: "integer",
+			},
+			{
+				name: "noop",
+				kind: "procedure",
+				arguments: "IN n text",
+				returns: null,
+			},
+		]);
+		expect(pub.tables.map((t: { name: string }) => t.name)).not.toContain(
+			"citext",
+		);
+	});
+
+	const newDb = (name: string, headers: Record<string, string> = { cookie }) =>
+		h.call("POST", `/api/databases/${dbId}/databases`, {
+			headers,
+			body: { name },
+		});
+	const dropDb = (name: string, headers: Record<string, string> = { cookie }) =>
+		h.call(
+			"DELETE",
+			`/api/databases/${dbId}/databases/${encodeURIComponent(name)}`,
+			{ headers },
+		);
+
+	test("lists the instance's databases and reads another one with ?database=", async () => {
+		const r = await schema();
+		expect(r.json.databases).toContain("shop");
+		expect(r.json.databases).toContain("postgres");
+		expect(r.json.databases).not.toContain("template0");
+		expect(r.json.databases).toEqual([...r.json.databases].sort());
+
+		const other = await h.call(
+			"GET",
+			`/api/databases/${dbId}/schema?database=postgres`,
+			{ headers: { cookie } },
+		);
+		expect(other.status).toBe(200);
+		expect(other.json.database).toBe("postgres");
+		expect(other.json.defaultDatabase).toBe("shop");
+		const missing = await h.call(
+			"GET",
+			`/api/databases/${dbId}/schema?database=nope_nothing`,
+			{ headers: { cookie } },
+		);
+		expect(missing.status).toBe(404);
+	});
+
+	test("creates a database, writes and reads it, then drops it, audited", async () => {
+		const name = "ls_dbx_scratch";
+		expect((await newDb(name)).status).toBe(201);
+		expect((await newDb(name)).status).toBe(400);
+		const made = await h.call(
+			"POST",
+			`/api/databases/${dbId}/query?database=${name}`,
+			{
+				headers: { cookie },
+				body: {
+					sql: "create table t (id int primary key); insert into t values (7)",
+					readOnly: false,
+				},
+			},
+		);
+		expect(made.json.error).toBeNull();
+		const read = await h.call(
+			"GET",
+			`/api/databases/${dbId}/tables/public/t/rows?database=${name}`,
+			{ headers: { cookie } },
+		);
+		expect(read.json.rows).toEqual([[7]]);
+		expect((await schema()).json.databases).toContain(name);
+
+		expect((await dropDb(name)).status).toBe(204);
+		expect((await schema()).json.databases).not.toContain(name);
+		expect((await dropDb(name)).status).toBe(404);
+		const audit = await h.deps.db
+			.select({ action: auditLog.action, diff: auditLog.diff })
+			.from(auditLog)
+			.where(eq(auditLog.outcome, "success"));
+		expect(audit).toContainEqual({ action: "database.create", diff: { name } });
+		expect(audit).toContainEqual({ action: "database.drop", diff: { name } });
+	});
+
+	test("the default database cannot be dropped", async () => {
+		const r = await dropDb("shop");
+		expect(r.status).toBe(400);
+		expect((await schema()).status).toBe(200);
+	});
+
+	test("creating needs write, dropping needs admin", async () => {
+		expect((await newDb("ls_dbx_viewer", { cookie: viewer })).status).toBe(403);
+		expect((await newDb("bad name;")).status).toBe(400);
+		expect((await newDb("ls_dbx_dev", { cookie: developer })).status).toBe(201);
+		expect((await dropDb("ls_dbx_dev", { cookie: developer })).status).toBe(
+			403,
+		);
+		expect((await dropDb("ls_dbx_dev")).status).toBe(204);
 	});
 });

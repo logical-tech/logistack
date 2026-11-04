@@ -19,6 +19,7 @@ export function ConfirmDialog({
 	confirmLabel,
 	destructive = true,
 	pending,
+	confirmDisabled,
 	onConfirm,
 	children,
 }: {
@@ -29,6 +30,8 @@ export function ConfirmDialog({
 	confirmLabel: string;
 	destructive?: boolean;
 	pending: boolean;
+	/** Holds the confirm button back, e.g. until the name is typed. */
+	confirmDisabled?: boolean;
 	onConfirm: () => void;
 	children?: ReactNode;
 }) {
@@ -51,7 +54,7 @@ export function ConfirmDialog({
 					<Button
 						type="button"
 						variant={destructive ? "destructive" : "default"}
-						disabled={pending}
+						disabled={pending || confirmDisabled}
 						onClick={onConfirm}
 					>
 						{pending && <Loader2 className="animate-spin" />}

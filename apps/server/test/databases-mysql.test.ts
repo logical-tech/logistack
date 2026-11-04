@@ -90,6 +90,8 @@ const SEED = (items: string) => `
 		1, 9007199254740993, 12345678901234567890.1234567890, '{"n": 12345678901234567890}',
 		x'00ff10', '2024-01-02 03:04:05.123456', b'101', -3, 'héllo'
 	);
+	create function add_one(a int) returns int deterministic return a + 1;
+	create procedure noop(in n text) select n;
 	create database empty_one;
 	analyze table items;
 `;
@@ -640,6 +642,67 @@ describe.skipIf(!hasDocker)("database explorer on MySQL and MariaDB", () => {
 				} finally {
 					h.deps.databaseEndpoint = real;
 				}
+			});
+
+			test("stored routines show under their schema", async () => {
+				const r = await schema();
+				const shop = r.json.schemas.find(
+					(s: { name: string }) => s.name === "shop",
+				);
+				expect(shop.routines).toEqual([
+					{
+						name: "add_one",
+						kind: "function",
+						// MariaDB keeps the display width.
+						arguments: engine === "mysql" ? "a int" : "a int(11)",
+						returns: engine === "mysql" ? "int" : "int(11)",
+					},
+					{
+						name: "noop",
+						kind: "procedure",
+						arguments: "IN n text",
+						returns: null,
+					},
+				]);
+				expect(r.json.defaultDatabase).toBe("shop");
+				expect(r.json.databases).toBeUndefined();
+			});
+
+			test("creates and drops a database; the default and system ones stay", async () => {
+				const name = "ls_dbx_scratch";
+				const made = await h.call("POST", `/api/databases/${id()}/databases`, {
+					headers: { cookie },
+					body: { name },
+				});
+				expect(made.status).toBe(201);
+				const t = await h.call(
+					"POST",
+					`/api/databases/${id()}/query?database=${name}`,
+					{
+						headers: { cookie },
+						body: {
+							sql: "create table t (id int primary key)",
+							readOnly: false,
+						},
+					},
+				);
+				expect(t.json.error).toBeNull();
+				expect(
+					(await schema()).json.schemas.find(
+						(s: { name: string }) => s.name === name,
+					)?.tables[0]?.name,
+				).toBe("t");
+				const drop = (n: string) =>
+					h.call("DELETE", `/api/databases/${id()}/databases/${n}`, {
+						headers: { cookie },
+					});
+				expect((await drop(name)).status).toBe(204);
+				expect((await drop(name)).status).toBe(404);
+				expect((await drop("shop")).status).toBe(400);
+				expect((await drop("mysql")).status).toBe(400);
+				expect(
+					(await schema()).json.schemas.map((s: { name: string }) => s.name),
+				).not.toContain(name);
 			});
 		},
 	);

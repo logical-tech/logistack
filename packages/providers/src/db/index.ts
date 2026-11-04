@@ -83,6 +83,10 @@ export type SqlClient = Common & {
 		script: string,
 		opts: { readOnly: boolean; signal?: AbortSignal },
 	): Promise<QueryResult>;
+	/** Postgres databases; MySQL and MariaDB schemas. Never inside a transaction. */
+	createDatabase(name: string): Promise<void>;
+	/** `missing` when there is none; MySQL system schemas are `unsupported`. */
+	dropDatabase(name: string): Promise<void>;
 };
 
 /** MongoDB: documents in canonical Extended JSON, never rows. */
