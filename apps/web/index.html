@@ -12,7 +12,16 @@
 				const dark =
 					t === "dark" ||
 					(t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-				document.documentElement.classList.toggle("dark", dark);
+				const root = document.documentElement;
+				root.classList.toggle("dark", dark);
+				// A chosen theme: its variables, cached by src/lib/theme.ts.
+				const name = localStorage.getItem("ls-theme-name");
+				const vars = name && JSON.parse(localStorage.getItem("ls-theme-vars") || "null");
+				const map = vars?.[dark ? "dark" : "light"];
+				if (map) {
+					for (const k in map) root.style.setProperty(`--${k}`, map[k]);
+					root.dataset.theme = name;
+				}
 			} catch {}
 		</script>
 	</head>
