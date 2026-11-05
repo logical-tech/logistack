@@ -49,6 +49,8 @@ export type ImportPlan = {
 	env: EnvEntry[];
 	domains: DomainEntry[];
 	volumes: VolumeEntry[];
+	/** Sibling compose services this one starts after. */
+	dependsOn: string[];
 	/** Names keys only, never values. */
 	warnings: string[];
 };
@@ -397,6 +399,7 @@ const SERVICE_KEYS = new Set([
 	"environment",
 	"labels",
 	"networks",
+	"depends_on",
 ]);
 
 /** Deep-maps every string through compose interpolation. */
@@ -410,26 +413,26 @@ function interpolateAll(v: unknown, sub: (s: string) => string): unknown {
 	return v;
 }
 
-export function mapCompose(input: {
+type ComposeInput = {
 	appName: string;
 	projectName?: string;
 	/** Parsed docker-compose.yml. */
 	compose: unknown;
 	dotenv: Map<string, string>;
 	allowSensitive?: boolean;
-}): Mapped {
-	const { appName, dotenv } = input;
+};
+
+/** A compose file with several services: every one mapped, or the whole file refused. */
+export type MappedAll =
+	| { kind: "plans"; appName: string; projectName: string; plans: ImportPlan[] }
+	| Refusal;
+
+/** Every service of the file; any service LogiStack cannot represent refuses the whole file. */
+export function mapComposeServices(input: ComposeInput): MappedAll {
+	const { appName } = input;
 	const projectName = input.projectName ?? projectNameFromFolder(appName);
 	const unsupported: string[] = [];
-	const warnings: string[] = [];
-	const refuse = (): Refusal => ({
-		kind: "refused",
-		appName,
-		projectName,
-		unsupported,
-	});
 	const compose = isRecord(input.compose) ? input.compose : {};
-
 	for (const key of Object.keys(compose))
 		if (!TOP_LEVEL.has(key)) unsupported.push(key);
 	const declaredVolumes = volumeNames(compose.volumes, appName, unsupported);
@@ -438,30 +441,65 @@ export function mapCompose(input: {
 	))
 		if (!IGNORED_NETWORKS.has(net)) unsupported.push(`networks.${net}`);
 	const services = isRecord(compose.services) ? compose.services : {};
-	const names = Object.keys(services);
-	if (names.length !== 1) {
-		unsupported.push(
-			names.length ? `multiple services (${names.join(", ")})` : "no services",
-		);
-		return refuse();
+	if (!Object.keys(services).length) unsupported.push("no services");
+	const plans: ImportPlan[] = [];
+	for (const [name, raw] of Object.entries(services)) {
+		const r = mapService(name, raw, input, declaredVolumes, projectName);
+		if (r.kind === "plan") plans.push(r);
+		else unsupported.push(...r.unsupported);
 	}
-	const serviceName = names[0] as string;
+	return unsupported.length
+		? { kind: "refused", appName, projectName, unsupported }
+		: { kind: "plans", appName, projectName, plans };
+}
+
+/** One-service files only (the CLI importer); several services are refused. */
+export function mapCompose(input: ComposeInput): Mapped {
+	const all = mapComposeServices(input);
+	if (all.kind === "refused") return all;
+	const [only, ...rest] = all.plans;
+	if (!only || rest.length)
+		return {
+			kind: "refused",
+			appName: all.appName,
+			projectName: all.projectName,
+			unsupported: [
+				`multiple services (${all.plans.map((p) => p.serviceName).join(", ")})`,
+			],
+		};
+	return only;
+}
+
+function mapService(
+	serviceName: string,
+	raw: unknown,
+	input: ComposeInput,
+	declaredVolumes: Map<string, string>,
+	projectName: string,
+): Mapped {
+	const { appName, dotenv } = input;
+	const unsupported: string[] = [];
+	const warnings: string[] = [];
+	const refuse = (): Refusal => ({
+		kind: "refused",
+		appName,
+		projectName,
+		unsupported,
+	});
 	const path = `services.${serviceName}`;
-	const raw = services[serviceName];
 	if (!isRecord(raw)) {
 		unsupported.push(path);
 		return refuse();
 	}
 	for (const key of Object.keys(raw))
 		if (!SERVICE_KEYS.has(key)) unsupported.push(`${path}.${key}`);
-
 	const missing = new Set<string>();
 	const sub = (s: string) => {
 		const r = interpolate(s, dotenv);
 		for (const m of r.missing) missing.add(m);
 		return r;
 	};
-	const { environment, ...rest } = raw;
+	const { environment, depends_on, ...rest } = raw;
 	const svc = interpolateAll(rest, (s) => sub(s).value) as Raw;
 
 	for (const net of entries(svc.networks).map(([k]) => k))
@@ -544,6 +582,11 @@ export function mapCompose(input: {
 		env,
 		domains,
 		volumes,
+		dependsOn: Array.isArray(depends_on)
+			? depends_on.map(String)
+			: isRecord(depends_on)
+				? Object.keys(depends_on)
+				: [],
 		warnings,
 	};
 }

@@ -188,5 +188,7 @@ export const DokploySnapshot = z.object({
 	ports: z.array(DokployPort),
 	redirects: z.array(DokployRedirect),
 	security: z.array(DokploySecurity),
+	/** Git-sourced compose files read from disk, by `composeId`; raw ones live in `composeFile`. */
+	composeFiles: z.record(z.string(), z.string()).default({}),
 });
 export type DokploySnapshot = z.infer<typeof DokploySnapshot>;

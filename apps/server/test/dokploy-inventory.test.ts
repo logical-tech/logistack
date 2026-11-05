@@ -123,6 +123,7 @@ const snapshot = (o: Partial<DokploySnapshot>): DokploySnapshot => ({
 	ports: [],
 	redirects: [],
 	security: [],
+	composeFiles: {},
 	...o,
 });
 
@@ -246,6 +247,8 @@ describe("Dokploy applications", () => {
 		const [svc] = item.services;
 		expect(svc).toEqual({
 			name: "web",
+			slug: "web-abc123",
+			dependsOn: [],
 			importedFrom: "dokploy:web-abc123",
 			spec: {
 				kind: "application",
@@ -448,6 +451,8 @@ describe("Dokploy databases", () => {
 		expect(item.status).toBe("full");
 		expect(item.services[0]).toEqual({
 			name: "pg",
+			slug: "pg-def456",
+			dependsOn: [],
 			importedFrom: "dokploy:pg-def456",
 			spec: {
 				kind: "database",
@@ -569,19 +574,172 @@ volumes:
 		});
 	});
 
-	test("git-sourced and multi-service composes are unsupported for now", () => {
+	test("a multi-service compose becomes one service per entry, dependencies first", () => {
+		const item = only(
+			snapshot({
+				composes: [
+					compose({
+						composeId: "blog",
+						sourceType: "github",
+						env: "DB_PASSWORD=fake-blog-secret",
+					}),
+				],
+				composeFiles: {
+					blog: `services:
+  web:
+    image: ghost:5
+    depends_on: [db]
+    environment:
+      database__connection__host: db
+      database__connection__password: \${DB_PASSWORD}
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: \${DB_PASSWORD}
+    volumes: [ "mysql:/var/lib/mysql" ]
+volumes:
+  mysql: {}
+`,
+				},
+				domains: [
+					{
+						domainId: "d1",
+						host: "blog.example.com",
+						https: true,
+						port: 2368,
+						path: "/",
+						internalPath: "/",
+						stripPath: false,
+						serviceName: "web",
+						domainType: "compose",
+						certificateType: "letsencrypt",
+						applicationId: null,
+						composeId: "blog",
+					},
+					{
+						domainId: "d2",
+						host: "gone.example.com",
+						https: true,
+						port: 80,
+						path: "/",
+						internalPath: "/",
+						stripPath: false,
+						serviceName: "removed",
+						domainType: "compose",
+						certificateType: "letsencrypt",
+						applicationId: null,
+						composeId: "blog",
+					},
+				],
+			}),
+		);
+		expect(item.status).toBe("partial");
+		expect(item.notes).toEqual([
+			"domain gone.example.com names no service of the file, skipped",
+		]);
+		expect(item.services.map((s) => [s.slug, s.dependsOn])).toEqual([
+			["db", []],
+			["web", ["db"]],
+		]);
+		const [db, web] = item.services;
+		expect(db?.adoptedVolumes).toEqual([
+			{
+				target: "/var/lib/mysql",
+				volume: "blog-ghi789_mysql",
+				source: "dokploy",
+			},
+		]);
+		expect(web?.domains.map((d) => d.hostname)).toEqual(["blog.example.com"]);
+		expect(web?.env).toContainEqual({
+			key: "database__connection__password",
+			value: "fake-blog-secret",
+			isSecret: true,
+		});
+	});
+
+	test("a git compose without its file on disk, or a bad service name, is unsupported", () => {
 		const s = snapshot({
 			composes: [
-				compose({ composeId: "fromgit", sourceType: "github" }),
+				compose({ composeId: "nofile", sourceType: "github" }),
 				compose({
-					composeId: "multi",
-					composeFile: "services:\n  a: { image: x }\n  b: { image: y }\n",
+					composeId: "underscore",
+					composeFile: "services:\n  my_app: { image: x }\n",
 				}),
 			],
 		});
-		const [fromGit, multi] = buildInventory(s).items;
-		expect(fromGit?.notes).toEqual(["github compose file is not read yet"]);
-		expect(multi?.notes).toEqual(["multiple services (a, b)"]);
+		const [nofile, underscore] = buildInventory(s).items;
+		expect(nofile?.notes).toEqual(["github compose file not found on disk"]);
+		expect(underscore).toMatchObject({
+			status: "unsupported",
+			notes: [
+				"service name my_app is not a DNS label, so siblings could not reach it",
+			],
+		});
+	});
+});
+
+describe("across items", () => {
+	test("a hostname taken twice in one environment refuses the later item", () => {
+		const s = snapshot({
+			composes: [
+				compose({
+					composeId: "a",
+					composeFile: "services:\n  db: { image: x }\n",
+				}),
+				compose({
+					composeId: "b",
+					composeFile: "services:\n  db: { image: y }\n",
+				}),
+			],
+		});
+		const [a, b] = buildInventory(s).items;
+		expect(a?.status).toBe("full");
+		expect(b).toMatchObject({
+			status: "unsupported",
+			notes: ["hostname db is already used in this environment by a"],
+		});
+	});
+
+	test("an env value reaching a service of another environment is reported", () => {
+		const s = snapshot({
+			environments: [
+				{ environmentId: "e1", projectId: "p1", name: "production", env: null },
+				{ environmentId: "e2", projectId: "p1", name: "staging", env: null },
+			],
+			databases: [
+				db({
+					id: "pg",
+					engine: "postgres",
+					dockerImage: "postgres:16",
+					environmentId: "e2",
+				}),
+			],
+			mounts: [
+				{
+					mountId: "m",
+					type: "volume",
+					hostPath: null,
+					volumeName: "pg-def456-data",
+					filePath: null,
+					content: null,
+					mountPath: "/var/lib/postgresql/data",
+					ownerId: "pg",
+				},
+			],
+			applications: [
+				app({
+					applicationId: "web",
+					env: "DATABASE_URL=postgres://u:p@pg-def456:5432/app\nOTHER=xpg-def456",
+				}),
+			],
+		});
+		const [, web] = buildInventory(s).items;
+		expect(web).toMatchObject({
+			status: "partial",
+			notes: [
+				"env DATABASE_URL reaches pg in another environment; LogiStack environments are isolated",
+			],
+		});
 	});
 });
 

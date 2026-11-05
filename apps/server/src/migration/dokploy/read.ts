@@ -3,6 +3,8 @@
  * transaction. Every column is checked against `information_schema` first, so a Dokploy version
  * with another schema is refused with the missing columns named instead of half-read.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import {
 	type DokployEngine,
 	DokploySnapshot,
@@ -243,7 +245,35 @@ export function missingColumns(
 		.filter((c) => !have.has(c));
 }
 
-export async function readDokploy(url: string): Promise<DokploySnapshot> {
+/**
+ * Git-sourced compose files as Dokploy last checked them out:
+ * `<root>/<appName>/code/<composePath>`. A path escaping its folder is skipped.
+ */
+export function readComposeFiles(
+	composes: {
+		composeId: string;
+		appName: string;
+		sourceType: string;
+		composePath: string | null;
+	}[],
+	root: string,
+): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (const c of composes) {
+		if (c.sourceType === "raw") continue;
+		const dir = resolve(root, c.appName, "code");
+		const file = resolve(dir, c.composePath || "docker-compose.yml");
+		if (!file.startsWith(dir + sep) || !existsSync(file)) continue;
+		out[c.composeId] = readFileSync(file, "utf8");
+	}
+	return out;
+}
+
+/** `composeRoot`: Dokploy's compose directory (`/etc/dokploy/compose`), read for git-sourced files. */
+export async function readDokploy(
+	url: string,
+	opts: { composeRoot?: string } = {},
+): Promise<DokploySnapshot> {
 	const sql = new Bun.SQL(url, { max: 1 });
 	try {
 		return await sql.begin("read only", async (tx) => {
@@ -265,7 +295,13 @@ export async function readDokploy(url: string): Promise<DokploySnapshot> {
 						)),
 					);
 			}
-			return DokploySnapshot.parse(out);
+			const snapshot = DokploySnapshot.parse(out);
+			if (opts.composeRoot)
+				snapshot.composeFiles = readComposeFiles(
+					snapshot.composes,
+					opts.composeRoot,
+				);
+			return snapshot;
 		});
 	} finally {
 		await sql.close();

@@ -1,5 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { readDokploy } from "../src/migration/dokploy/read.ts";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+	readComposeFiles,
+	readDokploy,
+} from "../src/migration/dokploy/read.ts";
 import {
 	createDatabase,
 	minimalSchema,
@@ -90,4 +96,39 @@ describe.skipIf(!hasDocker)("reading a Dokploy database", () => {
 		},
 		120_000,
 	);
+});
+
+test("git compose files are read from Dokploy's folder, never outside it", () => {
+	const root = mkdtempSync(join(tmpdir(), "ls-test-dokread-"));
+	try {
+		mkdirSync(join(root, "blog-abc123", "code", "deploy"), { recursive: true });
+		writeFileSync(
+			join(root, "blog-abc123", "code", "deploy", "compose.yml"),
+			"services: {}\n",
+		);
+		writeFileSync(join(root, "secret.yml"), "nope");
+		const c = (
+			composeId: string,
+			composePath: string | null,
+			sourceType = "github",
+		) => ({
+			composeId,
+			appName: "blog-abc123",
+			sourceType,
+			composePath,
+		});
+		expect(
+			readComposeFiles(
+				[
+					c("found", "./deploy/compose.yml"),
+					c("escape", "../../secret.yml"),
+					c("missing", null),
+					c("raw", "./deploy/compose.yml", "raw"),
+				],
+				root,
+			),
+		).toEqual({ found: "services: {}\n" });
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });

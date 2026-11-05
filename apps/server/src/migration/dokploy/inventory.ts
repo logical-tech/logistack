@@ -14,7 +14,7 @@ import {
 	type PortMapping,
 } from "@logistack/contracts";
 import { dataDirOf } from "@logistack/core";
-import { mapCompose, parseDotenv } from "./compose.ts";
+import { mapComposeServices, parseDotenv } from "./compose.ts";
 import type {
 	DokployApplication,
 	DokployCompose,
@@ -31,6 +31,13 @@ export type EnvDraft = { key: string; value: string; isSecret: boolean };
 
 export type ServiceDraft = {
 	name: string;
+	/**
+	 * DNS name on the environment network: Dokploy's `appName` for apps and databases (what other
+	 * services reach them by on `dokploy-network`), the service name for compose services.
+	 */
+	slug: string;
+	/** Slugs of the services in the same item this one starts after. */
+	dependsOn: string[];
 	/** `dokploy:<appName>`; a re-import skips a service that carries it. */
 	importedFrom: string;
 	spec: ApplicationSpec | DatabaseSpec;
@@ -500,6 +507,8 @@ function mapApplication(a: DokployApplication, ctx: Context): InventoryItem {
 	return item([
 		{
 			name: a.name,
+			slug: a.appName,
+			dependsOn: [],
 			importedFrom: `dokploy:${a.appName}`,
 			spec: spec.data,
 			mounts,
@@ -624,6 +633,8 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 	return item([
 		{
 			name: d.name,
+			slug: d.appName,
+			dependsOn: [],
 			importedFrom: `dokploy:${d.appName}`,
 			spec,
 			mounts: [],
@@ -666,20 +677,29 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 		notes.push("runs on a remote Dokploy server");
 		return item([]);
 	}
-	// shortcut: only compose files stored in Dokploy (raw); git-sourced ones are read from disk in MIG-2b.
-	if (c.sourceType !== "raw" || !c.composeFile) {
-		notes.push(`${c.sourceType} compose file is not read yet`);
+	const file =
+		c.sourceType === "raw"
+			? c.composeFile
+			: ctx.snapshot.composeFiles[c.composeId];
+	if (!file) {
+		notes.push(
+			c.sourceType === "raw"
+				? "compose file is empty"
+				: `${c.sourceType} compose file not found on disk`,
+		);
 		return item([]);
 	}
 	let compose: unknown;
 	try {
-		compose = Bun.YAML.parse(c.composeFile);
+		compose = Bun.YAML.parse(file);
 	} catch {
 		notes.push("compose file is not valid YAML");
 		return item([]);
 	}
+	if (c.composeType === "stack")
+		notes.push("deployed as a Swarm stack in Dokploy; deploy keys are ignored");
 	const env = serviceEnv(c.env, ctx.sharedEnv, notes);
-	const mapped = mapCompose({
+	const mapped = mapComposeServices({
 		appName: c.appName,
 		projectName: ctx.project,
 		compose,
@@ -689,31 +709,47 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 		notes.push(...mapped.unsupported);
 		return item([]);
 	}
-	notes.push(...mapped.warnings);
-	const domains = ctx.snapshot.domains
-		.filter((d) => d.composeId === c.composeId && d.domainType !== "preview")
-		.map((d) => mapDomain(d, undefined, notes))
-		.filter((d): d is DomainInput => !!d);
-	return item([
-		{
-			name: mapped.serviceName,
-			importedFrom: mapped.importedFrom,
-			spec: mapped.spec,
-			mounts: mapped.volumes.map((v) => ({
+	const rows = ctx.snapshot.domains.filter(
+		(d) => d.composeId === c.composeId && d.domainType !== "preview",
+	);
+	const names = new Set(mapped.plans.map((p) => p.serviceName));
+	for (const d of rows)
+		if (!d.serviceName || !names.has(d.serviceName))
+			notes.push(`domain ${d.host} names no service of the file, skipped`);
+	const drafts: ServiceDraft[] = [];
+	for (const plan of mapped.plans) {
+		notes.push(...plan.warnings.map((w) => `${plan.serviceName}: ${w}`));
+		if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(plan.serviceName)) {
+			notes.push(
+				`service name ${plan.serviceName} is not a DNS label, so siblings could not reach it`,
+			);
+			return item([]);
+		}
+		const domains = rows
+			.filter((d) => d.serviceName === plan.serviceName)
+			.map((d) => mapDomain(d, undefined, notes))
+			.filter((d): d is DomainInput => !!d);
+		drafts.push({
+			name: plan.serviceName,
+			slug: plan.serviceName,
+			dependsOn: plan.dependsOn,
+			importedFrom: plan.importedFrom,
+			spec: plan.spec,
+			mounts: plan.volumes.map((v) => ({
 				kind: "volume" as const,
 				name: v.name,
 				target: v.target,
 			})),
-			adoptedVolumes: mapped.volumes.map((v) => ({
+			adoptedVolumes: plan.volumes.map((v) => ({
 				target: v.target,
 				volume: v.volume,
 				source: "dokploy" as const,
 			})),
-			env: mapped.env,
-			// Domains from the compose labels and from Dokploy's domain table, deduplicated by host.
+			env: plan.env,
+			// Domains from Dokploy's domain table, plus Traefik labels in the file, deduplicated by host.
 			domains: [
 				...domains,
-				...mapped.domains
+				...plan.domains
 					.filter((d) => !domains.some((x) => x.hostname === d.hostname))
 					.map((d) => ({
 						hostname: d.hostname,
@@ -724,8 +760,86 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 			],
 			basicAuth: [],
 			running: c.composeStatus === "done",
-		},
-	]);
+		});
+	}
+	return item(dependencyOrder(drafts, notes));
+}
+
+/** Drafts so each comes after what it depends on; a cycle or unknown name is reported, order kept. */
+function dependencyOrder(
+	drafts: ServiceDraft[],
+	notes: string[],
+): ServiceDraft[] {
+	const by = new Map(drafts.map((d) => [d.slug, d]));
+	const out: ServiceDraft[] = [];
+	const state = new Map<string, "visiting" | "done">();
+	const visit = (d: ServiceDraft) => {
+		if (state.get(d.slug) === "done") return;
+		if (state.get(d.slug) === "visiting") {
+			notes.push(`depends_on cycle through ${d.slug}`);
+			return;
+		}
+		state.set(d.slug, "visiting");
+		for (const dep of d.dependsOn) {
+			const target = by.get(dep);
+			if (target) visit(target);
+			else notes.push(`${d.slug} depends on unknown service ${dep}`);
+		}
+		state.set(d.slug, "done");
+		out.push(d);
+	};
+	for (const d of drafts) visit(d);
+	return out;
+}
+
+const statusOf = (item: InventoryItem): Status =>
+	!item.services.length
+		? "unsupported"
+		: item.notes.length
+			? "partial"
+			: "full";
+
+/**
+ * Checks across items. Two services with one slug in one LogiStack environment cannot both exist:
+ * the later item is refused. Dokploy puts every service on one shared network, LogiStack isolates
+ * environments: an env value naming a service of another environment is reported.
+ */
+function crossChecks(items: InventoryItem[]): InventoryItem[] {
+	const where = (i: InventoryItem) => `${i.project}\u0000${i.environment}`;
+	const taken = new Map<string, string>();
+	for (const item of items) {
+		const clash = item.services.find((s) =>
+			taken.has(`${where(item)}\u0000${s.slug}`),
+		);
+		if (clash) {
+			item.notes.push(
+				`hostname ${clash.slug} is already used in this environment by ${taken.get(`${where(item)}\u0000${clash.slug}`)}`,
+			);
+			item.services = [];
+		}
+		for (const s of item.services)
+			taken.set(`${where(item)}\u0000${s.slug}`, item.name);
+	}
+	const hosts = items.flatMap((i) =>
+		i.services.map((s) => ({ slug: s.slug, at: where(i), item: i.name })),
+	);
+	for (const item of items)
+		for (const s of item.services)
+			for (const e of s.env)
+				for (const h of hosts)
+					if (
+						h.at !== where(item) &&
+						h.slug.includes("-") &&
+						new RegExp(`(^|[^a-z0-9-])${h.slug}([^a-z0-9-]|$)`).test(e.value)
+					)
+						item.notes.push(
+							`env ${e.key} reaches ${h.item} in another environment; LogiStack environments are isolated`,
+						);
+	for (const item of items) {
+		item.notes = [...new Set(item.notes)];
+		item.status = statusOf(item);
+	}
+	return items;
 }
 
 export function buildInventory(snapshot: DokploySnapshot): Inventory {
@@ -742,7 +856,7 @@ export function buildInventory(snapshot: DokploySnapshot): Inventory {
 		};
 	};
 	return {
-		items: [
+		items: crossChecks([
 			...snapshot.databases.map((d) =>
 				mapDatabase(d, contextOf(d.environmentId)),
 			),
@@ -752,6 +866,6 @@ export function buildInventory(snapshot: DokploySnapshot): Inventory {
 			...snapshot.composes.map((c) =>
 				mapComposeItem(c, contextOf(c.environmentId)),
 			),
-		],
+		]),
 	};
 }

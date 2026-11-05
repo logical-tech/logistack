@@ -92,10 +92,18 @@ This step maps Dokploy DB rows to an `Inventory` with one item per Dokploy servi
 - [x] Compose: a raw single-service file maps through the compose mapper, with Dokploy's domain rows. Evidence: inventory tests.
 - [x] Notes never carry a value. Evidence: test that searches the notes for fixture secrets.
 
-### MIG-2b (next)
+### MIG-2b (done)
 
-- [ ] Multi-service compose, split into N services (decision above). Compose service names must stay resolvable on the environment network. `depends_on` becomes deploy order.
-- [ ] Git-sourced compose files, read from `/etc/dokploy/compose/<appName>/code/<composePath>`.
+- [x] Multi-service compose: `mapComposeServices` maps every service, and one unsupported service refuses the whole file. Each compose service becomes a draft whose slug is its service name, so siblings resolve it on the environment network. `depends_on` sets the draft order (dependencies first). A cycle or an unknown name is reported. Dokploy domain rows attach to their `serviceName`. Evidence: inventory test "a multi-service compose becomes one service per entry".
+- [x] Git-sourced compose files are read from `<composeRoot>/<appName>/code/<composePath>`. A path that escapes the folder is skipped. Evidence: `readComposeFiles` test.
+- [x] Hostnames: apps and databases keep Dokploy's `appName` as their slug, because that is the hostname other services use on `dokploy-network`. A service name that is not a DNS label is refused. Evidence: inventory tests.
+- [x] Cross-item checks:
+  - [x] Two services with one hostname in one environment: the later item is refused.
+  - [x] An env value that names a service in another environment is reported, because Dokploy shares one network and LogiStack isolates environments.
+  - [x] Evidence: "across items" tests.
+
+### MIG-2c (next)
+
 - [ ] Org-level resources:
   - [ ] Registries.
   - [ ] S3 destinations.
