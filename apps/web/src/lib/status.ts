@@ -20,6 +20,7 @@ export const SERVICE_STATUS: Record<ObservedStatus, StatusMeta> = {
 };
 
 export const DEPLOYMENT_STATUS: Record<DeploymentStatus, StatusMeta> = {
+	awaiting_checks: { label: "Waiting for checks", tone: "idle", live: true },
 	queued: { label: "Queued", tone: "idle", live: true },
 	cloning: { label: "Cloning", tone: "busy", live: true },
 	building: { label: "Building", tone: "busy", live: true },
@@ -29,6 +30,7 @@ export const DEPLOYMENT_STATUS: Record<DeploymentStatus, StatusMeta> = {
 	failed: { label: "Failed", tone: "bad" },
 	cancelled: { label: "Cancelled", tone: "idle" },
 	superseded: { label: "Superseded", tone: "idle" },
+	skipped: { label: "Skipped", tone: "idle" },
 };
 
 /** Pending until the worker's proxy sync lands; error when Caddy or the route refused. */

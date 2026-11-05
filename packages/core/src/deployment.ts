@@ -1,6 +1,8 @@
 import type { DeploymentStatus } from "@logistack/contracts";
 
 export type DeploymentEvent =
+	| { type: "checks_passed" }
+	| { type: "skip" }
 	| { type: "start"; source: "git" | "image" }
 	| { type: "cloned" }
 	| { type: "built"; push: boolean }
@@ -30,7 +32,18 @@ const abortable: Partial<Record<DeploymentEvent["type"], DeploymentStatus>> = {
 	supersede: "superseded",
 };
 
+// Held by the webhook until the commit's CI checks settle; the worker's checks poller moves it on.
+const awaitingChecks: Partial<
+	Record<DeploymentEvent["type"], DeploymentStatus>
+> = {
+	checks_passed: "queued",
+	skip: "skipped",
+	cancel: "cancelled",
+	supersede: "superseded",
+};
+
 const table: Record<DeploymentStatus, Handler> = {
+	awaiting_checks: (e) => awaitingChecks[e.type],
 	queued: (e) =>
 		e.type === "start"
 			? e.source === "git"
@@ -47,6 +60,7 @@ const table: Record<DeploymentStatus, Handler> = {
 	failed: () => undefined,
 	cancelled: () => undefined,
 	superseded: () => undefined,
+	skipped: () => undefined,
 };
 
 export function transition(
@@ -67,6 +81,7 @@ export function isTerminal(state: DeploymentStatus): boolean {
 		state === "healthy" ||
 		state === "failed" ||
 		state === "cancelled" ||
-		state === "superseded"
+		state === "superseded" ||
+		state === "skipped"
 	);
 }

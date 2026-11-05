@@ -13,6 +13,7 @@ import {
 	envVarScopes,
 	generatedDomainBases,
 	gitProviderKinds,
+	gitRefKinds,
 	mountKinds,
 	nodeRoles,
 	nodeStatuses,
@@ -43,6 +44,7 @@ export const certMode = pgEnum("cert_mode", certModes);
 export const domainStatus = pgEnum("domain_status", domainStatuses);
 export const dnsProviderKind = pgEnum("dns_provider_kind", dnsProviderKinds);
 export const gitProviderKind = pgEnum("git_provider_kind", gitProviderKinds);
+export const gitRefKind = pgEnum("git_ref_kind", gitRefKinds);
 export const registryKind = pgEnum("registry_kind", registryKinds);
 export const backupTarget = pgEnum("backup_target", backupTargets);
 export const runStatus = pgEnum("run_status", runStatuses);

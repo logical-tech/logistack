@@ -134,6 +134,13 @@
       "when": 1793852956198,
       "tag": "0018_domain_access",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793853653495,
+      "tag": "0019_git_triggers",
+      "breakpoints": true
     }
   ]
 }
