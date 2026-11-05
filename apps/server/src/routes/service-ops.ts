@@ -5,12 +5,17 @@ import {
 	type EnvVarScope,
 	envVarScopes,
 	ObservedState,
+	PendingDiff,
 } from "@logistack/contracts";
 import {
 	decrypt,
+	diffSpecs,
 	dockerName,
 	encrypt,
 	type Resource,
+	type SpecSnapshot,
+	specSnapshot,
+	summarizeChange,
 	transition,
 } from "@logistack/core";
 import {
@@ -21,7 +26,8 @@ import {
 	service,
 	serviceStatus,
 } from "@logistack/db";
-import { and, desc, eq, inArray, ne, or } from "drizzle-orm";
+import { compileInput, loadService } from "@logistack/worker/load";
+import { and, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { type Actor, requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -295,6 +301,90 @@ export const serviceOps = router()
 					},
 					current: current ?? null,
 					latest: latest ?? null,
+				},
+				200,
+			);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/services/{id}/pending-diff",
+			tags: ["services"],
+			security,
+			summary: "What the next deploy changes",
+			description:
+				"Diffs the spec the newest healthy deployment applied against the one the current configuration compiles to. Secret values are never returned, only that they changed. A git source's next build and commit are unknown until it runs, so the image and commit are compared as of that deployment.",
+			middleware: [requirePermission("read", byParam("service"))],
+			request: { params: IdParam },
+			responses: { 200: json(PendingDiff, "Pending changes"), ...errors },
+		}),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { db, masterKey } = c.var.deps;
+			const [last] = await db
+				.select()
+				.from(deployment)
+				.where(
+					and(
+						eq(deployment.serviceId, id),
+						eq(deployment.status, "healthy"),
+						isNotNull(deployment.specSnapshotEncrypted),
+					),
+				)
+				.orderBy(desc(deployment.createdAt))
+				.limit(1);
+			if (!last?.specSnapshotEncrypted)
+				return c.json({ baseline: null, changes: [] }, 200);
+			const before: SpecSnapshot = JSON.parse(
+				await decrypt(masterKey, last.specSnapshotEncrypted),
+			);
+			let after: SpecSnapshot;
+			try {
+				const sc = await loadService({ db, masterKey }, id, { gitAuth: false });
+				if (!sc) throw notFound("service");
+				const spec = sc.service.spec;
+				const nets = before.spec.TaskTemplate.Networks ?? [];
+				// Same rule as the worker: an image source names its image, a git source builds one.
+				const input = compileInput(
+					sc,
+					{
+						...last,
+						imageRef:
+							spec.kind === "application" && spec.source.type === "image"
+								? spec.source.image
+								: last.imageRef,
+					},
+					{
+						// Names, not Docker ids: `specSnapshot` compares by name. ls-db is optional on the worker side.
+						networks: {
+							environment: "environment",
+							ingress: "ingress",
+							...(spec.kind === "storage" ? { storage: "storage" } : {}),
+							...(nets.some((n) => n.Target === "db") ? { db: "db" } : {}),
+						},
+						// shortcut: a stateful service whose node row is gone diffs as re-pinned; rare, the worker logs it.
+						pinNodeId: sc.pinnedSwarmNodeId ?? "unpinned",
+					},
+				);
+				after = specSnapshot(input, sc.env);
+			} catch (e) {
+				if (e instanceof Failure) throw e;
+				throw new Failure(
+					"unprocessable",
+					e instanceof Error ? e.message : String(e),
+				);
+			}
+			return c.json(
+				{
+					baseline: {
+						deploymentId: last.id,
+						createdAt: last.createdAt.toISOString(),
+					},
+					changes: diffSpecs(before, after).map((change) => ({
+						summary: summarizeChange(change),
+						change,
+					})),
 				},
 				200,
 			);
