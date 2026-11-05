@@ -1,4 +1,5 @@
 import { createPrivateKey, X509Certificate } from "node:crypto";
+import type { AccessRule } from "@logistack/contracts";
 import { decrypt } from "@logistack/core";
 import {
 	certificate,
@@ -148,6 +149,26 @@ export function domainRoute(
 			...(extra.dnsChallenge ? { dnsChallenge: extra.dnsChallenge } : {}),
 		},
 	};
+}
+
+/**
+ * The domain's rules plus the service-wide basic auth. Both user lists pass the one basic
+ * auth check (a browser sends one Authorization header); the domain's entry wins a shared name.
+ */
+export function routeAccess(
+	rules: AccessRule[],
+	serviceUsers: { username: string; hash: string }[] | null | undefined,
+): AccessRule[] {
+	if (!serviceUsers?.length) return rules;
+	const own = rules.find((r) => r.type === "basic_auth")?.users ?? [];
+	const users = [
+		...own,
+		...serviceUsers.filter((u) => !own.some((o) => o.username === u.username)),
+	];
+	return [
+		...rules.filter((r) => r.type !== "basic_auth"),
+		{ type: "basic_auth", users },
+	];
 }
 
 /**
@@ -344,11 +365,10 @@ export async function syncProxy(ctx: Ctx): Promise<void> {
 					: {}),
 			});
 			if (r.ok)
-				candidates.push(
-					basicAuth?.length
-						? { ...r.route, access: [{ type: "basic_auth", users: basicAuth }] }
-						: r.route,
-				);
+				candidates.push({
+					...r.route,
+					access: routeAccess(d.access, basicAuth),
+				});
 			else outcome.set(d.id, r.error);
 		} catch (e) {
 			outcome.set(d.id, e instanceof Error ? e.message : String(e));

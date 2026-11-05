@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Task } from "@logistack/docker";
 import { buildPlan } from "../src/build.ts";
 import type { DomainRow } from "../src/load.ts";
-import { domainRoute } from "../src/proxy.ts";
+import { domainRoute, routeAccess } from "../src/proxy.ts";
 import { observe } from "../src/reconcile.ts";
 
 describe("buildPlan", () => {
@@ -186,5 +186,46 @@ describe("domainRoute", () => {
 				redirectTo: "https://www.example.com",
 			},
 		});
+	});
+});
+
+describe("routeAccess", () => {
+	const ip = { type: "ip_allow" as const, cidrs: ["10.0.0.0/8"] };
+	const svc = [
+		{ username: "ops", hash: "svc-ops" },
+		{ username: "ci", hash: "svc-ci" },
+	];
+
+	test("no service basic auth leaves the domain's rules as they are", () => {
+		expect(routeAccess([ip], null)).toEqual([ip]);
+		expect(routeAccess([], [])).toEqual([]);
+	});
+
+	test("service basic auth alone protects every domain of the service", () => {
+		expect(routeAccess([ip], svc)).toEqual([
+			ip,
+			{ type: "basic_auth", users: svc },
+		]);
+	});
+
+	test("domain and service users merge into one check, the domain's entry winning", () => {
+		const own = {
+			type: "basic_auth" as const,
+			users: [
+				{ username: "ops", hash: "dom-ops" },
+				{ username: "qa", hash: "dom-qa" },
+			],
+		};
+		expect(routeAccess([own, ip], svc)).toEqual([
+			ip,
+			{
+				type: "basic_auth",
+				users: [
+					{ username: "ops", hash: "dom-ops" },
+					{ username: "qa", hash: "dom-qa" },
+					{ username: "ci", hash: "svc-ci" },
+				],
+			},
+		]);
 	});
 });
