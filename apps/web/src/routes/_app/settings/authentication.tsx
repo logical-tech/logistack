@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { TwoFactorPolicyPanel } from "@/components/access/two-factor-policy";
 import { EmptyState } from "@/components/empty-state";
 import {
 	ConfirmDelete,
@@ -112,38 +113,42 @@ function AuthenticationPage() {
 				description={s.description}
 				actions={data?.length ? add : undefined}
 			/>
-			{isPending ? (
-				<Panel title="Identity providers" id="sso-providers">
-					<SkeletonRows rows={2} />
-				</Panel>
-			) : !data?.length ? (
-				<EmptyState
-					icon={LockKeyhole}
-					title={s.empty?.title ?? "No identity provider yet"}
-					description={s.empty?.body}
-				>
-					{add}
-				</EmptyState>
-			) : (
-				<div className="grid gap-8">
+			<div className="grid gap-8">
+				<TwoFactorPolicyPanel />
+				{isPending ? (
 					<Panel title="Identity providers" id="sso-providers">
-						<ul className="divide-y">
-							{data.map((p) => (
-								<ProviderRow
-									key={p.providerId}
-									p={p}
-									onDelete={() => setDeleting(p)}
-								/>
-							))}
-						</ul>
+						<SkeletonRows rows={2} />
 					</Panel>
-					<p className="max-w-[70ch] text-sm text-muted-foreground">
-						The sign-in page offers “Continue with SSO” while a provider exists.
-						Someone whose email domain matches a provider signs in there and
-						joins this organization with its role; existing members keep theirs.
-					</p>
-				</div>
-			)}
+				) : !data?.length ? (
+					<EmptyState
+						icon={LockKeyhole}
+						title={s.empty?.title ?? "No identity provider yet"}
+						description={s.empty?.body}
+					>
+						{add}
+					</EmptyState>
+				) : (
+					<div className="grid gap-8">
+						<Panel title="Identity providers" id="sso-providers">
+							<ul className="divide-y">
+								{data.map((p) => (
+									<ProviderRow
+										key={p.providerId}
+										p={p}
+										onDelete={() => setDeleting(p)}
+									/>
+								))}
+							</ul>
+						</Panel>
+						<p className="max-w-[70ch] text-sm text-muted-foreground">
+							The sign-in page offers “Continue with SSO” while a provider
+							exists. Someone whose email domain matches a provider signs in
+							there and joins this organization with its role; existing members
+							keep theirs.
+						</p>
+					</div>
+				)}
+			</div>
 			<ConfirmDelete
 				open={deleting !== null}
 				onOpenChange={(o) => !o && setDeleting(null)}

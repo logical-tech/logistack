@@ -36,6 +36,10 @@ exports[`storage compile snapshot minio 1`] = `
       ],
       "Configs": [],
       "Env": [
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=e",
+        "LOGISTACK_PROJECT=p",
+        "LOGISTACK_SERVICE=s",
         "MINIO_ROOT_PASSWORD=root-secret-0000000000000000000000000000",
         "MINIO_ROOT_USER=LSROOTKEY000000000000",
         "STORAGE_ACCESS_KEY_ID=LSROOTKEY000000000000",
@@ -149,6 +153,10 @@ exports[`storage compile snapshot rustfs 1`] = `
     "ContainerSpec": {
       "Configs": [],
       "Env": [
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=e",
+        "LOGISTACK_PROJECT=p",
+        "LOGISTACK_SERVICE=s",
         "RUSTFS_ACCESS_KEY=LSROOTKEY000000000000",
         "RUSTFS_ADDRESS=:9000",
         "RUSTFS_CONSOLE_ADDRESS=:9001",
@@ -281,6 +289,10 @@ exports[`storage compile snapshot garage 1`] = `
       "Env": [
         "GARAGE_ADMIN_TOKEN=admin-token",
         "GARAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=e",
+        "LOGISTACK_PROJECT=p",
+        "LOGISTACK_SERVICE=s",
         "STORAGE_ACCESS_KEY_ID=LSROOTKEY000000000000",
         "STORAGE_ADMIN_TOKEN=admin-token",
         "STORAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -400,6 +412,10 @@ exports[`storage compile snapshot seaweedfs 1`] = `
       "Env": [
         "AWS_ACCESS_KEY_ID=LSROOTKEY000000000000",
         "AWS_SECRET_ACCESS_KEY=root-secret-0000000000000000000000000000",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=e",
+        "LOGISTACK_PROJECT=p",
+        "LOGISTACK_SERVICE=s",
         "STORAGE_ACCESS_KEY_ID=LSROOTKEY000000000000",
         "STORAGE_ADMIN_TOKEN=admin-token",
         "STORAGE_RPC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

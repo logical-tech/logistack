@@ -20,6 +20,8 @@ import type {
 	RoleGrant,
 	ServiceAccount,
 	SshKey,
+	TwoFactorPolicyInput,
+	TwoFactorSetting,
 } from "./access-types";
 import { ApiError } from "./adapter";
 import { client } from "./client";
@@ -63,6 +65,10 @@ export type AccessAdapter = {
 		list(): Promise<SshKey[]>;
 		create(input: CreateSshKeyInput): Promise<SshKey>;
 		remove(id: string): Promise<void>;
+	};
+	twoFactor: {
+		get(): Promise<TwoFactorSetting>;
+		set(policy: TwoFactorPolicyInput): Promise<TwoFactorSetting>;
 	};
 	instance: {
 		get(): Promise<InstanceSettings>;
@@ -115,6 +121,10 @@ export const httpAccess: AccessAdapter = {
 		setRole: (id, role) =>
 			call(api.members[":id"].$patch({ param: { id }, json: { role } })),
 		remove: (id) => call(api.members[":id"].$delete({ param: { id } })),
+	},
+	twoFactor: {
+		get: () => call(api.organization["two-factor"].$get()),
+		set: (json) => call(api.organization["two-factor"].$put({ json })),
 	},
 	invitations: {
 		list: () => call(api.invitations.$get()),

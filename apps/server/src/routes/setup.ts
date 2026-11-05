@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { createRoute, z } from "@hono/zod-openapi";
 import { GeneratedDomainBase, Hostname } from "@logistack/contracts";
@@ -52,6 +53,8 @@ const SetupStatus = z
 	.object({
 		setupCompleted: z.boolean(),
 		hasUsers: z.boolean(),
+		/** install.sh --public-setup: the setup routes need the `x-setup-token` header until setup completes. */
+		setupTokenRequired: z.boolean(),
 		/** Seeds generated sslip.io / nip.io hostnames in the wizard; null when undetectable. */
 		publicIp: z.string().nullable(),
 		/** Social sign-in providers with credentials configured; the sign-in screen shows only these. */
@@ -253,13 +256,65 @@ export async function completeSetup(
 	return { userId, organizationId };
 }
 
-/** Open during first run; once anyone exists, only an organization admin may probe DNS. */
-const adminOnceSetUp: MiddlewareHandler<Env> = async (c, next) => {
-	const { setupCompleted, hasUsers } = await isSetUp(c.var.deps.db);
-	if (setupCompleted || hasUsers)
-		check(c, "admin", organizationResource(requireActor(c).organizationId));
-	await next();
-};
+export const SETUP_TOKEN_HEADER = "x-setup-token";
+
+const SetupTokenHeader = z.object({
+	[SETUP_TOKEN_HEADER]: z.string().optional().openapi({
+		description:
+			"The one-time token install.sh --public-setup printed. Needed until setup completes, ignored after.",
+	}),
+});
+
+/**
+ * Who may use a setup route: `open` before setup when no token is configured (the installer's
+ * default, where only the loopback tunnel reaches the api) or the right one is given; `done` once
+ * anyone exists, which also retires the token.
+ */
+export type SetupGate = "open" | "token_missing" | "token_invalid" | "done";
+
+const digest = (v: string) => createHash("sha256").update(v).digest();
+
+export function setupGate(
+	done: boolean,
+	expected: string | undefined,
+	given: string | undefined,
+): SetupGate {
+	if (done) return "done";
+	if (!expected) return "open";
+	if (!given) return "token_missing";
+	return timingSafeEqual(digest(expected), digest(given))
+		? "open"
+		: "token_invalid";
+}
+
+/** Applies {@link setupGate}; after setup the DNS probes need an organization admin and POST /setup is a conflict. */
+const setupAccess =
+	(afterSetup: "admin" | "conflict"): MiddlewareHandler<Env> =>
+	async (c, next) => {
+		const { db, config } = c.var.deps;
+		const { setupCompleted, hasUsers } = await isSetUp(db);
+		const gate = setupGate(
+			setupCompleted || hasUsers,
+			config.LOGISTACK_SETUP_TOKEN,
+			c.req.header(SETUP_TOKEN_HEADER),
+		);
+		switch (gate) {
+			case "open":
+				break;
+			case "token_missing":
+				throw new Failure(
+					"unauthorized",
+					"This server needs its setup token: install.sh printed it",
+				);
+			case "token_invalid":
+				throw new Failure("unauthorized", "The setup token is wrong");
+			case "done":
+				if (afterSetup === "conflict")
+					throw new Failure("conflict", "setup is already completed");
+				check(c, "admin", organizationResource(requireActor(c).organizationId));
+		}
+		await next();
+	};
 
 export const setup = router()
 	.openapi(
@@ -276,6 +331,12 @@ export const setup = router()
 			return c.json(
 				{
 					...status,
+					setupTokenRequired:
+						setupGate(
+							status.setupCompleted || status.hasUsers,
+							config.LOGISTACK_SETUP_TOKEN,
+							undefined,
+						) === "token_missing",
 					publicIp: ip,
 					authProviders: {
 						github: Boolean(
@@ -300,11 +361,12 @@ export const setup = router()
 				security,
 				summary: "Resolve a hostname over DNS-over-HTTPS and compare it",
 				description:
-					"Anyone may call it before setup completes; afterwards it needs `admin` on the organization. `expected` defaults to the server's public IP.",
-				middleware: [adminOnceSetUp],
-				request: body(
-					z.object({ hostname: Hostname, expected: Ip.optional() }),
-				),
+					"Anyone may call it before setup completes, with the setup token when the installer set one; afterwards it needs `admin` on the organization. `expected` defaults to the server's public IP.",
+				middleware: [setupAccess("admin")],
+				request: {
+					headers: SetupTokenHeader,
+					...body(z.object({ hostname: Hostname, expected: Ip.optional() })),
+				},
 				responses: { 200: json(DnsCheck, "Lookup result"), ...errors },
 			}),
 		),
@@ -336,9 +398,12 @@ export const setup = router()
 				summary:
 					"Verify a DNS provider token and find the zone owning the base",
 				description:
-					"Writes nothing. Open before setup completes; afterwards it needs `admin` on the organization.",
-				middleware: [adminOnceSetUp],
-				request: body(DnsProviderInput.extend({ base: Hostname })),
+					"Writes nothing. Open before setup completes, with the setup token when the installer set one; afterwards it needs `admin` on the organization.",
+				middleware: [setupAccess("admin")],
+				request: {
+					headers: SetupTokenHeader,
+					...body(DnsProviderInput.extend({ base: Hostname })),
+				},
 				responses: {
 					200: json(
 						z.object({ zone: z.object({ id: z.string(), name: z.string() }) }),
@@ -363,8 +428,9 @@ export const setup = router()
 				tags: ["setup"],
 				summary: "Create the owner, the organization and the instance settings",
 				description:
-					"Allowed only while no user exists. Exactly one of any concurrent calls succeeds; the rest get 409.",
-				request: body(SetupInput),
+					"Allowed only while no user exists, with the setup token when the installer set one. Exactly one of any concurrent calls succeeds; the rest get 409.",
+				middleware: [setupAccess("conflict")],
+				request: { headers: SetupTokenHeader, ...body(SetupInput) },
 				responses: {
 					201: json(
 						z.object({
@@ -376,6 +442,7 @@ export const setup = router()
 						"Setup completed",
 					),
 					400: errors[400],
+					401: errors[401],
 					409: errors[409],
 				},
 			}),

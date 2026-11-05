@@ -134,7 +134,8 @@ export async function fixtureRepo(): Promise<string> {
 		join(dir, "Dockerfile"),
 		[
 			"FROM busybox:1.37",
-			"RUN mkdir /www && echo built-by-buildkit > /www/index.html",
+			"ARG LOGISTACK_COMMIT_SHA",
+			'RUN mkdir /www && echo built-by-buildkit > /www/index.html && echo "$LOGISTACK_COMMIT_SHA" > /www/commit',
 			'CMD ["httpd", "-f", "-p", "8080", "-h", "/www"]',
 			"",
 		].join("\n"),

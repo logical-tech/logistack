@@ -230,6 +230,12 @@ describe.skipIf(!hasDocker)("templates API", () => {
 				compileService({
 					service: { ...r, organizationId: "org", spec: r.spec as never },
 					deploymentId: "dep_x",
+					context: {
+						project: "p",
+						environment: "e",
+						service: "s",
+						domains: [],
+					},
 					image: "img:1",
 					env: r.slug === "db" ? { POSTGRES_PASSWORD: password } : {},
 					mounts: [],
@@ -346,6 +352,12 @@ describe("catalog", () => {
 						spec: p.spec,
 					},
 					deploymentId: "dep_x",
+					context: {
+						project: "p",
+						environment: "e",
+						service: "s",
+						domains: [],
+					},
 					image:
 						p.spec.kind === "application" && p.spec.source.type === "image"
 							? p.spec.source.image

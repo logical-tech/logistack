@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { DatabaseEngine } from "@logistack/contracts";
+import {
+	type DatabaseEngine,
+	deploymentContextVars,
+} from "@logistack/contracts";
 import {
 	type CompileServiceInput,
 	compileService,
@@ -30,6 +33,12 @@ const app: CompileServiceInput = {
 	deploymentId: "dep_one0000000000000000000000",
 	image: "registry.example.com/org_acme/ls-svc-app:dep_one",
 	env: { PORT: "8080", API_KEY: "s3cret" },
+	context: {
+		project: "Shop",
+		environment: "production",
+		service: "Web",
+		domains: [],
+	},
 	mounts: [],
 	domains: [],
 	networks: { environment: "net-env-id", ingress: "net-ingress-id" },
@@ -115,6 +124,114 @@ describe("snapshots", () => {
 			expect(compileService(database(engine))).toMatchSnapshot();
 		});
 	}
+});
+
+describe("deployment context", () => {
+	const domain = {
+		https: true,
+		tunnel: false,
+		pathPrefix: null,
+		redirectTo: null,
+		isGenerated: false,
+	};
+	const gitApp: CompileServiceInput = {
+		...app,
+		service: {
+			...app.service,
+			spec: {
+				...app.service.spec,
+				source: {
+					type: "git",
+					repository: "https://github.com/acme/shop.git",
+					branch: "main",
+					path: ".",
+				},
+				build: {
+					type: "dockerfile",
+					dockerfilePath: "Dockerfile",
+					context: ".",
+				},
+			} as CompileServiceInput["service"]["spec"],
+		},
+		context: {
+			...app.context,
+			commit: {
+				sha: "0123456789abcdef0123456789abcdef01234567",
+				message: "fix: checkout total\n\nLong body that must not leak.",
+				branch: "main",
+			},
+			domains: [
+				{ ...domain, hostname: "web-1-2-3-4.sslip.io", isGenerated: true },
+				{ ...domain, hostname: "*.preview.acme.dev" },
+				{ ...domain, hostname: "old.acme.dev", redirectTo: "shop.acme.dev" },
+				{ ...domain, hostname: "shop.acme.dev", pathPrefix: "/app" },
+				{ ...domain, hostname: "shop.acme.dev", pathPrefix: "/api" },
+			],
+		},
+	};
+	const env = (i: CompileServiceInput) =>
+		Object.fromEntries(
+			(compileService(i).TaskTemplate.ContainerSpec.Env ?? []).map((e) => {
+				const at = e.indexOf("=");
+				return [e.slice(0, at), e.slice(at + 1)];
+			}),
+		);
+
+	test("image source without domains", () => {
+		expect(env(app)).toMatchSnapshot();
+	});
+
+	test("git source with domains", () => {
+		expect(env(gitApp)).toMatchSnapshot();
+	});
+
+	test("image-only services get every variable except the commit ones", () => {
+		const vars = env({
+			...gitApp,
+			context: { ...gitApp.context, commit: undefined },
+		});
+		const injected = Object.keys(vars).filter((k) =>
+			k.startsWith("LOGISTACK_"),
+		);
+		expect(injected.sort()).toEqual(
+			Object.keys(deploymentContextVars)
+				.filter((k) => !/COMMIT|BRANCH/.test(k))
+				.sort(),
+		);
+	});
+
+	test("the primary domain is the first custom one; a tunnel is served over https", () => {
+		const url = (domains: CompileServiceInput["context"]["domains"]) =>
+			env({ ...app, context: { ...app.context, domains } }).LOGISTACK_URL;
+		expect(
+			url([{ ...domain, hostname: "a.sslip.io", isGenerated: true }]),
+		).toBe("https://a.sslip.io");
+		expect(url([{ ...domain, hostname: "a.dev", https: false }])).toBe(
+			"http://a.dev",
+		);
+		expect(
+			url([{ ...domain, hostname: "a.dev", https: false, tunnel: true }]),
+		).toBe("https://a.dev");
+		expect(url([{ ...domain, hostname: "*.a.dev" }])).toBeUndefined();
+	});
+
+	test("a long commit message is cut to its first 200 characters", () => {
+		const vars = env({
+			...gitApp,
+			context: {
+				...gitApp.context,
+				commit: { sha: "abc", message: "x".repeat(300), branch: "main" },
+			},
+		});
+		expect(vars.LOGISTACK_COMMIT_MESSAGE).toBe("x".repeat(200));
+	});
+
+	test("a stored variable with a reserved name never shadows the injected one", () => {
+		expect(
+			env({ ...app, env: { LOGISTACK_DEPLOYMENT_ID: "spoofed" } })
+				.LOGISTACK_DEPLOYMENT_ID,
+		).toBe(app.deploymentId);
+	});
 });
 
 describe("networks", () => {

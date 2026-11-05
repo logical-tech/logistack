@@ -170,3 +170,111 @@ export const bitbucketPullRequest = {
 		destination: { branch: { name: "main" }, commit: { hash: "ce5965ddd289" } },
 	},
 };
+
+export const githubTagPush = {
+	ref: "refs/tags/v1.4.0",
+	before: "0000000000000000000000000000000000000000",
+	after: "9f2b0e1c5d7a4b3e8f6a1c2d3e4f5a6b7c8d9e0f",
+	created: true,
+	deleted: false,
+	base_ref: "refs/heads/main",
+	repository: { id: 186853002, full_name: "Codertocat/Hello-World" },
+	pusher: { name: "Codertocat" },
+	head_commit: {
+		id: "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+		message: "chore: release 1.4.0",
+		author: { name: "Codertocat" },
+	},
+	commits: [],
+};
+
+export const githubRelease = {
+	action: "published",
+	release: {
+		id: 11248810,
+		tag_name: "v1.4.0",
+		target_commitish: "main",
+		name: "1.4.0",
+		draft: false,
+		prerelease: false,
+		author: { login: "Codertocat" },
+	},
+	repository: { id: 186853002, full_name: "Codertocat/Hello-World" },
+	sender: { login: "Codertocat" },
+};
+
+export const gitlabTagPush = {
+	object_kind: "tag_push",
+	event_name: "tag_push",
+	before: "0000000000000000000000000000000000000000",
+	after: "82b3d5ae55f7080f1e6022629cdb57bfae7cccc7",
+	ref: "refs/tags/v1.0.0",
+	checkout_sha: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
+	message: "Tag message",
+	user_name: "John Smith",
+	project: { id: 1, path_with_namespace: "jsmith/example" },
+	commits: [],
+	total_commits_count: 0,
+};
+
+export const gitlabRelease = {
+	object_kind: "release",
+	action: "create",
+	tag: "v1.1",
+	name: "Awesome release",
+	project: { id: 1, path_with_namespace: "jsmith/example" },
+	commit: {
+		id: "ee0f8b1c6f9a6d7b4ab2bfd5a9ee6a4a7a1b1e36",
+		message: "Release v1.1 [skip deploy]",
+		author: { name: "Example User" },
+	},
+};
+
+export const giteaTagPush = {
+	ref: "refs/tags/v2.0.0",
+	before: "0000000000000000000000000000000000000000",
+	after: "bffeb74224043ba2feb48d137756c8a9331c449a",
+	repository: { id: 140, full_name: "gitea/webhooks" },
+	pusher: { login: "gitea", username: "gitea" },
+	head_commit: {
+		id: "bffeb74224043ba2feb48d137756c8a9331c449a",
+		message: "Webhooks Yay!",
+		author: { name: "Gitea", username: "gitea" },
+	},
+	commits: [],
+};
+
+export const giteaRelease = {
+	action: "published",
+	release: {
+		id: 3,
+		tag_name: "v2.0.0-rc.1",
+		target_commitish: "main",
+		name: "",
+		author: { login: "gitea" },
+	},
+	repository: { id: 140, full_name: "gitea/webhooks" },
+	sender: { login: "gitea" },
+};
+
+export const bitbucketTagPush = {
+	actor: { display_name: "Emma" },
+	repository: { full_name: "team/repo" },
+	push: {
+		changes: [
+			{
+				new: {
+					type: "tag",
+					name: "v3.1.0",
+					target: {
+						type: "commit",
+						hash: "709d658dc5b6d6afcd46049c2f332ee3f515a67d",
+						message: "Bump to 3.1.0 [ci skip]\n",
+						author: { raw: "Emma <emma@example.com>" },
+					},
+				},
+				old: null,
+			},
+		],
+	},
+};

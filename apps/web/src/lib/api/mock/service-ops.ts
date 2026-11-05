@@ -2,6 +2,7 @@ import { ApiError } from "../adapter";
 import type {
 	DeploymentRow,
 	EffectiveEnvVar,
+	PendingDiff,
 	ServiceOpsApi,
 	ServiceOverview,
 } from "../service-ops";
@@ -38,6 +39,69 @@ const RUNTIME_LOG = [
 	`${E}[31merror${E}[0m payment provider timed out, retrying`,
 ];
 
+const MOCK_CHANGES: PendingDiff["changes"] = [
+	{
+		summary: "image node:22-alpine → node:24-alpine",
+		change: {
+			area: "image",
+			before: "node:22-alpine",
+			after: "node:24-alpine",
+		},
+	},
+	{
+		summary: "env var API_URL changed",
+		change: {
+			area: "env",
+			op: "changed",
+			key: "API_URL",
+			secret: false,
+			before: "https://api.storefront.example.com",
+			after: "https://api-v2.storefront.example.com",
+		},
+	},
+	{
+		summary: "env var STRIPE_SECRET_KEY changed",
+		change: {
+			area: "env",
+			op: "changed",
+			key: "STRIPE_SECRET_KEY",
+			secret: true,
+		},
+	},
+	{
+		summary: "env var FEATURE_CHECKOUT_V2 added",
+		change: {
+			area: "env",
+			op: "added",
+			key: "FEATURE_CHECKOUT_V2",
+			secret: false,
+			after: "true",
+		},
+	},
+	{
+		summary: "domain shop.example.com added",
+		change: { area: "domain", op: "added", hostname: "shop.example.com" },
+	},
+	{
+		summary: "memory limit 512 MB → 1 GB",
+		change: {
+			area: "resources",
+			resource: "memory",
+			before: 536870912,
+			after: 1073741824,
+		},
+	},
+	{
+		summary: "volume mount /data/cache removed",
+		change: {
+			area: "mount",
+			op: "removed",
+			target: "/data/cache",
+			before: { type: "volume", source: "ls-vol-x1y2z3", readOnly: false },
+		},
+	},
+];
+
 export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 	const find = (id: string) => {
 		const service = db.services.find((s) => s.id === id);
@@ -62,10 +126,12 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 			trigger,
 			commitSha: from?.commitSha ?? null,
 			commitMessage: from?.commitMessage ?? null,
+			gitRef: null,
 			imageRef: from?.imageRef ?? null,
 			startedAt: iso(),
 			finishedAt: null,
 			error: null,
+			reason: null,
 			logPath: null,
 			supersededBy: null,
 			createdAt: iso(),
@@ -158,6 +224,16 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 		deployments: async (id, limit) =>
 			delay(deploymentsOf(id).slice(0, limit), 160),
 		deploy: async (id) => delay(queue(find(id).id, "manual")),
+		pendingDiff: async (id) => {
+			const current = deploymentsOf(find(id).id).find(
+				(d) => d.status === "healthy",
+			);
+			if (!current) return delay({ baseline: null, changes: [] });
+			return delay({
+				baseline: { deploymentId: current.id, createdAt: current.createdAt },
+				changes: MOCK_CHANGES,
+			});
+		},
 		restart: async (id) => {
 			const current = deploymentsOf(id).find((d) => d.status === "healthy");
 			if (!current)

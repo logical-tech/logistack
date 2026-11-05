@@ -232,13 +232,22 @@ export const NAV: NavGroup[] = [
 				title: "Authentication",
 				icon: LockKeyhole,
 				description:
-					"Single sign-on through your identity provider, over OIDC or SAML.",
+					"Two-factor requirement, and single sign-on through your identity provider over OIDC or SAML.",
 				empty: {
 					title: "No identity provider yet",
 					body: "Connect Okta, Entra ID, Google Workspace, Keycloak or any OIDC or SAML provider. People from your email domain join with the role you choose.",
 					action: "Add OIDC provider",
 				},
-				keywords: ["sso", "oidc", "saml", "okta", "login"],
+				keywords: [
+					"sso",
+					"oidc",
+					"saml",
+					"okta",
+					"login",
+					"2fa",
+					"mfa",
+					"two-factor",
+				],
 			},
 			{
 				to: "/settings/roles",

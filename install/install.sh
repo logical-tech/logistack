@@ -3,6 +3,12 @@
 #   curl -fsSL <url>/install.sh | sudo bash -s -- [--version X] [--advertise-addr IP] [--yes] [--dry-run]
 #   sudo bash install/install.sh --local-build    (from a checkout: build the images here, pull nothing)
 #
+# Private setup (the default): until setup is done the dashboard is reachable only through an SSH
+# tunnel to 127.0.0.1:$TUNNEL_PORT, served by a plain container (Swarm cannot publish on loopback).
+# Caddy's bootstrap catch-all answers 404 instead of proxying to the api; after setup the worker
+# routes the dashboard's own domain over https. --public-setup keeps the catch-all proxy and
+# requires a one-time setup token instead. It is not persisted: a re-run without it is private.
+#
 # Ingress off (--no-ingress): Caddy is a global service constrained to node.labels.logistack.ingress
 # == true, so labelling the node logistack.ingress=pending leaves it at 0 tasks and 80/443 free for
 # the proxy being migrated away from. The label is the persisted choice: a plain re-run keeps ingress
@@ -31,6 +37,7 @@ DRY_RUN=0
 LOCAL_BUILD=0
 NO_INGRESS=0
 ENABLE_INGRESS=0
+PUBLIC_SETUP=0
 REGISTRY="ghcr.io/logical-tech"
 CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
@@ -75,6 +82,9 @@ Usage: install.sh [options]
   --no-ingress         Leave Caddy off and ports 80/443 to another proxy; reach the API through
                        an SSH tunnel to 127.0.0.1:$TUNNEL_PORT. Kept on re-runs until --enable-ingress
   --enable-ingress     Turn Caddy on after --no-ingress (80/443 must be free by then)
+  --public-setup       Serve the setup wizard on the public address before setup, guarded by a
+                       one-time setup token printed at the end (default: only through an SSH
+                       tunnel to 127.0.0.1:$TUNNEL_PORT)
   --help, -h           Show this help
 EOF
 }
@@ -122,6 +132,7 @@ parse_args() {
 		--local-build) LOCAL_BUILD=1 REGISTRY=localhost ;;
 		--no-ingress) NO_INGRESS=1 ;;
 		--enable-ingress) ENABLE_INGRESS=1 ;;
+		--public-setup) PUBLIC_SETUP=1 ;;
 		--help | -h) usage; exit 0 ;;
 		*) usage >&2; fail "Unknown option: $1" ;;
 		esac
@@ -208,6 +219,7 @@ detect_ingress_mode() {
 	elif [ -n "$(nodes_labelled pending)" ] && [ "$ENABLE_INGRESS" = 0 ]; then
 		NO_INGRESS=1
 	fi
+	[ "$NO_INGRESS" = 0 ] || [ "$PUBLIC_SETUP" = 0 ] || fail "--public-setup needs ingress: without Caddy setup is reachable only through the tunnel"
 	if [ "$NO_INGRESS" = 1 ]; then ok "Ingress off: Caddy stays at 0 tasks (--enable-ingress turns it on)"; fi
 }
 
@@ -465,7 +477,7 @@ ensure_secrets() {
 	local entry name key format value
 	for entry in master-key:LOGISTACK_MASTER_KEY:base64 postgres-password:POSTGRES_PASSWORD:hex \
 		better-auth-secret:BETTER_AUTH_SECRET:hex redis-password:REDIS_PASSWORD:hex \
-		agent-token:LOGISTACK_AGENT_TOKEN:hex; do
+		agent-token:LOGISTACK_AGENT_TOKEN:hex setup-token:LOGISTACK_SETUP_TOKEN:hex; do
 		IFS=: read -r name key format <<<"$entry"
 		name="logistack-$name"
 		value=$(credential_get "$key")
@@ -585,15 +597,22 @@ deploy() {
 	[ "$LOCAL_BUILD" = 0 ] || flags=(--resolve-image never)
 	# After setup Caddy serves the dashboard over https, so browsers send an https Origin;
 	# BETTER_AUTH_URL keeps the http bootstrap URL and better-auth trusts both.
+	local public=false token_file="" tunnel_origin=""
+	if [ "$PUBLIC_SETUP" = 1 ]; then public=true token_file=/run/secrets/setup_token; fi
+	if tunnel_wanted; then tunnel_origin="http://localhost:$TUNNEL_PORT"; fi
 	act "Deploy stack $STACK_NAME $IMAGE_TAG" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" \
 		LOGISTACK_REGISTRY="$REGISTRY" LOGISTACK_PUBLIC_URL="$PUBLIC_URL" LOGISTACK_WEB_ORIGIN="https://${PUBLIC_URL#http://}" \
+		LOGISTACK_PUBLIC_SETUP="$public" LOGISTACK_SETUP_TOKEN_FILE="$token_file" LOGISTACK_TUNNEL_ORIGIN="$tunnel_origin" \
 		docker stack deploy "${flags[@]}" --detach=true -c "$CONF_DIR/stack.yml" "$STACK_NAME"
 }
 
-# Without Caddy, a container on ls-control forwards 127.0.0.1:$TUNNEL_PORT on the host to the API.
-# It reuses the Caddy image, so no extra image is pulled; with ingress on, remove_tunnel drops it.
+# The SSH tunnel's target: without Caddy, or unless setup is public. Loopback only, never public.
+tunnel_wanted() { [ "$NO_INGRESS" = 1 ] || [ "$PUBLIC_SETUP" = 0 ]; }
+
+# A container on ls-control forwards 127.0.0.1:$TUNNEL_PORT on the host to the API. It reuses the
+# Caddy image, so no extra image is pulled; with --public-setup, remove_tunnel drops it.
 ensure_tunnel() {
-	[ "$NO_INGRESS" = 1 ] || return 0
+	tunnel_wanted || return 0
 	local image="$REGISTRY/logistack-caddy:$IMAGE_TAG" current
 	current=$(docker inspect -f '{{.Config.Image}} {{.State.Running}}' "$TUNNEL_NAME" 2>/dev/null || true)
 	if [ "$current" = "$image true" ]; then
@@ -609,9 +628,9 @@ ensure_tunnel() {
 		reverse-proxy --from ":$TUNNEL_PORT" --to logistack-api:3000
 }
 
-# Runs only after wait_healthy saw Caddy answer, so a failed --enable-ingress keeps the way in.
+# Runs only after wait_healthy saw Caddy answer, so a failed --public-setup keeps the way in.
 remove_tunnel() {
-	[ "$NO_INGRESS" = 0 ] && docker inspect "$TUNNEL_NAME" >/dev/null 2>&1 || return 0
+	! tunnel_wanted && docker inspect "$TUNNEL_NAME" >/dev/null 2>&1 || return 0
 	act "Remove the API tunnel $TUNNEL_NAME" docker rm -f "$TUNNEL_NAME"
 }
 
@@ -653,12 +672,9 @@ wait_healthy() {
 				pending+=("$name")
 			fi
 		done < <(docker stack services "$STACK_NAME" --format '{{.Name}} {{.Replicas}}' | sort)
-		if [ ${#pending[@]} -eq 0 ] && [ "$NO_INGRESS" = 1 ] && tunnel_ready; then
-			ok "API healthy through the tunnel on 127.0.0.1:$TUNNEL_PORT"
-			return 0
-		fi
-		if [ ${#pending[@]} -eq 0 ] && [ "$NO_INGRESS" = 0 ] && ingress_ready; then
-			ok "API healthy, Caddy answering on port 80"
+		if [ ${#pending[@]} -eq 0 ] && { ! tunnel_wanted || tunnel_ready; } && { [ "$NO_INGRESS" = 1 ] || ingress_ready; }; then
+			if tunnel_wanted; then ok "API healthy through the tunnel on 127.0.0.1:$TUNNEL_PORT"; else ok "API healthy through Caddy"; fi
+			[ "$NO_INGRESS" = 1 ] || ok "Caddy answering on port 80"
 			return 0
 		fi
 		if [ "$SECONDS" -ge "$deadline" ]; then
@@ -724,12 +740,20 @@ main() {
 		return
 	fi
 	printf '\n%sLogiStack %s is running.%s\n' "$BOLD" "$VERSION" "$RESET"
-	if [ "$NO_INGRESS" = 1 ]; then
-		printf '  Ingress is off. From your machine: %sssh -L %s:127.0.0.1:%s root@%s%s\n' "$BOLD" "$TUNNEL_PORT" "$TUNNEL_PORT" "$PUBLIC_IP" "$RESET"
-		printf '  then open %s%s%s to finish the guided setup.\n' "$BOLD" "$PUBLIC_URL" "$RESET"
-		note "When 80/443 are free, run: install.sh --enable-ingress"
+	if [ "$PUBLIC_SETUP" = 1 ]; then
+		local token
+		token=$(credential_get LOGISTACK_SETUP_TOKEN)
+		printf '  Open %s%s/setup#token=%s%s to finish the guided setup in your browser.\n' "$BOLD" "$PUBLIC_URL" "$token" "$RESET"
+		printf '  Setup token: %s%s%s\n' "$BOLD" "${token:-(missing from $CREDENTIALS_FILE)}" "$RESET"
+		note "Until setup is done, anyone holding this token can claim the server; it stops working after."
 	else
-		printf '  Open %s%s%s to finish the guided setup in your browser.\n' "$BOLD" "$PUBLIC_URL" "$RESET"
+		printf '  Until setup is done the dashboard is reachable only on 127.0.0.1:%s. From your machine: %sssh -L %s:127.0.0.1:%s root@%s%s\n' "$TUNNEL_PORT" "$BOLD" "$TUNNEL_PORT" "$TUNNEL_PORT" "$PUBLIC_IP" "$RESET"
+		printf '  then open %shttp://localhost:%s%s to finish the guided setup.\n' "$BOLD" "$TUNNEL_PORT" "$RESET"
+		if [ "$NO_INGRESS" = 1 ]; then
+			note "Ingress is off. When 80/443 are free, run: install.sh --enable-ingress"
+		else
+			note "After setup the dashboard is served over https on the domain you choose there."
+		fi
 	fi
 	note "Back up $CREDENTIALS_FILE: it holds the master key that encrypts your secrets."
 }

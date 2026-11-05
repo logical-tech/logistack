@@ -35,6 +35,13 @@ const ConfigSchema = z.object({
 		.default(fileURLToPath(new URL("../../web/dist", import.meta.url))),
 	/** The installer's enrollment token: an agent presenting it gets a per-node token. Unset, no node can enroll. */
 	LOGISTACK_AGENT_TOKEN: optional,
+	/** install.sh --public-setup: first-run setup requires this token until it completes. Unset, setup is reachable only through the loopback tunnel. */
+	LOGISTACK_SETUP_TOKEN: optional,
+	/** The installer's loopback tunnel (`ssh -L`), trusted for sign-in; empty when it runs none. */
+	LOGISTACK_TUNNEL_ORIGIN: z
+		.union([z.url(), z.literal("")])
+		.optional()
+		.transform((v) => v || undefined),
 	/** Set at image build time (Dockerfile ARG); `dev` from a checkout. */
 	LOGISTACK_VERSION: z.string().min(1).default("dev"),
 	// A build without git (the smoke test's dind) bakes an empty ENV; that means unknown, not invalid.

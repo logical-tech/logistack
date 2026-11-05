@@ -38,6 +38,21 @@ describe("planQueue", () => {
 		});
 	});
 
+	test("deployments awaiting checks are the checks poller's, not the queue's", () => {
+		const plan = planQueue([
+			row("a", "queued", 1),
+			row("b", "awaiting_checks", 2),
+		]);
+		expect(plan).toEqual({
+			kind: "run",
+			deployment: row("a", "queued", 1),
+			supersede: [],
+		});
+		expect(planQueue([row("b", "awaiting_checks", 2)])).toEqual({
+			kind: "idle",
+		});
+	});
+
 	test("terminal rows are ignored", () => {
 		expect(planQueue([row("a", "healthy", 1), row("b", "failed", 2)])).toEqual({
 			kind: "idle",

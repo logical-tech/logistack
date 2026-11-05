@@ -114,6 +114,9 @@ services:
       ROLE: api
       PORT: "3000"
       LOGISTACK_AGENT_TOKEN_FILE: /run/secrets/agent_token
+      # Set only with install.sh --public-setup; empty, setup needs no token (only the tunnel reaches it).
+      LOGISTACK_SETUP_TOKEN_FILE: ${LOGISTACK_SETUP_TOKEN_FILE:-}
+      LOGISTACK_TUNNEL_ORIGIN: ${LOGISTACK_TUNNEL_ORIGIN:-}
     secrets:
       - source: logistack-master-key
         target: master_key
@@ -124,6 +127,8 @@ services:
       - source: logistack-redis-password
         target: redis_password
       - *agent-token
+      - source: logistack-setup-token
+        target: setup_token
     # ls-storage: the object browser and key management talk to storage services directly.
     # ls-db: the database explorer talks to database services directly.
     networks: [ls-control, ls-storage, ls-db]
@@ -202,6 +207,8 @@ services:
       LS_CONTROL_SUBNET_PREFIX: "10.247."
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       LOGISTACK_API_UPSTREAM: logistack-api:3000
+      # true only with install.sh --public-setup: the bootstrap config proxies to the api before setup.
+      LS_PUBLIC_SETUP: ${LOGISTACK_PUBLIC_SETUP:-false}
     secrets:
       - source: logistack-redis-password
         target: redis_password
@@ -262,4 +269,6 @@ secrets:
   logistack-redis-password:
     external: true
   logistack-agent-token:
+    external: true
+  logistack-setup-token:
     external: true

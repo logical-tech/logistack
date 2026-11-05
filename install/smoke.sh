@@ -8,11 +8,16 @@
 #   SMOKE_NO_INGRESS=1 bash install/smoke.sh   first installs --no-ingress, then --enable-ingress
 #   SMOKE_UPDATE=1 bash install/smoke.sh       installs 0.0.1, then updates to locally built 0.0.2
 #                                              through POST /api/instance/update (ls-test-rel-dind)
+#   SMOKE_PUBLIC_SETUP=1 bash install/smoke.sh installs --public-setup: setup through Caddy, with the
+#                                              one-time token (ls-test-pubsetup-dind)
 set -euo pipefail
 
 UPDATE=${SMOKE_UPDATE:-0}
+PUBLIC_SETUP=${SMOKE_PUBLIC_SETUP:-0}
 if [ "$UPDATE" = 1 ]; then
 	NAME=${SMOKE_NAME:-ls-test-rel-dind} LABEL=${SMOKE_LABEL:-rel}
+elif [ "$PUBLIC_SETUP" = 1 ]; then
+	NAME=${SMOKE_NAME:-ls-test-pubsetup-dind} LABEL=${SMOKE_LABEL:-pubsetup}
 else
 	NAME=${SMOKE_NAME:-ls-test-pkg-dind} LABEL=${SMOKE_LABEL:-pkg}
 fi
@@ -27,7 +32,7 @@ if [ "${1:-}" != --inside ]; then
 	rc=0
 	# The updater takes images from localhost/: the same path the UI uses, with a local image source.
 	docker exec -e LOGISTACK_WAIT_TIMEOUT="${LOGISTACK_WAIT_TIMEOUT:-600}" -e SMOKE_NO_INGRESS="${SMOKE_NO_INGRESS:-0}" \
-		-e SMOKE_UPDATE="$UPDATE" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
+		-e SMOKE_UPDATE="$UPDATE" -e SMOKE_PUBLIC_SETUP="$PUBLIC_SETUP" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
 	[ "${KEEP:-0}" = 1 ] || docker rm -f -v "$NAME" >/dev/null
 	exit "$rc"
 fi
@@ -48,10 +53,13 @@ die() {
 	exit 1
 }
 
-# Before setup requests go through Caddy's bootstrap catch-all on :80. Setup makes the worker push
-# the real config, which routes only the dashboard host and redirects it to https; without a
-# certificate here, later requests go straight to the api from a client on ls-control.
-API=http://127.0.0.1
+# Before setup requests go through the loopback tunnel on :3000, or with --public-setup through
+# Caddy's bootstrap catch-all on :80. Setup makes the worker push the real config, which routes
+# only the dashboard host and redirects it to https; without a certificate here, later requests go
+# straight to the api from a client on ls-control.
+API=http://127.0.0.1:3000
+FLAGS=()
+if [ "$PUBLIC_SETUP" = 1 ]; then API=http://127.0.0.1 FLAGS=(--public-setup); fi
 CURL=(curl)
 ORIGIN=""
 # req METHOD PATH [JSON]: sets $code and $body. Not for $(...): those would be lost in the subshell.
@@ -85,14 +93,13 @@ if [ "${SMOKE_NO_INGRESS:-0}" = 1 ]; then
 		pass "install.sh --no-ingress: Caddy 0/0, API via tunnel, :80 free" ||
 		fail "install.sh --no-ingress" "caddy $caddy, tunnel /api/health $tunnel"
 	install /tmp/install.out --enable-ingress || die "install.sh --enable-ingress" "installer failed"
-	! docker inspect logistack-api-tunnel >/dev/null 2>&1 &&
-		[ -n "$(docker node ls -q --filter node.label=logistack.ingress=true)" ] &&
-		pass "install.sh --enable-ingress: node labelled, tunnel removed" ||
-		fail "install.sh --enable-ingress" "tunnel left or node not labelled"
+	[ -n "$(docker node ls -q --filter node.label=logistack.ingress=true)" ] &&
+		pass "install.sh --enable-ingress: node labelled" ||
+		fail "install.sh --enable-ingress" "node not labelled"
 else
 	version_a=()
 	if [ "${SMOKE_UPDATE:-0}" = 1 ]; then version_a=(--version 0.0.1); fi
-	install /tmp/install.out "${version_a[@]}" || die "install.sh --local-build" "installer failed"
+	install /tmp/install.out "${version_a[@]}" "${FLAGS[@]}" || die "install.sh --local-build ${FLAGS[*]}" "installer failed"
 fi
 pass "install.sh --local-build: all services n/n, ingress answering"
 grep -E 'Build|Tagged|Deploy|✓ (logistack|postgres|redis|caddy|ls-)|API healthy' /tmp/install.out
@@ -102,17 +109,39 @@ for image in logistack logistack-worker logistack-agent logistack-caddy; do
 done
 last=$SECONDS
 
+# A container on the host's bridge stands in for the internet: it reaches the server's address only.
+docker rm -f ls-test-pkg-outside >/dev/null 2>&1 || true
+docker run -d --name ls-test-pkg-outside --label logistack.test=pkg alpine:3.22 sleep 3600 >/dev/null
+docker exec ls-test-pkg-outside apk add --no-cache -q curl
+outside() { docker exec ls-test-pkg-outside curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" || true; }
+raw=$(outside "http://$ip:3000/api/health")
+caddy=$(outside "http://$ip/api/setup/status")
+loopback=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health || true)
+if [ "$PUBLIC_SETUP" = 1 ]; then
+	[ "$raw" = 000 ] && [ "$caddy" = 200 ] && [ "$loopback" = 000 ] && ! docker inspect logistack-api-tunnel >/dev/null 2>&1 &&
+		pass "--public-setup: setup public through Caddy, no tunnel, :3000 closed" ||
+		fail "--public-setup exposure" "$ip:3000 $raw, $ip:80 $caddy, loopback:3000 $loopback"
+else
+	[ "$raw" = 000 ] && [ "$caddy" = 404 ] && [ "$loopback" = 200 ] &&
+		pass "private setup: $ip:3000 closed, $ip:80 404, 127.0.0.1:3000 200" ||
+		fail "private setup exposure" "$ip:3000 $raw, $ip:80 $caddy, loopback:3000 $loopback"
+fi
+docker rm -f ls-test-pkg-outside >/dev/null
+last=$SECONDS
+
 PUBLIC_URL=$(docker service inspect logistack_logistack-api --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}' |
 	jq -r '.[] | select(startswith("BETTER_AUTH_URL=")) | sub("^BETTER_AUTH_URL="; "")')
 HOST=${PUBLIC_URL#http://}
 ORIGIN=$PUBLIC_URL
 
 req GET /api/health
-[ "$code" = 200 ] && pass "GET /api/health through Caddy :80 -> 200" || fail "GET /api/health" "HTTP $code"
+[ "$code" = 200 ] && pass "GET $API/api/health -> 200" || fail "GET /api/health" "HTTP $code"
 
 req GET /api/setup/status
 [ "$code" = 200 ] && [ "$(jq -r .setupCompleted <<<"$body")" = false ] &&
-	pass "GET /api/setup/status -> setupCompleted=false" || fail "GET /api/setup/status" "HTTP $code $body"
+	[ "$(jq -r .setupTokenRequired <<<"$body")" = "$([ "$PUBLIC_SETUP" = 1 ] && echo true || echo false)" ] &&
+	pass "GET /api/setup/status -> setupCompleted=false, setupTokenRequired=$(jq -r .setupTokenRequired <<<"$body")" ||
+	fail "GET /api/setup/status" "HTTP $code $body"
 
 email=owner@smoke.test
 password=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
@@ -123,8 +152,17 @@ setup=$(jq -n --arg e "$email" --arg p "$password" --arg u "$PUBLIC_URL" '{
 	organization: { name: "Smoke" },
 	instance: { publicUrl: $u, generatedDomainBase: "sslip", letsencryptEmail: "ops@smoke.test", localRegistryEnabled: false }
 }')
+if [ "$PUBLIC_SETUP" = 1 ]; then
+	req POST /api/setup "$setup"
+	[ "$code" = 401 ] && pass "POST /api/setup without the setup token -> 401" || die "setup without token" "HTTP $code $body"
+	CURL=(curl -H "x-setup-token: $(sed -n 's/^LOGISTACK_SETUP_TOKEN=//p' /etc/logistack/credentials)")
+fi
 req POST /api/setup "$setup"
 [[ $code == 2* ]] && pass "POST /api/setup (sslip quick start) -> $code" || die "POST /api/setup" "HTTP $code $body"
+if [ "$PUBLIC_SETUP" = 1 ]; then
+	req POST /api/setup "$setup"
+	[ "$code" = 409 ] && pass "POST /api/setup again with the token -> 409, token retired" || fail "token retired" "HTTP $code $body"
+fi
 
 docker rm -f ls-test-pkg-client >/dev/null 2>&1 || true
 docker run -d --name ls-test-pkg-client --label logistack.test=pkg --network ls-control alpine:3.22 sleep 3600 >/dev/null
@@ -251,7 +289,7 @@ hash_after=$(token_hash)
 	fail "agent restart" "reconnected=$reconnected token hash $hash_before -> $hash_after"
 
 before=$(task_ids)
-install /tmp/reinstall.out || die "install.sh re-run after setup" "installer failed"
+install /tmp/reinstall.out "${FLAGS[@]}" || die "install.sh re-run after setup" "installer failed"
 after=$(task_ids)
 [ "$before" = "$after" ] && pass "install.sh re-run after setup: passes, restarts no task" ||
 	fail "install.sh re-run is a no-op" "tasks changed: $before -> $after"

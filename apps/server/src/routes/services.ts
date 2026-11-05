@@ -20,7 +20,7 @@ import {
 	service,
 	serviceStatus,
 } from "@logistack/db";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import { Failure, one } from "../errors.ts";
@@ -140,7 +140,12 @@ export const services = router()
 						db
 							.selectDistinctOn([deployment.serviceId])
 							.from(deployment)
-							.where(inArray(deployment.serviceId, ids))
+							.where(
+								and(
+									inArray(deployment.serviceId, ids),
+									ne(deployment.status, "skipped"),
+								),
+							)
 							.orderBy(deployment.serviceId, desc(deployment.createdAt)),
 						db
 							.select({

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { changedPaths, type GitEvent, type PrAction } from "./types.ts";
+import { changedPaths, type GitEvent, type PrAction, refOf } from "./types.ts";
 
 // GitHub and Gitea/Forgejo share the push and pull_request payload shapes; these are the fields we read.
 const pushPayload = z.object({
@@ -32,6 +32,17 @@ const pushPayload = z.object({
 		.default([]),
 });
 
+const releasePayload = z.object({
+	action: z.string(),
+	repository: z.object({ full_name: z.string() }),
+	release: z.object({
+		tag_name: z.string(),
+		name: z.string().nullish(),
+		author: z.object({ login: z.string() }).nullish(),
+	}),
+	sender: z.object({ login: z.string() }).nullish(),
+});
+
 const prPayload = z.object({
 	action: z.string(),
 	number: z.number(),
@@ -62,13 +73,14 @@ export function normalizeGitHubStyle(
 ): GitEvent | null {
 	if (event === "push") {
 		const p = pushPayload.parse(body);
-		if (!p.ref.startsWith("refs/heads/")) return null;
-		if (p.deleted || ZERO_SHA.test(p.after)) return null;
+		const ref = refOf(p.ref);
+		if (!ref || p.deleted || ZERO_SHA.test(p.after)) return null;
 		return {
 			kind: "push",
 			repo: p.repository.full_name,
-			branch: p.ref.slice("refs/heads/".length),
-			commitSha: p.after,
+			ref,
+			// An annotated tag's `after` is the tag object; head_commit is the commit it points at.
+			commitSha: p.head_commit?.id ?? p.after,
 			commitMessage: p.head_commit?.message ?? "",
 			author:
 				p.head_commit?.author?.name ??
@@ -76,10 +88,21 @@ export function normalizeGitHubStyle(
 				p.pusher?.login ??
 				p.pusher?.username ??
 				"",
-			changedPaths: changedPaths(
-				p.commits,
-				p.commits.length >= COMMIT_LIST_CAP,
-			),
+			changedPaths:
+				ref.kind === "branch"
+					? changedPaths(p.commits, p.commits.length >= COMMIT_LIST_CAP)
+					: undefined,
+		};
+	}
+	if (event === "release") {
+		const p = releasePayload.parse(body);
+		if (p.action !== "published") return null;
+		return {
+			kind: "push",
+			repo: p.repository.full_name,
+			ref: { kind: "release", name: p.release.tag_name },
+			commitMessage: p.release.name || p.release.tag_name,
+			author: p.release.author?.login ?? p.sender?.login ?? "",
 		};
 	}
 	if (event === "pull_request") {

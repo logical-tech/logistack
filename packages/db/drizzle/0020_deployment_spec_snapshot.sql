@@ -1,0 +1,1 @@
+ALTER TABLE "deployment" ADD COLUMN "spec_snapshot_encrypted" text;

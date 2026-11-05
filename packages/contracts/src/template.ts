@@ -6,7 +6,11 @@
  */
 import { z } from "zod";
 import { DatabaseEngine } from "./enums.ts";
-import { EnvKey } from "./resources.ts";
+import {
+	EnvKey,
+	isReservedEnvKey,
+	reservedEnvKeyMessage,
+} from "./resources.ts";
 import {
 	Capability,
 	Healthcheck,
@@ -174,7 +178,17 @@ export const TemplateFile = z.object({
 const serviceBase = {
 	name: TemplateServiceName,
 	dependsOn: z.array(TemplateServiceName).default([]),
-	env: z.record(EnvKey, z.string()).default({}),
+	env: z
+		.record(EnvKey, z.string())
+		.superRefine((env, ctx) => {
+			for (const key of Object.keys(env).filter(isReservedEnvKey))
+				ctx.addIssue({
+					code: "custom",
+					path: [key],
+					message: reservedEnvKeyMessage(key),
+				});
+		})
+		.default({}),
 	volumes: z.array(TemplateVolume).default([]),
 	files: z.array(TemplateFile).default([]),
 };

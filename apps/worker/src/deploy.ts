@@ -1,11 +1,23 @@
 import { appendFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import type { DeploymentStatus, EventType } from "@logistack/contracts";
-import { type DeploymentEvent, isTerminal, transition } from "@logistack/core";
+import {
+	type DeploymentStatus,
+	deploymentStatuses,
+	type EventType,
+} from "@logistack/contracts";
+import {
+	compileService,
+	type DeploymentEvent,
+	deploymentContextEnv,
+	encrypt,
+	isTerminal,
+	specSnapshot,
+	transition,
+} from "@logistack/core";
 import { deployment } from "@logistack/db";
 import { and, asc, eq, inArray, not } from "drizzle-orm";
 import {
-	desiredSpec,
+	desiredInput,
 	inspectService,
 	type RolloutResult,
 	upsertService,
@@ -23,7 +35,13 @@ import {
 } from "./build.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
-import { imageRef, loadService, type ServiceContext, svcName } from "./load.ts";
+import {
+	deploymentContext,
+	imageRef,
+	loadService,
+	type ServiceContext,
+	svcName,
+} from "./load.ts";
 
 export type DeploymentRow = typeof deployment.$inferSelect;
 type Patch = Partial<
@@ -48,10 +66,13 @@ export type QueuePlan =
 /**
  * Pure: what to do next with a service's non-terminal deployments. One in flight is resumed
  * first (a running deployment is only ever cancelled explicitly); otherwise the newest queued
- * one runs and every older queued one is superseded by it.
+ * one runs and every older queued one is superseded by it. Deployments awaiting checks belong
+ * to the checks poller until it queues them.
  */
 export function planQueue(pending: readonly DeploymentRow[]): QueuePlan {
-	const live = pending.filter((d) => !isTerminal(d.status));
+	const live = pending.filter(
+		(d) => !isTerminal(d.status) && d.status !== "awaiting_checks",
+	);
 	const inFlight = live.find((d) => d.status !== "queued");
 	if (inFlight) return { kind: "resume", deployment: inFlight };
 	const queued = live
@@ -244,22 +265,28 @@ async function runDeployment(
 			? spec.source.image
 			: imageRef(ctx, sc, d.id));
 	let checkout: string | undefined;
+	// Cloned commits land in the row through advance(); `d` is the row as it was read.
+	let commit = { commitSha: d.commitSha, commitMessage: d.commitMessage };
 	const state = { id: d.id, status: d.status };
 
 	const steps: Steps = {
 		async clone() {
 			if (spec.kind !== "application" || spec.source.type !== "git")
 				throw new Error("not a git source");
-			line(`==> cloning ${spec.source.repository}#${spec.source.branch}`);
+			const ref = d.gitRef ?? spec.source.branch;
+			line(`==> cloning ${spec.source.repository}#${ref}`);
 			const c = await clone(ctx, spec.source, {
 				deploymentId: d.id,
+				ref,
+				sha: d.commitSha,
 				...(sc.git ? { auth: sc.git } : {}),
 				log: line,
 				signal,
 			});
 			checkout = c.dir;
 			line(`==> commit ${c.commitSha} ${c.commitMessage}`);
-			return { commitSha: c.commitSha, commitMessage: c.commitMessage };
+			commit = { commitSha: c.commitSha, commitMessage: c.commitMessage };
+			return commit;
 		},
 		async build() {
 			if (
@@ -281,6 +308,9 @@ async function runDeployment(
 				buildEnv: Object.entries(sc.env)
 					.filter(([, v]) => v.isBuildTime)
 					.map(([key, v]) => ({ key, value: v.value, isSecret: v.isSecret })),
+				context: deploymentContextEnv(
+					deploymentContext(sc, { id: d.id, gitRef: d.gitRef, ...commit }),
+				),
 				imageRef: ref,
 				railpackFrontend: ctx.cfg.LS_RAILPACK_FRONTEND,
 			});
@@ -310,7 +340,7 @@ async function runDeployment(
 		},
 		async deploy() {
 			line(`==> deploying ${ref}`);
-			const target = { id: d.id, imageRef: ref };
+			const target = { id: d.id, imageRef: ref, gitRef: d.gitRef, ...commit };
 			const name = svcName(ctx, sc.service.id);
 			const current = await inspectService(ctx, name);
 			const label = (s?: {
@@ -339,10 +369,21 @@ async function runDeployment(
 					error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
 					rolledBack: true,
 				};
+			const input = await desiredInput(ctx, sc, target);
+			const snapshot = specSnapshot(input, sc.env);
+			await ctx.db
+				.update(deployment)
+				.set({
+					specSnapshotEncrypted: await encrypt(
+						ctx.masterKey,
+						JSON.stringify(snapshot),
+					),
+				})
+				.where(eq(deployment.id, d.id));
 			const applied = await upsertService(
 				ctx,
 				sc.registry?.auth,
-				await desiredSpec(ctx, sc, target),
+				compileService(input),
 			);
 			const result = await waitForRollout(ctx, name, applied, {
 				timeoutMs,
@@ -394,12 +435,7 @@ async function failAll(ctx: Ctx, pending: DeploymentRow[], error: string) {
 	log("error", "service cannot be deployed", { error, count: pending.length });
 }
 
-const terminal: DeploymentStatus[] = [
-	"healthy",
-	"failed",
-	"cancelled",
-	"superseded",
-];
+export const terminal = deploymentStatuses.filter(isTerminal);
 
 /** The `deploy` job: drains a service's deployments one at a time until none is pending. */
 export async function processService(

@@ -7,6 +7,7 @@ import type {
 	CaddyMatcher,
 	CaddyRedisStorage,
 	CaddyRoute,
+	CaddyServer,
 } from "./caddy.ts";
 
 export type Upstream = { host: string; port: number };
@@ -53,9 +54,16 @@ export type ProxyRoute = RouteTls & {
 	pathPrefix?: string;
 	/** Origin to redirect to (`https://example.com`); path and query are preserved. Replaces the upstream. */
 	redirectTo?: string;
-	/** HTTP basic auth in front of the upstream; `hash` is bcrypt, as Caddy checks it. */
-	basicAuth?: { username: string; hash: string }[];
+	/** Checks in front of the upstream, at most one per type. Not applied to a redirect. */
+	access?: AccessRule[];
 };
+
+/** Compiled in a fixed order whatever the input order: IP allowlist, then forward auth, then basic auth. */
+export type AccessRule =
+	| { type: "ip_allow"; cidrs: string[]; trustedProxies?: string[] }
+	| { type: "forward_auth"; url: string; copyHeaders: string[] }
+	/** `hash` is bcrypt, as Caddy checks it. */
+	| { type: "basic_auth"; users: { username: string; hash: string }[] };
 
 export type ProxySettings = {
 	adminListen: string;
@@ -156,6 +164,7 @@ export function compileProxy(input: ProxyInput): CaddyConfig {
 						// skipped by automatic HTTPS on their own.
 						automatic_https: { disable_redirects: true },
 						logs: { default_logger_name: ACCESS_LOGGER },
+						...trustedProxies(httpsRoutes),
 					},
 					http: {
 						listen: [":80"],
@@ -172,6 +181,7 @@ export function compileProxy(input: ProxyInput): CaddyConfig {
 							notFound("http"),
 						],
 						logs: { default_logger_name: ACCESS_LOGGER },
+						...trustedProxies(httpRoutes),
 					},
 				},
 			},
@@ -190,14 +200,119 @@ function compileRoute(r: ProxyRoute): CaddyRoute {
 	return {
 		"@id": routeId(r.domainId),
 		match: [match],
-		handle: [
-			...(r.basicAuth?.length && !r.redirectTo ? [basicAuth(r.basicAuth)] : []),
-			r.redirectTo
-				? redirect(`${r.redirectTo.replace(/\/+$/, "")}{http.request.uri}`)
-				: proxyTo(r.upstream),
-		],
+		handle: r.redirectTo
+			? [redirect(`${r.redirectTo.replace(/\/+$/, "")}{http.request.uri}`)]
+			: [...accessHandlers(r.access ?? []), proxyTo(r.upstream)],
 		terminal: true,
 	};
+}
+
+const ACCESS_ORDER = { ip_allow: 0, forward_auth: 1, basic_auth: 2 } as const;
+
+function accessHandlers(rules: AccessRule[]): CaddyHandler[] {
+	return [...rules]
+		.sort((a, b) => ACCESS_ORDER[a.type] - ACCESS_ORDER[b.type])
+		.map((rule) =>
+			rule.type === "ip_allow"
+				? ipAllow(rule)
+				: rule.type === "forward_auth"
+					? forwardAuth(rule)
+					: basicAuth(rule.users),
+		);
+}
+
+function ipAllow(
+	rule: Extract<AccessRule, { type: "ip_allow" }>,
+): CaddyHandler {
+	const allowed: CaddyMatcher[] = [{ remote_ip: { ranges: rule.cidrs } }];
+	if (rule.trustedProxies?.length)
+		allowed.push({
+			remote_ip: { ranges: rule.trustedProxies },
+			client_ip: { ranges: rule.cidrs },
+		});
+	return {
+		handler: "subroute",
+		routes: [
+			{
+				match: [{ not: allowed }],
+				handle: [
+					{ handler: "static_response", status_code: 403, body: "Forbidden" },
+				],
+			},
+		],
+	};
+}
+
+/** What Caddy's `forward_auth` directive expands to, with the copied headers scrubbed first so a client cannot forge them. */
+function forwardAuth(
+	rule: Extract<AccessRule, { type: "forward_auth" }>,
+): CaddyHandler {
+	const url = new URL(rule.url);
+	const https = url.protocol === "https:";
+	const headers = unique(rule.copyHeaders.map(canonicalHeader));
+	const placeholder = (h: string) => `{http.reverse_proxy.header.${h}}`;
+	return {
+		handler: "reverse_proxy",
+		upstreams: [{ dial: `${url.hostname}:${url.port || (https ? 443 : 80)}` }],
+		...(https && { transport: { protocol: "http" as const, tls: {} } }),
+		rewrite: { method: "GET", uri: `${url.pathname}${url.search}` },
+		headers: {
+			request: {
+				set: {
+					Host: ["{http.reverse_proxy.upstream.hostport}"],
+					"X-Forwarded-Method": ["{http.request.method}"],
+					"X-Forwarded-Uri": ["{http.request.uri}"],
+				},
+			},
+		},
+		handle_response: [
+			{
+				match: { status_code: [2] },
+				// A matched response handler with no routes would send the auth response itself.
+				routes: [
+					{
+						handle: [
+							headers.length
+								? { handler: "headers", request: { delete: headers } }
+								: { handler: "vars" },
+						],
+					},
+					...headers.map(
+						(h): CaddyRoute => ({
+							match: [{ not: [{ vars: { [placeholder(h)]: [""] } }] }],
+							handle: [
+								{
+									handler: "headers",
+									request: { set: { [h]: [placeholder(h)] } },
+								},
+							],
+						}),
+					),
+				],
+			},
+		],
+	};
+}
+
+function trustedProxies(
+	routes: ProxyRoute[],
+): Pick<CaddyServer, "trusted_proxies" | "trusted_proxies_strict"> {
+	// shortcut: Caddy trusts proxies per server, so a rule's client_ip is derived with every rule's proxies; the remote_ip pin in ipAllow bounds that. Move to per-route trust if Caddy grows it.
+	const ranges = unique(
+		routes.flatMap((r) =>
+			r.redirectTo
+				? []
+				: (r.access ?? []).flatMap((a) =>
+						a.type === "ip_allow" ? (a.trustedProxies ?? []) : [],
+					),
+		),
+	);
+	return ranges.length
+		? {
+				trusted_proxies: { source: "static", ranges },
+				trusted_proxies_strict: 1,
+			}
+		: {};
 }
 
 function automationPolicies(
@@ -309,7 +424,7 @@ const proxyTo = (u: Upstream): CaddyHandler => ({
 	upstreams: [{ dial: `${u.host}:${u.port}` }],
 });
 const basicAuth = (
-	users: NonNullable<ProxyRoute["basicAuth"]>,
+	users: Extract<AccessRule, { type: "basic_auth" }>["users"],
 ): CaddyHandler => ({
 	handler: "authentication",
 	providers: {
@@ -326,6 +441,11 @@ const redirect = (location: string): CaddyHandler => ({
 	headers: { Location: [location] },
 });
 const isWildcard = (host: string) => host.startsWith("*.");
+/** Go's CanonicalHeaderKey: Caddy names `http.reverse_proxy.header.*` placeholders this way. */
+const canonicalHeader = (h: string) =>
+	h
+		.toLowerCase()
+		.replace(/(^|-)([a-z])/g, (_, sep, c) => sep + c.toUpperCase());
 const compareStrings = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const unique = (xs: string[]) => [...new Set(xs)].sort(compareStrings);
 const sortedEntries = (o: Record<string, string>) =>

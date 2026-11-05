@@ -152,6 +152,7 @@ function deploy(
 		trigger,
 		commitSha: commit?.[0] ?? null,
 		commitMessage: commit?.[1] ?? null,
+		gitRef: null,
 		imageRef: `registry.logical.it/logical/${serviceId.slice(4)}:dep_${depCounter}`,
 		startedAt: new Date(started).toISOString(),
 		finishedAt:
@@ -159,6 +160,7 @@ function deploy(
 				? null
 				: new Date(started + durationSeconds * 1000).toISOString(),
 		error,
+		reason: null,
 		logPath: null,
 		supersededBy: null,
 		createdAt: new Date(started).toISOString(),
@@ -649,6 +651,18 @@ export function createMockDb(): MockDb {
 			null,
 		),
 	];
+	// A trigger held back by a skip marker: listed, never run.
+	Object.assign(
+		deploy(
+			byId("svc_storefront_production_web"),
+			"skipped",
+			25,
+			0,
+			"git_push",
+			["a7d04e2", "docs: tidy the README [skip ci]"],
+		),
+		{ startedAt: null, reason: "Commit message contains [skip ci]" },
+	);
 	for (const d of latest) {
 		const s = services.find((x) => x.id === d.serviceId);
 		if (s) s.latestDeployment = d;

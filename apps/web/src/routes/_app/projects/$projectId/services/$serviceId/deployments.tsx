@@ -34,7 +34,13 @@ export const Route = createFileRoute(
 	component: DeploymentsTab,
 });
 
-const CANCELLABLE = new Set(["queued", "cloning", "building", "pushing"]);
+const CANCELLABLE = new Set([
+	"awaiting_checks",
+	"queued",
+	"cloning",
+	"building",
+	"pushing",
+]);
 
 function Duration({ d }: { d: DeploymentRow }) {
 	const live = d.finishedAt === null && d.startedAt !== null;
@@ -49,11 +55,11 @@ function Duration({ d }: { d: DeploymentRow }) {
 }
 
 function What({ d }: { d: DeploymentRow }) {
-	if (d.commitSha)
+	if (d.commitSha || d.gitRef)
 		return (
 			<>
 				<span className="font-mono text-xs text-muted-foreground">
-					{d.commitSha.slice(0, 7)}
+					{d.gitRef ?? d.commitSha?.slice(0, 7)}
 				</span>{" "}
 				{d.commitMessage}
 			</>
@@ -134,7 +140,12 @@ function DeploymentsTab() {
 										<What d={d} />
 									</span>
 									<span className="flex items-center gap-2 text-xs text-muted-foreground">
-										<span>{TRIGGER[d.trigger]}</span>
+										<span className="shrink-0">{TRIGGER[d.trigger]}</span>
+										{d.reason && (
+											<span className="min-w-0 truncate" title={d.reason}>
+												{d.reason}
+											</span>
+										)}
 										{d.id === service?.current?.id && (
 											<span className="text-ok-text">Current</span>
 										)}
@@ -253,6 +264,11 @@ function Detail({
 			{d.error && (
 				<p className="rounded-lg bg-[color-mix(in_oklch,var(--bad)_10%,transparent)] px-3 py-2 text-sm text-bad-text">
 					{d.error}
+				</p>
+			)}
+			{d.reason && (
+				<p className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+					{d.reason}
 				</p>
 			)}
 			<LogViewer

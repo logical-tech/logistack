@@ -32,6 +32,7 @@ import {
 	type WizardStep,
 } from "@/components/wizard/wizard";
 import { account, type TwoFactorSetup, totpSecret } from "@/lib/account";
+import { meQuery } from "@/lib/api/access";
 
 type V = { password: string; code: string; saved: boolean };
 const DEFAULTS: V = { password: "", code: "", saved: false };
@@ -337,9 +338,10 @@ export function TwoFactorSection({
 							onStepChange={onStepChange}
 							finishLabel="Done"
 							onComplete={async () => {
-								await qc.invalidateQueries({
-									queryKey: twoFactorQuery.queryKey,
-								});
+								await Promise.all([
+									qc.invalidateQueries({ queryKey: twoFactorQuery.queryKey }),
+									qc.invalidateQueries({ queryKey: meQuery.queryKey }),
+								]);
 								toast.success("Two-factor authentication is on");
 								onClose();
 							}}
@@ -351,7 +353,10 @@ export function TwoFactorSection({
 				open={disabling}
 				onOpenChange={setDisabling}
 				onDone={() =>
-					qc.invalidateQueries({ queryKey: twoFactorQuery.queryKey })
+					Promise.all([
+						qc.invalidateQueries({ queryKey: twoFactorQuery.queryKey }),
+						qc.invalidateQueries({ queryKey: meQuery.queryKey }),
+					])
 				}
 			/>
 		</section>

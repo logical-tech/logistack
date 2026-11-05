@@ -5,6 +5,8 @@ import type {
 } from "@logistack/contracts";
 import {
 	type CompileMount,
+	type CompileServiceInput,
+	type DeploymentContext,
 	decrypt,
 	dockerName,
 	type ResolvedEnvVar,
@@ -29,7 +31,7 @@ import {
 	gitProviders,
 	instantiate,
 } from "@logistack/providers";
-import { and, eq, or } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
 
 export type ServiceRow = typeof service.$inferSelect;
@@ -38,6 +40,8 @@ export type DomainRow = typeof domain.$inferSelect;
 export type ServiceContext = {
 	service: ServiceRow & { spec: ApplicationSpec | DatabaseSpec | StorageSpec };
 	organizationId: string;
+	projectName: string;
+	environmentName: string;
 	env: Record<string, ResolvedEnvVar>;
 	mounts: CompileMount[];
 	domains: DomainRow[];
@@ -76,7 +80,7 @@ export type GitAuth =
  * configured token otherwise, or the deploy key of a generic SSH remote.
  */
 async function gitAuth(
-	ctx: Ctx,
+	ctx: LoadCtx,
 	gp: typeof gitProvider.$inferSelect,
 	repository: string,
 ): Promise<GitAuth> {
@@ -114,12 +118,21 @@ async function gitAuth(
 	};
 }
 
+type LoadCtx = Pick<Ctx, "db" | "masterKey">;
+
+/** `gitAuth: false` skips minting clone credentials, for callers that only compile. */
 export async function loadService(
-	ctx: Ctx,
+	ctx: LoadCtx,
 	serviceId: string,
+	{ gitAuth: withGit = true } = {},
 ): Promise<ServiceContext | null> {
 	const [row] = await ctx.db
-		.select({ service, organizationId: project.organizationId, project })
+		.select({
+			service,
+			organizationId: project.organizationId,
+			project,
+			environmentName: environment.name,
+		})
 		.from(service)
 		.innerJoin(environment, eq(environment.id, service.environmentId))
 		.innerJoin(project, eq(project.id, environment.projectId))
@@ -176,7 +189,8 @@ export async function loadService(
 	const domains = await ctx.db
 		.select()
 		.from(domain)
-		.where(eq(domain.serviceId, svc.id));
+		.where(eq(domain.serviceId, svc.id))
+		.orderBy(asc(domain.createdAt), asc(domain.id));
 
 	const [reg] = await ctx.db
 		.select()
@@ -197,6 +211,7 @@ export async function loadService(
 	let git: GitAuth | undefined;
 	const spec = svc.spec;
 	if (
+		withGit &&
 		spec.kind === "application" &&
 		spec.source.type === "git" &&
 		spec.source.gitProviderId
@@ -229,6 +244,8 @@ export async function loadService(
 	return {
 		service: { ...svc, spec },
 		organizationId: orgId,
+		projectName: row.project.name,
+		environmentName: row.environmentName,
 		env,
 		mounts,
 		domains,
@@ -242,5 +259,70 @@ export async function loadService(
 			: null,
 		...(git ? { git } : {}),
 		...(pinnedSwarmNodeId ? { pinnedSwarmNodeId } : {}),
+	};
+}
+
+/** The `LOGISTACK_*` context of a deployment of this service, for its build and its containers. */
+export function deploymentContext(
+	sc: ServiceContext,
+	d: {
+		id: string;
+		commitSha: string | null;
+		commitMessage: string | null;
+		/** Set for a tag or release deployment, which is not on a branch. */
+		gitRef: string | null;
+	},
+): DeploymentContext {
+	const source =
+		sc.service.spec.kind === "application" ? sc.service.spec.source : null;
+	return {
+		deploymentId: d.id,
+		...(d.commitSha && {
+			commit: {
+				sha: d.commitSha,
+				message: d.commitMessage,
+				...(source?.type === "git" && !d.gitRef && { branch: source.branch }),
+			},
+		}),
+		environment: sc.environmentName,
+		project: sc.projectName,
+		service: sc.service.name,
+		domains: sc.domains,
+	};
+}
+
+export type DeploymentRef = {
+	id: string;
+	imageRef: string | null;
+	commitSha: string | null;
+	commitMessage: string | null;
+	gitRef: string | null;
+};
+
+/** Pure: the compiler input for a deployment of this service; `refs` are the Docker objects it lands on. */
+export function compileInput(
+	sc: ServiceContext,
+	deployment: DeploymentRef,
+	refs: Pick<CompileServiceInput, "networks" | "pinNodeId" | "scope">,
+): CompileServiceInput {
+	return {
+		service: {
+			id: sc.service.id,
+			organizationId: sc.organizationId,
+			environmentId: sc.service.environmentId,
+			slug: sc.service.slug,
+			desiredState: sc.service.desiredState,
+			spec: sc.service.spec,
+		},
+		deploymentId: deployment.id,
+		...(deployment.imageRef ? { image: deployment.imageRef } : {}),
+		env: Object.fromEntries(
+			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
+		),
+		context: deploymentContext(sc, deployment),
+		mounts: sc.mounts,
+		domains: sc.domains,
+		...refs,
+		fileIds: {},
 	};
 }

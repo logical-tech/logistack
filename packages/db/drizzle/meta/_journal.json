@@ -127,6 +127,27 @@
       "when": 1793832790993,
       "tag": "0017_instance_beta_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793852956198,
+      "tag": "0018_domain_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793853653495,
+      "tag": "0019_git_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793853897914,
+      "tag": "0020_deployment_spec_snapshot",
+      "breakpoints": true
     }
   ]
 }

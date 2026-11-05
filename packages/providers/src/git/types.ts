@@ -1,3 +1,4 @@
+import type { GitRefKind } from "@logistack/contracts";
 import { hmacSha256, ProviderError, safeEqual } from "../http.ts";
 
 export type GitRepo = {
@@ -9,25 +10,68 @@ export type GitRepo = {
 
 export type PrAction = "opened" | "updated" | "closed" | "reopened";
 
-type Commit = {
+/**
+ * A branch push, a tag push or a published release, normalised from any provider. Releases come
+ * from GitHub, Gitea/Forgejo and GitLab; Bitbucket has no releases.
+ */
+export type PushEvent = {
+	kind: "push";
 	repo: string;
-	/** Push: the pushed branch. Pull request: the base (target) branch. */
+	ref: { kind: GitRefKind; name: string };
+	/** The head commit. Undefined for a GitHub or Gitea release, whose payload names only the tag. */
+	commitSha?: string;
+	commitMessage: string;
+	author: string;
+	/** Branch pushes only. Undefined when the provider does not list files or truncated the commit list: deploy as if anything changed. */
+	changedPaths?: string[];
+};
+
+export type PullRequestEvent = {
+	kind: "pull_request";
+	repo: string;
+	/** The base (target) branch. */
 	branch: string;
 	commitSha: string;
 	commitMessage: string;
 	author: string;
+	pr: { number: number; action: PrAction; headBranch: string };
 };
 
-export type GitEvent =
-	| (Commit & {
-			kind: "push";
-			/** Undefined when the provider does not list files or truncated the commit list: deploy as if anything changed. */
-			changedPaths?: string[];
-	  })
-	| (Commit & {
-			kind: "pull_request";
-			pr: { number: number; action: PrAction; headBranch: string };
-	  });
+export type GitEvent = PushEvent | PullRequestEvent;
+
+export type CheckState = "pending" | "success" | "failure";
+
+/** The context LogiStack reports its own deployments under; never counted as one of the commit's checks. */
+export const LOGISTACK_CHECK = "LogiStack";
+
+export type ChecksSummary = {
+	/** `none`: the provider knows no check for the commit (yet). */
+	state: CheckState | "none";
+	failed: string[];
+	pending: string[];
+};
+
+/** Pure: any failed check fails the commit; otherwise any pending one keeps it pending. */
+export function summarizeChecks(
+	checks: readonly { name: string; state: CheckState }[],
+): ChecksSummary {
+	const counted = checks.filter((c) => c.name !== LOGISTACK_CHECK);
+	const named = (state: CheckState) =>
+		counted.filter((c) => c.state === state).map((c) => c.name);
+	const failed = named("failure");
+	const pending = named("pending");
+	return {
+		state: failed.length
+			? "failure"
+			: pending.length
+				? "pending"
+				: counted.length
+					? "success"
+					: "none",
+		failed,
+		pending,
+	};
+}
 
 export interface GitProvider {
 	listRepos(): Promise<GitRepo[]>;
@@ -37,9 +81,11 @@ export interface GitProvider {
 	/**
 	 * Authenticates and parses a webhook delivery. Throws WebhookRejectedError when the
 	 * signature is missing or wrong; returns null for authentic events LogiStack ignores
-	 * (ping, tag push, branch deletion, PR label edits).
+	 * (ping, branch or tag deletion, PR label edits, unpublished releases).
 	 */
 	verifyWebhook(headers: Headers, rawBody: string): Promise<GitEvent | null>;
+	/** CI checks and commit statuses on `ref` (a commit SHA, or a tag name for a release). */
+	commitChecks(repo: string, ref: string): Promise<ChecksSummary>;
 }
 
 export type WebhookRejection =
@@ -71,6 +117,20 @@ export async function requireHmac(
 	const want = `${prefix}${(await hmacSha256(secret, rawBody)).toHex()}`;
 	if (!safeEqual(got.toLowerCase(), want))
 		throw new WebhookRejectedError(provider, "invalid_signature");
+}
+
+const REF_PREFIXES: [string, GitRefKind][] = [
+	["refs/heads/", "branch"],
+	["refs/tags/", "tag"],
+];
+
+/** A `refs/heads/*` or `refs/tags/*` ref; anything else (notes, pull refs) is not deployable. */
+export function refOf(
+	ref: string,
+): { kind: GitRefKind; name: string } | undefined {
+	for (const [prefix, kind] of REF_PREFIXES)
+		if (ref.startsWith(prefix)) return { kind, name: ref.slice(prefix.length) };
+	return undefined;
 }
 
 /** Sorted union of added/modified/removed, or undefined when the list may be truncated. */

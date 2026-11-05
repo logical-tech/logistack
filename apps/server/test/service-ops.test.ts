@@ -288,6 +288,54 @@ describe.skipIf(!hasDocker)("service operations", () => {
 		]);
 	});
 
+	test("a user variable named LOGISTACK_* is rejected with a 422 on both write routes", async () => {
+		const created = await h.call("POST", "/api/env-vars", {
+			...asOwner(),
+			body: {
+				scope: "project",
+				scopeId: projectId,
+				key: "LOGISTACK_URL",
+				value: "https://spoofed",
+				isSecret: false,
+				isBuildTime: false,
+			},
+		});
+		expect(created.status).toBe(422);
+		expect(created.json.error.code).toBe("unprocessable");
+		expect(created.json.error.message).toContain("reserved");
+
+		const replaced = await h.call(
+			"PUT",
+			`/api/services/${serviceId}/env-vars`,
+			{
+				...asOwner(),
+				body: {
+					variables: [
+						{ key: "PORT", value: "1", isSecret: false, isBuildTime: false },
+						{
+							key: "LOGISTACK_FUTURE",
+							value: "x",
+							isSecret: false,
+							isBuildTime: false,
+						},
+					],
+				},
+			},
+		);
+		expect(replaced.status).toBe(422);
+		expect(replaced.json.error.details).toEqual({ keys: ["LOGISTACK_FUTURE"] });
+		const stored = await h.call(
+			"GET",
+			`/api/env-vars?scope=project&scopeId=${projectId}`,
+			asOwner(),
+		);
+		expect(
+			stored.json.filter((v: { key: string }) =>
+				v.key.startsWith("LOGISTACK_"),
+			),
+		).toEqual([]);
+	});
+
 	test("a deployment log replays what is stored, then follows live lines without gaps or repeats", async () => {
 		const d = await insertDeployment({ status: "building" });
 		const bus = await createBus(h.config.REDIS_URL);

@@ -4,6 +4,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { api } from ".";
+import type { SetupInput } from "./types";
 
 export const instanceStatusQuery = queryOptions({
 	queryKey: ["instance", "status"],
@@ -20,9 +21,11 @@ export const versionQuery = queryOptions({
 export function useCompleteSetup() {
 	const qc = useQueryClient();
 	return useMutation({
-		mutationFn: api.instance.completeSetup,
+		mutationFn: (v: { input: SetupInput; setupToken: string }) =>
+			api.instance.completeSetup(v.input, v.setupToken),
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["instance"] }),
 	});
 }
 
-export const checkDns = (hostname: string) => api.instance.checkDns(hostname);
+export const checkDns = (hostname: string, setupToken: string) =>
+	api.instance.checkDns(hostname, setupToken);

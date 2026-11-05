@@ -86,6 +86,7 @@ const row = (
 	tunnel: false,
 	customCertificateId: null,
 	redirectTo: null,
+	access: [],
 	status: "active",
 	statusMessage: null,
 	certificate: null,

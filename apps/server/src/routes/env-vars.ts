@@ -7,13 +7,14 @@ import type { Context } from "hono";
 import type { Actor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
-import { notFound, one, parseInput } from "../errors.ts";
+import { notFound, one, parseInput, rejectReservedEnvKeys } from "../errors.ts";
 import {
 	body,
 	errors,
 	IdParam,
 	json,
 	patchOf,
+	reservedEnvKey,
 	router,
 	security,
 } from "../openapi.ts";
@@ -104,11 +105,16 @@ export const envVars = router()
 				security,
 				middleware: [requirePermission("write", fromBody)],
 				request: body(ScopeRef.extend(EnvVarInput.shape)),
-				responses: { 201: json(EnvVar, "Created"), ...errors },
+				responses: {
+					201: json(EnvVar, "Created"),
+					...errors,
+					...reservedEnvKey,
+				},
 			}),
 		),
 		async (c) => {
 			const { value, ...input } = c.req.valid("json");
+			rejectReservedEnvKeys([input.key]);
 			const row = one(
 				await c.var.deps.db
 					.insert(envVar)

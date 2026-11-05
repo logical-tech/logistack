@@ -1,7 +1,7 @@
 import type { ClientResponse } from "hono/client";
 import { httpAccess } from "./access-adapter";
 import { type ApiAdapter, ApiError } from "./adapter";
-import { client } from "./client";
+import { client, setupHeader } from "./client";
 import { networkingHttp } from "./networking";
 import { serviceOpsHttp } from "./service-ops";
 import { ssoHttp } from "./sso";
@@ -45,10 +45,17 @@ export const httpAdapter: ApiAdapter = {
 	access: httpAccess,
 	instance: {
 		status: () => ok(api.setup.status.$get()),
-		checkDns: (hostname) =>
-			ok(api.setup["dns-check"].$post({ json: { hostname } })),
-		completeSetup: async (input) => {
-			await ok(api.setup.$post({ json: input }));
+		checkDns: (hostname, setupToken) =>
+			ok(
+				api.setup["dns-check"].$post({
+					json: { hostname },
+					header: setupHeader(setupToken),
+				}),
+			),
+		completeSetup: async (input, setupToken) => {
+			await ok(
+				api.setup.$post({ json: input, header: setupHeader(setupToken) }),
+			);
 		},
 		version: () => ok(api.version.$get()),
 	},

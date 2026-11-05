@@ -44,6 +44,7 @@ export const NodeStatus = z.enum(nodeStatuses);
 export type NodeStatus = z.infer<typeof NodeStatus>;
 
 export const deploymentStatuses = [
+	"awaiting_checks",
 	"queued",
 	"cloning",
 	"building",
@@ -53,6 +54,7 @@ export const deploymentStatuses = [
 	"failed",
 	"cancelled",
 	"superseded",
+	"skipped",
 ] as const;
 export const DeploymentStatus = z.enum(deploymentStatuses);
 export type DeploymentStatus = z.infer<typeof DeploymentStatus>;

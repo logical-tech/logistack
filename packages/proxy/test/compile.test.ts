@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+	type AccessRule,
 	type CaddyRoute,
 	compileProxy,
 	type ProxyRoute,
 	routeId,
 } from "../src/index.ts";
-import { dashboard, input, routes, settings } from "./fixtures.ts";
+import { cf, dashboard, input, routes, settings } from "./fixtures.ts";
 
 const compile = (rs: ProxyRoute[], s = settings) =>
 	compileProxy({ settings: s, dashboard, routes: rs });
@@ -209,6 +210,60 @@ test("wildcard without DNS challenge is rejected", () => {
 	).toThrow(/domain w: wildcard/);
 });
 
+describe("wildcard and explicit hosts on one zone", () => {
+	const upstream = (host: string) => ({ host, port: 80 });
+	const zone: ProxyRoute[] = [
+		{
+			domainId: "wild",
+			hostname: "*.shop.example.com",
+			upstream: upstream("ls-svc-tenants"),
+			https: true,
+			cert: "auto",
+			dnsChallenge: cf,
+		},
+		{
+			domainId: "admin",
+			hostname: "admin.shop.example.com",
+			upstream: upstream("ls-svc-admin"),
+			https: true,
+			cert: "auto",
+		},
+		{
+			domainId: "apex",
+			hostname: "shop.example.com",
+			upstream: upstream("ls-svc-site"),
+			https: true,
+			cert: "auto",
+			dnsChallenge: cf,
+		},
+	];
+
+	test("snapshot", () => {
+		expect(compile(zone)).toMatchSnapshot();
+	});
+
+	test("the explicit host wins: its route comes before the wildcard's", () => {
+		const order = ids(httpsRoutes([...zone].reverse()));
+		expect(order.indexOf("ls-domain-admin")).toBeLessThan(
+			order.indexOf("ls-domain-wild"),
+		);
+		expect(byId(httpsRoutes(zone), "ls-domain-wild")?.match).toEqual([
+			{ host: ["*.shop.example.com"] },
+		]);
+	});
+
+	test("the wildcard gets DNS-01; an explicit host without a provider keeps HTTP-01", () => {
+		const policies = compile(zone).apps.tls.automation.policies;
+		expect(policies.map((p) => p.subjects)).toEqual([
+			["*.shop.example.com", "shop.example.com"],
+			undefined,
+		]);
+		expect(policies[0]?.issuers[0]).toMatchObject({
+			challenges: { dns: { provider: { name: "cloudflare" } } },
+		});
+	});
+});
+
 test("redis URL becomes storage fields", () => {
 	expect(compile([]).storage).toEqual({
 		module: "redis",
@@ -243,20 +298,117 @@ test("grace period, access log and admin listen are set", () => {
 	});
 });
 
-test("basic auth runs before the upstream, and never on a redirect", () => {
+describe("access rules", () => {
 	const base = routes.find((r) => r.https && !r.redirectTo) as ProxyRoute;
-	const users = [{ username: "ops", hash: "$2a$10$abc" }];
-	const all = [...httpsRoutes([{ ...base, basicAuth: users }])];
-	const handle = byId(all, routeId(base.domainId))?.handle;
-	expect(handle?.[0]).toEqual({
-		handler: "authentication",
-		providers: {
-			http_basic: {
-				accounts: [{ username: "ops", password: "$2a$10$abc" }],
-				hash: { algorithm: "bcrypt" },
-				realm: "restricted",
-			},
-		},
+	const ipAllow: AccessRule = {
+		type: "ip_allow",
+		cidrs: ["203.0.113.0/24", "2001:db8::/32"],
+	};
+	const forwardAuth: AccessRule = {
+		type: "forward_auth",
+		url: "https://auth.example.com/api/verify?rd=https%3A%2F%2Flogin",
+		copyHeaders: ["remote-user", "Remote-Groups"],
+	};
+	const basicAuth: AccessRule = {
+		type: "basic_auth",
+		users: [{ username: "ops", hash: "$2a$10$abc" }],
+	};
+	const handle = (access: AccessRule[], r: ProxyRoute = base) =>
+		byId(httpsRoutes([{ ...r, access }]), routeId(r.domainId))?.handle;
+	const kinds = (access: AccessRule[]) =>
+		handle(access)?.map((h): string => h.handler);
+
+	test.each([
+		["ip_allow", [ipAllow]],
+		[
+			"ip_allow with trusted proxies",
+			[{ ...ipAllow, trustedProxies: ["10.0.0.0/8"] }],
+		],
+		["forward_auth", [forwardAuth]],
+		[
+			"forward_auth over http, no headers",
+			[
+				{
+					...forwardAuth,
+					url: "http://authelia:9091/api/authz/forward-auth",
+					copyHeaders: [],
+				},
+			],
+		],
+		["basic_auth", [basicAuth]],
+		["ip_allow + basic_auth", [basicAuth, ipAllow]],
+		["ip_allow + forward_auth", [forwardAuth, ipAllow]],
+		["all three", [basicAuth, forwardAuth, ipAllow]],
+	] as [string, AccessRule[]][])("%s", (_, access) => {
+		expect(handle(access)).toMatchSnapshot();
 	});
-	expect(handle?.[1]?.handler).toBe("reverse_proxy");
+
+	test("fixed order whatever the input order: IP, forward auth, basic auth, upstream", () => {
+		const order = [
+			"subroute",
+			"reverse_proxy",
+			"authentication",
+			"reverse_proxy",
+		];
+		expect(kinds([basicAuth, forwardAuth, ipAllow])).toEqual(order);
+		expect(kinds([ipAllow, basicAuth, forwardAuth])).toEqual(order);
+		expect(handle([basicAuth])?.[0]).toEqual({
+			handler: "authentication",
+			providers: {
+				http_basic: {
+					accounts: [{ username: "ops", password: "$2a$10$abc" }],
+					hash: { algorithm: "bcrypt" },
+					realm: "restricted",
+				},
+			},
+		});
+	});
+
+	test("ip_allow reads the connection address unless the rule trusts proxies", () => {
+		const plain = compile([{ ...base, access: [ipAllow] }]);
+		expect(plain.apps.http.servers.https?.trusted_proxies).toBeUndefined();
+		expect(JSON.stringify(plain)).not.toContain("client_ip");
+
+		const proxied = compile([
+			{ ...base, access: [{ ...ipAllow, trustedProxies: ["10.0.0.0/8"] }] },
+			{
+				...(routes[6] as ProxyRoute),
+				access: [{ ...ipAllow, trustedProxies: ["192.0.2.1"] }],
+			},
+		]).apps.http.servers;
+		expect(proxied.https?.trusted_proxies).toEqual({
+			source: "static",
+			ranges: ["10.0.0.0/8", "192.0.2.1"],
+		});
+		expect(proxied.https?.trusted_proxies_strict).toBe(1);
+		expect(proxied.http?.trusted_proxies).toBeUndefined();
+	});
+
+	test("a redirect gets no access handlers and adds no trusted proxies", () => {
+		const redirect = routes.find((r) => r.redirectTo) as ProxyRoute;
+		const access: AccessRule[] = [
+			basicAuth,
+			{ ...ipAllow, trustedProxies: ["10.0.0.0/8"] },
+		];
+		expect(kinds([])).toEqual(["reverse_proxy"]);
+		expect(handle(access, redirect)?.map((h) => h.handler)).toEqual([
+			"static_response",
+		]);
+		expect(
+			compile([{ ...redirect, access }]).apps.http.servers.https
+				?.trusted_proxies,
+		).toBeUndefined();
+	});
+
+	test("http-only routes are protected too", () => {
+		const plain = routes.find((r) => !r.https) as ProxyRoute;
+		const r = byId(
+			httpRoutes([{ ...plain, access: [basicAuth] }]),
+			routeId(plain.domainId),
+		);
+		expect(r?.handle.map((h) => h.handler)).toEqual([
+			"authentication",
+			"reverse_proxy",
+		]);
+	});
 });

@@ -18,6 +18,10 @@ import {
 	type SecretReference,
 	type ServiceSpec,
 } from "@logistack/docker";
+import {
+	type DeploymentContext,
+	deploymentContextEnv,
+} from "./deployment-context.ts";
 import { dockerName } from "./ids.ts";
 import { LIBSQL_ENV, LIBSQL_HEALTH } from "./libsql.ts";
 import { storageEngineDefs } from "./storage.ts";
@@ -47,6 +51,8 @@ export type CompileServiceInput = {
 	image?: string;
 	/** Resolved and decrypted runtime env. */
 	env: Record<string, string>;
+	/** Injected as `LOGISTACK_*` env on top of `env`, with `deploymentId`. */
+	context: Omit<DeploymentContext, "deploymentId">;
 	mounts: CompileMount[];
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
@@ -351,7 +357,14 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	const resources = spec.resources;
 	const replicas =
 		service.desiredState === "stopped" ? 0 : isDb ? 1 : (app?.replicas ?? 1);
-	const env = Object.entries({ ...input.env, ...store?.env(input.env) })
+	const env = Object.entries({
+		...input.env,
+		...store?.env(input.env),
+		...deploymentContextEnv({
+			...input.context,
+			deploymentId: input.deploymentId,
+		}),
+	})
 		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 		.map(([k, v]) => `${k}=${v}`);
 
