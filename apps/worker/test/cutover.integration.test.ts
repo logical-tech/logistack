@@ -6,6 +6,7 @@ import { encrypt } from "@logistack/core";
 import {
 	environment,
 	migration,
+	migrationBridge,
 	migrationItem,
 	organization,
 	project,
@@ -112,6 +113,15 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 			})
 			.returning();
 		const id = svc?.id as string;
+		// What the import writes: the slug on Dokploy's network, routers for a compose service.
+		await db()
+			.insert(migrationBridge)
+			.values({
+				serviceId: id,
+				migrationId,
+				aliases: [name],
+				routes: plan.kind === "compose",
+			});
 		const [item] = await db()
 			.insert(migrationItem)
 			.values({

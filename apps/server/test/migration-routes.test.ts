@@ -26,6 +26,7 @@ describe.skipIf(!hasDocker)("migration wizard routes", () => {
 		migrationId = await planMigration(
 			h.deps,
 			orgId,
+			"dokploy",
 			buildInventory(
 				snapshot({
 					applications: [

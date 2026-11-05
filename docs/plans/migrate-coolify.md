@@ -178,28 +178,28 @@ Consequences:
 - COOL-5 needs COOL-1, COOL-3 and COOL-4. COOL-6 needs COOL-5. COOL-7 needs COOL-3 and COOL-6.
 - COOL-8 runs last.
 
-## Make the pipeline source-agnostic (COOL-1)
+## Make the pipeline source-agnostic (COOL-1, done)
 
-- [ ] `migration_source` enum gets `coolify` (migration `0023`). Every route, event and view that hard-codes `"dokploy"` takes the migration's source.
-- [ ] The stored plan carries a **source descriptor** per service item, and the worker discovers sources only from it:
-  - Swarm services by exact name;
-  - a stack namespace;
-  - a compose project label;
-  - exact container names.
-  - Dokploy's inventory fills it the way `sourceServices`/`sourceContainers` look today, so the worker loses its Dokploy branches.
-  - Plans stored before this PR, which have no descriptor, are read through a fallback that derives it from `appName`. Evidence: a test on an old plan.
-- [ ] `migration_bridge(service_id, network, aliases[], routes)` replaces `importedFrom.startsWith("dokploy:")` and `LS_DOKPLOY_NETWORK` in `apply.ts`.
-  - `compileService` takes `bridge: { network, aliases, routerLabels }`. Routers are generated for the source's proxy: Traefik swarm provider for Dokploy, Traefik docker provider for Coolify.
-  - Decommission deletes the rows.
-  - Evidence: the existing Dokploy unit and integration tests pass unchanged (`cutover`, `proxy-switch`, `decommission`), plus new `compile-service` cases.
-- [ ] Source-specific worker settings move into a per-source profile (`packages/core/src/migration-sources.ts`):
-  - the proxy container or service name and its `acme.json` path;
-  - the platform's own containers or services;
-  - the bridge network;
-  - the archive commands.
-
-  The `LS_DOKPLOY_*` env keeps working as overrides.
-- [ ] The wizard and `decommissionBlocker` copy names the source ("left on Coolify", "Remove Coolify", confirm by typing `coolify`).
+- [x] `migration_source` gets `coolify` (`packages/db/drizzle/0026_migration_bridge.sql`). `planMigration` takes the source. The import acts as `migrate-<source>` into "Imported from <Label>". The routes find the source through `detectSource` (`apps/server/src/migration/sources.ts`). `decommissionBlocker` and the route copy name the source (`sourceProfiles` in `packages/core/src/migration.ts`).
+- [x] The plan carries a `SourceDescriptor` per service item (`packages/core/src/migration.ts`), and the worker finds sources only through it (`apps/worker/src/migration.ts`):
+  - Swarm services by exact name or stack label;
+  - containers by every given label;
+  - `routedByLabels` decides the bridge settle wait.
+  - Dokploy's inventory fills it. A Dokploy plan stored before this PR gets its descriptor from `appName` (`dokployDescriptor`).
+  - Evidence: an inventory test asserts the compose descriptor. `cutover.integration.test.ts` stores plans without one, so the fallback is what it runs.
+- [x] `migration_bridge(service_id, migration_id, aliases[], routes)` replaces the Dokploy checks in `apply.ts`:
+  - The import writes one row per service with a `bridge` draft. The network and router flavour come from the migration's source (`apps/worker/src/migration-source.ts`).
+  - `compileService` takes `bridgeAliases` and `bridgeContainerLabels`.
+  - `bridgeRouterLabels` has a `traefik-docker` flavour: `traefik.docker.network`, `http`/`https` entrypoints, labels on the containers.
+  - The SQL backfills rows for services an unfinished Dokploy migration imported.
+  - Decommission detaches the services named by the rows, then deletes the rows.
+  - Evidence:
+    - the core test "a service bridged to Coolify carries container routers and the old names";
+    - `migration-import.test.ts` asserts the rows;
+    - `WORKER_IT=1` `cutover`, `proxy-switch` and `decommission` integration tests: 7 pass on the real Swarm (2026-11-05);
+    - full `bun test`: 1220 pass, 0 fail.
+- [x] Worker settings per source: `sourceSettings(cfg, source)` gives the proxy name, `acme.json` path and bridge network, with `LS_COOLIFY_*` beside the `LS_DOKPLOY_*` overrides. The proxy switch uses it.
+- [ ] The wizard's copy per source moves to COOL-7.
 
 ## Read Coolify into an inventory (COOL-2)
 

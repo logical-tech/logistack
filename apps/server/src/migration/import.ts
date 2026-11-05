@@ -1,6 +1,6 @@
 /**
  * Imports a planned migration into LogiStack through the API's own routes, as the system actor
- * `migrate-dokploy`: the same validation, permission checks and audit as a person gets. Nothing is
+ * `migrate-<source>`: the same validation, permission checks and audit as a person gets. Nothing is
  * deployed; the cutover (MIG-3b) does that. It runs in the api process because the routes live
  * here.
  *
@@ -11,6 +11,7 @@
 import type {
 	EnvironmentKind,
 	MigrationItemStatus,
+	MigrationSource,
 } from "@logistack/contracts";
 import { environmentKinds } from "@logistack/contracts";
 import {
@@ -19,11 +20,13 @@ import {
 	importable,
 	type MigrationItemEvent,
 	migrationItemTransition,
+	sourceProfiles,
 } from "@logistack/core";
 import {
 	environment,
 	gitProvider,
 	migration,
+	migrationBridge,
 	migrationItem,
 	project,
 	service,
@@ -38,12 +41,14 @@ import { slugify } from "../openapi.ts";
 import type {
 	Inventory,
 	InventoryItem,
+	OrgItem,
 	ServiceDraft,
-} from "./dokploy/inventory.ts";
-import type { OrgItem } from "./dokploy/org.ts";
+} from "./types.ts";
 
-export const ACTOR_ID = "migrate-dokploy";
-export const FOLDER = "Imported from Dokploy";
+/** The system actor an import acts as, and the folder its projects land in. */
+export const actorId = (source: MigrationSource) => `migrate-${source}`;
+export const folderName = (source: MigrationSource) =>
+	`Imported from ${sourceProfiles[source].label}`;
 
 /** What a `migration_item` row carries, encrypted: the inventory item as planned. */
 export type Plan =
@@ -57,6 +62,7 @@ export type Plan =
 export async function planMigration(
 	deps: Deps,
 	organizationId: string,
+	source: MigrationSource,
 	inventory: Inventory,
 ): Promise<string> {
 	const plans: Plan[] = [
@@ -66,7 +72,7 @@ export async function planMigration(
 	return deps.db.transaction(async (tx) => {
 		const [row] = await tx
 			.insert(migration)
-			.values({ organizationId, source: "dokploy" })
+			.values({ organizationId, source })
 			.returning({ id: migration.id });
 		if (!row) throw new Error("migration not created");
 		if (plans.length)
@@ -96,8 +102,12 @@ type Call = <T = { id: string }>(
 ) => Promise<T>;
 
 /** An api client acting as the system actor of the migration's organization. */
-async function client(deps: Deps, organizationId: string): Promise<Call> {
-	const actor = await systemActor(deps.db, organizationId, ACTOR_ID);
+async function client(
+	deps: Deps,
+	organizationId: string,
+	source: MigrationSource,
+): Promise<Call> {
+	const actor = await systemActor(deps.db, organizationId, actorId(source));
 	if (!actor) throw new Error("the organization has no owner");
 	const app = createApp(deps, { actor });
 	return async (method, path, body) => {
@@ -258,7 +268,13 @@ async function importService(
 		spec.source.type === "git" &&
 		draft.gitProvider
 	) {
-		const id = target("gitProvider", draft.gitProvider.dokployId);
+		// `dokployId` on Dokploy plans stored before COOL-1.
+		const id = target(
+			"gitProvider",
+			draft.gitProvider.sourceId ??
+				(draft.gitProvider as { dokployId?: string }).dokployId ??
+				"",
+		);
 		if (id) spec.source.gitProviderId = id;
 	}
 	const [existing] = await deps.db
@@ -287,8 +303,8 @@ async function importService(
 			})
 		).id;
 
-	// The full service-scope set: Dokploy's values win, and a key the API minted that Dokploy has
-	// no value for keeps its stored one.
+	// The full service-scope set: the source's values win, and a key the API minted that the source
+	// has no value for keeps its stored one.
 	const current = await call<{ key: string; scope: string }[]>(
 		"GET",
 		`/env-vars?scope=service&scopeId=${id}`,
@@ -409,7 +425,7 @@ export async function runImport(deps: Deps, migrationId: string) {
 			.update(migration)
 			.set({ status: "importing" })
 			.where(eq(migration.id, migrationId));
-		const call = await client(deps, mig.organizationId);
+		const call = await client(deps, mig.organizationId, mig.source);
 		const rows = await deps.db
 			.select()
 			.from(migrationItem)
@@ -428,11 +444,11 @@ export async function runImport(deps: Deps, migrationId: string) {
 				if (plan.type === "org")
 					targets = await importOrg(deps, mig.organizationId, call, plan.item);
 				else {
-					folderId ??= await ensureFolder(call);
+					folderId ??= await ensureFolder(call, folderName(mig.source));
 					const environmentId = await environmentFor(call, folderId, plan.item);
 					targets = { ...row.targets };
 					for (const draft of plan.item.services) {
-						targets[draft.slug] = await importService(
+						const serviceId = await importService(
 							deps,
 							call,
 							mig.organizationId,
@@ -440,6 +456,15 @@ export async function runImport(deps: Deps, migrationId: string) {
 							draft,
 							created,
 						);
+						targets[draft.slug] = serviceId;
+						if (draft.bridge)
+							await deps.db
+								.insert(migrationBridge)
+								.values({ serviceId, migrationId, ...draft.bridge })
+								.onConflictDoUpdate({
+									target: migrationBridge.serviceId,
+									set: { migrationId, ...draft.bridge },
+								});
 						// Saved per service, so a crash keeps what is done.
 						await deps.db
 							.update(migrationItem)
@@ -480,11 +505,11 @@ export async function runImport(deps: Deps, migrationId: string) {
 	}
 }
 
-async function ensureFolder(call: Call): Promise<string> {
+async function ensureFolder(call: Call, name: string): Promise<string> {
 	const tree = await call<{ id: string; name: string }[]>("GET", "/folders");
 	return (
-		tree.find((f) => f.name === FOLDER)?.id ??
-		(await call("POST", "/folders", { name: FOLDER })).id
+		tree.find((f) => f.name === name)?.id ??
+		(await call("POST", "/folders", { name })).id
 	);
 }
 

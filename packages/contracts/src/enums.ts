@@ -204,7 +204,7 @@ export const permissionActions = [
 export const PermissionAction = z.enum(permissionActions);
 export type PermissionAction = z.infer<typeof PermissionAction>;
 
-export const migrationSources = ["dokploy"] as const;
+export const migrationSources = ["dokploy", "coolify"] as const;
 export const MigrationSource = z.enum(migrationSources);
 export type MigrationSource = z.infer<typeof MigrationSource>;
 

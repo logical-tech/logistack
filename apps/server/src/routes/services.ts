@@ -3,6 +3,7 @@ import {
 	ApplicationSource,
 	DesiredState,
 	defaultServiceIcon,
+	MigrationSource,
 	ObservedState,
 	ServiceIcon,
 	ServiceSpec,
@@ -120,7 +121,7 @@ const ServiceInput = z.object({
 			z.object({
 				target: MountTarget,
 				volume: AdoptableVolume,
-				source: z.enum(["dokploy"]),
+				source: MigrationSource,
 			}),
 		)
 		.max(8)

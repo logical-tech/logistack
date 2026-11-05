@@ -2,20 +2,21 @@
  * Cutover and rollback of one migration item: the source's containers stop, the imported LogiStack
  * services deploy, and if one is not healthy everything goes back as it was.
  *
- * The source is found only by exact name or by its own labels: the Swarm service named after the
- * Dokploy `appName`, a stack's services by `com.docker.stack.namespace`, a compose project's
- * containers by `com.docker.compose.project`. What was running is saved on the item before
- * anything stops, so a rollback after a crash still knows what to start.
+ * The source is found only through the item's stored `SourceDescriptor`: Swarm services by exact
+ * name or stack label, containers by the source's own labels. What was running is saved on the
+ * item before anything stops, so a rollback after a crash still knows what to start.
  *
  * Order: a service with adopted volumes stops the source first, so two processes never write one
  * volume. A stateless one deploys first and stops the source after, so it is never down: both
- * answer on Dokploy's network under the same name meanwhile (see the bridge in `apply.ts`).
+ * answer on the source's network under the same name meanwhile (see the bridge in `apply.ts`).
  */
 import {
 	decrypt,
+	dokployDescriptor,
 	isTerminal,
 	type MigrationItemEvent,
 	migrationItemTransition,
+	type SourceDescriptor,
 } from "@logistack/core";
 import {
 	deployment,
@@ -43,6 +44,8 @@ type Plan =
 			item: {
 				kind: string;
 				appName: string;
+				/** Absent on Dokploy plans stored before COOL-1. */
+				source?: SourceDescriptor;
 				services: {
 					slug: string;
 					running: boolean;
@@ -124,26 +127,37 @@ async function moveGitHubHook(ctx: Ctx, providerId: string) {
 	);
 }
 
+/** The item's descriptor; Dokploy plans from before descriptors get theirs from `appName`. */
+const descriptorOf = (plan: Extract<Plan, { type: "service" }>) =>
+	plan.item.source ??
+	dokployDescriptor(
+		plan.item.kind,
+		plan.item.appName,
+		plan.item.services.some((s) => s.domains?.length),
+	);
+
 /** The source's Swarm services, by exact name or stack label. */
-async function sourceServices(ctx: Ctx, kind: string, appName: string) {
-	const found =
-		kind === "compose"
-			? await ctx.docker.services.list({
-					label: [`com.docker.stack.namespace=${appName}`],
-				})
-			: (await ctx.docker.services.list({ name: [appName] })).filter(
-					// The name filter matches prefixes; only the exact name is Dokploy's.
-					(s) => s.Spec.Name === appName,
-				);
-	return found;
+async function sourceServices(ctx: Ctx, d: SourceDescriptor) {
+	const named = d.services?.length
+		? (await ctx.docker.services.list({ name: d.services })).filter((s) =>
+				// The name filter matches prefixes; only the exact names are the source's.
+				d.services?.includes(s.Spec.Name),
+			)
+		: [];
+	const stacked = d.stack
+		? await ctx.docker.services.list({
+				label: [`com.docker.stack.namespace=${d.stack}`],
+			})
+		: [];
+	return [
+		...named,
+		...stacked.filter((s) => !named.some((n) => n.ID === s.ID)),
+	];
 }
 
-async function sourceContainers(ctx: Ctx, kind: string, appName: string) {
-	return kind === "compose"
-		? ctx.docker.containers.list(
-				{ label: [`com.docker.compose.project=${appName}`] },
-				true,
-			)
+async function sourceContainers(ctx: Ctx, d: SourceDescriptor) {
+	return d.containerLabels?.length
+		? ctx.docker.containers.list({ label: d.containerLabels }, true)
 		: [];
 }
 
@@ -213,17 +227,17 @@ async function saveSource(
 	plan: Extract<Plan, { type: "service" }>,
 ): Promise<MigrationSourceState> {
 	if (item.sourceState) return item.sourceState;
-	const { kind, appName } = plan.item;
+	const d = descriptorOf(plan);
 	const state: MigrationSourceState = {
 		services: Object.fromEntries(
-			(await sourceServices(ctx, kind, appName)).map((s) => {
+			(await sourceServices(ctx, d)).map((s) => {
 				const replicas = replicasOf(s);
 				if (replicas === undefined)
 					throw new Error(`${s.Spec.Name} is not a replicated service`);
 				return [s.Spec.Name, replicas];
 			}),
 		),
-		containers: (await sourceContainers(ctx, kind, appName))
+		containers: (await sourceContainers(ctx, d))
 			.filter((c) => c.State === "running")
 			.map((c) => c.Id),
 	};
@@ -355,10 +369,7 @@ export async function cutOver(ctx: Ctx, itemId: string) {
 			await up();
 		} else {
 			await up();
-			if (
-				plan.item.kind === "compose" &&
-				plan.item.services.some((s) => s.domains?.length)
-			)
+			if (descriptorOf(plan).routedByLabels)
 				await Bun.sleep(ctx.cfg.LS_BRIDGE_SETTLE_MS);
 			await stopSource(ctx, state);
 		}

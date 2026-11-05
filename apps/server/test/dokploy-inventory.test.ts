@@ -141,6 +141,7 @@ describe("Dokploy applications", () => {
 		expect(svc).toEqual({
 			name: "web",
 			slug: "web-abc123",
+			bridge: { aliases: ["web-abc123"], routes: false },
 			dependsOn: [],
 			importedFrom: "dokploy:web-abc123",
 			spec: {
@@ -233,7 +234,7 @@ describe("Dokploy applications", () => {
 					buildArgs: { NODE_ENV: "production" },
 				},
 			},
-			gitProvider: { type: "github", dokployId: "gh1" },
+			gitProvider: { type: "github", sourceId: "gh1" },
 			running: false,
 		});
 		expect(site).toMatchObject({
@@ -347,6 +348,7 @@ describe("Dokploy databases", () => {
 		expect(item.services[0]).toEqual({
 			name: "pg",
 			slug: "pg-def456",
+			bridge: { aliases: ["pg-def456"], routes: false },
 			dependsOn: [],
 			importedFrom: "dokploy:pg-def456",
 			spec: {
@@ -474,6 +476,16 @@ volumes:
 			}),
 		);
 		expect(item.status).toBe("full");
+		// The cutover finds it by its stack and compose labels; Traefik routes it by labels.
+		expect(item.source).toEqual({
+			stack: item.appName,
+			containerLabels: [`com.docker.compose.project=${item.appName}`],
+			routedByLabels: true,
+		});
+		expect(item.services[0]?.bridge).toEqual({
+			aliases: [item.services[0]?.slug ?? ""],
+			routes: true,
+		});
 		expect(item.services[0]).toMatchObject({
 			name: "wiki",
 			importedFrom: "dokploy:wiki-ghi789/wiki",

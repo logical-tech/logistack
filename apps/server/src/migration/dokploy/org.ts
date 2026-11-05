@@ -12,7 +12,7 @@ import { githubConfig, notificationChannels } from "@logistack/providers";
 import type { z } from "zod";
 import { RegistryInput } from "../../routes/registries.ts";
 import { Connection } from "../../routes/s3-destinations.ts";
-import type { Status } from "./inventory.ts";
+import type { OrgDraft, OrgItem } from "../types.ts";
 import type {
 	DokployDestination,
 	DokployGitProvider,
@@ -22,38 +22,7 @@ import type {
 	DokploySnapshot,
 } from "./snapshot.ts";
 
-export type OrgDraft =
-	| { kind: "registry"; input: z.input<typeof RegistryInput> }
-	| {
-			kind: "s3Destination";
-			input: z.input<typeof Connection> & { name: string };
-	  }
-	| {
-			kind: "notificationChannel";
-			input: { name: string; kind: NotificationChannelKind; config: unknown };
-			/** One rule over the whole organization; none when no event maps. */
-			events: EventType[];
-	  }
-	| { kind: "sshKey"; input: { name: string; privateKey: string } }
-	| {
-			kind: "gitProvider";
-			/** Stored as is: a GitHub App keeps its key, webhook secret and installation. */
-			input: {
-				name: string;
-				kind: "github";
-				config: z.input<typeof githubConfig>;
-			};
-	  };
-
-export type OrgItem = {
-	kind: OrgDraft["kind"];
-	/** Dokploy's id: what services and backups reference (`githubId`, `destinationId`...). */
-	sourceId: string;
-	name: string;
-	status: Status;
-	notes: string[];
-	draft?: OrgDraft;
-};
+export type { OrgDraft, OrgItem };
 
 const item = (
 	kind: OrgItem["kind"],

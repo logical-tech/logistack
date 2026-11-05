@@ -18,11 +18,11 @@ import { decommissionBlocker } from "@logistack/core";
 import {
 	type DecommissionState,
 	migration,
+	migrationBridge,
 	migrationItem,
-	service,
 } from "@logistack/db";
 import { DockerError, managedLabels, type Service } from "@logistack/docker";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { inspectService } from "./apply.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
@@ -266,6 +266,7 @@ export async function decommission(ctx: Ctx, migrationId: string) {
 	const blocker = decommissionBlocker(
 		items,
 		mig.proxyState?.result?.status === "switched",
+		mig.source,
 	);
 	if (blocker) throw new Error(`cannot remove Dokploy yet: ${blocker}`);
 
@@ -302,14 +303,17 @@ export async function decommission(ctx: Ctx, migrationId: string) {
 				if (notFound(e)) return undefined;
 				throw e;
 			});
-		if (network) {
-			const migrated = await ctx.db
-				.select({ id: service.id })
-				.from(service)
-				.where(like(service.importedFrom, "dokploy:%"));
-			for (const s of migrated)
+		const bridged = await ctx.db
+			.select({ id: migrationBridge.serviceId })
+			.from(migrationBridge)
+			.where(eq(migrationBridge.migrationId, migrationId));
+		if (network)
+			for (const s of bridged)
 				await detach(ctx, svcName(ctx, s.id), network.Id);
-		}
+		// Nothing bridges any more: the next deploy of a moved service leaves the source behind.
+		await ctx.db
+			.delete(migrationBridge)
+			.where(eq(migrationBridge.migrationId, migrationId));
 
 		for (const name of ctx.cfg.LS_DOKPLOY_SERVICES.split(",")
 			.map((s) => s.trim())

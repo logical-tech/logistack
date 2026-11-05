@@ -4,7 +4,7 @@ import {
 	compileService,
 	serviceFiles,
 } from "@logistack/core";
-import { migration, node, service } from "@logistack/db";
+import { migration, migrationBridge, node, service } from "@logistack/db";
 import {
 	authForImage,
 	DockerError,
@@ -16,7 +16,7 @@ import {
 	type ServiceSpec,
 	type Task,
 } from "@logistack/docker";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
 import {
@@ -25,6 +25,7 @@ import {
 	envNetworkName,
 	type ServiceContext,
 } from "./load.ts";
+import { sourceSettings } from "./migration-source.ts";
 
 const notFound = (e: unknown) => e instanceof DockerError && e.notFound;
 const conflict = (e: unknown) => e instanceof DockerError && e.conflict;
@@ -232,29 +233,28 @@ export async function desiredInput(
 					throw e;
 				})
 			: undefined;
-	// Until Dokploy is decommissioned, its Traefik and its remaining services reach this one by its
-	// old appName (the slug) on Dokploy's network.
-	const decommissioned = sc.service.importedFrom?.startsWith("dokploy:")
-		? (
-				await ctx.db
-					.select({ id: migration.id })
-					.from(migration)
-					.where(
-						and(
-							eq(migration.organizationId, sc.organizationId),
-							eq(migration.status, "decommissioned"),
-						),
-					)
-					.limit(1)
-			).length > 0
-		: true;
-	const bridge = !decommissioned
-		? await ctx.docker.networks
-				.inspect(ctx.cfg.LS_DOKPLOY_NETWORK)
-				.catch((e) => {
-					if (notFound(e)) return undefined;
-					throw e;
-				})
+	// Until the source platform is decommissioned, its proxy and its remaining services reach a
+	// moved service by its old names on the source's network.
+	const [moved] = await ctx.db
+		.select({
+			aliases: migrationBridge.aliases,
+			routes: migrationBridge.routes,
+			source: migration.source,
+		})
+		.from(migrationBridge)
+		.innerJoin(migration, eq(migration.id, migrationBridge.migrationId))
+		.where(
+			and(
+				eq(migrationBridge.serviceId, sc.service.id),
+				ne(migration.status, "decommissioned"),
+			),
+		);
+	const from = moved ? sourceSettings(ctx.cfg, moved.source) : undefined;
+	const bridge = from
+		? await ctx.docker.networks.inspect(from.network).catch((e) => {
+				if (notFound(e)) return undefined;
+				throw e;
+			})
 		: undefined;
 	await checkAdopted(ctx, sc);
 	const pin = await resolvePin(ctx, sc);
@@ -266,14 +266,21 @@ export async function desiredInput(
 			...(db ? { db: db.Id } : {}),
 			...(bridge ? { bridge: bridge.Id } : {}),
 		},
-		// A compose service (`dokploy:<app>/<service>`) is routed by labels in Dokploy's Traefik.
-		...(bridge && sc.service.importedFrom?.includes("/")
+		...(bridge && moved && from
 			? {
-					bridgeLabels: bridgeRouterLabels(
-						sc.service.id,
-						ctx.cfg.LS_DOKPLOY_NETWORK,
-						sc.domains,
-					),
+					bridgeAliases: moved.aliases,
+					...(moved.routes
+						? {
+								[from.router === "traefik-swarm"
+									? "bridgeLabels"
+									: "bridgeContainerLabels"]: bridgeRouterLabels(
+									sc.service.id,
+									from.network,
+									sc.domains,
+									from.router,
+								),
+							}
+						: {}),
 				}
 			: {}),
 		...(pin ? { pinNodeId: pin } : {}),

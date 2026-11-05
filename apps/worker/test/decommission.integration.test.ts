@@ -15,6 +15,7 @@ import {
 	environment,
 	type MigrationSourceState,
 	migration,
+	migrationBridge,
 	migrationItem,
 	organization,
 	project,
@@ -247,6 +248,9 @@ describe.skipIf(!enabled)("decommissioning Dokploy on the real Swarm", () => {
 			})
 			.returning();
 		migrationId = m?.id as string;
+		await db()
+			.insert(migrationBridge)
+			.values({ serviceId: s?.id as string, migrationId, aliases: ["web"] });
 		const item = (
 			sourceId: string,
 			status: "cut_over" | "skipped" | "imported",
@@ -287,7 +291,7 @@ describe.skipIf(!enabled)("decommissioning Dokploy on the real Swarm", () => {
 			),
 		).toContain("1 item");
 		expect(decommissionBlocker([{ status: "cut_over" }], false)).toContain(
-			"Traefik",
+			"proxy",
 		);
 		await expect(decommission(w.ctx, migrationId)).rejects.toThrow(
 			"cannot remove Dokploy yet",

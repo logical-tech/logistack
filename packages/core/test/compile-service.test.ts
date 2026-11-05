@@ -653,3 +653,36 @@ test("a bridged compose service carries routers for Dokploy's Traefik", () => {
 	expect(spec.Labels?.["traefik.enable"]).toBe("true");
 	expect(spec.Labels?.["logistack.managed"]).toBe("true");
 });
+
+test("a service bridged to Coolify carries container routers and the old names", () => {
+	const labels = bridgeRouterLabels(
+		"svc_ab12",
+		"ls-coolify-bridge",
+		[{ hostname: "app.example.com", port: 80, pathPrefix: null, https: true }],
+		"traefik-docker",
+	);
+	expect(labels).toMatchObject({
+		"traefik.enable": "true",
+		"traefik.docker.network": "ls-coolify-bridge",
+		"traefik.http.routers.ls-svc-ab12-0.entrypoints": "https",
+		"traefik.http.routers.ls-svc-ab12-0.tls.certresolver": "letsencrypt",
+	});
+	expect(labels["traefik.swarm.network"]).toBeUndefined();
+	const spec = compileService({
+		...app,
+		networks: { ...app.networks, bridge: "net-coolify" },
+		bridgeAliases: ["k8s0wc8gw4o0c4ws"],
+		bridgeContainerLabels: labels,
+	});
+	expect(spec.TaskTemplate.ContainerSpec?.Labels?.["traefik.enable"]).toBe(
+		"true",
+	);
+	expect(spec.TaskTemplate.ContainerSpec?.Labels?.["logistack.managed"]).toBe(
+		"true",
+	);
+	expect(spec.Labels?.["traefik.enable"]).toBeUndefined();
+	expect(spec.TaskTemplate.Networks?.at(-1)).toEqual({
+		Target: "net-coolify",
+		Aliases: ["k8s0wc8gw4o0c4ws"],
+	});
+});
