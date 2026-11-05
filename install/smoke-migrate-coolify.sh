@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `check && pass || fail` is intended: pass only prints, so fail runs only when the check failed.
-# shellcheck disable=SC2015,SC2016,SC2329
+# shellcheck disable=SC2015,SC2016,SC2317,SC2329
 # The Coolify migration end to end (COOL-8), in a throwaway docker:dind named ls-test-cool8-dind:
 #   1. Coolify (pinned, v4.5.3) brought up the way its installer leaves it: Docker's address pool
 #      10.0.0.0/8, /data/coolify with its .env and its SSH key to the host, the `coolify` network,
