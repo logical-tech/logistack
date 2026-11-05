@@ -42,6 +42,9 @@ export type CaddyServer = {
 		disable_redirects?: boolean;
 	};
 	logs?: { default_logger_name: string };
+	/** Peers whose X-Forwarded-For sets `client_ip`; strict reads the header right to left. */
+	trusted_proxies?: { source: "static"; ranges: string[] };
+	trusted_proxies_strict?: 1;
 };
 
 export type CaddyRoute = {
@@ -51,10 +54,38 @@ export type CaddyRoute = {
 	terminal?: boolean;
 };
 
-export type CaddyMatcher = { host?: string[]; path?: string[] };
+export type CaddyMatcher = {
+	host?: string[];
+	path?: string[];
+	/** The connection's address, after listener wrappers such as PROXY protocol. */
+	remote_ip?: { ranges: string[] };
+	/** The address the server's `trusted_proxies` derive from X-Forwarded-For. */
+	client_ip?: { ranges: string[] };
+	/** True when none of its matcher sets match. */
+	not?: CaddyMatcher[];
+	vars?: Record<string, string[]>;
+};
+
+export type CaddyHeaderOps = {
+	set?: Record<string, string[]>;
+	delete?: string[];
+};
 
 export type CaddyHandler =
-	| { handler: "reverse_proxy"; upstreams: { dial: string }[] }
+	| {
+			handler: "reverse_proxy";
+			upstreams: { dial: string }[];
+			transport?: { protocol: "http"; tls?: Record<string, never> };
+			rewrite?: { method?: string; uri?: string };
+			headers?: { request?: CaddyHeaderOps };
+			handle_response?: {
+				match?: { status_code: number[] };
+				routes: CaddyRoute[];
+			}[];
+	  }
+	| { handler: "subroute"; routes: CaddyRoute[] }
+	| { handler: "headers"; request: CaddyHeaderOps }
+	| { handler: "vars" }
 	| {
 			handler: "authentication";
 			providers: {

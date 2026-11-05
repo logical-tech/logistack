@@ -1,3 +1,4 @@
+export * from "./access.ts";
 export * from "./agent.ts";
 export * from "./agent-rpc.ts";
 export * from "./database.ts";

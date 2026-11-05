@@ -345,7 +345,9 @@ export async function syncProxy(ctx: Ctx): Promise<void> {
 			});
 			if (r.ok)
 				candidates.push(
-					basicAuth?.length ? { ...r.route, basicAuth } : r.route,
+					basicAuth?.length
+						? { ...r.route, access: [{ type: "basic_auth", users: basicAuth }] }
+						: r.route,
 				);
 			else outcome.set(d.id, r.error);
 		} catch (e) {

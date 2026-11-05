@@ -354,3 +354,683 @@ exports[`full config snapshot 1`] = `
   },
 }
 `;
+
+exports[`access rules ip_allow 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules ip_allow with trusted proxies 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+              {
+                "client_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+                "remote_ip": {
+                  "ranges": [
+                    "10.0.0.0/8",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules forward_auth 1`] = `
+[
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "delete": [
+                    "Remote-Groups",
+                    "Remote-User",
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-Groups": [
+                      "{http.reverse_proxy.header.Remote-Groups}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-Groups}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-User": [
+                      "{http.reverse_proxy.header.Remote-User}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-User}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/verify?rd=https%3A%2F%2Flogin",
+    },
+    "transport": {
+      "protocol": "http",
+      "tls": {},
+    },
+    "upstreams": [
+      {
+        "dial": "auth.example.com:443",
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules forward_auth over http, no headers 1`] = `
+[
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "vars",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/authz/forward-auth",
+    },
+    "upstreams": [
+      {
+        "dial": "authelia:9091",
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules basic_auth 1`] = `
+[
+  {
+    "handler": "authentication",
+    "providers": {
+      "http_basic": {
+        "accounts": [
+          {
+            "password": "$2a$10$abc",
+            "username": "ops",
+          },
+        ],
+        "hash": {
+          "algorithm": "bcrypt",
+        },
+        "realm": "restricted",
+      },
+    },
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules ip_allow + basic_auth 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handler": "authentication",
+    "providers": {
+      "http_basic": {
+        "accounts": [
+          {
+            "password": "$2a$10$abc",
+            "username": "ops",
+          },
+        ],
+        "hash": {
+          "algorithm": "bcrypt",
+        },
+        "realm": "restricted",
+      },
+    },
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules ip_allow + forward_auth 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "delete": [
+                    "Remote-Groups",
+                    "Remote-User",
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-Groups": [
+                      "{http.reverse_proxy.header.Remote-Groups}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-Groups}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-User": [
+                      "{http.reverse_proxy.header.Remote-User}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-User}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/verify?rd=https%3A%2F%2Flogin",
+    },
+    "transport": {
+      "protocol": "http",
+      "tls": {},
+    },
+    "upstreams": [
+      {
+        "dial": "auth.example.com:443",
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules all three 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "delete": [
+                    "Remote-Groups",
+                    "Remote-User",
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-Groups": [
+                      "{http.reverse_proxy.header.Remote-Groups}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-Groups}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-User": [
+                      "{http.reverse_proxy.header.Remote-User}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-User}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/verify?rd=https%3A%2F%2Flogin",
+    },
+    "transport": {
+      "protocol": "http",
+      "tls": {},
+    },
+    "upstreams": [
+      {
+        "dial": "auth.example.com:443",
+      },
+    ],
+  },
+  {
+    "handler": "authentication",
+    "providers": {
+      "http_basic": {
+        "accounts": [
+          {
+            "password": "$2a$10$abc",
+            "username": "ops",
+          },
+        ],
+        "hash": {
+          "algorithm": "bcrypt",
+        },
+        "realm": "restricted",
+      },
+    },
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
