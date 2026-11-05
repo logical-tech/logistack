@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { foldersQuery } from "@/lib/api/folders";
 import { projectQuery } from "@/lib/api/projects";
 import { servicesQuery } from "@/lib/api/services";
+import { stacksQuery } from "@/lib/api/stacks";
 import type { Environment, EnvironmentId, ProjectId } from "@/lib/api/types";
 
 export const Route = createFileRoute("/_app/projects/$projectId/")({
@@ -35,6 +36,7 @@ function EnvironmentServices({
 	projectId: ProjectId;
 }) {
 	const { data: services } = useQuery(servicesQuery(env.id));
+	const { data: stacks } = useQuery(stacksQuery(env.id));
 	if (!services) {
 		return (
 			<div className="overflow-hidden rounded-xl bg-card ring-1 ring-border">
@@ -64,7 +66,7 @@ function EnvironmentServices({
 	}
 	return (
 		<div className="t-reveal">
-			<ServiceList services={services} projectId={projectId} />
+			<ServiceList services={services} stacks={stacks} projectId={projectId} />
 		</div>
 	);
 }

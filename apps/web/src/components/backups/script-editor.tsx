@@ -104,6 +104,7 @@ export function ScriptEditor({
 	label = "Script",
 	language = bash,
 	hint = "#!/bin/sh\nset -eu\n",
+	readOnly = false,
 }: {
 	id: string;
 	value: string;
@@ -114,6 +115,8 @@ export function ScriptEditor({
 	label?: string;
 	language?: Extension;
 	hint?: string;
+	/** Selectable and searchable, never changed. */
+	readOnly?: boolean;
 }) {
 	const host = useRef<HTMLDivElement>(null);
 	const view = useRef<EditorView | null>(null);
@@ -139,6 +142,7 @@ export function ScriptEditor({
 					syntaxHighlighting(editorHighlight),
 					keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
 					placeholder(hint),
+					EditorState.readOnly.of(readOnly),
 					editorTheme,
 					EditorView.lineWrapping,
 					EditorView.contentAttributes.of({

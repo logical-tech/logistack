@@ -26,12 +26,14 @@ import {
 	runStatuses,
 	scheduleConcurrencies,
 	serviceKinds,
+	stackSources,
 	storageKeyAccess,
 } from "@logistack/contracts";
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const environmentKind = pgEnum("environment_kind", environmentKinds);
 export const serviceKind = pgEnum("service_kind", serviceKinds);
+export const stackSource = pgEnum("stack_source", stackSources);
 export const desiredState = pgEnum("desired_state", desiredStates);
 export const observedState = pgEnum("observed_state", observedStates);
 export const nodeRole = pgEnum("node_role", nodeRoles);

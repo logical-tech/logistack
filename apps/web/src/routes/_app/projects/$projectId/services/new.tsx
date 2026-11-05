@@ -82,6 +82,7 @@ import {
 	type WizardApi,
 	type WizardStep,
 } from "@/components/wizard/wizard";
+import { ApiError } from "@/lib/api";
 import { instanceStatusQuery } from "@/lib/api/instance";
 import {
 	branchesQuery,
@@ -98,6 +99,7 @@ import {
 	servicesQuery,
 	useCreateService,
 } from "@/lib/api/services";
+import { type StackId, useCreateComposeStack } from "@/lib/api/stacks";
 import type {
 	BuildType,
 	DatabaseEngine,
@@ -496,7 +498,9 @@ function buildSteps(
 			id: "domain",
 			title: "Domain",
 			description: "How people reach this service from the internet.",
-			when: (v) => v.kind !== "database" && v.kind !== "storage",
+			// A compose stack's containers get their domains from the stack page.
+			when: (v) =>
+				v.kind !== "database" && v.kind !== "storage" && v.kind !== "compose",
 			schema: (v) =>
 				z.object({
 					hostname:
@@ -1104,7 +1108,7 @@ function ConfigureStep({
 				id="wz-composeYaml"
 				label="Compose file"
 				error={w.error("composeYaml")}
-				hint="Volumes and networks are namespaced per service; container names are ignored."
+				hint="Each compose service becomes a container of one stack, reachable by its name. Official database images become managed databases. build:, host paths and privileged mode are not supported; add domains from the stack once it runs."
 			>
 				<Textarea
 					{...w.bind("composeYaml")}
@@ -1373,6 +1377,7 @@ function NewService() {
 	const { data: project } = useQuery(projectQuery(projectId));
 	const { data: status } = useQuery(instanceStatusQuery);
 	const create = useCreateService();
+	const createStack = useCreateComposeStack();
 	const providers = useQuery(gitProvidersQuery);
 
 	const env =
@@ -1427,6 +1432,28 @@ function NewService() {
 				finishLabel="Create and deploy"
 				onComplete={async (v) => {
 					const name = serviceName(v);
+					if (v.kind === "compose") {
+						const made = await createStack
+							.mutateAsync({
+								environmentId: env.id,
+								name,
+								composeYaml: v.composeYaml,
+							})
+							.catch((e: unknown) => {
+								throw e instanceof ApiError && Array.isArray(e.details)
+									? new Error(`${e.message}: ${e.details.join("; ")}`)
+									: e;
+							});
+						toast.success(`${name} is deploying`, {
+							description: `${made.services.length} containers start in dependency order.`,
+							icon: <Layers className="size-4" />,
+						});
+						await navigate({
+							to: "/projects/$projectId/stacks/$stackId",
+							params: { projectId, stackId: made.stackId as StackId },
+						});
+						return;
+					}
 					const service = await create.mutateAsync({
 						environmentId: env.id,
 						name,

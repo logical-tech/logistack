@@ -132,6 +132,7 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 					created: false,
 					name: instance,
 					templateId: t.id,
+					stackId: again[0]?.stackId ?? "",
 					services: again.map((s) => ({
 						id: s.id,
 						name: s.slug,
@@ -160,6 +161,20 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 				);
 
 			const created: DeployedService[] = [];
+			const stackId = rid("stk");
+			const now = new Date().toISOString();
+			db.stacks.push({
+				id: stackId,
+				environmentId,
+				name: instance,
+				source: "template",
+				templateId: t.id,
+				createdBy: null,
+				createdAt: now,
+				updatedAt: now,
+				composeYaml: null,
+				composeHidden: false,
+			});
 			dependencyOrder(t.services).forEach((s, order) => {
 				const id = rid("svc");
 				const at = new Date().toISOString();
@@ -206,6 +221,7 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 					createdBy: null,
 					icon: null,
 					importedFrom: `template:${t.id}:${instance}/${s.name}`,
+					stackId,
 					createdAt: at,
 					updatedAt: at,
 				};
@@ -221,7 +237,13 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 				});
 			});
 			return delay(
-				{ created: true, name: instance, templateId: t.id, services: created },
+				{
+					created: true,
+					name: instance,
+					templateId: t.id,
+					stackId,
+					services: created,
+				},
 				900,
 			);
 		},

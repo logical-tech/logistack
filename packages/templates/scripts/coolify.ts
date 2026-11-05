@@ -16,7 +16,7 @@ import {
 	type Resolve,
 	Skip,
 	slug,
-} from "./compose.ts";
+} from "../src/compose.ts";
 import type { Draft } from "./draft.ts";
 
 /** `# documentation: https://...` lines before the YAML body. */

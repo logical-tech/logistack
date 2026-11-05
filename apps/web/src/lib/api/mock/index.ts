@@ -13,6 +13,7 @@ import { monitoringAdapter } from "./monitoring";
 import { networkingMock } from "./networking";
 import { serviceOpsMock } from "./service-ops";
 import { ssoMock } from "./sso";
+import { stacksMock } from "./stacks";
 import { templatesMock } from "./templates";
 
 const db = createMockDb();
@@ -281,6 +282,7 @@ export const mockAdapter: ApiAdapter = {
 				createdBy: null,
 				icon: null,
 				importedFrom: importedFrom ?? null,
+				stackId: null,
 				createdAt: at,
 				updatedAt: at,
 			};
@@ -332,5 +334,6 @@ export const mockAdapter: ApiAdapter = {
 	networking: networkingMock,
 	serviceOps: serviceOpsMock(db),
 	sso: ssoMock,
+	stacks: stacksMock(db),
 	templates: templatesMock(db),
 };

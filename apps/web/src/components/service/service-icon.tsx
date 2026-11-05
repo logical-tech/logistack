@@ -78,6 +78,40 @@ export function ServiceGlyph({
 	);
 }
 
+/** A stack's primary glyph with a second plate behind it: several containers, one identity. */
+export function StackGlyph({
+	service,
+	large = false,
+	className,
+}: {
+	service: Iconed;
+	large?: boolean;
+	className?: string;
+}) {
+	const radius = large ? "rounded-xl" : "rounded-lg";
+	return (
+		<span
+			className={cn(
+				"relative grid shrink-0",
+				large ? "size-11" : "size-9",
+				className,
+			)}
+		>
+			<span
+				aria-hidden
+				className={cn(
+					"absolute inset-0 translate-x-[3px] -translate-y-[3px] bg-muted/70 ring-1 ring-border",
+					radius,
+				)}
+			/>
+			<ServiceGlyph
+				service={service}
+				className={cn("relative size-full ring-1 ring-card", radius)}
+			/>
+		</span>
+	);
+}
+
 /** Searchable grid of the allowed icons; a pick saves at once. */
 export function ServiceIconPicker({
 	service,

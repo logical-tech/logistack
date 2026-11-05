@@ -1,3 +1,4 @@
+import type { StackDetail } from "../stacks";
 import type {
 	BackupRunListItem,
 	CertificateSummary,
@@ -18,8 +19,11 @@ const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
 const ahead = (days: number) => new Date(now + days * 86_400_000).toISOString();
 
+export type MockStack = Omit<StackDetail, "services" | "effectiveCompose">;
+
 export type MockDb = {
 	folders: Folder[];
+	stacks: MockStack[];
 	projects: Project[];
 	environments: Environment[];
 	services: Service[];
@@ -170,6 +174,29 @@ function deploy(
 	return d;
 }
 
+const PLAUSIBLE_COMPOSE = `services:
+  plausible:
+    image: ghcr.io/plausible/community-edition:v3.1
+    ports: ["8000"]
+    environment:
+      BASE_URL: https://stats.logical.it
+      SECRET_KEY_BASE: \${SECRET_KEY_BASE:-change-me}
+      DATABASE_URL: postgres://postgres:postgres@plausible-db:5432/plausible
+      CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible
+    depends_on: [plausible-db, clickhouse]
+  plausible-db:
+    image: postgres:16.4
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes: ["db-data:/var/lib/postgresql/data"]
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8-alpine
+    volumes: ["event-data:/var/lib/clickhouse"]
+volumes:
+  db-data: {}
+  event-data: {}
+`;
+
 function service(
 	envId: Environment["id"],
 	slug: string,
@@ -200,6 +227,7 @@ function service(
 		createdBy: null,
 		icon: null,
 		importedFrom: null,
+		stackId: null,
 		createdAt: ago(60 * 24 * 30),
 		updatedAt: ago(60 * 24 * 30),
 	};
@@ -463,15 +491,19 @@ export function createMockDb(): MockDb {
 			e("analytics", "production"),
 			"plausible",
 			"plausible",
-			{
-				kind: "compose",
-				source: { type: "inline" },
-				originalYaml:
-					"services:\n  plausible:\n    image: ghcr.io/plausible/community-edition:v3.1\n",
-				servicesOverrides: {},
-			},
+			app(
+				{ type: "image", image: "ghcr.io/plausible/community-edition:v3.1" },
+				8000,
+			),
 			"running",
 			["stats.logical.it"],
+		),
+		service(
+			e("analytics", "production"),
+			"plausible-db",
+			"plausible-db",
+			db("postgres", "16.4"),
+			"running",
 		),
 		service(
 			e("analytics", "production"),
@@ -552,6 +584,28 @@ export function createMockDb(): MockDb {
 			storage("rustfs"),
 			"running",
 		),
+	];
+
+	const plausible = "stk_analytics_plausible";
+	for (const s of services)
+		if (
+			s.environmentId === e("analytics", "production") &&
+			["plausible", "plausible-db", "clickhouse"].includes(s.slug)
+		)
+			s.stackId = plausible;
+	const stacks: MockStack[] = [
+		{
+			id: plausible,
+			environmentId: e("analytics", "production"),
+			name: "plausible",
+			source: "compose",
+			templateId: null,
+			createdBy: null,
+			createdAt: ago(60 * 24 * 30),
+			updatedAt: ago(60 * 24 * 30),
+			composeHidden: false,
+			composeYaml: PLAUSIBLE_COMPOSE,
+		},
 	];
 
 	const byId = (id: string) => {
@@ -703,6 +757,7 @@ export function createMockDb(): MockDb {
 
 	return {
 		folders,
+		stacks,
 		projects,
 		environments,
 		services,

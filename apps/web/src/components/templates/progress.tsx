@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { DeploymentStatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
+import type { StackId } from "@/lib/api/stacks";
 import {
 	deploymentQuery,
 	type TemplateDeployResult,
@@ -145,14 +146,24 @@ export function DeployProgress({
 					</Button>
 				)}
 				<Button asChild variant="outline">
-					<Link
-						to="/projects/$projectId"
-						params={{ projectId }}
-						search={{ env: environmentId }}
-					>
-						Go to the environment
-						<ArrowRight data-icon="inline-end" />
-					</Link>
+					{result.stackId ? (
+						<Link
+							to="/projects/$projectId/stacks/$stackId"
+							params={{ projectId, stackId: result.stackId as StackId }}
+						>
+							Open the stack
+							<ArrowRight data-icon="inline-end" />
+						</Link>
+					) : (
+						<Link
+							to="/projects/$projectId"
+							params={{ projectId }}
+							search={{ env: environmentId }}
+						>
+							Go to the environment
+							<ArrowRight data-icon="inline-end" />
+						</Link>
+					)}
 				</Button>
 			</div>
 		</div>
