@@ -197,6 +197,13 @@
       "when": 1793906609566,
       "tag": "0027_stack",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793922907303,
+      "tag": "0028_service_alerts",
+      "breakpoints": true
     }
   ]
 }

@@ -61,6 +61,23 @@ describe("renderEvent", () => {
 				.severity,
 		).toBe("warning");
 	});
+	test("a resolved state reads as a resolution", () => {
+		const crash = {
+			...event,
+			type: "service.crash_loop" as const,
+			payload: { state: "firing", service: "api", reason: "exit (1)" },
+		};
+		expect(renderEvent(crash)).toMatchObject({
+			title: "Service crash-looping: api",
+			severity: "error",
+		});
+		expect(
+			renderEvent({ ...crash, payload: { state: "resolved", service: "api" } }),
+		).toMatchObject({
+			title: "Resolved: Service crash-looping: api",
+			severity: "success",
+		});
+	});
 });
 
 describe("matchRules", () => {

@@ -27,6 +27,7 @@ export const idPrefixes = {
 	event: "evt",
 	nodeJoin: "njn",
 	metricThreshold: "thr",
+	serviceThreshold: "sth",
 	instanceUpdate: "upd",
 	storageAccessKey: "sak",
 	cloudflareTunnel: "cft",

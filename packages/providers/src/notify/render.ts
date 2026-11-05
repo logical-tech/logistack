@@ -11,6 +11,11 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 		severity: "info",
 		what: "Service status changed",
 	},
+	"service.crash_loop": { severity: "error", what: "Service crash-looping" },
+	"service.threshold": {
+		severity: "warning",
+		what: "Service threshold crossed",
+	},
 	"backup.succeeded": { severity: "success", what: "Backup succeeded" },
 	"backup.failed": { severity: "error", what: "Backup failed" },
 	"schedule.succeeded": {
@@ -53,8 +58,15 @@ const details: [key: string, label: string][] = [
 ];
 
 export function renderEvent(event: EventEnvelope): Rendered {
-	const t = templates[event.type];
 	const p = event.payload;
+	// `firing` / `resolved` events share one type; a resolution reads as one.
+	const t =
+		p.state === "resolved"
+			? {
+					severity: "success" as const,
+					what: `Resolved: ${templates[event.type].what}`,
+				}
+			: templates[event.type];
 	const subject =
 		str(p.name) ?? str(p.service) ?? str(p.hostname) ?? str(p.node);
 	const reason = str(p.error) ?? str(p.message) ?? str(p.reason);

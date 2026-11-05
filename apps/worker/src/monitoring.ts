@@ -11,7 +11,7 @@ import {
 } from "./metrics-store.ts";
 import { claimJoin, runJoinStep } from "./node-join.ts";
 import { onNodeOps, syncNodes } from "./nodes.ts";
-import { evaluateThresholds } from "./thresholds.ts";
+import { evaluateServiceThresholds, evaluateThresholds } from "./thresholds.ts";
 
 /** Repeats `fn` every `ms` (and on `kick()`), one run at a time, logging failures. */
 function every(name: string, ms: number, fn: () => Promise<void>) {
@@ -81,6 +81,7 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 				await ensurePartitions(sql);
 				await rollup(sql);
 				await evaluateThresholds(sql, ctx.bus);
+				await evaluateServiceThresholds(sql, ctx.bus);
 				if (Date.now() - lastRetention > 600_000) {
 					lastRetention = Date.now();
 					const dropped = await applyRetention(sql, await loadRetention(sql));

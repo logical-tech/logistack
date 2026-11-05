@@ -3,7 +3,16 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encrypt, importMasterKey } from "@logistack/core";
-import { node, nodeJoin, organization, sshKey } from "@logistack/db";
+import {
+	environment,
+	node,
+	nodeJoin,
+	organization,
+	project,
+	service,
+	serviceThreshold,
+	sshKey,
+} from "@logistack/db";
 import { RedisClient } from "bun";
 import { eq } from "drizzle-orm";
 import type { Ctx } from "../src/ctx.ts";
@@ -15,7 +24,10 @@ import {
 	rollup,
 } from "../src/metrics-store.ts";
 import { claimJoin, runJoinStep } from "../src/node-join.ts";
-import { evaluateThresholds } from "../src/thresholds.ts";
+import {
+	evaluateServiceThresholds,
+	evaluateThresholds,
+} from "../src/thresholds.ts";
 import {
 	hasDocker,
 	MON_PREFIX,
@@ -272,6 +284,97 @@ describe.skipIf(!hasDocker)(
 				"metric.threshold",
 				"org_mon",
 				{ type: "node", id: n?.id },
+			]);
+		});
+
+		test("service thresholds read the worst replica and cross once each way", async () => {
+			const [p] = await infra.db
+				.insert(project)
+				.values({ organizationId: "org_mon", name: "P", slug: "p" })
+				.returning();
+			const [e] = await infra.db
+				.insert(environment)
+				.values({
+					projectId: p?.id as string,
+					name: "Prod",
+					slug: "prod",
+					kind: "production",
+					isDefault: true,
+				})
+				.returning();
+			const [s] = await infra.db
+				.insert(service)
+				.values({
+					environmentId: e?.id as string,
+					name: "api",
+					slug: "api",
+					kind: "application",
+					spec: {
+						kind: "application",
+						source: { type: "image", image: "nginx:1" },
+						build: { type: "image" },
+						ports: [],
+						replicas: 2,
+						resources: { memoryMb: 100 },
+						placement: [],
+					},
+				})
+				.returning();
+			const svc = s?.id as string;
+			await infra.db.insert(serviceThreshold).values([
+				{
+					id: "sth_mem",
+					organizationId: "org_mon",
+					serviceId: svc,
+					metric: "memoryPercent",
+					above: 80,
+					forSec: 60,
+				},
+				{
+					id: "sth_mb",
+					organizationId: "org_mon",
+					serviceId: svc,
+					metric: "memoryMb",
+					above: 500,
+					forSec: 60,
+				},
+			]);
+			const MiB = 1_048_576;
+			const at = (ctr: string, used: number, ago: number) =>
+				infra.sql`insert into metric_container_raw values ('node-t', ${ctr},
+					now() - make_interval(secs => ${ago}), ${svc}, ${ctr}, 1, ${used}, ${100 * MiB}, 0, 0, 0, 0)`;
+			const events: unknown[][] = [];
+			const bus = { publish: async (...a: unknown[]) => void events.push(a) };
+
+			// One replica at 90% of its limit, the other idle: the worst one counts.
+			await at("ctr-a", 90 * MiB, 5);
+			await at("ctr-a", 90 * MiB, 15);
+			await at("ctr-b", 10 * MiB, 5);
+			expect(await evaluateServiceThresholds(infra.sql, bus)).toMatchObject([
+				{
+					thresholdId: "sth_mem",
+					serviceId: svc,
+					service: "api",
+					state: "firing",
+					value: 90,
+				},
+			]);
+			expect(await evaluateServiceThresholds(infra.sql, bus)).toEqual([]);
+			const [row] =
+				await infra.sql`select firing, value from service_threshold where id = 'sth_mb'`;
+			expect(row).toEqual({ firing: false, value: 90 });
+
+			await infra.sql`delete from metric_container_raw where service_id = ${svc}`;
+			await at("ctr-a", 20 * MiB, 5);
+			expect(
+				(await evaluateServiceThresholds(infra.sql, bus)).map((x) => [
+					x.thresholdId,
+					x.state,
+				]),
+			).toEqual([["sth_mem", "resolved"]]);
+			expect(events.map((x) => x.slice(0, 3))).toEqual([
+				["service.threshold", "org_mon", { type: "service", id: svc }],
+				["service.threshold", "org_mon", { type: "service", id: svc }],
 			]);
 		});
 
