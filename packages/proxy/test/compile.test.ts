@@ -6,7 +6,7 @@ import {
 	type ProxyRoute,
 	routeId,
 } from "../src/index.ts";
-import { dashboard, input, routes, settings } from "./fixtures.ts";
+import { cf, dashboard, input, routes, settings } from "./fixtures.ts";
 
 const compile = (rs: ProxyRoute[], s = settings) =>
 	compileProxy({ settings: s, dashboard, routes: rs });
@@ -208,6 +208,60 @@ test("wildcard without DNS challenge is rejected", () => {
 			},
 		]),
 	).toThrow(/domain w: wildcard/);
+});
+
+describe("wildcard and explicit hosts on one zone", () => {
+	const upstream = (host: string) => ({ host, port: 80 });
+	const zone: ProxyRoute[] = [
+		{
+			domainId: "wild",
+			hostname: "*.shop.example.com",
+			upstream: upstream("ls-svc-tenants"),
+			https: true,
+			cert: "auto",
+			dnsChallenge: cf,
+		},
+		{
+			domainId: "admin",
+			hostname: "admin.shop.example.com",
+			upstream: upstream("ls-svc-admin"),
+			https: true,
+			cert: "auto",
+		},
+		{
+			domainId: "apex",
+			hostname: "shop.example.com",
+			upstream: upstream("ls-svc-site"),
+			https: true,
+			cert: "auto",
+			dnsChallenge: cf,
+		},
+	];
+
+	test("snapshot", () => {
+		expect(compile(zone)).toMatchSnapshot();
+	});
+
+	test("the explicit host wins: its route comes before the wildcard's", () => {
+		const order = ids(httpsRoutes([...zone].reverse()));
+		expect(order.indexOf("ls-domain-admin")).toBeLessThan(
+			order.indexOf("ls-domain-wild"),
+		);
+		expect(byId(httpsRoutes(zone), "ls-domain-wild")?.match).toEqual([
+			{ host: ["*.shop.example.com"] },
+		]);
+	});
+
+	test("the wildcard gets DNS-01; an explicit host without a provider keeps HTTP-01", () => {
+		const policies = compile(zone).apps.tls.automation.policies;
+		expect(policies.map((p) => p.subjects)).toEqual([
+			["*.shop.example.com", "shop.example.com"],
+			undefined,
+		]);
+		expect(policies[0]?.issuers[0]).toMatchObject({
+			challenges: { dns: { provider: { name: "cloudflare" } } },
+		});
+	});
 });
 
 test("redis URL becomes storage fields", () => {
