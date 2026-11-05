@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Template, TemplateSummary } from "@logistack/contracts";
-import { linkHosts, Skip, shellSplit } from "../scripts/compose.ts";
 import { fromCoolify } from "../scripts/coolify.ts";
 import { fromDokploy } from "../scripts/dokploy.ts";
 import type { Draft } from "../scripts/draft.ts";
+import { linkHosts, Skip, shellSplit } from "../src/compose.ts";
 import {
 	catalogDir,
 	catalogIndex,

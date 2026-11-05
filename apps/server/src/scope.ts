@@ -8,6 +8,7 @@ import {
 	folder,
 	project,
 	service,
+	stack,
 } from "@logistack/db";
 import { and, eq, type SQL } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
@@ -20,6 +21,7 @@ export type Locatable =
 	| "project"
 	| "environment"
 	| "service"
+	| "stack"
 	| "deployment"
 	| "domain";
 
@@ -100,6 +102,19 @@ export async function locate(
 			);
 		case "service":
 			return projectChain(db, organizationId, eq(service.id, id), "service");
+		case "stack": {
+			// A stack is guarded as its environment: its services are what permissions name.
+			const [row] = await db
+				.select({ environmentId: stack.environmentId })
+				.from(stack)
+				.where(eq(stack.id, id));
+			if (!row) throw notFound("stack");
+			return locate(db, organizationId, "environment", row.environmentId).catch(
+				() => {
+					throw notFound("stack");
+				},
+			);
+		}
 		case "deployment":
 		case "domain": {
 			const table = kind === "deployment" ? deployment : domain;
