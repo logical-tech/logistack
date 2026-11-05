@@ -165,6 +165,9 @@ async function assertRoutable(
 
 type DomainRow = typeof domain.$inferSelect;
 
+/** Access rules have their own endpoint, which never returns basic auth hashes. */
+const withoutAccess = ({ access: _, ...d }: DomainRow) => d;
+
 /** Best effort: a record LogiStack created goes away with its domain. */
 async function deleteRecord(c: Context<Env>, row: DomainRow) {
 	if (!row.dnsProviderId || !row.dnsRecordId) return;
@@ -209,6 +212,8 @@ const DomainListItem = z
 		tunnel: z.boolean(),
 		customCertificateId: z.string().nullable(),
 		redirectTo: z.string().nullable(),
+		/** Rule types checked before the upstream; GET /domains/{id}/access has the rules. */
+		access: z.array(z.enum(["ip_allow", "forward_auth", "basic_auth"])),
 		status: z.enum(["pending", "active", "error"]),
 		statusMessage: z.string().nullable(),
 		service: z.object({ id: z.string(), name: z.string() }),
@@ -305,6 +310,7 @@ export const domains = router()
 						tunnel: d.tunnel,
 						customCertificateId: d.customCertificateId,
 						redirectTo: d.redirectTo,
+						access: d.access.map((r) => r.type),
 						status: d.status,
 						statusMessage: d.statusMessage,
 						service,
@@ -349,7 +355,7 @@ export const domains = router()
 				.from(domain)
 				.where(eq(domain.serviceId, c.req.valid("param").id))
 				.orderBy(asc(domain.hostname));
-			return c.json(rows, 200);
+			return c.json(rows.map(withoutAccess), 200);
 		},
 	)
 	.openapi(
@@ -379,7 +385,7 @@ export const domains = router()
 			);
 			c.set("auditResourceId", row.id);
 			await sync(c, "domain created");
-			return c.json(row, 201);
+			return c.json(withoutAccess(row), 201);
 		},
 	)
 	.openapi(
@@ -427,7 +433,7 @@ export const domains = router()
 			);
 			c.set("auditResourceId", row.id);
 			await sync(c, "domain created");
-			return c.json(row, 201);
+			return c.json(withoutAccess(row), 201);
 		},
 	)
 	.openapi(
@@ -476,7 +482,7 @@ export const domains = router()
 				await deleteRecord(c, before);
 			c.set("auditResourceId", id);
 			await sync(c, "domain updated");
-			return c.json(row, 200);
+			return c.json(withoutAccess(row), 200);
 		},
 	)
 	.openapi(

@@ -18,7 +18,7 @@ const IpAllow = z.object({
 const ForwardAuth = z.object({
 	type: z.literal("forward_auth"),
 	/** Asked with GET for every request; a 2xx lets it through, anything else is returned to the client. */
-	url: z.httpUrl().max(2048),
+	url: z.url({ protocol: /^https?$/ }).max(2048),
 	/** Headers of a 2xx auth response copied onto the request to the upstream. */
 	copyHeaders: z.array(HeaderName).max(20),
 });
@@ -35,6 +35,7 @@ export const BasicAuthUserInput = z.object({
 	username: BasicAuthUsername,
 	password: z.string().min(8).max(128).optional(),
 });
+export type BasicAuthUserInput = z.infer<typeof BasicAuthUserInput>;
 
 export const uniqueUsernames = (users: { username: string }[]) =>
 	new Set(users.map((u) => u.username)).size === users.length;
