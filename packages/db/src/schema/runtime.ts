@@ -60,6 +60,8 @@ export const deployment = pgTable(
 		/** The tag to clone for a tag or release trigger; null clones the source branch. */
 		gitRef: text("git_ref"),
 		imageRef: text("image_ref"),
+		/** Encrypted `SpecSnapshot` JSON of what the deploy applied; the pending diff's baseline. */
+		specSnapshotEncrypted: text("spec_snapshot_encrypted"),
 		startedAt: tstz("started_at"),
 		finishedAt: tstz("finished_at"),
 		error: text("error"),
