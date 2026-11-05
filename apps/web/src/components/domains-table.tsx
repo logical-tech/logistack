@@ -1,9 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { createColumnHelper } from "@tanstack/react-table";
-import { ArrowUpRight, Pencil, Trash2 } from "lucide-react";
+import {
+	ArrowUpRight,
+	Pencil,
+	Shield,
+	ShieldCheck,
+	Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { type BaseFeatures, DataTable } from "@/components/data-table";
+import { DomainAccessDrawer } from "@/components/domain-access-drawer";
 import { ConfirmDelete, Expiry } from "@/components/integrations/parts";
 import { StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
@@ -37,7 +44,10 @@ function Certificate({ d }: { d: DomainListItem }) {
 	);
 }
 
-function columns(actions: { onDelete: (d: DomainListItem) => void }) {
+function columns(actions: {
+	onDelete: (d: DomainListItem) => void;
+	onAccess: (d: DomainListItem) => void;
+}) {
 	return col.columns([
 		col.display({
 			id: "hostname",
@@ -111,9 +121,26 @@ function columns(actions: { onDelete: (d: DomainListItem) => void }) {
 		col.display({
 			id: "actions",
 			header: () => <span className="sr-only">Actions</span>,
-			meta: { className: "w-24 text-right max-md:w-20 max-md:pl-0" },
+			meta: { className: "w-32 text-right max-md:w-28 max-md:pl-0" },
 			cell: ({ row: { original: d } }) => (
 				<div className="flex justify-end gap-1">
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						aria-label={
+							d.access.length
+								? `Access rules for ${d.hostname}, ${d.access.length} active`
+								: `Access rules for ${d.hostname}, open to anyone`
+						}
+						title={d.access.length ? "Protected" : "Open to anyone"}
+						onClick={() => actions.onAccess(d)}
+					>
+						{d.access.length ? (
+							<ShieldCheck className="text-ok-text" />
+						) : (
+							<Shield />
+						)}
+					</Button>
 					<Button variant="ghost" size="icon-sm" asChild>
 						<Link
 							to="/domains/new"
@@ -140,14 +167,19 @@ function columns(actions: { onDelete: (d: DomainListItem) => void }) {
 /** Domains with their status, TLS and certificate; edit opens the wizard, delete confirms. */
 export function DomainsTable({ data }: { data: DomainListItem[] }) {
 	const [deleting, setDeleting] = useState<DomainListItem | null>(null);
+	const [guarding, setGuarding] = useState<DomainListItem | null>(null);
 	const remove = useInvalidating(api.networking.domains.remove, [["domains"]]);
 	return (
 		<>
 			<DataTable
 				label="Domains"
-				columns={columns({ onDelete: setDeleting })}
+				columns={columns({ onDelete: setDeleting, onAccess: setGuarding })}
 				data={data}
 				getRowId={(d) => d.id}
+			/>
+			<DomainAccessDrawer
+				domain={guarding}
+				onOpenChange={(o) => !o && setGuarding(null)}
 			/>
 			<ConfirmDelete
 				open={deleting !== null}
