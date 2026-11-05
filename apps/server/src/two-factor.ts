@@ -5,6 +5,7 @@ import {
 	account,
 	auditLog,
 	type Db,
+	invitation,
 	member,
 	organization,
 	passkey,
@@ -115,6 +116,79 @@ export async function memberTwoFactor(
 }
 
 export const TWO_FACTOR_BLOCKED = "member.two_factor_blocked";
+
+export const TWO_FACTOR_REQUIRED_MESSAGE =
+	"this organization requires two-factor authentication: add an authenticator app or a passkey";
+
+/**
+ * better-auth organization endpoints a blocked member may still call: answering an invitation
+ * and choosing an organization. Every other `/organization/*` endpoint is gated, new ones included.
+ */
+const OPEN_ORGANIZATION_PATHS = new Set([
+	"/organization/accept-invitation",
+	"/organization/reject-invitation",
+	"/organization/get-invitation",
+	"/organization/list-user-invitations",
+	"/organization/list",
+	"/organization/set-active",
+]);
+
+const OrganizationTarget = z
+	.object({
+		organizationId: z.string().optional(),
+		organizationSlug: z.string().optional(),
+		invitationId: z.string().optional(),
+	})
+	.catch({});
+
+/**
+ * The organization a better-auth organization endpoint acts on, resolved in better-auth's order:
+ * the invitation's, then the slug's, then the id, else the session's active organization.
+ */
+async function targetOrganization(
+	db: Db,
+	input: unknown,
+	activeOrganizationId: string | null | undefined,
+): Promise<string | undefined> {
+	const target = OrganizationTarget.parse(input);
+	if (target.invitationId) {
+		const [row] = await db
+			.select({ id: invitation.organizationId })
+			.from(invitation)
+			.where(eq(invitation.id, target.invitationId));
+		return row?.id;
+	}
+	if (target.organizationSlug) {
+		const [row] = await db
+			.select({ id: organization.id })
+			.from(organization)
+			.where(eq(organization.slug, target.organizationSlug));
+		return row?.id;
+	}
+	return target.organizationId ?? activeOrganizationId ?? undefined;
+}
+
+/** The lockout that refuses this better-auth `/organization/*` request, or undefined when it may proceed. */
+export async function blockedOnOrganizationEndpoint(
+	db: Db,
+	request: {
+		path: string;
+		body?: unknown;
+		query?: unknown;
+		userId: string;
+		activeOrganizationId?: string | null;
+	},
+): Promise<{ memberId: string; deadline: Date } | undefined> {
+	if (OPEN_ORGANIZATION_PATHS.has(request.path)) return undefined;
+	const organizationId = await targetOrganization(
+		db,
+		{ ...(request.query as object), ...(request.body as object) },
+		request.activeOrganizationId,
+	);
+	if (!organizationId) return undefined;
+	const access = await memberTwoFactor(db, request.userId, organizationId);
+	return access?.kind === "blocked" ? access : undefined;
+}
 
 /** One audit row per member and lockout: the first request after the deadline writes it. */
 export async function auditBlocked(

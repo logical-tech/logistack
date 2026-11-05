@@ -14,6 +14,12 @@ describe.skipIf(!hasDocker)("organization two-factor requirement", () => {
 	let orgId: string;
 	let cookie: string;
 	let key: string;
+	let devMemberId: string;
+	const dev = {
+		name: "Dev",
+		email: "dev@qw6.example.com",
+		password: "dev-password-123",
+	};
 	const asOwner = () => ({ headers: { cookie } });
 	const auditRows = (action: string) =>
 		h.deps.db
@@ -48,6 +54,22 @@ describe.skipIf(!hasDocker)("organization two-factor requirement", () => {
 				body: { name: "ci" },
 			})
 		).json.key;
+		const invite = await h.call("POST", "/api/invitations", {
+			...asOwner(),
+			body: { email: dev.email, role: "viewer" },
+		});
+		await h.call("POST", "/api/auth/sign-up/email", { body: dev });
+		const devCookie = await h.signIn(dev.email, dev.password);
+		await h.call("POST", "/api/auth/organization/accept-invitation", {
+			headers: { cookie: devCookie },
+			body: { invitationId: invite.json.id },
+		});
+		const [row] = await h.deps.db
+			.select({ id: member.id })
+			.from(member)
+			.innerJoin(user, eq(user.id, member.userId))
+			.where(eq(user.email, dev.email));
+		devMemberId = row?.id as string;
 	}, 90_000);
 	afterAll(() => h?.close());
 
@@ -110,6 +132,51 @@ describe.skipIf(!hasDocker)("organization two-factor requirement", () => {
 			headers: { authorization: `Bearer ${key}` },
 		});
 		expect(res.status).toBe(200);
+	});
+
+	test("a blocked admin cannot manage the organization through better-auth, but can still pick it and enrol", async () => {
+		const setActive = await h.call(
+			"POST",
+			"/api/auth/organization/set-active",
+			{ ...asOwner(), body: { organizationId: orgId } },
+		);
+		expect(setActive.status).toBe(200);
+		const list = await h.call("GET", "/api/auth/organization/list", asOwner());
+		expect(list.status).toBe(200);
+
+		const invite = await h.call(
+			"POST",
+			"/api/auth/organization/invite-member",
+			{ ...asOwner(), body: { email: "x@qw6.example.com", role: "admin" } },
+		);
+		expect(invite.status).toBe(403);
+		expect(invite.json).toMatchObject({
+			code: "two_factor_required",
+			message: expect.stringContaining("two-factor"),
+		});
+		const role = await h.call(
+			"POST",
+			"/api/auth/organization/update-member-role",
+			{
+				...asOwner(),
+				body: { memberId: devMemberId, role: "owner", organizationId: orgId },
+			},
+		);
+		expect(role.status).toBe(403);
+		expect(role.json.code).toBe("two_factor_required");
+		const [devRole] = await h.deps.db
+			.select({ role: member.role })
+			.from(member)
+			.where(eq(member.id, devMemberId));
+		expect(devRole?.role).toBe("viewer");
+
+		const passkeyOptions = await h.call(
+			"GET",
+			"/api/auth/passkey/generate-register-options",
+			asOwner(),
+		);
+		expect(passkeyOptions.status).toBe(200);
+		expect(passkeyOptions.json.challenge).toBeString();
 	});
 
 	test("editing the grace period keeps the original enablement", async () => {

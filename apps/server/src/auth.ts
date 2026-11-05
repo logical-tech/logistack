@@ -4,11 +4,15 @@ import { sso } from "@better-auth/sso";
 import { type Db, instanceSettings, schema } from "@logistack/db";
 import { APIError, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware } from "better-auth/api";
+import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { admin, organization, twoFactor } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import type { Config } from "./config.ts";
 import { joinOrganization } from "./sso.ts";
+import {
+	blockedOnOrganizationEndpoint,
+	TWO_FACTOR_REQUIRED_MESSAGE,
+} from "./two-factor.ts";
 
 export const API_KEY_PREFIX = "lsk_";
 
@@ -127,6 +131,27 @@ export function createAuth(config: Config, db: Db) {
 			// The passkey plugin takes its RP ID from options.baseURL, so these requests see the
 			// browser's host there. The hook's context is a per-request copy; the shared options stay.
 			before: createAuthMiddleware(async (ctx) => {
+				// better-auth's organization endpoints act on an organization outside requireActor.
+				if (ctx.path.startsWith("/organization/")) {
+					const session = await getSessionFromCtx(ctx);
+					if (!session) return;
+					const blocked = await blockedOnOrganizationEndpoint(db, {
+						path: ctx.path,
+						body: ctx.body,
+						query: ctx.query,
+						userId: session.user.id,
+						activeOrganizationId: (
+							session.session as { activeOrganizationId?: string | null }
+						).activeOrganizationId,
+					});
+					if (blocked)
+						throw new APIError("FORBIDDEN", {
+							code: "two_factor_required",
+							message: TWO_FACTOR_REQUIRED_MESSAGE,
+							deadline: blocked.deadline.toISOString(),
+						});
+					return;
+				}
 				if (!ctx.path.startsWith("/passkey/")) return;
 				const rpId = await passkeyRpId(config, db, ctx.headers);
 				return {

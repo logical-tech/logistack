@@ -24,6 +24,7 @@ import {
 	auditBlocked,
 	type MemberTwoFactor,
 	memberTwoFactor,
+	TWO_FACTOR_REQUIRED_MESSAGE,
 } from "./two-factor.ts";
 
 /** Whoever is making the request, already bound to one organization. */
@@ -305,10 +306,8 @@ export function currentActor(c: ActorContext) {
 export function requireActor(c: ActorContext) {
 	const actor = currentActor(c);
 	if (actor.twoFactor?.kind === "blocked")
-		throw new Failure(
-			"two_factor_required",
-			"this organization requires two-factor authentication: add an authenticator app or a passkey",
-			{ deadline: actor.twoFactor.deadline.toISOString() },
-		);
+		throw new Failure("two_factor_required", TWO_FACTOR_REQUIRED_MESSAGE, {
+			deadline: actor.twoFactor.deadline.toISOString(),
+		});
 	return actor;
 }
