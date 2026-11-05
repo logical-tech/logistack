@@ -58,6 +58,33 @@ export const EnvKey = z
 	.string()
 	.regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "invalid environment variable name");
 
+/**
+ * What every deployment injects into its containers and, as build args, into Dockerfile builds.
+ * The whole prefix is reserved so a variable added later never collides with a stored one.
+ */
+export const RESERVED_ENV_PREFIX = "LOGISTACK_";
+export const deploymentContextVars = {
+	LOGISTACK_DEPLOYMENT_ID: "The deployment that started this container.",
+	LOGISTACK_COMMIT_SHA: "Full hash of the deployed commit. Git sources only.",
+	LOGISTACK_COMMIT_MESSAGE:
+		"First line of the commit message, up to 200 characters. Git sources only.",
+	LOGISTACK_BRANCH: "Branch the commit was built from. Git sources only.",
+	LOGISTACK_ENVIRONMENT: "Name of the environment.",
+	LOGISTACK_PROJECT: "Name of the project.",
+	LOGISTACK_SERVICE: "Name of the service.",
+	LOGISTACK_URL:
+		"Primary domain with its scheme, such as https://app.example.com. Unset without a domain.",
+	LOGISTACK_FQDN:
+		"Every hostname the service answers on, comma-separated. Unset without a domain.",
+} as const satisfies Record<`${typeof RESERVED_ENV_PREFIX}${string}`, string>;
+export type DeploymentContextVar = keyof typeof deploymentContextVars;
+
+export const isReservedEnvKey = (key: string) =>
+	key.startsWith(RESERVED_ENV_PREFIX);
+
+export const reservedEnvKeyMessage = (key: string) =>
+	`${key}: names starting with ${RESERVED_ENV_PREFIX} are reserved for the variables LogiStack sets on every deployment`;
+
 export const EnvVar = z.object({
 	id: z.string(),
 	scope: EnvVarScope,
