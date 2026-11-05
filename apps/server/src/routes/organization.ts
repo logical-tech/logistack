@@ -1,13 +1,16 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	OrganizationUpdate,
 	observedStates,
 	TwoFactorPolicy,
 	twoFactorAccessKinds,
 } from "@logistack/contracts";
 import type { Grant } from "@logistack/core";
 import {
+	type Db,
 	deployment,
 	environment,
+	organization,
 	project,
 	service,
 	serviceStatus,
@@ -37,6 +40,29 @@ const settingJson = (p: Awaited<ReturnType<typeof readTwoFactorPolicy>>) => ({
 });
 
 const Named = z.object({ id: z.string(), name: z.string() });
+
+const OrganizationProfile = z
+	.object({
+		id: z.string(),
+		name: z.string(),
+		slug: z.string(),
+		logo: z.string().nullable(),
+	})
+	.openapi("OrganizationProfile");
+
+async function readProfile(db: Db, id: string) {
+	const [row] = await db
+		.select({
+			id: organization.id,
+			name: organization.name,
+			slug: organization.slug,
+			logo: organization.logo,
+		})
+		.from(organization)
+		.where(eq(organization.id, id));
+	if (!row) throw new Error(`organization ${id} not found`);
+	return row;
+}
 
 const roleName = (g: Grant) =>
 	typeof g.role === "string" ? g.role : g.role.id;
@@ -115,6 +141,58 @@ export const organizationRoutes = router()
 				},
 				200,
 			);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/organization",
+			tags: ["identity"],
+			security,
+			summary: "The active organization's name and logo",
+			middleware: [requirePermission("read", inOrganization)],
+			responses: { 200: json(OrganizationProfile, "Organization"), ...errors },
+		}),
+		async (c) =>
+			c.json(
+				await readProfile(c.var.deps.db, requireActor(c).organizationId),
+				200,
+			),
+	)
+	.openapi(
+		mutation(
+			"organization.update",
+			createRoute({
+				method: "patch",
+				path: "/organization",
+				tags: ["identity"],
+				security,
+				summary: "Rename the organization or change its logo",
+				description:
+					"`logo` is a PNG, WebP or JPEG data URL of at most 128 KB; `null` removes it. Members see the logo in the sidebar and as the browser tab icon.",
+				middleware: [requirePermission("admin", inOrganization)],
+				request: body(OrganizationUpdate),
+				responses: { 200: json(OrganizationProfile, "Saved"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { db } = c.var.deps;
+			const orgId = requireActor(c).organizationId;
+			const patch = c.req.valid("json");
+			const before = await readProfile(db, orgId);
+			if (Object.keys(patch).length > 0)
+				await db
+					.update(organization)
+					.set(patch)
+					.where(eq(organization.id, orgId));
+			const after = await readProfile(db, orgId);
+			// The image itself stays out of the audit log; whether it changed is enough.
+			const summary = (p: typeof before) => ({
+				name: p.name,
+				logo: p.logo ? `${p.logo.length} chars` : null,
+			});
+			c.set("auditDiff", { before: summary(before), after: summary(after) });
+			return c.json(after, 200);
 		},
 	)
 	.openapi(

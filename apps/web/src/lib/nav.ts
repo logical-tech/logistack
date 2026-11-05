@@ -18,6 +18,7 @@ import {
 	LockKeyhole,
 	type LucideIcon,
 	Network,
+	Palette,
 	Settings2,
 	ShieldCheck,
 	TerminalSquare,
@@ -215,6 +216,14 @@ export const NAV: NavGroup[] = [
 					body: "The values you chose during setup live here: the instance URL, generated domains, the Let's Encrypt email and the local registry.",
 					action: "Edit settings",
 				},
+			},
+			{
+				to: "/settings/appearance",
+				title: "Appearance",
+				icon: Palette,
+				description:
+					"Light, dark or system, and a colour theme: LogiStack Default, editor classics or one of the shadcn presets.",
+				keywords: ["theme", "dark", "light", "colors", "catppuccin"],
 			},
 			{
 				to: "/settings/members",

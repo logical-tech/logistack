@@ -15,6 +15,8 @@ import type {
 	InviteInput,
 	Me,
 	Member,
+	OrganizationProfile,
+	OrganizationUpdateInput,
 	PermissionAction,
 	Role,
 	RoleGrant,
@@ -65,6 +67,10 @@ export type AccessAdapter = {
 		list(): Promise<SshKey[]>;
 		create(input: CreateSshKeyInput): Promise<SshKey>;
 		remove(id: string): Promise<void>;
+	};
+	organization: {
+		get(): Promise<OrganizationProfile>;
+		update(input: OrganizationUpdateInput): Promise<OrganizationProfile>;
 	};
 	twoFactor: {
 		get(): Promise<TwoFactorSetting>;
@@ -121,6 +127,10 @@ export const httpAccess: AccessAdapter = {
 		setRole: (id, role) =>
 			call(api.members[":id"].$patch({ param: { id }, json: { role } })),
 		remove: (id) => call(api.members[":id"].$delete({ param: { id } })),
+	},
+	organization: {
+		get: () => call(api.organization.$get()),
+		update: (json) => call(api.organization.$patch({ json })),
 	},
 	twoFactor: {
 		get: () => call(api.organization["two-factor"].$get()),

@@ -124,8 +124,9 @@ export function createAuth(config: Config, db: Db) {
 		logger: { disabled: config.LOG_LEVEL === "silent" },
 		database: drizzleAdapter(db, { provider: "pg", schema }),
 		emailAndPassword: { enabled: true },
-		// Provider mutations go through /api/sso, which checks LogiStack permissions and audits them.
+		// Organization profile and SSO provider mutations go through /api, which checks LogiStack permissions, validates and audits them.
 		disabledPaths: [
+			"/organization/update",
 			"/sso/register",
 			"/sso/update-provider",
 			"/sso/delete-provider",

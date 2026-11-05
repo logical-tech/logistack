@@ -39,6 +39,7 @@ import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/pro
 import { Route as AppSchedulesScheduleIdRouteImport } from './routes/_app/schedules_.$scheduleId'
 import { Route as AppSchedulesNewRouteImport } from './routes/_app/schedules_.new'
 import { Route as AppSettingsApiKeysRouteImport } from './routes/_app/settings/api-keys'
+import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
 import { Route as AppSettingsAuditLogRouteImport } from './routes/_app/settings/audit-log'
 import { Route as AppSettingsAuthenticationRouteImport } from './routes/_app/settings/authentication'
 import { Route as AppSettingsCertificatesRouteImport } from './routes/_app/settings/certificates'
@@ -234,6 +235,11 @@ const AppSchedulesNewRoute = AppSchedulesNewRouteImport.update({
 const AppSettingsApiKeysRoute = AppSettingsApiKeysRouteImport.update({
   id: '/settings/api-keys',
   path: '/settings/api-keys',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsAppearanceRoute = AppSettingsAppearanceRouteImport.update({
+  id: '/settings/appearance',
+  path: '/settings/appearance',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsAuditLogRoute = AppSettingsAuditLogRouteImport.update({
@@ -518,6 +524,7 @@ export interface FileRoutesByFullPath {
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/settings/authentication': typeof AppSettingsAuthenticationRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
@@ -590,6 +597,7 @@ export interface FileRoutesByTo {
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/settings/authentication': typeof AppSettingsAuthenticationRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
@@ -667,6 +675,7 @@ export interface FileRoutesById {
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
   '/_app/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
   '/_app/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/_app/settings/authentication': typeof AppSettingsAuthenticationRoute
   '/_app/settings/certificates': typeof AppSettingsCertificatesRoute
@@ -744,6 +753,7 @@ export interface FileRouteTypes {
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
+    | '/settings/appearance'
     | '/settings/audit-log'
     | '/settings/authentication'
     | '/settings/certificates'
@@ -816,6 +826,7 @@ export interface FileRouteTypes {
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
+    | '/settings/appearance'
     | '/settings/audit-log'
     | '/settings/authentication'
     | '/settings/certificates'
@@ -892,6 +903,7 @@ export interface FileRouteTypes {
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
     | '/_app/settings/api-keys'
+    | '/_app/settings/appearance'
     | '/_app/settings/audit-log'
     | '/_app/settings/authentication'
     | '/_app/settings/certificates'
@@ -1157,6 +1169,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/api-keys'
       fullPath: '/settings/api-keys'
       preLoaderRoute: typeof AppSettingsApiKeysRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/appearance': {
+      id: '/_app/settings/appearance'
+      path: '/settings/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof AppSettingsAppearanceRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/audit-log': {
@@ -1601,6 +1620,7 @@ interface AppRouteChildren {
   AppSchedulesScheduleIdRoute: typeof AppSchedulesScheduleIdRoute
   AppSchedulesNewRoute: typeof AppSchedulesNewRoute
   AppSettingsApiKeysRoute: typeof AppSettingsApiKeysRoute
+  AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
   AppSettingsAuditLogRoute: typeof AppSettingsAuditLogRoute
   AppSettingsAuthenticationRoute: typeof AppSettingsAuthenticationRoute
   AppSettingsCertificatesRoute: typeof AppSettingsCertificatesRoute
@@ -1646,6 +1666,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSchedulesScheduleIdRoute: AppSchedulesScheduleIdRoute,
   AppSchedulesNewRoute: AppSchedulesNewRoute,
   AppSettingsApiKeysRoute: AppSettingsApiKeysRoute,
+  AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
   AppSettingsAuditLogRoute: AppSettingsAuditLogRoute,
   AppSettingsAuthenticationRoute: AppSettingsAuthenticationRoute,
   AppSettingsCertificatesRoute: AppSettingsCertificatesRoute,

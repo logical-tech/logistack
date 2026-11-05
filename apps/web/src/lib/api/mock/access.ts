@@ -5,6 +5,7 @@ import type {
 	AuditFilters,
 	Invitation,
 	Member,
+	OrganizationProfile,
 	PermissionAction,
 	Role,
 	RoleGrant,
@@ -147,6 +148,12 @@ const state = {
 		trustIdpMfa: false,
 		enabledAt: null,
 	} as TwoFactorSetting,
+	organization: {
+		id: "org_logical",
+		name: "Logical",
+		slug: "logical",
+		logo: null,
+	} as OrganizationProfile,
 	audit: [] as AuditEntry[],
 };
 
@@ -639,10 +646,17 @@ export const mockAccess: AccessAdapter = {
 			return mockAccess.twoFactor.get();
 		},
 	},
+	organization: {
+		get: () => delay({ ...state.organization }),
+		update: async (patch) => {
+			state.organization = { ...state.organization, ...patch };
+			return mockAccess.organization.get();
+		},
+	},
 	instance: {
 		get: () =>
 			delay({
-				organizationName: "Logical",
+				organizationName: state.organization.name,
 				publicUrl: "https://ls.logical.it",
 				letsencryptEmail: "ops@logical.it",
 				generatedDomainBase: "sslip",

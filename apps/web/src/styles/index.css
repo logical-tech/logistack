@@ -12,7 +12,9 @@
  * primary actions, one cobalt accent for focus, links and selection, and a status
  * vocabulary that does the real colour work.
  */
-:root {
+/* `.theme-default` re-scopes the defaults inside a theme preview card while another theme is active. */
+:root,
+.theme-default {
 	--radius: 0.5rem;
 
 	--background: oklch(0.993 0.0015 255);
@@ -98,7 +100,8 @@
 	--ansi-15: #8c959f;
 }
 
-.dark {
+.dark,
+.dark .theme-default {
 	--background: oklch(0.165 0.004 262);
 	--foreground: oklch(0.955 0.003 262);
 	--card: oklch(0.192 0.005 262);

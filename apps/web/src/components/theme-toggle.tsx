@@ -1,11 +1,14 @@
-import { Laptop, Moon, Sun } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Laptop, Moon, Palette, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type ThemePreference, useTheme } from "@/lib/theme";
@@ -47,9 +50,15 @@ export function ThemeToggle() {
 					<ThemeIcon dark={resolved === "dark"} />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-40">
+			<DropdownMenuContent align="end" className="w-44">
 				<DropdownMenuLabel>Theme</DropdownMenuLabel>
 				<ThemeRadio value={preference} onChange={setTheme} />
+				<DropdownMenuSeparator />
+				<DropdownMenuItem asChild>
+					<Link to="/settings/appearance">
+						<Palette /> More themes…
+					</Link>
+				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
