@@ -6,6 +6,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import {
+	DOKPLOY_LEGACY_SECRET,
+	decryptDokploy,
+	dokployKeys,
+} from "./decrypt.ts";
+import {
 	type DokployEngine,
 	type DokployNotificationType,
 	DokploySnapshot,
@@ -422,10 +427,28 @@ export function readComposeFiles(
 	return out;
 }
 
-/** `composeRoot`: Dokploy's compose directory (`/etc/dokploy/compose`), read for git-sourced files. */
+/** Decrypts every env column Dokploy encrypts at rest; one that no key opens is left sealed. */
+async function decryptEnv(s: DokploySnapshot, secrets: string[]) {
+	const keys = await dokployKeys([...secrets, DOKPLOY_LEGACY_SECRET]);
+	const open = async (v: string | null) => (await decryptDokploy(v, keys)) ?? v;
+	for (const rows of [
+		s.projects,
+		s.environments,
+		s.applications,
+		s.databases,
+		s.composes,
+	])
+		for (const r of rows) r.env = await open(r.env);
+	for (const a of s.applications) a.buildArgs = await open(a.buildArgs);
+}
+
+/**
+ * `composeRoot`: Dokploy's compose directory (`/etc/dokploy/compose`), read for git-sourced files.
+ * `secrets`: Dokploy's ENCRYPTION_KEY or BETTER_AUTH_SECRET, to read its encrypted env.
+ */
 export async function readDokploy(
 	url: string,
-	opts: { composeRoot?: string } = {},
+	opts: { composeRoot?: string; secrets?: string[] } = {},
 ): Promise<DokploySnapshot> {
 	const sql = new Bun.SQL(url, { max: 1 });
 	try {
@@ -449,6 +472,7 @@ export async function readDokploy(
 					);
 			}
 			const snapshot = DokploySnapshot.parse(out);
+			await decryptEnv(snapshot, opts.secrets ?? []);
 			if (opts.composeRoot)
 				snapshot.composeFiles = readComposeFiles(
 					snapshot.composes,

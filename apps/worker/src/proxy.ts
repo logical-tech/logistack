@@ -54,13 +54,21 @@ type TaskWithNetworks = Task & {
 };
 
 /** ls-control addresses of the running Caddy tasks; each gets its own config (its admin listen). */
-export async function caddyAddresses(ctx: Ctx): Promise<string[]> {
+/** `starting`: also tasks Swarm has not reported running yet, whose container may already be up. */
+export async function caddyAddresses(
+	ctx: Ctx,
+	starting = false,
+): Promise<string[]> {
 	const tasks = (await ctx.docker.tasks.list({
 		service: [ctx.cfg.LS_CADDY_SERVICE],
 		"desired-state": ["running"],
 	})) as TaskWithNetworks[];
 	return tasks
-		.filter((t) => t.Status.State === "running")
+		.filter(
+			(t) =>
+				t.Status.State === "running" ||
+				(starting && t.Status.State === "starting"),
+		)
 		.flatMap((t) =>
 			(t.NetworksAttachments ?? [])
 				.filter((a) => a.Network.Spec.Name === ctx.cfg.LS_CONTROL_NETWORK)
@@ -300,14 +308,25 @@ export function withAcmeDirectory(
 const ZoneList = z.array(z.object({ id: z.string(), name: z.string() }));
 
 /** Compiles one config per Caddy task and pushes it; records each domain's outcome on change. */
-export async function syncProxy(ctx: Ctx): Promise<void> {
+/** How a sync went: the Caddy instances reached and the push errors (also kept on the domains). */
+export type SyncResult = {
+	instances: number;
+	failures: string[];
+	/** Nothing to push: no dashboard hostname is configured yet. */
+	skipped?: boolean;
+};
+
+export async function syncProxy(
+	ctx: Ctx,
+	opts: { starting?: boolean } = {},
+): Promise<SyncResult> {
 	const [settings] = await ctx.db.select().from(instanceSettings);
 	const dashboardHost =
 		settings?.primaryDomain ??
 		(settings?.publicUrl ? new URL(settings.publicUrl).hostname : undefined);
 	if (!settings || !dashboardHost) {
 		log("info", "proxy sync skipped: no dashboard hostname configured");
-		return;
+		return { instances: 0, failures: [], skipped: true };
 	}
 	const rows = await ctx.db
 		.select({
@@ -412,12 +431,12 @@ export async function syncProxy(ctx: Ctx): Promise<void> {
 			);
 	}
 
-	const addresses = await caddyAddresses(ctx);
+	const addresses = await caddyAddresses(ctx, opts.starting);
 	if (!addresses.length) {
 		log("warn", "proxy sync: no running Caddy task", {
 			service: ctx.cfg.LS_CADDY_SERVICE,
 		});
-		return;
+		return { instances: 0, failures: [] };
 	}
 	const [apiHost, apiPort] = ctx.cfg.LS_API_UPSTREAM.split(":");
 	const common = (ip: string): Omit<ProxyInput, "routes"> => ({
@@ -487,6 +506,7 @@ export async function syncProxy(ctx: Ctx): Promise<void> {
 		skipped: isolated.errors.size,
 		failed: failures.length,
 	});
+	return { instances: addresses.length, failures };
 }
 
 /** Enqueues a proxy sync or a reconcile pass whenever the API asks on their channels. Returns the closer. */

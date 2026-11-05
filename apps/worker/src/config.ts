@@ -34,6 +34,12 @@ const ConfigSchema = z.object({
 	LS_INGRESS_LABEL: z.string().default("logistack.ingress"),
 	/** Dokploy's Traefik, a container or a service by this exact name; the proxy switch stops it. */
 	LS_DOKPLOY_TRAEFIK: z.string().default("dokploy-traefik"),
+	/**
+	 * After a stateless compose with domains starts on LogiStack, how long its source keeps running:
+	 * Dokploy's Traefik learns the bridge routers by polling Swarm (every 15 s), and drops the
+	 * source's routers the moment its containers stop.
+	 */
+	LS_BRIDGE_SETTLE_MS: z.coerce.number().int().min(0).default(20_000),
 	/** How long the proxy switch waits for Caddy before it starts Traefik again. */
 	LS_PROXY_SWITCH_TIMEOUT_MS: z.coerce
 		.number()

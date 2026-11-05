@@ -71,6 +71,8 @@ export type CompileServiceInput = {
 		db?: string;
 		bridge?: string;
 	};
+	/** Labels for the old platform's proxy while bridged (`bridgeRouterLabels`); service-level. */
+	bridgeLabels?: Record<string, string>;
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
@@ -398,6 +400,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	return {
 		Name: `${prefix}${dockerName("svc", service.id)}`,
 		Labels: {
+			...input.bridgeLabels,
 			...labelsFor(input, service.id, kind),
 			"logistack.environment": service.environmentId,
 			...deploymentLabel,
@@ -488,4 +491,47 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			})),
 		},
 	};
+}
+
+/**
+ * Routers for Dokploy's Traefik (swarm provider) to this service, while it is bridged onto
+ * Dokploy's network. Dokploy routes compose domains by labels, not by DNS name, so until the
+ * proxy switch a compose service moved to LogiStack keeps its domains only through these.
+ * Entrypoints and resolver are Dokploy's names (`web`, `websecure`, `letsencrypt`).
+ */
+export function bridgeRouterLabels(
+	serviceId: string,
+	network: string,
+	domains: {
+		hostname: string;
+		port: number;
+		pathPrefix: string | null;
+		https: boolean;
+	}[],
+): Record<string, string> {
+	if (!domains.length) return {};
+	const labels: Record<string, string> = {
+		"traefik.enable": "true",
+		"traefik.swarm.network": network,
+	};
+	domains.forEach((d, i) => {
+		const r = `ls-${serviceId.replaceAll("_", "-")}-${i}`;
+		const path =
+			d.pathPrefix && d.pathPrefix !== "/"
+				? ` && PathPrefix(\`${d.pathPrefix}\`)`
+				: "";
+		labels[`traefik.http.routers.${r}.rule`] = `Host(\`${d.hostname}\`)${path}`;
+		labels[`traefik.http.routers.${r}.entrypoints`] = d.https
+			? "websecure"
+			: "web";
+		labels[`traefik.http.routers.${r}.service`] = r;
+		labels[`traefik.http.services.${r}.loadbalancer.server.port`] = String(
+			d.port,
+		);
+		if (d.https) {
+			labels[`traefik.http.routers.${r}.tls`] = "true";
+			labels[`traefik.http.routers.${r}.tls.certresolver`] = "letsencrypt";
+		}
+	});
+	return labels;
 }

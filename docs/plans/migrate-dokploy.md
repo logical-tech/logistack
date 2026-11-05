@@ -282,13 +282,42 @@ A `decommission` job on the `migration` queue (`apps/worker/src/decommission.ts`
 
 ## Prove it end to end (MIG-8)
 
-- [ ] `SMOKE_MIGRATE=1 bash install/smoke.sh` runs in DinD (`ls-test-mig-dind`):
-  - [ ] Install a pinned Dokploy version.
-  - [ ] Seed it through its API with an image app with a domain, a git app, a postgres with data, a 3-service compose and an S3 backup.
-  - [ ] Run `install.sh`, drive the wizard through the API, and decommission.
-  - [ ] Check that the data is intact, the domains answer, and Dokploy is gone.
-  - Evidence: CI log.
-- [ ] Live run on a fresh VPS with real Dokploy and real domains. Record the HTTP downtime per service and for the proxy switch. Evidence: probe log with timestamps.
+### MIG-8a (done): DinD with a real Dokploy
+
+`bash install/smoke-migrate.sh` (`ls-test-mig8-dind`, `KEEP=1` to inspect) runs everything inside a throwaway docker:dind:
+- Dokploy v0.30.10, installed the way its installer does, then seeded through its own API by a throwaway admin. The seed holds:
+  - an nginx app with a domain and a `DATABASE_URL`;
+  - a Postgres 18 (Dokploy's default image) with a row of data and an S3 backup;
+  - a 3-service compose with a domain.
+- `install.sh --local-build` next to Dokploy, setup, and the whole wizard driven through LogiStack's API.
+- The images the run needs are loaded from the host's cache, because Docker Hub caps anonymous pulls per address.
+
+Evidence: a full green run (2026-11-05, run 5 of the session):
+- Dokploy's encrypted env was read.
+- All 4 items were full, imported and cut over, and every domain kept answering through Dokploy's Traefik after each cutover.
+- Row 42 was on LogiStack's Postgres 18 over the adopted volume.
+- The switch measured 7.2 s of HTTP gap. Every domain answered through Caddy.
+- Dokploy was archived and removed, and the data, the domains and the volume stayed.
+
+The run found and fixed four real problems:
+- [x] Dokploy 0.29+ encrypts env at rest (`enc:v1:`, AES-256-GCM, key HMAC-SHA256 of ENCRYPTION_KEY or BETTER_AUTH_SECRET, else its built-in default).
+  - The reader decrypts with that key (`apps/server/src/migration/dokploy/decrypt.ts`). `install.sh` hands it to the api as the secret `DOKPLOY_KEY_FILE`: Dokploy's own Swarm secret, or a copy of its env value or default.
+  - A value no key opens is noted, never echoed. Before this fix an invalid env line could put ciphertext into a note.
+  - Evidence: unit test on the format, and the DinD run.
+- [x] Compose domains went dark between their cutover and the switch.
+  - Dokploy routes composes by labels, and stopping its containers drops the routers at once.
+  - Bridged compose services now carry routers for Dokploy's Traefik swarm provider (`bridgeRouterLabels` in `packages/core`).
+  - The cutover keeps the source running for `LS_BRIDGE_SETTLE_MS` (20 s), because that provider polls Swarm every 15 s.
+  - Evidence: core test, and the DinD run (blog answered through Traefik after its cutover).
+- [x] The switch gap was 13.2 s: ~1.5 s with nothing listening, then ~11.5 s of 404 until the periodic proxy sync.
+  - The switch now pushes Caddy's config right away (`syncProxy` reports instances and failures): measured 7.2 s.
+  - It then pushes as soon as Caddy's task is starting, instead of waiting for Swarm to report it running, which took ~5 s in the logs (`firstSync`). Not measured end to end yet: Docker Hub rate-limited the reruns.
+- [x] Waits in the checks: Caddy's first routes and the bridge detach each take a few seconds.
+- [ ] Rerun `install/smoke-migrate.sh` once Docker Hub's anonymous quota resets, to measure the gap with `firstSync`. Dokploy pulls on every deploy, so it needs ~6 fresh pulls even with the preload.
+
+### MIG-8b: a real server
+
+- [ ] Live run on a fresh VPS with real Dokploy and real domains. Record the HTTP downtime per service and for the proxy switch. Evidence: probe log with timestamps. Waiting for a test server (not maddiona).
 
 ## Risks
 

@@ -17,6 +17,7 @@ import {
 import { dataDirOf, postgresMajor } from "@logistack/core";
 import { Cron } from "../../cron.ts";
 import { mapComposeServices, parseDotenv } from "./compose.ts";
+import { isDokployEncrypted } from "./decrypt.ts";
 import { buildOrgItems, type OrgItem } from "./org.ts";
 import type {
 	DokployApplication,
@@ -108,9 +109,20 @@ export function serviceEnv(
 		environment: parseDotenv(shared.environment ?? ""),
 	};
 	const out: EnvDraft[] = [];
+	if (isDokployEncrypted(own)) {
+		notes.push(
+			"env is encrypted by Dokploy with a key LogiStack does not have; set it here by hand",
+		);
+		return out;
+	}
 	for (const [key, raw] of parseDotenv(own ?? "")) {
 		if (!EnvKey.safeParse(key).success) {
-			notes.push(`env ${key} is not a valid variable name, skipped`);
+			// A key that is not a name may be a value pasted on its own line: never echo a long one.
+			notes.push(
+				/^[\w.-]{1,64}$/.test(key)
+					? `env ${key} is not a valid variable name, skipped`
+					: "an env line is not a valid variable, skipped",
+			);
 			continue;
 		}
 		if (raw.includes("${{vault.")) {

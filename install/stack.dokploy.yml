@@ -10,9 +10,12 @@ services:
       DOKPLOY_POSTGRES_USER: ${LOGISTACK_DOKPLOY_PG_USER:?set LOGISTACK_DOKPLOY_PG_USER}
       DOKPLOY_POSTGRES_DB: ${LOGISTACK_DOKPLOY_PG_DB:?set LOGISTACK_DOKPLOY_PG_DB}
       DOKPLOY_POSTGRES_PASSWORD_FILE: /run/secrets/dokploy_postgres_password
+      DOKPLOY_KEY_FILE: /run/secrets/dokploy_key
     secrets:
       - source: dokploy-postgres-password
         target: dokploy_postgres_password
+      - source: dokploy-key
+        target: dokploy_key
     volumes:
       - /etc/dokploy:/etc/dokploy:ro
     networks: [dokploy-network]
@@ -25,3 +28,7 @@ secrets:
   dokploy-postgres-password:
     external: true
     name: ${LOGISTACK_DOKPLOY_PG_SECRET:?set LOGISTACK_DOKPLOY_PG_SECRET}
+  # Dokploy's env encryption key (ENCRYPTION_KEY or BETTER_AUTH_SECRET), to read encrypted env.
+  dokploy-key:
+    external: true
+    name: ${LOGISTACK_DOKPLOY_KEY_SECRET:?set LOGISTACK_DOKPLOY_KEY_SECRET}

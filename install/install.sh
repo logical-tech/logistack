@@ -51,6 +51,9 @@ MIGRATION_ARCHIVE_DIR=/var/lib/logistack/migration
 DOKPLOY_STACK=stack.dokploy.yml
 # Made from the dokploy-postgres env when Dokploy predates its own secret.
 DOKPLOY_PG_COPY=logistack-dokploy-postgres-password
+# Dokploy encrypts env at rest with ENCRYPTION_KEY, else BETTER_AUTH_SECRET, else a fixed default.
+DOKPLOY_KEY_COPY=logistack-dokploy-key
+DOKPLOY_LEGACY_SECRET=better-auth-secret-123456789
 
 OS_ID=""
 OS_VERSION=""
@@ -62,6 +65,8 @@ PUBLIC_URL=""
 IMAGE_TAG=""
 DOKPLOY=0
 DOKPLOY_PG_SECRET=""
+DOKPLOY_KEY_SECRET=""
+DOKPLOY_KEY_SOURCE=""
 DOKPLOY_PG_USER=""
 DOKPLOY_PG_DB=""
 
@@ -233,6 +238,44 @@ dokploy_pg_env() {
 # Dokploy keeps no database credentials under /etc/dokploy: the password is a Swarm secret the
 # dokploy-postgres service reads through POSTGRES_PASSWORD_FILE, or, on releases before 0.26.6,
 # a plain POSTGRES_PASSWORD in that service's env.
+dokploy_env() {
+	docker service inspect dokploy --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null || true
+}
+
+# The key Dokploy encrypts env with, for the wizard to read it: the same Swarm secret when Dokploy
+# reads it from a file, else a copy of its env value or of Dokploy's own default into our secret.
+read_dokploy_key() {
+	local var file name target
+	DOKPLOY_KEY_SOURCE=""
+	for var in ENCRYPTION_KEY BETTER_AUTH_SECRET; do
+		file=$(dokploy_env | sed -n "s/^${var}_FILE=//p" | head -n1)
+		if [ -n "$file" ]; then
+			while read -r name target; do
+				[ "${target##*/}" != "${file##*/}" ] || DOKPLOY_KEY_SECRET=$name
+			done < <(docker service inspect dokploy \
+				--format '{{range .Spec.TaskTemplate.ContainerSpec.Secrets}}{{.SecretName}} {{.File.Name}}{{println}}{{end}}')
+			[ -n "$DOKPLOY_KEY_SECRET" ] || fail "dokploy reads $var from $file, but no Swarm secret is mounted there"
+			ok "Dokploy's encryption key: $var from secret $DOKPLOY_KEY_SECRET"
+			return 0
+		fi
+		if dokploy_env | grep -q "^${var}="; then
+			DOKPLOY_KEY_SECRET=$DOKPLOY_KEY_COPY DOKPLOY_KEY_SOURCE=$var
+			ok "Dokploy's encryption key: $var from its service env, copied into secret $DOKPLOY_KEY_COPY"
+			return 0
+		fi
+	done
+	DOKPLOY_KEY_SECRET=$DOKPLOY_KEY_COPY DOKPLOY_KEY_SOURCE=legacy
+	ok "Dokploy's encryption key: its built-in default (no secret configured)"
+}
+
+copy_dokploy_key() {
+	if [ "$DOKPLOY_KEY_SOURCE" = legacy ]; then
+		printf '%s' "$DOKPLOY_LEGACY_SECRET"
+	else
+		dokploy_env | sed -n "s/^${DOKPLOY_KEY_SOURCE}=//p" | head -n1 | tr -d '\n'
+	fi | secret_create_stdin "$DOKPLOY_KEY_COPY"
+}
+
 read_dokploy_db() {
 	local file name target
 	DOKPLOY_PG_USER=$(dokploy_pg_env | sed -n 's/^POSTGRES_USER=//p' | head -n1)
@@ -278,6 +321,7 @@ detect_migration_source() {
 	note "  - The api reads Dokploy's database and /etc/dokploy, read-only, for the migration wizard."
 	note "After setup, the wizard imports your Dokploy projects and moves each service over to LogiStack."
 	read_dokploy_db
+	read_dokploy_key
 	# Dokploy publishes its own dashboard on 3000.
 	[ -n "${LOGISTACK_TUNNEL_PORT:-}" ] || TUNNEL_PORT=3001
 }
@@ -551,7 +595,15 @@ copy_dokploy_password() {
 }
 
 ensure_dokploy_secret() {
-	[ "$DOKPLOY" = 1 ] && [ "$DOKPLOY_PG_SECRET" = "$DOKPLOY_PG_COPY" ] || return 0
+	[ "$DOKPLOY" = 1 ] || return 0
+	if [ "$DOKPLOY_KEY_SECRET" = "$DOKPLOY_KEY_COPY" ]; then
+		if [ "$DRY_RUN" = 0 ] && docker secret inspect "$DOKPLOY_KEY_COPY" >/dev/null 2>&1; then
+			ok "Secret $DOKPLOY_KEY_COPY exists, kept"
+		else
+			act "Copy Dokploy's encryption key into secret $DOKPLOY_KEY_COPY" copy_dokploy_key
+		fi
+	fi
+	[ "$DOKPLOY_PG_SECRET" = "$DOKPLOY_PG_COPY" ] || return 0
 	if [ "$DRY_RUN" = 0 ] && docker secret inspect "$DOKPLOY_PG_COPY" >/dev/null 2>&1; then
 		ok "Secret $DOKPLOY_PG_COPY exists, kept"
 	else
@@ -705,7 +757,7 @@ deploy() {
 		LOGISTACK_REGISTRY="$REGISTRY" LOGISTACK_PUBLIC_URL="$PUBLIC_URL" LOGISTACK_WEB_ORIGIN="https://${PUBLIC_URL#http://}" \
 		LOGISTACK_PUBLIC_SETUP="$public" LOGISTACK_SETUP_TOKEN_FILE="$token_file" LOGISTACK_TUNNEL_ORIGIN="$tunnel_origin" \
 		LOGISTACK_DOKPLOY_PG_SECRET="$DOKPLOY_PG_SECRET" LOGISTACK_DOKPLOY_PG_USER="$DOKPLOY_PG_USER" \
-		LOGISTACK_DOKPLOY_PG_DB="$DOKPLOY_PG_DB" docker stack deploy "${flags[@]}" --detach=true "${files[@]}" "$STACK_NAME"
+		LOGISTACK_DOKPLOY_PG_DB="$DOKPLOY_PG_DB" LOGISTACK_DOKPLOY_KEY_SECRET="${DOKPLOY_KEY_SECRET:-}" docker stack deploy "${flags[@]}" --detach=true "${files[@]}" "$STACK_NAME"
 }
 
 # The SSH tunnel's target: without Caddy, or unless setup is public. Loopback only, never public.

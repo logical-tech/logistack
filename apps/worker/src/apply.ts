@@ -1,4 +1,5 @@
 import {
+	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
 	serviceFiles,
@@ -265,6 +266,16 @@ export async function desiredInput(
 			...(db ? { db: db.Id } : {}),
 			...(bridge ? { bridge: bridge.Id } : {}),
 		},
+		// A compose service (`dokploy:<app>/<service>`) is routed by labels in Dokploy's Traefik.
+		...(bridge && sc.service.importedFrom?.includes("/")
+			? {
+					bridgeLabels: bridgeRouterLabels(
+						sc.service.id,
+						ctx.cfg.LS_DOKPLOY_NETWORK,
+						sc.domains,
+					),
+				}
+			: {}),
 		...(pin ? { pinNodeId: pin } : {}),
 		scope: scope(ctx),
 	});

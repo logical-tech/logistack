@@ -304,6 +304,7 @@ export const migrations = router()
 				);
 			const snapshot = await readDokploy(source.url, {
 				composeRoot: source.composeRoot,
+				secrets: source.secrets,
 			}).catch((e: unknown) => {
 				throw new Failure(
 					"unprocessable",

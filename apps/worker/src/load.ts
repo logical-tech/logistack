@@ -316,7 +316,10 @@ export type DeploymentRef = {
 export function compileInput(
 	sc: ServiceContext,
 	deployment: DeploymentRef,
-	refs: Pick<CompileServiceInput, "networks" | "pinNodeId" | "scope">,
+	refs: Pick<
+		CompileServiceInput,
+		"networks" | "pinNodeId" | "scope" | "bridgeLabels"
+	>,
 ): CompileServiceInput {
 	return {
 		service: {

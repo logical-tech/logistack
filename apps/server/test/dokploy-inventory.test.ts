@@ -1058,3 +1058,24 @@ describe("organization resources", () => {
 		]);
 	});
 });
+
+test("an env Dokploy encrypted with a key LogiStack lacks is reported, never echoed", () => {
+	const notes: string[] = [];
+	expect(
+		serviceEnv(
+			"enc:v1:c2VjcmV0LWNpcGhlcnRleHQ=",
+			{ project: null, environment: null },
+			notes,
+		),
+	).toEqual([]);
+	expect(notes).toEqual([
+		"env is encrypted by Dokploy with a key LogiStack does not have; set it here by hand",
+	]);
+	const more: string[] = [];
+	serviceEnv(
+		`${"Ab+/".repeat(20)}=y`,
+		{ project: null, environment: null },
+		more,
+	);
+	expect(more).toEqual(["an env line is not a valid variable, skipped"]);
+});

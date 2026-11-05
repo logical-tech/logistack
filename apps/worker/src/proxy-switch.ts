@@ -31,6 +31,7 @@ import {
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import { scale, unlessAlready, waitStopped } from "./migration.ts";
+import { syncProxy } from "./proxy.ts";
 
 export type Probe = (
 	hostname: string,
@@ -204,6 +205,27 @@ async function waitForCaddy(ctx: Ctx, nodes: string[], deadline: number) {
 	}
 }
 
+/**
+ * Caddy starts with no routes. The periodic sync would wait for Swarm to report its task running,
+ * seconds after the container is up: MIG-8 measured ~6 s of 404 that way. Push as soon as the task
+ * is starting, and again every half second until a Caddy takes it.
+ */
+async function firstSync(ctx: Ctx, deadline: number) {
+	while (Date.now() < deadline) {
+		const r = await syncProxy(ctx, { starting: true }).catch((e: unknown) => ({
+			instances: 0,
+			failures: [String(e)],
+		}));
+		if (
+			("skipped" in r && r.skipped) ||
+			(r.instances > 0 && !r.failures.length)
+		)
+			return;
+		await Bun.sleep(500);
+	}
+	log("warn", "proxy switch: Caddy took no config before the deadline");
+}
+
 export async function switchProxy(
 	ctx: Ctx,
 	migrationId: string,
@@ -241,6 +263,7 @@ export async function switchProxy(
 	await stopTraefik(ctx, state.traefik);
 	await labelNodes(ctx, state.nodes, "true");
 	const deadline = Date.now() + ctx.cfg.LS_PROXY_SWITCH_TIMEOUT_MS;
+	await firstSync(ctx, deadline);
 	if (!(await waitForCaddy(ctx, state.nodes, deadline))) {
 		const error = `Caddy did not start on ${state.nodes.length} node(s) within ${ctx.cfg.LS_PROXY_SWITCH_TIMEOUT_MS / 1000} s; Traefik is back`;
 		log("warn", "proxy switch fell back to Traefik", { migrationId });

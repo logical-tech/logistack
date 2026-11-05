@@ -47,6 +47,7 @@ type Plan =
 					slug: string;
 					running: boolean;
 					adoptedVolumes: unknown[];
+					domains: unknown[];
 				}[];
 			};
 	  };
@@ -354,6 +355,11 @@ export async function cutOver(ctx: Ctx, itemId: string) {
 			await up();
 		} else {
 			await up();
+			if (
+				plan.item.kind === "compose" &&
+				plan.item.services.some((s) => s.domains?.length)
+			)
+				await Bun.sleep(ctx.cfg.LS_BRIDGE_SETTLE_MS);
 			await stopSource(ctx, state);
 		}
 		await move(ctx, item, { type: "cut_over" }, null);

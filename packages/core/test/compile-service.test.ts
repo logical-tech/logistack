@@ -4,6 +4,7 @@ import {
 	deploymentContextVars,
 } from "@logistack/contracts";
 import {
+	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
 	dataDirOf,
@@ -625,4 +626,30 @@ test("a migrated service joins the old platform's network under its slug", () =>
 			(n) => n.Target === "net-dokploy",
 		),
 	).toBe(false);
+});
+
+test("a bridged compose service carries routers for Dokploy's Traefik", () => {
+	const labels = bridgeRouterLabels("svc_ab12", "dokploy-network", [
+		{ hostname: "blog.example.com", port: 80, pathPrefix: null, https: false },
+		{
+			hostname: "shop.example.com",
+			port: 3000,
+			pathPrefix: "/api",
+			https: true,
+		},
+	]);
+	expect(labels).toMatchObject({
+		"traefik.enable": "true",
+		"traefik.swarm.network": "dokploy-network",
+		"traefik.http.routers.ls-svc-ab12-0.rule": "Host(`blog.example.com`)",
+		"traefik.http.routers.ls-svc-ab12-0.entrypoints": "web",
+		"traefik.http.services.ls-svc-ab12-0.loadbalancer.server.port": "80",
+		"traefik.http.routers.ls-svc-ab12-1.rule":
+			"Host(`shop.example.com`) && PathPrefix(`/api`)",
+		"traefik.http.routers.ls-svc-ab12-1.tls.certresolver": "letsencrypt",
+	});
+	expect(bridgeRouterLabels("svc_x", "n", [])).toEqual({});
+	const spec = compileService({ ...app, bridgeLabels: labels });
+	expect(spec.Labels?.["traefik.enable"]).toBe("true");
+	expect(spec.Labels?.["logistack.managed"]).toBe("true");
 });
