@@ -10,11 +10,16 @@
 #                                              through POST /api/instance/update (ls-test-rel-dind)
 #   SMOKE_PUBLIC_SETUP=1 bash install/smoke.sh installs --public-setup: setup through Caddy, with the
 #                                              one-time token (ls-test-pubsetup-dind)
+#   SMOKE_DOKPLOY=1 bash install/smoke.sh      installs next to a fake Dokploy and Coolify: detection,
+#                                              ingress off, the api reads Dokploy (ls-test-mig5-dind)
 set -euo pipefail
 
 UPDATE=${SMOKE_UPDATE:-0}
 PUBLIC_SETUP=${SMOKE_PUBLIC_SETUP:-0}
-if [ "$UPDATE" = 1 ]; then
+DOKPLOY=${SMOKE_DOKPLOY:-0}
+if [ "$DOKPLOY" = 1 ]; then
+	NAME=${SMOKE_NAME:-ls-test-mig5-dind} LABEL=${SMOKE_LABEL:-mig5}
+elif [ "$UPDATE" = 1 ]; then
 	NAME=${SMOKE_NAME:-ls-test-rel-dind} LABEL=${SMOKE_LABEL:-rel}
 elif [ "$PUBLIC_SETUP" = 1 ]; then
 	NAME=${SMOKE_NAME:-ls-test-pubsetup-dind} LABEL=${SMOKE_LABEL:-pubsetup}
@@ -32,7 +37,7 @@ if [ "${1:-}" != --inside ]; then
 	rc=0
 	# The updater takes images from localhost/: the same path the UI uses, with a local image source.
 	docker exec -e LOGISTACK_WAIT_TIMEOUT="${LOGISTACK_WAIT_TIMEOUT:-600}" -e SMOKE_NO_INGRESS="${SMOKE_NO_INGRESS:-0}" \
-		-e SMOKE_UPDATE="$UPDATE" -e SMOKE_PUBLIC_SETUP="$PUBLIC_SETUP" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
+		-e SMOKE_UPDATE="$UPDATE" -e SMOKE_PUBLIC_SETUP="$PUBLIC_SETUP" -e SMOKE_DOKPLOY="$DOKPLOY" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
 	[ "${KEEP:-0}" = 1 ] || docker rm -f -v "$NAME" >/dev/null
 	exit "$rc"
 fi
@@ -85,6 +90,86 @@ install() {
 }
 
 ip=$(hostname -i | awk '{ print $1 }')
+
+# A stand-in for Dokploy, shaped as Dokploy's own install leaves it: Swarm services `dokploy`
+# (publishing 3000) and `dokploy-postgres` (password in a Swarm secret) on dokploy-network,
+# Traefik holding 80/443, /etc/dokploy. The database carries the columns the reader needs and
+# one project. Plus a `coolify` container, which must only be reported.
+if [ "$DOKPLOY" = 1 ]; then
+	pw="p@ss:w/rd%$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+	docker swarm init --advertise-addr "$ip" >/dev/null
+	docker network create -d overlay --attachable dokploy-network >/dev/null
+	printf '%s' "$pw" | docker secret create dokploy_postgres_password - >/dev/null
+	docker service create -d -q --name dokploy-postgres --network dokploy-network \
+		--secret source=dokploy_postgres_password,target=/run/secrets/postgres_password \
+		-e POSTGRES_USER=dokploy -e POSTGRES_DB=dokploy -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password \
+		postgres:17 >/dev/null
+	docker service create -d -q --name dokploy --network dokploy-network --publish published=3000,target=3000 \
+		alpine:3.22 sleep infinity >/dev/null
+	docker run -d -q --name dokploy-traefik -p 80:80 -p 443:443 alpine:3.22 sleep infinity >/dev/null
+	docker run -d -q --name coolify alpine:3.22 sleep infinity >/dev/null
+	mkdir -p /etc/dokploy/compose
+	for _ in $(seq 1 90); do
+		pg=$(docker ps -q --filter label=com.docker.swarm.service.name=dokploy-postgres | head -n1)
+		[ -n "$pg" ] && docker exec "$pg" pg_isready -U dokploy -d dokploy >/dev/null 2>&1 && break
+		sleep 2
+	done
+	sleep 3 # the image's init restarts the server once after pg_isready first answers
+	pass "fake Dokploy: dokploy, dokploy-postgres (secret), dokploy-traefik on 80/443, coolify"
+
+	install /tmp/install.out || die "install.sh next to Dokploy" "installer failed"
+	grep -E 'Coolify|Dokploy|dokploy|Ingress off|Ports 80|tunnel|migration' /tmp/install.out
+	grep -q 'Coolify migration is not supported yet' /tmp/install.out &&
+		pass "Coolify detected: reported as not supported, install carried on" || fail "Coolify detection" "no notice"
+	grep -q 'Dokploy found' /tmp/install.out && grep -q "Ports 80 and 443 left to Dokploy's Traefik" /tmp/install.out &&
+		grep -q 'password from secret dokploy_postgres_password' /tmp/install.out &&
+		pass "Dokploy detected: plan explained, 80/443 left to Traefik, password from its secret" ||
+		fail "Dokploy detection" "see /tmp/install.out"
+	[ "$(cat /etc/logistack/migration)" = migration_source=dokploy ] &&
+		pass "/etc/logistack/migration: migration_source=dokploy" || fail "migration_source" "$(cat /etc/logistack/migration 2>&1)"
+	caddy=$(docker service ls --filter name=logistack_caddy --format '{{.Replicas}}')
+	tunnel=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3001/api/health || true)
+	[ "$caddy" = 0/0 ] && [ "$tunnel" = 200 ] && [ -n "$(docker node ls -q --filter node.label=logistack.ingress=pending)" ] &&
+		pass "ingress off: Caddy 0/0, API through the tunnel on 127.0.0.1:3001 (3000 is Dokploy's)" ||
+		fail "ingress off next to Dokploy" "caddy $caddy, tunnel :3001 $tunnel"
+	leaks=$(grep -lF -- "$pw" /tmp/install.out /var/log/logistack-install.log /etc/logistack/* 2>/dev/null || true)
+	leaks+=$(docker service inspect logistack_logistack-api | grep -cF -- "$pw" || true)
+	[ "$leaks" = 0 ] && pass "Dokploy's password is in no output, log, config file or api service spec" ||
+		fail "password leak" "found in: $leaks"
+
+	# Dokploy's real schema needs the migrations in a Dokploy checkout; the reader's own column
+	# list is enough here. Written from a throwaway container, never from the api.
+	url="postgres://dokploy:$(jq -rn --arg p "$pw" '$p | @uri')@dokploy-postgres:5432/dokploy"
+	docker run --rm --network dokploy-network -e URL="$url" --entrypoint bun localhost/logistack:build -e '
+		const { minimalSchema } = await import("/app/apps/server/test/dokploy-schema.ts");
+		await minimalSchema(process.env.URL);
+		const sql = new Bun.SQL(process.env.URL, { max: 1 });
+		await sql`insert into project ("projectId", name, env) values (${"p1"}, ${"Fake Dokploy project"}, ${""})`;
+		await sql.close();' >/tmp/seed 2>&1 || die "seed fake Dokploy schema" "$(tail -n 3 /tmp/seed)"
+	read_dokploy='const { loadConfig } = await import("/app/apps/server/src/config.ts");
+const { dokploySource } = await import("/app/apps/server/src/migration/dokploy/source.ts");
+const { readDokploy } = await import("/app/apps/server/src/migration/dokploy/read.ts");
+const source = dokploySource(loadConfig());
+if (!source) throw new Error("no Dokploy source in the api config");
+const snapshot = await readDokploy(source.url, { composeRoot: source.composeRoot });
+console.log(snapshot.projects.map((p) => p.name).join(","));'
+	api=$(container_of logistack-api)
+	projects=$(docker exec "$api" /app/install/entrypoint.sh bun -e "$read_dokploy" 2>&1 | tail -n1)
+	mount=$(docker inspect "$api" --format '{{range .Mounts}}{{if eq .Destination "/etc/dokploy"}}{{.Source}} {{.RW}}{{end}}{{end}}')
+	[ "$projects" = "Fake Dokploy project" ] && [ "$mount" = "/etc/dokploy false" ] &&
+		pass "api: readDokploy(dokploySource(config)) lists 'Fake Dokploy project'; /etc/dokploy mounted ro" ||
+		fail "api reads Dokploy" "projects '$projects', mount '$mount'"
+
+	before=$(task_ids)
+	install /tmp/reinstall.out || die "install.sh re-run next to Dokploy" "installer failed"
+	[ "$before" = "$(task_ids)" ] && pass "install.sh re-run next to Dokploy: restarts no task" ||
+		fail "re-run next to Dokploy" "tasks changed"
+	traefik=$(docker inspect -f '{{.State.Running}}' dokploy-traefik)
+	dokploy=$(docker service ls --filter name=dokploy --format '{{.Name}} {{.Replicas}}' | sort | tr '\n' ' ')
+	[ "$traefik" = true ] && [ "$dokploy" = "dokploy 1/1 dokploy-postgres 1/1 " ] &&
+		pass "Dokploy untouched: traefik running, $dokploy" || fail "Dokploy untouched" "traefik $traefik, $dokploy"
+	exit "$FAILED"
+fi
 if [ "${SMOKE_NO_INGRESS:-0}" = 1 ]; then
 	install /tmp/no-ingress.out --no-ingress || die "install.sh --no-ingress" "installer failed"
 	caddy=$(docker service ls --filter name=logistack_caddy --format '{{.Replicas}}')
