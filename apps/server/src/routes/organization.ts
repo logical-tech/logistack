@@ -12,7 +12,7 @@ import {
 	service,
 	serviceStatus,
 } from "@logistack/db";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { currentActor, requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import {
@@ -220,7 +220,12 @@ export const organizationRoutes = router()
 					.innerJoin(service, eq(service.id, deployment.serviceId))
 					.innerJoin(environment, eq(environment.id, service.environmentId))
 					.innerJoin(project, eq(project.id, environment.projectId))
-					.where(eq(project.organizationId, orgId))
+					.where(
+						and(
+							eq(project.organizationId, orgId),
+							ne(deployment.status, "skipped"),
+						),
+					)
 					.orderBy(desc(deployment.createdAt))
 					.limit(10),
 			]);

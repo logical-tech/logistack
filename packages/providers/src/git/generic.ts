@@ -33,6 +33,13 @@ export const generic = defineProvider({
 			async getCloneUrl() {
 				return config.repoUrl;
 			},
+			async commitChecks() {
+				throw new ProviderError(
+					"generic",
+					"commitChecks",
+					"not available without a provider API",
+				);
+			},
 			async verifyWebhook() {
 				throw new WebhookRejectedError("generic", "not_configured");
 			},

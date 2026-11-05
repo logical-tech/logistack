@@ -21,7 +21,7 @@ import {
 	service,
 	serviceStatus,
 } from "@logistack/db";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { type Actor, requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -251,10 +251,13 @@ export const serviceOps = router()
 					)
 					.orderBy(desc(deployment.createdAt))
 					.limit(1),
+				// A skipped trigger never ran: the latest deployment is the latest that did or will.
 				db
 					.select()
 					.from(deployment)
-					.where(eq(deployment.serviceId, id))
+					.where(
+						and(eq(deployment.serviceId, id), ne(deployment.status, "skipped")),
+					)
 					.orderBy(desc(deployment.createdAt))
 					.limit(1),
 			]);

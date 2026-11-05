@@ -2,10 +2,12 @@ import { z } from "zod";
 import { type Deps, defineProvider, Http, secret } from "../http.ts";
 import { normalizeGitHubStyle } from "./github-style.ts";
 import {
+	type CheckState,
 	type GitProvider,
 	type GitRepo,
 	ownerRepoPath,
 	requireHmac,
+	summarizeChecks,
 	withCredentials,
 } from "./types.ts";
 
@@ -43,8 +45,9 @@ export function buildGitHubAppManifest(input: GitHubManifestInput) {
 			metadata: "read",
 			pull_requests: "write",
 			statuses: "write",
+			checks: "read",
 		},
-		default_events: ["push", "pull_request"],
+		default_events: ["push", "pull_request", "release"],
 	};
 }
 
@@ -154,6 +157,24 @@ export const githubConfig = z.object({
 });
 export type GitHubConfig = z.infer<typeof githubConfig>;
 
+const statusState: Record<string, CheckState> = {
+	success: "success",
+	pending: "pending",
+	failure: "failure",
+	error: "failure",
+};
+
+/** A completed run fails unless it concluded success, neutral or skipped. */
+const runState = (r: {
+	status: string;
+	conclusion: string | null;
+}): CheckState =>
+	r.status !== "completed"
+		? "pending"
+		: ["success", "neutral", "skipped"].includes(r.conclusion ?? "")
+			? "success"
+			: "failure";
+
 type Repo = {
 	full_name: string;
 	private: boolean;
@@ -231,6 +252,30 @@ export const github = defineProvider({
 					"x-access-token",
 					await installationToken(),
 				);
+			},
+			async commitChecks(repo, ref) {
+				const base = `/repos/${ownerRepoPath("github", repo)}/commits/${encodeURIComponent(ref)}`;
+				// Both APIs: older CI posts commit statuses, GitHub Actions posts check runs.
+				const [combined, runs] = await Promise.all([
+					get<{ statuses: { context: string; state: string }[] }>(
+						"commitStatus",
+						`${base}/status?per_page=100`,
+					),
+					get<{
+						check_runs: {
+							name: string;
+							status: string;
+							conclusion: string | null;
+						}[];
+					}>("checkRuns", `${base}/check-runs?per_page=100`),
+				]);
+				return summarizeChecks([
+					...combined.statuses.map((s) => ({
+						name: s.context,
+						state: statusState[s.state] ?? "pending",
+					})),
+					...runs.check_runs.map((r) => ({ name: r.name, state: runState(r) })),
+				]);
 			},
 			async verifyWebhook(headers, rawBody) {
 				await requireHmac(

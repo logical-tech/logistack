@@ -1,10 +1,16 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
 	GitProviderKind,
+	GitTrigger,
 	type GitProviderKind as Kind,
 } from "@logistack/contracts";
-import { decrypt } from "@logistack/core";
-import { gitProvider, serviceWatchPaths, sshKey } from "@logistack/db";
+import { DEFAULT_GIT_TRIGGER, decrypt } from "@logistack/core";
+import {
+	gitProvider,
+	serviceGitTrigger,
+	serviceWatchPaths,
+	sshKey,
+} from "@logistack/db";
 import {
 	buildGitHubAppManifest,
 	exchangeGitHubManifestCode,
@@ -869,5 +875,57 @@ export const git = router()
 					.delete(serviceWatchPaths)
 					.where(eq(serviceWatchPaths.serviceId, serviceId));
 			return c.json({ paths }, 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/services/{id}/git-trigger",
+			tags: ["git"],
+			security,
+			middleware: [requirePermission("read", byParam("service"))],
+			request: { params: IdParam },
+			responses: { 200: json(GitTrigger, "Trigger rules"), ...errors },
+		}),
+		async (c) => {
+			const [row] = await c.var.deps.db
+				.select({
+					on: serviceGitTrigger.on,
+					tagPattern: serviceGitTrigger.tagPattern,
+					waitForChecks: serviceGitTrigger.waitForChecks,
+					checksTimeoutMinutes: serviceGitTrigger.checksTimeoutMinutes,
+				})
+				.from(serviceGitTrigger)
+				.where(eq(serviceGitTrigger.serviceId, c.req.valid("param").id));
+			return c.json(row ?? DEFAULT_GIT_TRIGGER, 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"service.git_trigger",
+			createRoute({
+				method: "put",
+				path: "/services/{id}/git-trigger",
+				tags: ["git"],
+				security,
+				summary: "Choose which git events deploy the service",
+				description:
+					"`branch` deploys pushes to the source branch (narrowed by watch paths), `tag` deploys tag pushes whose name matches `tagPattern` (a glob such as `v*.*.*`), `release` deploys published releases (GitHub, GitLab, Gitea/Forgejo) whose tag matches. Commits whose message contains `[skip ci]`, `[ci skip]` or `[skip deploy]` never deploy. With `waitForChecks` the deployment waits in `awaiting_checks` until the commit's CI checks pass, and is skipped when one fails or `checksTimeoutMinutes` passes.",
+				middleware: [requirePermission("write", byParam("service"))],
+				request: { params: IdParam, ...body(GitTrigger) },
+				responses: { 200: json(GitTrigger, "Saved"), ...errors },
+			}),
+		),
+		async (c) => {
+			const serviceId = c.req.valid("param").id;
+			const rules = c.req.valid("json");
+			await c.var.deps.db
+				.insert(serviceGitTrigger)
+				.values({ serviceId, ...rules })
+				.onConflictDoUpdate({
+					target: serviceGitTrigger.serviceId,
+					set: rules,
+				});
+			return c.json(rules, 200);
 		},
 	);

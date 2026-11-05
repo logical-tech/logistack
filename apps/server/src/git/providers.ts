@@ -144,6 +144,8 @@ export async function ensureWebhook(
 					url,
 					token: c.webhookSecret,
 					push_events: true,
+					tag_push_events: true,
+					releases_events: true,
 					merge_requests_events: true,
 					enable_ssl_verification: true,
 				},
@@ -166,7 +168,7 @@ export async function ensureWebhook(
 				{
 					type: "gitea",
 					active: true,
-					events: ["push", "pull_request"],
+					events: ["push", "pull_request", "release"],
 					config: { url, content_type: "json", secret: c.webhookSecret },
 				},
 				headers,

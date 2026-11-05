@@ -76,7 +76,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "Codertocat/Hello-World",
-			branch: "main",
+			ref: { kind: "branch", name: "main" },
 			commitSha: "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
 			commitMessage: "Update README.md",
 			author: "Codertocat",
@@ -114,7 +114,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "mike/diaspora",
-			branch: "master",
+			ref: { kind: "branch", name: "master" },
 			commitSha: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
 			commitMessage: "fixed readme",
 			author: "GitLab dev user",
@@ -157,7 +157,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "gitea/webhooks",
-			branch: "develop",
+			ref: { kind: "branch", name: "develop" },
 			commitSha: "bffeb74224043ba2feb48d137756c8a9331c449a",
 			commitMessage: "Webhooks Yay!",
 			author: "Gitea",
@@ -195,7 +195,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "team/repo",
-			branch: "main",
+			ref: { kind: "branch", name: "main" },
 			commitSha: "709d658dc5b6d6afcd46049c2f332ee3f515a67d",
 			commitMessage: "Fix the build\n",
 			author: "Emma",
@@ -293,7 +293,7 @@ describe("webhook verification", () => {
 		).toBeNull();
 		expect(
 			await github.verifyWebhook(
-				...signed("push", { ...fx.githubPush, ref: "refs/tags/v1" }),
+				...signed("push", { ...fx.githubPush, ref: "refs/notes/commits" }),
 			),
 		).toBeNull();
 		expect(
@@ -374,8 +374,9 @@ describe("GitHub App", () => {
 				metadata: "read",
 				pull_requests: "write",
 				statuses: "write",
+				checks: "read",
 			},
-			default_events: ["push", "pull_request"],
+			default_events: ["push", "pull_request", "release"],
 		});
 	});
 
