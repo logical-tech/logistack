@@ -35,6 +35,8 @@ export type ServiceVarInput = Body<S["env-vars"]["$put"]>["variables"][number];
 export type ExecInput = Body<S["exec"]["$post"]>;
 export type ExecTicket = Res<S["exec"]["$post"], 201>;
 export type Shell = ExecInput["shell"];
+export type PendingDiff = Res<S["pending-diff"]["$get"]>;
+export type PendingChange = PendingDiff["changes"][number]["change"];
 
 /** What a `service-logs:` subscription accepts (`LogOptions` in the server's streams.ts). */
 export type LogOptions = {
@@ -52,6 +54,8 @@ export type ServiceOpsApi = {
 	remove(id: ServiceId): Promise<void>;
 	deployments(id: ServiceId, limit: number): Promise<DeploymentRow[]>;
 	deploy(id: ServiceId): Promise<DeploymentRow>;
+	/** What the next deploy changes against the newest healthy deployment; secret values never included. */
+	pendingDiff(id: ServiceId): Promise<PendingDiff>;
 	/** Rolling restart on the current image; 409 when the service was never healthy. */
 	restart(id: ServiceId): Promise<DeploymentRow>;
 	stop(id: ServiceId): Promise<ServiceRecord>;
@@ -78,6 +82,7 @@ export const serviceOpsHttp: ServiceOpsApi = {
 	deployments: (v, limit) =>
 		ok(s().deployments.$get({ ...id(v), query: { limit: String(limit) } })),
 	deploy: (v) => ok(s().deploy.$post(id(v))),
+	pendingDiff: (v) => ok(s()["pending-diff"].$get(id(v))),
 	restart: (v) => ok(s().restart.$post(id(v))),
 	stop: (v) => ok(s().stop.$post(id(v))),
 	start: (v) => ok(s().start.$post(id(v))),
@@ -113,6 +118,14 @@ export const deploymentsQuery = (id: ServiceId) =>
 		queryKey: [...serviceKey(id), "deployments"],
 		queryFn: () => api.serviceOps.deployments(id, 50),
 		refetchInterval: (q) => (q.state.data?.some(isRunning) ? 2_000 : 10_000),
+	});
+
+export const pendingDiffQuery = (id: ServiceId) =>
+	queryOptions({
+		queryKey: [...serviceKey(id), "pending-diff"],
+		queryFn: () => api.serviceOps.pendingDiff(id),
+		// Settings saved elsewhere (env, domains, another tab) change it without a mutation here.
+		refetchInterval: 10_000,
 	});
 
 export const envVarsQuery = (id: ServiceId) =>
