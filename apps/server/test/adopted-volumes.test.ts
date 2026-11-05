@@ -155,4 +155,19 @@ describe.skipIf(!hasDocker)("adopted volumes on service create", () => {
 		);
 		expect(res.status).toBe(403);
 	});
+
+	test("a database's engine or Postgres major cannot change in place", async () => {
+		const res = await create({ name: "versions", spec: postgres });
+		expect(res.status).toBe(201);
+		const patch = (spec: Record<string, unknown>) =>
+			h.call("PATCH", `/api/services/${res.json.id}`, {
+				...asOwner(),
+				body: { spec: { ...postgres, ...spec } },
+			});
+		expect((await patch({ version: "16.4" })).status).toBe(200);
+		const major = await patch({ version: "18" });
+		expect(major.status).toBe(400);
+		expect(JSON.stringify(major.json)).toContain("major version");
+		expect((await patch({ engine: "mysql", version: "8" })).status).toBe(400);
+	});
 });

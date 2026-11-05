@@ -6,6 +6,7 @@ import {
 import {
 	type CompileServiceInput,
 	compileService,
+	dataDirOf,
 	serviceFiles,
 } from "../src/compile-service.ts";
 import { databaseCredentials } from "../src/database-credentials.ts";
@@ -571,5 +572,41 @@ describe("adopted volumes", () => {
 		expect(
 			mountsOf({ ...input, adoptedVolumes: { mnt_other: "elsewhere" } }),
 		).toEqual(mountsOf(input));
+	});
+});
+
+describe("Postgres data directory", () => {
+	const dataMount = (version: string) => {
+		const input = database("postgres");
+		const spec = {
+			...input.service.spec,
+			version,
+		} as typeof input.service.spec;
+		return compileService({ ...input, service: { ...input.service, spec } })
+			.TaskTemplate.ContainerSpec.Mounts?.[0]?.Target;
+	};
+
+	test("before 18 the volume is PGDATA itself", () => {
+		expect(dataMount("17-alpine")).toBe("/var/lib/postgresql/data");
+		expect(dataMount("15")).toBe("/var/lib/postgresql/data");
+	});
+
+	test("18 and later, or a tag without a major, mount the parent the image expects", () => {
+		expect(dataMount("18")).toBe("/var/lib/postgresql");
+		expect(dataMount("18-alpine")).toBe("/var/lib/postgresql");
+		expect(dataMount("latest")).toBe("/var/lib/postgresql");
+	});
+
+	test("dataDirOf agrees with what the compiler mounts", () => {
+		for (const version of ["16", "18-alpine"])
+			expect(
+				dataDirOf({
+					kind: "database",
+					engine: "postgres",
+					version,
+					credentialsRef: "r",
+					resources: {},
+				}),
+			).toBe(dataMount(version));
 	});
 });

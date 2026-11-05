@@ -11,6 +11,7 @@ import {
 	databaseCredentials,
 	dataDirOf,
 	encrypt,
+	postgresMajor,
 	storageCredentials,
 } from "@logistack/core";
 import {
@@ -408,6 +409,26 @@ export const services = router()
 					"bad_request",
 					"spec.engine cannot change: the data volume belongs to the engine",
 				);
+			if (
+				input.spec?.kind === "database" &&
+				current?.spec.kind === "database"
+			) {
+				if (input.spec.engine !== current.spec.engine)
+					throw new Failure(
+						"bad_request",
+						"spec.engine cannot change: the data volume belongs to the engine",
+					);
+				// A Postgres data directory opens only with its own major; upgrade by dump and restore.
+				if (
+					input.spec.engine === "postgres" &&
+					postgresMajor(input.spec.version) !==
+						postgresMajor(current.spec.version)
+				)
+					throw new Failure(
+						"bad_request",
+						"Postgres major version cannot change in place: dump, create a new database and restore",
+					);
+			}
 			let nodeId: string | null | undefined;
 			if (input.spec) {
 				c.set("auditDiff", { before: current?.spec, after: input });

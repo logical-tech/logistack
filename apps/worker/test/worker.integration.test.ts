@@ -411,6 +411,63 @@ describe.skipIf(!enabled)("worker against the real Swarm", () => {
 		await db().delete(service).where(eq(service.id, id));
 	}, 60_000);
 
+	test("Postgres 18 starts and keeps its data on the managed volume across a redeploy", async () => {
+		sh("docker", "pull", "-q", "postgres:18-alpine");
+		const [row] = await db()
+			.insert(service)
+			.values({
+				environmentId: envId,
+				name: "pg18",
+				slug: "pg18",
+				kind: "database",
+				spec: {
+					kind: "database",
+					engine: "postgres",
+					version: "18-alpine",
+					credentialsRef: "test",
+					resources: {},
+				},
+			})
+			.returning();
+		const id = row?.id as string;
+		await setEnv(id, "POSTGRES_PASSWORD", "test-pg18");
+		const psql = (query: string) => {
+			const task = sh(
+				"docker",
+				"ps",
+				"-q",
+				"--filter",
+				`label=com.docker.swarm.service.name=${svcName(ctx(), id)}`,
+			).split("\n")[0] as string;
+			return sh(
+				"docker",
+				"exec",
+				task,
+				"psql",
+				"-U",
+				"postgres",
+				"-tAc",
+				query,
+			);
+		};
+
+		expect((await waitForDeployment(db(), await queue(id))).status).toBe(
+			"healthy",
+		);
+		psql("create table kept (v text); insert into kept values ('survives')");
+		expect((await waitForDeployment(db(), await queue(id))).status).toBe(
+			"healthy",
+		);
+		expect(psql("select v from kept")).toBe("survives");
+		expect(psql("show data_directory")).toBe("/var/lib/postgresql/18/docker");
+		const svc = await inspectService(ctx(), svcName(ctx(), id));
+		expect(
+			svc?.Spec.TaskTemplate.ContainerSpec.Mounts?.map((m) => m.Target),
+		).toEqual(["/var/lib/postgresql"]);
+		await db().delete(service).where(eq(service.id, id));
+		await ctx().docker.services.remove(svcName(ctx(), id));
+	}, 300_000);
+
 	test("orphaned objects are removed only after the grace period", async () => {
 		const name = svcName(ctx(), webId);
 		await db().delete(service).where(eq(service.id, webId));

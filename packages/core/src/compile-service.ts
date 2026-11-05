@@ -161,9 +161,25 @@ export const databaseImage = (engine: DatabaseEngine, version: string) =>
 const sha256 = (data: string) =>
 	new Bun.CryptoHasher("sha256").update(data).digest("hex").slice(0, 12);
 
+/** A Postgres version's major number; a tag without one (`latest`, `alpine`) is today's, 18 or later. */
+export const postgresMajor = (version: string) =>
+	Number.parseInt(version, 10) || Number.POSITIVE_INFINITY;
+
+/**
+ * Postgres 18+ keeps PGDATA in `/var/lib/postgresql/<major>/docker` and refuses to start with a
+ * mount at the old `/var/lib/postgresql/data`, so the volume goes on the parent directory.
+ */
+export function databaseDataDir(
+	db: Pick<DatabaseSpec, "engine" | "version">,
+): string {
+	return db.engine === "postgres" && postgresMajor(db.version) >= 18
+		? "/var/lib/postgresql"
+		: engines[db.engine].dataDir;
+}
+
 /** Where a database or storage service keeps its data; an adopted volume can take that place. */
 export function dataDirOf(spec: ServiceSpecInput): string | undefined {
-	if (spec.kind === "database") return engines[spec.engine].dataDir;
+	if (spec.kind === "database") return databaseDataDir(spec);
 	if (spec.kind === "storage") return storageEngineDefs[spec.engine].dataDir;
 	return undefined;
 }
@@ -300,7 +316,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			throw new Error(
 				`service ${service.id}: ${db.engine} needs env ${missing.join(", ")}`,
 			);
-		volumeMounts.push(volume(service.id, engine.dataDir));
+		volumeMounts.push(volume(service.id, databaseDataDir(db)));
 	}
 	if (store) {
 		const missing = store.required.filter((k) => !input.env[k]);
