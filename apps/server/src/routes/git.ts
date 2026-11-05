@@ -102,6 +102,14 @@ const Connect = z.discriminatedUnion("kind", [
 		sshKeyId: z.string().min(1),
 		knownHosts: z.string().optional(),
 	}),
+	/** An existing GitHub App (migrations): it keeps its key, webhook secret and installation. */
+	z.object({
+		kind: z.literal("github"),
+		appId: z.string(),
+		privateKey: z.string().min(1),
+		webhookSecret: z.string().min(1),
+		installationId: z.string(),
+	}),
 ]);
 type Connect = z.infer<typeof Connect>;
 
@@ -120,8 +128,8 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function providerConfig(input: Connect, webhookSecret: string): StoredConfig {
 	const { kind, ...fields } = input;
 	const config = {
-		...fields,
 		...(kind === "generic" ? {} : { webhookSecret }),
+		...fields,
 	};
 	const parsed = gitProviders[kind].configSchema.safeParse(config);
 	if (!parsed.success)
@@ -379,7 +387,7 @@ export const git = router()
 				tags: ["git"],
 				security,
 				summary:
-					"Connect GitLab, Gitea/Forgejo, Bitbucket or a generic SSH remote",
+					"Connect GitLab, Gitea/Forgejo, Bitbucket, a generic SSH remote, or an existing GitHub App",
 				middleware: [requirePermission("admin", inOrganization)],
 				request: body(z.object({ name: Name, provider: Connect })),
 				responses: {

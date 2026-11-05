@@ -14,6 +14,9 @@ import {
 	generatedDomainBases,
 	gitProviderKinds,
 	gitRefKinds,
+	migrationItemStatuses,
+	migrationSources,
+	migrationStatuses,
 	mountKinds,
 	nodeRoles,
 	nodeStatuses,
@@ -67,4 +70,11 @@ export const generatedDomainBase = pgEnum(
 export const storageKeyAccessEnum = pgEnum(
 	"storage_key_access",
 	storageKeyAccess,
+);
+
+export const migrationSource = pgEnum("migration_source", migrationSources);
+export const migrationStatus = pgEnum("migration_status", migrationStatuses);
+export const migrationItemStatus = pgEnum(
+	"migration_item_status",
+	migrationItemStatuses,
 );

@@ -197,7 +197,9 @@ export const mockIntegrations: IntegrationsApi = {
 					? p.accessToken
 					: p.kind === "generic"
 						? p.sshKeyId
-						: p.token;
+						: p.kind === "github"
+							? p.privateKey
+							: p.token;
 			if (secret.includes("bad"))
 				return delay(
 					{

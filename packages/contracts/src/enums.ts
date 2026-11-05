@@ -203,3 +203,22 @@ export const permissionActions = [
 ] as const;
 export const PermissionAction = z.enum(permissionActions);
 export type PermissionAction = z.infer<typeof PermissionAction>;
+
+export const migrationSources = ["dokploy"] as const;
+export const MigrationSource = z.enum(migrationSources);
+export type MigrationSource = z.infer<typeof MigrationSource>;
+
+export const migrationStatuses = ["planned", "importing", "imported"] as const;
+export const MigrationStatus = z.enum(migrationStatuses);
+export type MigrationStatus = z.infer<typeof MigrationStatus>;
+
+export const migrationItemStatuses = [
+	"planned",
+	"imported",
+	"cut_over",
+	"failed",
+	"rolled_back",
+	"skipped",
+] as const;
+export const MigrationItemStatus = z.enum(migrationItemStatuses);
+export type MigrationItemStatus = z.infer<typeof MigrationItemStatus>;

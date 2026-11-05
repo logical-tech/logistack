@@ -127,18 +127,42 @@ Organization-level resources become `OrgItem`s in `Inventory.org` (`org.ts`, pur
 
 ## Run a migration as a resumable state machine (MIG-3)
 
-- [ ] Add `migration` and `migration_item` tables:
-  - [ ] `migration` holds the source, the status and the archive path.
-  - [ ] `migration_item` holds the kind, the source id, the target id, the status (`planned → imported → cut_over | failed | rolled_back | skipped`) and the last error.
-  - [ ] The state transitions live in `packages/core`.
-  - Evidence: state machine unit tests.
-- [ ] Import: a worker job creates every `planned` item through the API routes as `system:migrate-dokploy`, without deploying. It runs again safely: an item that already has `target_id` is skipped. Evidence: integration test that runs the import twice.
+### MIG-3a (done)
+
+- [x] `migration` and `migration_item` tables (`packages/db/drizzle/0022_migration.sql`):
+  - [x] `migration` holds the organization, the source, the status (`planned → importing → imported`) and the archive path.
+  - [x] `migration_item` holds the kind, the source id, the position, the status, the plan, the targets and the last error. The plan is the inventory item (drafts and notes) encrypted with the master key, because it carries passwords and keys. `targets` holds the resource id, or the service ids by slug for a compose split.
+  - [x] Item statuses: `planned → imported → cut_over`, plus `failed` (retried by the next import), `rolled_back` (cut over again later) and `skipped` (undone with `unskip` until the cutover). The transitions live in `packages/core/src/migration.ts`. Evidence: `packages/core/test/migration.test.ts`.
+- [x] `planMigration` stores an inventory: organization resources first, because services reference them, then the services in inventory order. An `unsupported` item starts `skipped`.
+- [x] Import (`apps/server/src/migration/import.ts`):
+  - [x] It creates every `planned` or `failed` item through the API routes, as the system actor `migrate-dokploy`. Nothing is deployed. A created service only runs after a healthy deployment, so the import never starts a second Postgres on a volume Dokploy is still using.
+  - [x] It runs in the api, not in the worker, because the routes live in the api and the worker does not depend on `apps/server`. `resumeImports` restarts an import that a restart interrupted.
+  - [x] Organization resources: registries, S3 destinations, SSH keys, notification channels plus their rule, and GitHub Apps. A GitHub App is stored through `POST /git-providers` with the new `github` variant, which keeps its key, webhook secret and installation.
+  - [x] Services go into the folder "Imported from Dokploy", in their Dokploy project and environment. A Dokploy environment that LogiStack does not have yet is created, as `custom` unless it is `production`, `staging` or `preview`. Each service keeps its slug, mounts and adopted volumes.
+  - [x] Env: the full service set is written with `PUT /services/{id}/env-vars`. Dokploy's values win over the credentials the API minted.
+  - [x] Also written: domains, basic auth, backup policies on the imported destination, and the git source bound to the imported provider.
+  - [x] Idempotent:
+    - A service is found by `importedFrom` and an organization resource by name or URL. Settings are written as full sets, and domains and policies only when missing.
+    - `targets` are saved after each service of an item, so a crash keeps what is done.
+  - [x] A failing item is marked `failed` with the route's error, and the import goes on with the next one.
+  - [x] Evidence: `apps/server/test/migration-import.test.ts` runs against Postgres and the real routes. It checks:
+    - Every resource is created, with Dokploy's slugs and credentials, the backup policy, the git binding and the notification rule.
+    - An item the API refuses is marked `failed` with the reason.
+    - After resetting every item to `planned`, as if the api had died before marking them, a second run creates nothing twice.
+- [ ] Routes to start a migration and run the import, for the wizard. They come with MIG-5 and MIG-6, once the api can reach Dokploy's database.
+- [ ] Shortcut: one api process runs an import at a time (an in-process guard). Take a row lease once the api runs replicas.
+
+### MIG-3b (next): cutover
+
 - [ ] Cutover for one service, as a worker job. Each step is idempotent:
   - [ ] Scale Dokploy's Swarm service to 0, or stop its compose containers. The service is not removed.
   - [ ] Deploy the LogiStack service and wait for health.
   - [ ] On failure, scale the LogiStack service to 0, restore Dokploy's replicas, and mark the item `rolled_back` with the cause.
   - Evidence: integration test on OrbStack Swarm with a fake "Dokploy" service named `ls-test-mig-*`.
-- [ ] GitHub App reuse: write the imported app's private key to the git provider. Then point the app's webhook URL at LogiStack with `PATCH /app/hook/config` (app JWT). If that fails, the item is `partial` and says the user must reconnect. Evidence: unit test with a mocked GitHub API.
+
+### MIG-3c: GitHub webhook and progress
+
+- [ ] GitHub App: at cutover, point the app's webhook URL at LogiStack with `PATCH /app/hook/config` (app JWT). If that fails, the item is `partial` and says the user must reconnect. Evidence: unit test with a mocked GitHub API.
 - [ ] Progress events go to the existing `EVENTS_CHANNEL`/WebSocket. Evidence: test that subscribes and sees each transition.
 
 ## Hand 80/443 from Traefik to Caddy (MIG-4)
