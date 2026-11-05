@@ -426,7 +426,7 @@ function NodesPanel() {
 	);
 }
 
-/** Shown to admins while a Dokploy next to this server has not handed over its traffic. */
+/** Shown to admins while a Dokploy or Coolify next to this server has not handed over its traffic. */
 function MigrationCallout() {
 	const source = useQuery({ ...migrationSourceQuery, retry: false });
 	const id = source.data?.migrationId;
@@ -435,16 +435,18 @@ function MigrationCallout() {
 		queryFn: () => migrationsApi.get(id as string),
 		enabled: Boolean(id),
 	});
-	if (source.data?.source !== "dokploy") return null;
+	const from = source.data?.source;
+	if (!from) return null;
 	if (mig.data?.proxy.status === "switched") return null;
+	const label = from === "coolify" ? "Coolify" : "Dokploy";
 	return (
 		<section className="t-reveal mb-6 flex flex-col gap-4 rounded-xl bg-card px-5 py-4 shadow-card ring-1 ring-border sm:flex-row sm:items-center">
 			<div className="min-w-0 flex-1">
-				<h2 className="text-sm font-semibold">Dokploy runs on this server</h2>
+				<h2 className="text-sm font-semibold">{label} runs on this server</h2>
 				<p className="mt-0.5 text-sm text-muted-foreground text-pretty">
 					{id
-						? "Your migration is in progress. Dokploy keeps serving until you switch traffic."
-						: "Move its projects, databases and domains here, one service at a time. Dokploy keeps serving until you switch traffic."}
+						? `Your migration is in progress. ${label} keeps serving until you switch traffic.`
+						: `Move its projects, databases and domains here, one service at a time. ${label} keeps serving until you switch traffic.`}
 				</p>
 			</div>
 			<Button asChild variant={id ? "outline" : "default"}>

@@ -167,6 +167,10 @@ function inventory(): MigrationItem[] {
 }
 
 let migration: Migration | null = null;
+/** `VITE_MOCK_SOURCE=coolify` walks the Coolify flow (paused control plane, its own names). */
+const SOURCE: "dokploy" | "coolify" =
+	import.meta.env.VITE_MOCK_SOURCE === "coolify" ? "coolify" : "dokploy";
+const LABEL = SOURCE === "coolify" ? "Coolify" : "Dokploy";
 const listeners = new Set<(itemId: string) => void>();
 const emit = (itemId: string) => {
 	for (const fn of listeners) fn(itemId);
@@ -189,13 +193,13 @@ function settle(i: MigrationItem, ms: number, apply: () => void) {
 export const mockMigrations: MigrationsApi = {
 	source: () =>
 		delay<MigrationSource>({
-			source: "dokploy",
+			source: SOURCE,
 			migrationId: migration?.id ?? null,
 		}),
 	create: async () => {
 		migration = {
 			id: "mig_mock0001",
-			source: "dokploy",
+			source: SOURCE,
 			status: "planned",
 			createdAt: new Date().toISOString(),
 			items: inventory(),
@@ -214,7 +218,7 @@ export const mockMigrations: MigrationsApi = {
 				removed: [],
 				kept: [],
 			},
-			decommissionBlocker: "traffic still goes through Dokploy's proxy",
+			decommissionBlocker: `traffic still goes through ${LABEL}'s proxy`,
 			frozenAt: null,
 		};
 		return delay(migration, 1200);
@@ -228,9 +232,9 @@ export const mockMigrations: MigrationsApi = {
 				(i) => i.status !== "cut_over" && i.status !== "skipped",
 			).length;
 			mig.decommissionBlocker = open
-				? `${open} item(s) are neither on LogiStack nor left on Dokploy`
+				? `${open} item(s) are neither on LogiStack nor left on ${LABEL}`
 				: mig.proxy.status !== "switched"
-					? "traffic still goes through Dokploy's Traefik"
+					? `traffic still goes through ${LABEL}'s proxy`
 					: null;
 		}
 		return delay(mig);
@@ -249,10 +253,14 @@ export const mockMigrations: MigrationsApi = {
 				error: null,
 				archivePath: `/var/lib/logistack/migration/${stamp}`,
 				removed: [
-					"dokploy",
-					"dokploy-postgres",
-					"dokploy-redis",
-					"dokploy-traefik",
+					...(SOURCE === "coolify"
+						? ["coolify", "coolify-db", "coolify-redis", "coolify-proxy"]
+						: [
+								"dokploy",
+								"dokploy-postgres",
+								"dokploy-redis",
+								"dokploy-traefik",
+							]),
 					...mig.items
 						.filter((i) => i.status === "cut_over" && i.project !== null)
 						.flatMap((i) => i.services.map((s) => s.slug)),
@@ -260,9 +268,10 @@ export const mockMigrations: MigrationsApi = {
 				kept: [
 					...mig.items
 						.filter((i) => i.status === "skipped")
-						.map((i) => ({ name: i.name, reason: "stays on Dokploy" })),
+						.map((i) => ({ name: i.name, reason: `stays on ${LABEL}` })),
 					{
-						name: "dokploy-network",
+						name:
+							SOURCE === "coolify" ? "ls-coolify-bridge" : "dokploy-network",
 						reason:
 							"still in use; re-run install.sh to detach LogiStack's api, then remove it",
 					},
@@ -270,6 +279,16 @@ export const mockMigrations: MigrationsApi = {
 			};
 			emit("");
 		}, 4000);
+		return delay(mig);
+	},
+	unfreeze: (id) => {
+		const mig = migration;
+		if (!mig || mig.id !== id)
+			throw new ApiError(404, "migration not found", "not_found");
+		setTimeout(() => {
+			mig.frozenAt = null;
+			emit("");
+		}, 1200);
 		return delay(mig);
 	},
 	importAll: (id) => {
@@ -339,11 +358,15 @@ export const mockMigrations: MigrationsApi = {
 					);
 				i.status = "planned";
 			},
-			cutover: () =>
+			cutover: () => {
+				// The first cutover pauses Coolify's control plane.
+				if (SOURCE === "coolify" && migration && !migration.frozenAt)
+					migration.frozenAt = new Date().toISOString();
 				settle(i, 1800 + i.services.length * 600, () => {
 					i.status = "cut_over";
 					i.lastError = null;
-				}),
+				});
+			},
 			rollback: () =>
 				settle(i, 1500, () => {
 					i.status = "rolled_back";

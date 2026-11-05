@@ -327,12 +327,16 @@ Code in `apps/server/src/migration/coolify/`: `snapshot.ts` (zod), `read.ts`, `d
   - Coolify's containers, its proxy and the moved site are gone; the database left on Coolify stays.
   - The client left the overlay, and the bridge rows are gone.
 
-## Wizard (COOL-7)
+## Wizard (COOL-7, done)
 
-- [ ] The wizard, Home panel and command palette name the detected source. Copy differs only by the source's name and steps:
-  - "Freeze Coolify" is explained in step 3;
-  - the confirm word is `coolify`.
-- [ ] Evidence: mock API run in dark and light at 1440 px and 390 px, impeccable detector, keyboard-only pass.
+- [x] The wizard, the Home panel and the nav entry name the detected source. The wizard's per-source words live in one table (`SOURCE` in `apps/web/src/routes/_app/settings/migrate.tsx`): label, proxy, what is read, the archived directory, what is removed, and the confirm word (`coolify`). One-click services show as "One-click service".
+- [x] While Coolify is paused (`frozenAt`), step 3 shows a quiet notice with an idle dot, and "Start Coolify" (`POST /migrations/{id}/unfreeze`). Before the first move, the confirmation says Coolify pauses first.
+- [x] The mock takes `VITE_MOCK_SOURCE=coolify`. It pauses Coolify on the first cutover and unpauses on the action.
+- [x] Evidence (2026-11-05, mock API, in-app browser):
+  - Home says "Coolify runs on this server".
+  - Read Coolify → Import → Move went through. After the first move the notice appeared; at 390 px its dot sits on the first line and the action stays reachable; "Start Coolify" cleared it.
+  - Typecheck, Biome, `bun test src` (155) and `vite build` pass.
+- [ ] Not verified: a keyboard-only pass, light theme, and the wizard against a real api with a real Coolify (COOL-8 drives the same routes through the API, not the browser).
 
 ## Prove it end to end (COOL-8)
 

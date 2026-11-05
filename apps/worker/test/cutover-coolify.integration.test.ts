@@ -405,6 +405,9 @@ describe.skipIf(!enabled)("Coolify cutover on the real Swarm", () => {
 		await w?.stop();
 		await cleanup();
 		removeFakes();
+		// The archive job writes as root inside the VM; what it leaves is the suite's own temp dirs.
+		for (const dir of [root, archives])
+			if (dir) rmSync(dir, { recursive: true, force: true });
 	}, 180_000);
 
 	test("a database takes over its uuid for Coolify's apps; Coolify is frozen first", async () => {
