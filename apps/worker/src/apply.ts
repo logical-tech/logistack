@@ -3,7 +3,7 @@ import {
 	compileService,
 	serviceFiles,
 } from "@logistack/core";
-import { node, service } from "@logistack/db";
+import { migration, node, service } from "@logistack/db";
 import {
 	authForImage,
 	DockerError,
@@ -15,7 +15,7 @@ import {
 	type ServiceSpec,
 	type Task,
 } from "@logistack/docker";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
 import {
@@ -233,7 +233,21 @@ export async function desiredInput(
 			: undefined;
 	// Until Dokploy is decommissioned, its Traefik and its remaining services reach this one by its
 	// old appName (the slug) on Dokploy's network.
-	const bridge = sc.service.importedFrom?.startsWith("dokploy:")
+	const decommissioned = sc.service.importedFrom?.startsWith("dokploy:")
+		? (
+				await ctx.db
+					.select({ id: migration.id })
+					.from(migration)
+					.where(
+						and(
+							eq(migration.organizationId, sc.organizationId),
+							eq(migration.status, "decommissioned"),
+						),
+					)
+					.limit(1)
+			).length > 0
+		: true;
+	const bridge = !decommissioned
 		? await ctx.docker.networks
 				.inspect(ctx.cfg.LS_DOKPLOY_NETWORK)
 				.catch((e) => {

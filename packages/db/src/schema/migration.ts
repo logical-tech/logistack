@@ -46,6 +46,18 @@ export type ProxySwitchState = {
 		| { status: "fell_back"; at: string; error: string };
 };
 
+/** What the decommission archived and removed, and what it left alone (MIG-7). */
+export type DecommissionState = {
+	/** `<archive dir>/<stamp>`: `dokploy.dump`, `etc-dokploy.tar.gz`, `inventory.json`. */
+	archive?: { path: string; files: string[] };
+	removed?: string[];
+	/** Left in place, with why: an item staying on Dokploy, a network still in use. */
+	kept?: { name: string; reason: string }[];
+	result?:
+		| { status: "done"; at: string }
+		| { status: "failed"; at: string; error: string };
+};
+
 /** A migration from another platform into one organization; its items carry the work. */
 export const migration = pgTable("migration", {
 	id: id("mig"),
@@ -55,6 +67,7 @@ export const migration = pgTable("migration", {
 	source: migrationSource("source").notNull(),
 	status: migrationStatus("status").notNull().default("planned"),
 	proxyState: jsonb("proxy_state").$type<ProxySwitchState>(),
+	decommission: jsonb("decommission").$type<DecommissionState>(),
 	/** Where the source's data was archived on decommission (MIG-7). */
 	archivePath: text("archive_path"),
 	...timestamps,

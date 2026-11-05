@@ -206,13 +206,70 @@ export const mockMigrations: MigrationsApi = {
 				certificates: null,
 				probes: [],
 			},
+			decommission: {
+				status: "not_started",
+				at: null,
+				error: null,
+				archivePath: null,
+				removed: [],
+				kept: [],
+			},
+			decommissionBlocker: "traffic still goes through Dokploy's Traefik",
 		};
 		return delay(migration, 1200);
 	},
 	get: (id) => {
-		if (!migration || migration.id !== id)
+		const mig = migration;
+		if (!mig || mig.id !== id)
 			throw new ApiError(404, "migration not found", "not_found");
-		return delay(migration);
+		if (mig.status !== "decommissioned") {
+			const open = mig.items.filter(
+				(i) => i.status !== "cut_over" && i.status !== "skipped",
+			).length;
+			mig.decommissionBlocker = open
+				? `${open} item(s) are neither on LogiStack nor left on Dokploy`
+				: mig.proxy.status !== "switched"
+					? "traffic still goes through Dokploy's Traefik"
+					: null;
+		}
+		return delay(mig);
+	},
+	decommission: (id) => {
+		const mig = migration;
+		if (!mig || mig.id !== id)
+			throw new ApiError(404, "migration not found", "not_found");
+		setTimeout(() => {
+			const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+			mig.status = "decommissioned";
+			mig.decommissionBlocker = null;
+			mig.decommission = {
+				status: "done",
+				at: new Date().toISOString(),
+				error: null,
+				archivePath: `/var/lib/logistack/migration/${stamp}`,
+				removed: [
+					"dokploy",
+					"dokploy-postgres",
+					"dokploy-redis",
+					"dokploy-traefik",
+					...mig.items
+						.filter((i) => i.status === "cut_over" && i.project !== null)
+						.flatMap((i) => i.services.map((s) => s.slug)),
+				],
+				kept: [
+					...mig.items
+						.filter((i) => i.status === "skipped")
+						.map((i) => ({ name: i.name, reason: "stays on Dokploy" })),
+					{
+						name: "dokploy-network",
+						reason:
+							"still in use; re-run install.sh to detach LogiStack's api, then remove it",
+					},
+				],
+			};
+			emit("");
+		}, 4000);
+		return delay(mig);
 	},
 	importAll: (id) => {
 		const mig = migration;

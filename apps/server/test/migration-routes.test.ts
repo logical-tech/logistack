@@ -84,6 +84,18 @@ describe.skipIf(!hasDocker)("migration wizard routes", () => {
 		expect(JSON.stringify(res.json)).not.toContain("fake-route-secret");
 	});
 
+	test("Dokploy is not removed while traffic still goes through it", async () => {
+		const res = await api("POST", `/migrations/${migrationId}/decommission`);
+		expect(res.status).toBe(409);
+		expect(res.json.error.message).toContain("cannot remove Dokploy yet");
+		const view = (await api("GET", `/migrations/${migrationId}`)).json;
+		expect(view.decommission).toMatchObject({
+			status: "not_started",
+			removed: [],
+		});
+		expect(view.decommissionBlocker).toBeTruthy();
+	});
+
 	test("skipping is undone only for what can be imported", async () => {
 		const items = (await api("GET", `/migrations/${migrationId}`)).json.items;
 		const web = items.find((i: { name: string }) => i.name === "web");

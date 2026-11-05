@@ -20,8 +20,8 @@ import { cleanup, hasDocker, sh, startInfra, workerConfig } from "./harness.ts";
 
 const enabled = hasDocker && process.env.WORKER_IT === "1";
 
-/** Fake Dokploy objects; removed by these exact names only. */
-const MIG = "ls-test-mig-";
+/** Fake Dokploy objects; removed by these exact names only (`ls-test-mig-` is migration.integration's). */
+const MIG = "ls-test-mig3-";
 const NET = `${MIG}net`;
 const WEB = `${MIG}web`;
 const BROKEN = `${MIG}broken`;
@@ -59,7 +59,7 @@ const probe = (host: string) =>
 			"run",
 			"--rm",
 			"--label",
-			"logistack.test=mig",
+			"logistack.test=mig3",
 			"--network",
 			NET,
 			"busybox:1.37",
@@ -176,7 +176,10 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 			"overlay",
 			"--attachable",
 			"--label",
-			"logistack.test=mig",
+			"logistack.test=mig3",
+			// Its own range: Swarm hands a freed subnet to the next suite's network at once.
+			"--subnet",
+			"10.231.3.0/24",
 			NET,
 		);
 		const cfg = await workerConfig(await startInfra());
@@ -223,7 +226,7 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 			"--name",
 			WEB,
 			"--label",
-			"logistack.test=mig",
+			"logistack.test=mig3",
 			"--network",
 			NET,
 			"busybox:1.37",
@@ -276,7 +279,7 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 			"--name",
 			BROKEN,
 			"--label",
-			"logistack.test=mig",
+			"logistack.test=mig3",
 			"--network",
 			NET,
 			"busybox:1.37",
@@ -300,7 +303,7 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 			"volume",
 			"create",
 			"--label",
-			"logistack.test=mig",
+			"logistack.test=mig3",
 			BLOG_DATA,
 		);
 		sh(
@@ -310,7 +313,7 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 			"--name",
 			BLOG_APP,
 			"--label",
-			"logistack.test=mig",
+			"logistack.test=mig3",
 			"--label",
 			`com.docker.compose.project=${BLOG}`,
 			"--network",

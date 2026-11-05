@@ -40,6 +40,15 @@ const ConfigSchema = z.object({
 		.int()
 		.positive()
 		.default(90_000),
+	/** Where the decommission archives Dokploy (`install.sh` creates it next to Dokploy). */
+	LS_MIGRATION_ARCHIVE_DIR: z.string().default("/var/lib/logistack/migration"),
+	/** Dokploy's configuration directory, archived as a tarball. */
+	LS_DOKPLOY_ROOT: z.string().default("/etc/dokploy"),
+	/** Dokploy's own Swarm services, removed by these exact names; the first-named database is dumped. */
+	LS_DOKPLOY_POSTGRES: z.string().default("dokploy-postgres"),
+	LS_DOKPLOY_SERVICES: z
+		.string()
+		.default("dokploy,dokploy-postgres,dokploy-redis"),
 	/** Dokploy's shared network: services migrated from it join it until it is gone (MIG-7). */
 	LS_DOKPLOY_NETWORK: z.string().default("dokploy-network"),
 	/** Swarm service name of the Caddy ingress (stack `logistack`, service `caddy`). */

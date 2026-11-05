@@ -254,11 +254,31 @@ The wizard lives at Settings → Migrate (`apps/web/src/routes/_app/settings/mig
 
 ## Decommission Dokploy (MIG-7)
 
-- [ ] Archive under `/var/lib/logistack/migration/<timestamp>/`: a `pg_dump` of Dokploy's DB, a tarball of `/etc/dokploy`, and the inventory JSON. Evidence: files exist and the dump restores into a scratch Postgres.
-- [ ] Detach the migrated services from `dokploy-network` (the MIG-3b bridge) before removing it: Docker refuses to remove a network services still use. Turn the bridge off, update each migrated service without it, then remove the network.
-- [ ] Remove Dokploy's Swarm services (`dokploy`, `dokploy-postgres`, `dokploy-redis`, `dokploy-traefik`) and its app services and containers, matched by Dokploy's own labels or the exact names in the inventory. Remove the `dokploy-network` once it is empty. Volumes stay. Evidence: integration test listing what is left.
-- [ ] Do not decommission while any migrated item is not `cut_over` or `skipped`. Evidence: unit test.
-- [ ] A later "Purge archive and old volumes" action is confirmed by typing the server name. It never deletes adopted volumes. Evidence: test.
+### MIG-7a (done): archive and remove
+
+A `decommission` job on the `migration` queue (`apps/worker/src/decommission.ts`), started by `POST /migrations/{id}/decommission` and by "Remove Dokploy" at the end of the wizard. The user types `dokploy` to confirm.
+
+- [x] Gate: every item is `cut_over` or `skipped`, and traffic is switched (`decommissionBlocker` in `packages/core`). The api answers 409 with the reason, the wizard shows it beside a disabled button, and the worker checks again. Evidence: core unit test, route test, integration test.
+- [x] Archive under `/var/lib/logistack/migration/<stamp>/`, mode 0700, files 0600:
+  - `dokploy.dump` (`pg_dump -Fc`), `etc-dokploy.tar.gz` and `inventory.json`. The inventory holds the items' kind, source id, name, status and targets, no plan values.
+  - It runs as a one-shot Swarm job on this node with Dokploy's own Postgres image, so `pg_dump` matches the server.
+  - The job reads the password the way `dokploy-postgres` does: the same Swarm secret, or its env before 0.26.6 (copied into the job's env, never argv, while the job lives). The inventory travels as a Swarm config.
+  - The job verifies the dump (`pg_restore -l`) and the tarball (`tar -t`) before anything is removed. A failed archive leaves Dokploy untouched. An archive is made once, so a retry keeps the first one.
+  - `install.sh` creates the directory next to Dokploy, because a Swarm bind mount needs it to exist.
+  - Evidence: `apps/worker/test/decommission.integration.test.ts` (`WORKER_IT=1`). It runs a fake `dokploy-postgres` with its password in a Swarm secret, and the dump restores into a scratch Postgres with the data in it.
+- [x] Detach: the migrated services' Swarm specs drop `dokploy-network`. After decommission, `desiredInput` no longer adds the bridge, even if the network is left. Evidence: integration test.
+- [x] Remove:
+  - Dokploy's own services (`dokploy`, `dokploy-postgres`, `dokploy-redis`, by exact name).
+  - Traefik, as a container or a service.
+  - The sources the cutovers stopped, by the names and container ids saved in each item's `source_state`.
+  - Items left on Dokploy and every volume stay.
+  - `dokploy-network` is removed only if nothing uses it. Otherwise it is listed as kept with the reason: on a real server LogiStack's api is attached to it until `install.sh` runs again without Dokploy.
+  - Evidence: integration test. Removed: postgres, core, the migrated source and Traefik. Kept: the skipped item's service and the network it still uses.
+- [x] Report: `migration.decommission` holds the archive path and files, what was removed, what was kept and why, and the result. The migration becomes `decommissioned`. The wizard shows the report.
+
+### MIG-7b (next): purge
+
+- [ ] A later "Purge archive and old volumes" action, confirmed by typing the server name. It deletes the archive and the volumes of Dokploy's own services. It never deletes adopted volumes (the `adopted_volume` table). Evidence: test.
 
 ## Prove it end to end (MIG-8)
 

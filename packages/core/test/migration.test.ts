@@ -32,3 +32,19 @@ test("illegal moves name where they came from", () => {
 	expect(to("skipped", "imported")).toBeNull();
 	expect(to("cut_over", "imported")).toBeNull();
 });
+
+test("Dokploy is removed only once every item is settled and traffic moved", async () => {
+	const { decommissionBlocker } = await import("../src/migration.ts");
+	expect(
+		decommissionBlocker([{ status: "cut_over" }, { status: "skipped" }], true),
+	).toBeUndefined();
+	expect(
+		decommissionBlocker(
+			[{ status: "cut_over" }, { status: "rolled_back" }],
+			true,
+		),
+	).toBe("1 item(s) are neither on LogiStack nor left on Dokploy");
+	expect(decommissionBlocker([{ status: "cut_over" }], false)).toBe(
+		"traffic still goes through Dokploy's Traefik",
+	);
+});

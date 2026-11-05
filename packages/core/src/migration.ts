@@ -58,3 +58,17 @@ export function migrationItemTransition(
 /** Statuses the import still has to work on. */
 export const importable = (s: MigrationItemStatus) =>
 	s === "planned" || s === "failed";
+
+/** Why a decommission must not run yet, or undefined when it may. */
+export function decommissionBlocker(
+	items: { status: string }[],
+	proxySwitched: boolean,
+): string | undefined {
+	const open = items.filter(
+		(i) => i.status !== "cut_over" && i.status !== "skipped",
+	).length;
+	if (open)
+		return `${open} item(s) are neither on LogiStack nor left on Dokploy`;
+	if (!proxySwitched) return "traffic still goes through Dokploy's Traefik";
+	return undefined;
+}

@@ -22,6 +22,7 @@ import { loadCleanup, runCleanup } from "./cleanup.ts";
 import { reportCommitStatus } from "./commit-status.ts";
 import { type Config, loadConfig } from "./config.ts";
 import type { Ctx } from "./ctx.ts";
+import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { checkForUpdate } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
@@ -186,6 +187,8 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			async (job) => {
 				const d = job.data;
 				if (d.action === "switch_proxy") await switchProxy(ctx, d.migrationId);
+				else if (d.action === "decommission")
+					await decommission(ctx, d.migrationId);
 				else if (d.action === "cutover") await cutOver(ctx, d.itemId);
 				else await rollBack(ctx, d.itemId);
 			},

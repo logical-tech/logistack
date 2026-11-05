@@ -208,7 +208,13 @@ export const migrationSources = ["dokploy"] as const;
 export const MigrationSource = z.enum(migrationSources);
 export type MigrationSource = z.infer<typeof MigrationSource>;
 
-export const migrationStatuses = ["planned", "importing", "imported"] as const;
+export const migrationStatuses = [
+	"planned",
+	"importing",
+	"imported",
+	/** Dokploy archived and removed (MIG-7). */
+	"decommissioned",
+] as const;
 export const MigrationStatus = z.enum(migrationStatuses);
 export type MigrationStatus = z.infer<typeof MigrationStatus>;
 

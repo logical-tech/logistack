@@ -9,7 +9,11 @@ import {
 	MigrationSource,
 	MigrationStatus,
 } from "@logistack/contracts";
-import { decrypt, migrationItemTransition } from "@logistack/core";
+import {
+	decommissionBlocker,
+	decrypt,
+	migrationItemTransition,
+} from "@logistack/core";
 import { migration, migrationItem } from "@logistack/db";
 import { and, asc, desc, eq } from "drizzle-orm";
 import type { Context } from "hono";
@@ -78,6 +82,18 @@ const ProxyView = z
 	})
 	.openapi("MigrationProxy");
 
+const DecommissionView = z
+	.object({
+		status: z.enum(["not_started", "done", "failed"]),
+		at: z.string().nullable(),
+		error: z.string().nullable(),
+		/** On the server, root only: the dump, the tarball of /etc/dokploy and the inventory. */
+		archivePath: z.string().nullable(),
+		removed: z.array(z.string()),
+		kept: z.array(z.object({ name: z.string(), reason: z.string() })),
+	})
+	.openapi("MigrationDecommission");
+
 const MigrationView = z
 	.object({
 		id: z.string(),
@@ -86,6 +102,9 @@ const MigrationView = z
 		createdAt: z.string(),
 		items: z.array(MigrationItemView),
 		proxy: ProxyView,
+		decommission: DecommissionView,
+		/** Why Dokploy cannot be removed yet; null once it can. */
+		decommissionBlocker: z.string().nullable(),
 	})
 	.openapi("Migration");
 
@@ -195,6 +214,24 @@ async function view(c: Context<Env>, m: MigrationRow) {
 		createdAt: m.createdAt.toISOString(),
 		items: await Promise.all(items.map((r) => itemView(c, r))),
 		proxy: proxyView(m),
+		decommission: {
+			status: m.decommission?.result?.status ?? ("not_started" as const),
+			at: m.decommission?.result?.at ?? null,
+			error:
+				m.decommission?.result?.status === "failed"
+					? m.decommission.result.error
+					: null,
+			archivePath: m.decommission?.archive?.path ?? null,
+			removed: m.decommission?.removed ?? [],
+			kept: m.decommission?.kept ?? [],
+		},
+		decommissionBlocker:
+			m.status === "decommissioned"
+				? null
+				: (decommissionBlocker(
+						items,
+						m.proxyState?.result?.status === "switched",
+					) ?? null),
 	};
 }
 
@@ -355,6 +392,45 @@ export const migrations = router()
 				{ jobId: `proxy-${m.id}`, removeOnComplete: true, removeOnFail: true },
 			);
 			return c.json(await view(c, m), 202);
+		},
+	)
+	.openapi(
+		mutation(
+			"migration.decommission",
+			createRoute({
+				method: "post",
+				path: "/migrations/{id}/decommission",
+				tags,
+				security,
+				summary: "Archive Dokploy, then remove it",
+				description:
+					"Dumps Dokploy's database and archives /etc/dokploy and the inventory on the server, then removes Dokploy's services, Traefik and the sources already moved. Volumes and items left on Dokploy stay. Refused until every item is on LogiStack or left on Dokploy and traffic is switched.",
+				middleware: [admin],
+				request: { params: IdParam },
+				responses: { 202: json(MigrationView, "Queued"), ...errors },
+			}),
+		),
+		async (c) => {
+			const m = await ownMigration(c, c.req.valid("param").id);
+			const v = await view(c, m);
+			if (m.status === "decommissioned")
+				throw new Failure("conflict", "Dokploy is already removed");
+			if (v.decommissionBlocker)
+				throw new Failure(
+					"conflict",
+					`cannot remove Dokploy yet: ${v.decommissionBlocker}`,
+				);
+			c.set("auditResourceId", m.id);
+			await runQueues(c.var.deps.config.REDIS_URL).migration.add(
+				"decommission",
+				{ migrationId: m.id, action: "decommission" },
+				{
+					jobId: `decommission-${m.id}`,
+					removeOnComplete: true,
+					removeOnFail: true,
+				},
+			);
+			return c.json(v, 202);
 		},
 	)
 	.openapi(

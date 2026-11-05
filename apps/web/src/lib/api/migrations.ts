@@ -31,6 +31,8 @@ export type MigrationsApi = {
 	get(id: string): Promise<Migration>;
 	importAll(id: string): Promise<Migration>;
 	switchProxy(id: string): Promise<Migration>;
+	/** Archives Dokploy on the server, then removes it. */
+	decommission(id: string): Promise<Migration>;
 	item(id: string, action: ItemAction): Promise<MigrationItem>;
 	/** Calls `fn` on every item change of the migration; the mock simulates them. */
 	live(id: string, fn: (itemId: string) => void): () => void;
@@ -44,6 +46,7 @@ const http: MigrationsApi = {
 	get: (id) => ok(m[":id"].$get({ param: { id } })),
 	importAll: (id) => ok(m[":id"].import.$post({ param: { id } })),
 	switchProxy: (id) => ok(m[":id"]["proxy-switch"].$post({ param: { id } })),
+	decommission: (id) => ok(m[":id"].decommission.$post({ param: { id } })),
 	item: (id, action) => ok(items[action].$post({ param: { id } })),
 	live: (id, fn) =>
 		subscribeEvents(`migration:${id}`, (e) => {
@@ -71,13 +74,25 @@ const migrationKey = (id: string) => ["migrations", id] as const;
 export function useMigration(id: string | null | undefined) {
 	const qc = useQueryClient();
 	const [moving, setMoving] = useState<ReadonlySet<string>>(new Set());
+	/** A job that publishes no item event (proxy switch, decommission) the page waits on. */
+	const [awaiting, setAwaiting] = useState<"proxy" | "decommission" | null>(
+		null,
+	);
 	const query = useQuery({
 		queryKey: migrationKey(id ?? ""),
 		queryFn: () => migrationsApi.get(id as string),
 		enabled: Boolean(id),
-		// Events carry the changes; polling covers a dropped socket and the proxy switch.
-		refetchInterval: (q) =>
-			moving.size || q.state.data?.status === "importing" ? 3_000 : false,
+		// Events carry item changes; polling covers a dropped socket and the jobs without events.
+		refetchInterval: (q) => {
+			const d = q.state.data;
+			const waiting =
+				(awaiting === "proxy" && d?.proxy.status === "not_started") ||
+				(awaiting === "decommission" &&
+					d?.decommission.status === "not_started");
+			return moving.size || d?.status === "importing" || waiting
+				? 3_000
+				: false;
+		},
 	});
 	useEffect(() => {
 		if (!id) return;
@@ -99,7 +114,7 @@ export function useMigration(id: string | null | undefined) {
 			next.delete(itemId);
 			return next;
 		});
-	return { ...query, moving, mark, settle };
+	return { ...query, moving, mark, settle, await: setAwaiting };
 }
 
 export function useCreateMigration() {
@@ -118,10 +133,12 @@ export function useCreateMigration() {
 export function useMigrationAction(id: string) {
 	const qc = useQueryClient();
 	return useMutation({
-		mutationFn: (a: { kind: "import" } | { kind: "proxy" }) =>
+		mutationFn: (a: { kind: "import" | "proxy" | "decommission" }) =>
 			a.kind === "import"
 				? migrationsApi.importAll(id)
-				: migrationsApi.switchProxy(id),
+				: a.kind === "proxy"
+					? migrationsApi.switchProxy(id)
+					: migrationsApi.decommission(id),
 		onSuccess: (mig) => qc.setQueryData(migrationKey(id), mig),
 	});
 }

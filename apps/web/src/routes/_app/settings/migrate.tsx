@@ -17,6 +17,7 @@ import { Page, PageHeader } from "@/components/page-header";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { StatusDot, StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Wizard, type WizardStep } from "@/components/wizard/wizard";
 import {
@@ -69,6 +70,8 @@ type Ctx = {
 		items: MigrationItem[],
 		action: "cutover" | "rollback" | "skip" | "unskip",
 	) => void;
+	/** Polls until a job that sends no item events (proxy switch, decommission) reports back. */
+	awaitJob: (job: "proxy" | "decommission") => void;
 };
 
 const statusOf = (i: MigrationItem, moving: ReadonlySet<string>): StatusMeta =>
@@ -137,7 +140,7 @@ function Migrate() {
 			</Page>
 		);
 
-	const ctx: Ctx = { mig, moving: query.moving, act };
+	const ctx: Ctx = { mig, moving: query.moving, act, awaitJob: query.await };
 	return (
 		<Page className="max-w-5xl">
 			<Header mig={mig} moving={query.moving} />
@@ -220,7 +223,7 @@ function MigrationStrip({
 }
 
 function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
-	const { mig, moving } = ctx;
+	const { mig } = ctx;
 	const services = mig ? cutoverOrder(mig.items) : [];
 	const org = mig ? mig.items.filter(isOrgItem) : [];
 	const active = (i: MigrationItem) => i.status !== "skipped";
@@ -289,8 +292,9 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 		{
 			id: "summary",
 			title: "Done",
-			description: "Everything you chose now runs on LogiStack.",
-			render: () => <SummaryStep mig={mig} moving={moving} />,
+			description:
+				"Everything you chose runs on LogiStack. When you're ready, archive and remove Dokploy.",
+			render: () => <SummaryStep ctx={ctx} />,
 		},
 	];
 }
@@ -677,6 +681,7 @@ function ProxyStep({ ctx }: { ctx: Ctx }) {
 					run.mutate(
 						{ kind: "proxy" },
 						{
+							onSuccess: () => ctx.awaitJob("proxy"),
 							onSettled: () => setConfirm(false),
 							onError: (e) =>
 								toast.error("Couldn't switch traffic", {
@@ -690,13 +695,8 @@ function ProxyStep({ ctx }: { ctx: Ctx }) {
 	);
 }
 
-function SummaryStep({
-	mig,
-	moving,
-}: {
-	mig?: Migration;
-	moving: ReadonlySet<string>;
-}) {
+function SummaryStep({ ctx }: { ctx: Ctx }) {
+	const { mig, moving } = ctx;
 	if (!mig) return null;
 	const moved = mig.items.filter((i) => i.status === "cut_over");
 	const staying = mig.items.filter((i) => i.status === "skipped");
@@ -721,11 +721,131 @@ function SummaryStep({
 					))}
 				</Panel>
 			)}
-			<p className="max-w-[62ch] text-sm text-muted-foreground text-pretty">
-				Dokploy is stopped where it was replaced and keeps its data. Removing it
-				and archiving its database comes in a later release.
-			</p>
+			<RemoveDokploy ctx={ctx} />
 		</div>
+	);
+}
+
+/** Archive, then remove: the last, deliberate step. Volumes and items left on Dokploy stay. */
+function RemoveDokploy({ ctx }: { ctx: Ctx }) {
+	const mig = ctx.mig as Migration;
+	const run = useMigrationAction(mig.id);
+	const [confirm, setConfirm] = useState(false);
+	const [typed, setTyped] = useState("");
+	const d = mig.decommission;
+	const removing =
+		run.isPending || (run.isSuccess && d.status === "not_started");
+	if (d.status === "done")
+		return (
+			<Panel title="Dokploy removed" bodyClassName="divide-y">
+				<div className="px-4 py-3 text-sm">
+					<p>Archived on the server, readable by root only:</p>
+					<p className="mt-1 font-mono text-xs break-all text-muted-foreground">
+						{d.archivePath}
+					</p>
+					<p className="mt-2 text-xs text-muted-foreground">
+						Database dump, a copy of /etc/dokploy and the inventory. Volumes are
+						kept.
+					</p>
+				</div>
+				<div className="px-4 py-3 text-sm">
+					<p>
+						Removed{" "}
+						{plural(
+							d.removed.length,
+							"service or container",
+							"services and containers",
+						)}
+					</p>
+					<p className="mt-1 font-mono text-xs text-muted-foreground">
+						{d.removed.join(", ")}
+					</p>
+				</div>
+				{d.kept.map((k) => (
+					<div
+						key={k.name}
+						className="flex flex-wrap gap-x-3 px-4 py-3 text-sm"
+					>
+						<span className="font-medium">{k.name}</span>
+						<span className="text-muted-foreground">Kept: {k.reason}</span>
+					</div>
+				))}
+			</Panel>
+		);
+	return (
+		<section className="rounded-xl bg-card px-5 py-5 shadow-card ring-1 ring-border">
+			<h3 className="text-sm font-semibold">Remove Dokploy</h3>
+			<p className="mt-1 max-w-[62ch] text-sm text-muted-foreground text-pretty">
+				Archives Dokploy's database and configuration on this server, then
+				removes its services and Traefik. Volumes and anything you left on
+				Dokploy stay.
+			</p>
+			{d.status === "failed" && (
+				<p className="mt-3 flex gap-1.5 text-sm text-bad-text">
+					<CircleX className="mt-0.5 size-4 shrink-0" aria-hidden />
+					<span className="min-w-0 break-words">{d.error}</span>
+				</p>
+			)}
+			<div className="mt-4 flex flex-wrap items-center gap-3">
+				<Button
+					type="button"
+					variant="destructive"
+					disabled={Boolean(mig.decommissionBlocker) || removing}
+					onClick={() => setConfirm(true)}
+				>
+					{removing && <Loader2 className="animate-spin" />}
+					{removing
+						? "Archiving and removing"
+						: d.status === "failed"
+							? "Try again"
+							: "Remove Dokploy"}
+				</Button>
+				{mig.decommissionBlocker && (
+					<p className="text-sm text-muted-foreground">
+						Not yet: {mig.decommissionBlocker}.
+					</p>
+				)}
+			</div>
+			<ConfirmDialog
+				open={confirm}
+				onOpenChange={(o) => {
+					setConfirm(o);
+					if (!o) setTyped("");
+				}}
+				title="Remove Dokploy?"
+				description="Its services and Traefik are removed after its database and configuration are archived. This cannot be undone from LogiStack."
+				confirmLabel="Remove Dokploy"
+				pending={run.isPending}
+				confirmDisabled={typed.trim() !== "dokploy"}
+				onConfirm={() =>
+					run.mutate(
+						{ kind: "decommission" },
+						{
+							onSuccess: () => ctx.awaitJob("decommission"),
+							onSettled: () => {
+								setConfirm(false);
+								setTyped("");
+							},
+							onError: (e) =>
+								toast.error("Couldn't remove Dokploy", {
+									description: e.message,
+								}),
+						},
+					)
+				}
+			>
+				<label className="mt-2 block text-sm" htmlFor="confirm-dokploy">
+					Type <span className="font-mono">dokploy</span> to confirm
+				</label>
+				<Input
+					id="confirm-dokploy"
+					className="mt-1.5"
+					autoComplete="off"
+					value={typed}
+					onChange={(e) => setTyped(e.target.value)}
+				/>
+			</ConfirmDialog>
+		</section>
 	);
 }
 

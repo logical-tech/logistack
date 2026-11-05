@@ -47,6 +47,7 @@ CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
 TUNNEL_PORT=${LOGISTACK_TUNNEL_PORT:-3000}
 MIGRATION_FILE="$CONF_DIR/migration"
+MIGRATION_ARCHIVE_DIR=/var/lib/logistack/migration
 DOKPLOY_STACK=stack.dokploy.yml
 # Made from the dokploy-postgres env when Dokploy predates its own secret.
 DOKPLOY_PG_COPY=logistack-dokploy-postgres-password
@@ -615,6 +616,8 @@ write_config() {
 	[ "$DOKPLOY" = 1 ] || return 0
 	copy_stack_file "$DOKPLOY_STACK"
 	printf 'migration_source=dokploy\n' >"$MIGRATION_FILE"
+	# Where the wizard archives Dokploy before removing it; a Swarm bind mount needs it to exist.
+	install -d -m 0700 "$MIGRATION_ARCHIVE_DIR"
 }
 
 firewall_advice() {
