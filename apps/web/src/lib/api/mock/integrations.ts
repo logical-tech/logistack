@@ -2,6 +2,7 @@ import { ApiError } from "../adapter";
 import type {
 	GitProvider,
 	GitRepo,
+	GitTrigger,
 	IntegrationsApi,
 	Registry,
 	SshKey,
@@ -182,6 +183,9 @@ const find = <T extends { id: string }>(
 	return row;
 };
 
+const watchPaths = new Map<string, string[]>();
+const gitTriggers = new Map<string, GitTrigger>();
+
 const host = (url: string) => URL.parse(url)?.host ?? url;
 
 export const mockIntegrations: IntegrationsApi = {
@@ -349,7 +353,26 @@ export const mockIntegrations: IntegrationsApi = {
 		},
 	},
 	watchPaths: {
-		put: (_id, paths) => delay({ paths }),
+		get: (id) => delay({ paths: watchPaths.get(id) ?? [] }),
+		put: (id, paths) => {
+			watchPaths.set(id, paths);
+			return delay({ paths });
+		},
+	},
+	gitTrigger: {
+		get: (id) =>
+			delay(
+				gitTriggers.get(id) ?? {
+					on: "branch" as const,
+					tagPattern: "*",
+					waitForChecks: false,
+					checksTimeoutMinutes: 30,
+				},
+			),
+		put: (id, rules) => {
+			gitTriggers.set(id, rules);
+			return delay(rules);
+		},
 	},
 	registries: {
 		list: () =>

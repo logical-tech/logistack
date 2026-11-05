@@ -9,6 +9,7 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/field";
 import { Panel } from "@/components/panel";
+import { DeployTriggers } from "@/components/service/deploy-triggers";
 import {
 	MountRows,
 	PortRows,
@@ -483,6 +484,10 @@ export function SettingsForm({
 				>
 					<BuildFields spec={app} onChange={patchApp} />
 				</Section>
+			)}
+
+			{o.spec.kind === "application" && o.spec.source.type === "git" && (
+				<DeployTriggers serviceId={o.id} branch={o.spec.source.branch} />
 			)}
 
 			{resources && (

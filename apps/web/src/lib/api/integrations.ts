@@ -25,6 +25,7 @@ export type GitHubManifest = InferResponseType<
 	201
 >;
 export type WebhookOutcome = Ok<GitApi[":id"]["webhooks"]["$post"]>;
+export type GitTrigger = Ok<Api["services"][":id"]["git-trigger"]["$get"]>;
 export type SshKey = Ok<Api["ssh-keys"]["$get"]>[number];
 export type Registries = Ok<RegistryApi["$get"]>;
 export type Registry = Registries["registries"][number];
@@ -58,7 +59,12 @@ export type IntegrationsApi = {
 		create(name: string): Promise<SshKey>;
 	};
 	watchPaths: {
+		get(serviceId: ServiceId): Promise<{ paths: string[] }>;
 		put(serviceId: ServiceId, paths: string[]): Promise<{ paths: string[] }>;
+	};
+	gitTrigger: {
+		get(serviceId: ServiceId): Promise<GitTrigger>;
+		put(serviceId: ServiceId, rules: GitTrigger): Promise<GitTrigger>;
 	};
 	registries: {
 		list(): Promise<Registries>;
@@ -128,12 +134,20 @@ const http: IntegrationsApi = {
 		create: (name) => ok(client.api["ssh-keys"].$post({ json: { name } })),
 	},
 	watchPaths: {
+		get: (id) => ok(client.api.services[":id"]["watch-paths"].$get(param(id))),
 		put: (id, paths) =>
 			ok(
 				client.api.services[":id"]["watch-paths"].$put({
 					...param(id),
 					json: { paths },
 				}),
+			),
+	},
+	gitTrigger: {
+		get: (id) => ok(client.api.services[":id"]["git-trigger"].$get(param(id))),
+		put: (id, json) =>
+			ok(
+				client.api.services[":id"]["git-trigger"].$put({ ...param(id), json }),
 			),
 	},
 	registries: {
