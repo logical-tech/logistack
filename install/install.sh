@@ -13,6 +13,10 @@
 # == true, so labelling the node logistack.ingress=pending leaves it at 0 tasks and 80/443 free for
 # the proxy being migrated away from. The label is the persisted choice: a plain re-run keeps ingress
 # off, and --enable-ingress relabels the node true (Swarm then schedules Caddy) and redeploys.
+#
+# On a Dokploy server (Swarm service `dokploy`, or /etc/dokploy) the install is --no-ingress and
+# private, Dokploy's Traefik keeps 80/443, and stack.dokploy.yml lets the api read Dokploy's database
+# and /etc/dokploy for the migration wizard. Coolify is only reported for now.
 set -euo pipefail
 
 # Empty on main: a fresh install asks GitHub for the latest release. The copy attached to a
@@ -42,6 +46,14 @@ REGISTRY="ghcr.io/logical-tech"
 CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
 TUNNEL_PORT=${LOGISTACK_TUNNEL_PORT:-3000}
+MIGRATION_FILE="$CONF_DIR/migration"
+MIGRATION_ARCHIVE_DIR=/var/lib/logistack/migration
+DOKPLOY_STACK=stack.dokploy.yml
+# Made from the dokploy-postgres env when Dokploy predates its own secret.
+DOKPLOY_PG_COPY=logistack-dokploy-postgres-password
+# Dokploy encrypts env at rest with ENCRYPTION_KEY, else BETTER_AUTH_SECRET, else a fixed default.
+DOKPLOY_KEY_COPY=logistack-dokploy-key
+DOKPLOY_LEGACY_SECRET=better-auth-secret-123456789
 
 OS_ID=""
 OS_VERSION=""
@@ -51,6 +63,12 @@ SWARM_STATE="inactive"
 PUBLIC_IP=""
 PUBLIC_URL=""
 IMAGE_TAG=""
+DOKPLOY=0
+DOKPLOY_PG_SECRET=""
+DOKPLOY_KEY_SECRET=""
+DOKPLOY_KEY_SOURCE=""
+DOKPLOY_PG_USER=""
+DOKPLOY_PG_DB=""
 
 if [ -t 1 ]; then
 	BOLD=$'\033[1m' DIM=$'\033[2m' GREEN=$'\033[32m' RED=$'\033[31m' YELLOW=$'\033[33m' RESET=$'\033[0m'
@@ -211,12 +229,110 @@ nodes_labelled() {
 	docker node ls -q --filter "node.label=logistack.ingress=$1"
 }
 
+# The dokploy-postgres env, one variable per line. Holds the password on old Dokploy releases:
+# pipe it, never keep it in a variable or pass it as an argument.
+dokploy_pg_env() {
+	docker service inspect dokploy-postgres --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}'
+}
+
+# Dokploy keeps no database credentials under /etc/dokploy: the password is a Swarm secret the
+# dokploy-postgres service reads through POSTGRES_PASSWORD_FILE, or, on releases before 0.26.6,
+# a plain POSTGRES_PASSWORD in that service's env.
+dokploy_env() {
+	docker service inspect dokploy --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null || true
+}
+
+# The key Dokploy encrypts env with, for the wizard to read it: the same Swarm secret when Dokploy
+# reads it from a file, else a copy of its env value or of Dokploy's own default into our secret.
+read_dokploy_key() {
+	local var file name target
+	DOKPLOY_KEY_SOURCE=""
+	for var in ENCRYPTION_KEY BETTER_AUTH_SECRET; do
+		file=$(dokploy_env | sed -n "s/^${var}_FILE=//p" | head -n1)
+		if [ -n "$file" ]; then
+			while read -r name target; do
+				[ "${target##*/}" != "${file##*/}" ] || DOKPLOY_KEY_SECRET=$name
+			done < <(docker service inspect dokploy \
+				--format '{{range .Spec.TaskTemplate.ContainerSpec.Secrets}}{{.SecretName}} {{.File.Name}}{{println}}{{end}}')
+			[ -n "$DOKPLOY_KEY_SECRET" ] || fail "dokploy reads $var from $file, but no Swarm secret is mounted there"
+			ok "Dokploy's encryption key: $var from secret $DOKPLOY_KEY_SECRET"
+			return 0
+		fi
+		if dokploy_env | grep -q "^${var}="; then
+			DOKPLOY_KEY_SECRET=$DOKPLOY_KEY_COPY DOKPLOY_KEY_SOURCE=$var
+			ok "Dokploy's encryption key: $var from its service env, copied into secret $DOKPLOY_KEY_COPY"
+			return 0
+		fi
+	done
+	DOKPLOY_KEY_SECRET=$DOKPLOY_KEY_COPY DOKPLOY_KEY_SOURCE=legacy
+	ok "Dokploy's encryption key: its built-in default (no secret configured)"
+}
+
+copy_dokploy_key() {
+	if [ "$DOKPLOY_KEY_SOURCE" = legacy ]; then
+		printf '%s' "$DOKPLOY_LEGACY_SECRET"
+	else
+		dokploy_env | sed -n "s/^${DOKPLOY_KEY_SOURCE}=//p" | head -n1 | tr -d '\n'
+	fi | secret_create_stdin "$DOKPLOY_KEY_COPY"
+}
+
+read_dokploy_db() {
+	local file name target
+	DOKPLOY_PG_USER=$(dokploy_pg_env | sed -n 's/^POSTGRES_USER=//p' | head -n1)
+	DOKPLOY_PG_USER=${DOKPLOY_PG_USER:-postgres}
+	DOKPLOY_PG_DB=$(dokploy_pg_env | sed -n 's/^POSTGRES_DB=//p' | head -n1)
+	DOKPLOY_PG_DB=${DOKPLOY_PG_DB:-$DOKPLOY_PG_USER}
+	file=$(dokploy_pg_env | sed -n 's/^POSTGRES_PASSWORD_FILE=//p' | head -n1)
+	if [ -n "$file" ]; then
+		while read -r name target; do
+			[ "${target##*/}" != "${file##*/}" ] || DOKPLOY_PG_SECRET=$name
+		done < <(docker service inspect dokploy-postgres \
+			--format '{{range .Spec.TaskTemplate.ContainerSpec.Secrets}}{{.SecretName}} {{.File.Name}}{{println}}{{end}}')
+		[ -n "$DOKPLOY_PG_SECRET" ] || fail "dokploy-postgres reads its password from $file, but no Swarm secret is mounted there"
+	elif dokploy_pg_env | grep -q '^POSTGRES_PASSWORD='; then
+		DOKPLOY_PG_SECRET=$DOKPLOY_PG_COPY
+	else
+		fail "Could not find the password of Dokploy's database in the dokploy-postgres service"
+	fi
+	docker network inspect dokploy-network >/dev/null 2>&1 || fail "Dokploy found, but its network dokploy-network is missing"
+	ok "Dokploy database: user $DOKPLOY_PG_USER, database $DOKPLOY_PG_DB, password from secret $DOKPLOY_PG_SECRET"
+}
+
+detect_migration_source() {
+	if [ -d /data/coolify ] || { [ "$DOCKER_READY" = 1 ] && docker container inspect coolify >/dev/null 2>&1; }; then
+		warn "Coolify found. Coolify migration is not supported yet; installing LogiStack next to it as usual"
+	fi
+	local service=0 database=0
+	if [ "$DOCKER_READY" = 1 ]; then
+		docker service inspect dokploy >/dev/null 2>&1 && service=1
+		docker service inspect dokploy-postgres >/dev/null 2>&1 && database=1
+	fi
+	[ "$service" = 1 ] || [ -d /etc/dokploy ] || return 0
+	if [ "$service" = 0 ] && [ "$database" = 0 ]; then
+		note "/etc/dokploy exists but Dokploy is not running; installing as usual"
+		return 0
+	fi
+	[ "$database" = 1 ] || fail "Dokploy found, but its database service dokploy-postgres is missing; start Dokploy and re-run"
+	DOKPLOY=1
+	ok "Dokploy found"
+	note "LogiStack installs next to Dokploy and changes nothing of it:"
+	note "  - Caddy stays off, so Dokploy's Traefik keeps ports 80 and 443 and your sites stay up."
+	note "  - Until setup is done the dashboard is reachable only through an SSH tunnel."
+	note "  - The api reads Dokploy's database and /etc/dokploy, read-only, for the migration wizard."
+	note "After setup, the wizard imports your Dokploy projects and moves each service over to LogiStack."
+	read_dokploy_db
+	read_dokploy_key
+	# Dokploy publishes its own dashboard on 3000.
+	[ -n "${LOGISTACK_TUNNEL_PORT:-}" ] || TUNNEL_PORT=3001
+}
+
 # A node labelled pending records an earlier --no-ingress; keep it unless --enable-ingress.
+# Next to Dokploy ingress starts off, unless it is already on (a re-run after cutover).
 detect_ingress_mode() {
 	[ "$DOCKER_READY" = 1 ] || return 0
 	if [ -n "$(nodes_labelled true)" ]; then
 		[ "$NO_INGRESS" = 0 ] || fail "Ingress is already on in this Swarm; --no-ingress only applies before Caddy is enabled"
-	elif [ -n "$(nodes_labelled pending)" ] && [ "$ENABLE_INGRESS" = 0 ]; then
+	elif [ "$ENABLE_INGRESS" = 0 ] && { [ -n "$(nodes_labelled pending)" ] || [ "$DOKPLOY" = 1 ]; }; then
 		NO_INGRESS=1
 	fi
 	[ "$NO_INGRESS" = 0 ] || [ "$PUBLIC_SETUP" = 0 ] || fail "--public-setup needs ingress: without Caddy setup is reachable only through the tunnel"
@@ -225,7 +341,7 @@ detect_ingress_mode() {
 
 check_ports() {
 	if [ "$NO_INGRESS" = 1 ]; then
-		ok "Ports 80 and 443 left to the existing proxy"
+		if [ "$DOKPLOY" = 1 ]; then ok "Ports 80 and 443 left to Dokploy's Traefik"; else ok "Ports 80 and 443 left to the existing proxy"; fi
 		return
 	fi
 	if [ "$DOCKER_READY" = 1 ] && [ -n "$(nodes_labelled true)" ] &&
@@ -467,7 +583,32 @@ credential_put() {
 }
 
 secret_create() {
-	printf '%s' "$2" | docker secret create --label logistack.managed=true --label logistack.kind=platform-secret "$1" - >/dev/null
+	printf '%s' "$2" | secret_create_stdin "$1"
+}
+
+secret_create_stdin() {
+	docker secret create --label logistack.managed=true --label logistack.kind=platform-secret "$1" - >/dev/null
+}
+
+copy_dokploy_password() {
+	dokploy_pg_env | sed -n 's/^POSTGRES_PASSWORD=//p' | head -n1 | tr -d '\n' | secret_create_stdin "$DOKPLOY_PG_COPY"
+}
+
+ensure_dokploy_secret() {
+	[ "$DOKPLOY" = 1 ] || return 0
+	if [ "$DOKPLOY_KEY_SECRET" = "$DOKPLOY_KEY_COPY" ]; then
+		if [ "$DRY_RUN" = 0 ] && docker secret inspect "$DOKPLOY_KEY_COPY" >/dev/null 2>&1; then
+			ok "Secret $DOKPLOY_KEY_COPY exists, kept"
+		else
+			act "Copy Dokploy's encryption key into secret $DOKPLOY_KEY_COPY" copy_dokploy_key
+		fi
+	fi
+	[ "$DOKPLOY_PG_SECRET" = "$DOKPLOY_PG_COPY" ] || return 0
+	if [ "$DRY_RUN" = 0 ] && docker secret inspect "$DOKPLOY_PG_COPY" >/dev/null 2>&1; then
+		ok "Secret $DOKPLOY_PG_COPY exists, kept"
+	else
+		act "Copy Dokploy's database password into secret $DOKPLOY_PG_COPY" copy_dokploy_password
+	fi
 }
 
 random_hex() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
@@ -496,29 +637,39 @@ ensure_secrets() {
 	done
 }
 
+# stack_source <file>: next to this script in a checkout, else from the release.
 stack_source() {
 	local here
 	if [ -f "${BASH_SOURCE[0]:-}" ]; then
 		here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-		if [ -f "$here/stack.yml" ]; then
-			printf '%s' "$here/stack.yml"
+		if [ -f "$here/$1" ]; then
+			printf '%s' "$here/$1"
 			return
 		fi
 	fi
-	printf '%s' "$STACK_URL_BASE/v$VERSION/install/stack.yml"
+	printf '%s' "$STACK_URL_BASE/v$VERSION/install/$1"
+}
+
+copy_stack_file() {
+	local source
+	source=$(stack_source "$1")
+	if [ -f "$source" ]; then
+		cp "$source" "$CONF_DIR/$1.new"
+	else
+		http_get "$source" >"$CONF_DIR/$1.new"
+	fi
+	mv "$CONF_DIR/$1.new" "$CONF_DIR/$1"
 }
 
 write_config() {
-	local source
-	source=$(stack_source)
 	install -d -m 0700 "$CONF_DIR"
-	if [ -f "$source" ]; then
-		cp "$source" "$CONF_DIR/stack.yml.new"
-	else
-		http_get "$source" >"$CONF_DIR/stack.yml.new"
-	fi
-	mv "$CONF_DIR/stack.yml.new" "$CONF_DIR/stack.yml"
+	copy_stack_file stack.yml
 	printf '%s\n' "$VERSION" >"$CONF_DIR/version"
+	[ "$DOKPLOY" = 1 ] || return 0
+	copy_stack_file "$DOKPLOY_STACK"
+	printf 'migration_source=dokploy\n' >"$MIGRATION_FILE"
+	# Where the wizard archives Dokploy before removing it; a Swarm bind mount needs it to exist.
+	install -d -m 0700 "$MIGRATION_ARCHIVE_DIR"
 }
 
 firewall_advice() {
@@ -600,10 +751,13 @@ deploy() {
 	local public=false token_file="" tunnel_origin=""
 	if [ "$PUBLIC_SETUP" = 1 ]; then public=true token_file=/run/secrets/setup_token; fi
 	if tunnel_wanted; then tunnel_origin="http://localhost:$TUNNEL_PORT"; fi
+	local files=(-c "$CONF_DIR/stack.yml")
+	[ "$DOKPLOY" = 0 ] || files+=(-c "$CONF_DIR/$DOKPLOY_STACK")
 	act "Deploy stack $STACK_NAME $IMAGE_TAG" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" \
 		LOGISTACK_REGISTRY="$REGISTRY" LOGISTACK_PUBLIC_URL="$PUBLIC_URL" LOGISTACK_WEB_ORIGIN="https://${PUBLIC_URL#http://}" \
 		LOGISTACK_PUBLIC_SETUP="$public" LOGISTACK_SETUP_TOKEN_FILE="$token_file" LOGISTACK_TUNNEL_ORIGIN="$tunnel_origin" \
-		docker stack deploy "${flags[@]}" --detach=true -c "$CONF_DIR/stack.yml" "$STACK_NAME"
+		LOGISTACK_DOKPLOY_PG_SECRET="$DOKPLOY_PG_SECRET" LOGISTACK_DOKPLOY_PG_USER="$DOKPLOY_PG_USER" \
+		LOGISTACK_DOKPLOY_PG_DB="$DOKPLOY_PG_DB" LOGISTACK_DOKPLOY_KEY_SECRET="${DOKPLOY_KEY_SECRET:-}" docker stack deploy "${flags[@]}" --detach=true "${files[@]}" "$STACK_NAME"
 }
 
 # The SSH tunnel's target: without Caddy, or unless setup is public. Loopback only, never public.
@@ -614,8 +768,8 @@ tunnel_wanted() { [ "$NO_INGRESS" = 1 ] || [ "$PUBLIC_SETUP" = 0 ]; }
 ensure_tunnel() {
 	tunnel_wanted || return 0
 	local image="$REGISTRY/logistack-caddy:$IMAGE_TAG" current
-	current=$(docker inspect -f '{{.Config.Image}} {{.State.Running}}' "$TUNNEL_NAME" 2>/dev/null || true)
-	if [ "$current" = "$image true" ]; then
+	current=$(docker inspect -f '{{.Config.Image}} {{.State.Running}} {{.Config.Cmd}}' "$TUNNEL_NAME" 2>/dev/null || true)
+	if [ "$current" = "$image true [reverse-proxy --from :$TUNNEL_PORT --to logistack-api:3000]" ]; then
 		ok "API tunnel on 127.0.0.1:$TUNNEL_PORT"
 		return 0
 	fi
@@ -707,6 +861,7 @@ main() {
 	check_arch
 	check_resources
 	check_docker
+	detect_migration_source
 	detect_ingress_mode
 	check_ports
 	check_networks
@@ -722,8 +877,9 @@ main() {
 	ensure_swarm
 	step "Secrets"
 	ensure_secrets
+	ensure_dokploy_secret
 	step "Configuration"
-	act "Write $CONF_DIR/stack.yml and version $VERSION" write_config
+	act "Write $CONF_DIR/stack.yml and version $VERSION$([ "$DOKPLOY" = 0 ] || printf ', migration_source=dokploy')" write_config
 	firewall_advice
 	if [ "$LOCAL_BUILD" = 1 ]; then
 		step "Building images from the checkout"
@@ -750,7 +906,11 @@ main() {
 		printf '  Until setup is done the dashboard is reachable only on 127.0.0.1:%s. From your machine: %sssh -L %s:127.0.0.1:%s root@%s%s\n' "$TUNNEL_PORT" "$BOLD" "$TUNNEL_PORT" "$TUNNEL_PORT" "$PUBLIC_IP" "$RESET"
 		printf '  then open %shttp://localhost:%s%s to finish the guided setup.\n' "$BOLD" "$TUNNEL_PORT" "$RESET"
 		if [ "$NO_INGRESS" = 1 ]; then
-			note "Ingress is off. When 80/443 are free, run: install.sh --enable-ingress"
+			if [ "$DOKPLOY" = 1 ]; then
+				note "Dokploy keeps serving your sites until the migration wizard moves each one over."
+			else
+				note "Ingress is off. When 80/443 are free, run: install.sh --enable-ingress"
+			fi
 		else
 			note "After setup the dashboard is served over https on the domain you choose there."
 		fi

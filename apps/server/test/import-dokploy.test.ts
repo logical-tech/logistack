@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	adoptedVolume,
 	auditLog,
 	deployment,
 	domain,
@@ -148,6 +149,11 @@ describe.skipIf(!hasDocker)("Dokploy importer against Postgres", () => {
 		expect(
 			domains.map((d) => [d.serviceId, d.hostname, d.port, d.https, d.cert]),
 		).toEqual([[panel.id, "panel.example.com", 80, true, "auto"]]);
+
+		const adopted = await h.deps.db.select().from(adoptedVolume);
+		expect(adopted.map((a) => [a.serviceId, a.volumeName, a.source])).toEqual([
+			[minecraft.id, "minecraft-p2m7rt_backups", "dokploy"],
+		]);
 
 		const deployments = await h.deps.db.select().from(deployment);
 		expect(deployments.map((d) => d.serviceId).sort()).toEqual(

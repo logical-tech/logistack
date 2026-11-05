@@ -21,6 +21,14 @@ export type NotificationRuleScope = z.infer<typeof NotificationRuleScope>;
 
 // BullMQ queues shared by the api (run now, scheduler upserts) and the worker (processors).
 export const BACKUP_QUEUE = "backup";
+/** Migration cutovers and rollbacks, one job per item at a time (job id = item id). */
+export const MIGRATION_QUEUE = "migration";
+export type MigrationJob =
+	| { itemId: string; action: "cutover" | "rollback" }
+	/** Hands 80/443 from the source's proxy to Caddy (MIG-4). */
+	| { migrationId: string; action: "switch_proxy" }
+	/** Archives the source and removes it (MIG-7). */
+	| { migrationId: string; action: "decommission" };
 export const SCHEDULE_QUEUE = "schedule";
 
 /** Job Scheduler ids: one per policy and kind, one per schedule. */

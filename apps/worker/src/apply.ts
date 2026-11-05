@@ -1,20 +1,22 @@
 import {
+	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
 	serviceFiles,
 } from "@logistack/core";
-import { node, service } from "@logistack/db";
+import { migration, node, service } from "@logistack/db";
 import {
 	authForImage,
 	DockerError,
 	DockerVersionConflictError,
+	LABEL_MANAGED,
 	managedLabels,
 	type RegistryAuth,
 	type Service,
 	type ServiceSpec,
 	type Task,
 } from "@logistack/docker";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
 import {
@@ -142,6 +144,27 @@ async function ensureFiles(
 	return ids;
 }
 
+/**
+ * Swarm creates a missing volume empty, so an adopted volume that is gone would silently look
+ * like data loss: refuse to deploy instead. One of ours is never adopted.
+ */
+async function checkAdopted(ctx: Ctx, sc: ServiceContext): Promise<void> {
+	for (const name of Object.values(sc.adoptedVolumes)) {
+		// shortcut: checks this worker's node only; on a multi-node Swarm, ask the pinned node's agent.
+		const v = (await ctx.docker.volumes.list({ name: [name] })).find(
+			(v) => v.Name === name,
+		);
+		if (!v)
+			throw new Error(
+				`service ${sc.service.id}: adopted volume ${name} does not exist`,
+			);
+		if (v.Labels?.[LABEL_MANAGED])
+			throw new Error(
+				`service ${sc.service.id}: volume ${name} is managed by LogiStack and cannot be adopted`,
+			);
+	}
+}
+
 /** Stateful services stay on one node; an unpinned one is pinned to this worker's node and recorded. */
 async function resolvePin(
 	ctx: Ctx,
@@ -209,6 +232,31 @@ export async function desiredInput(
 					throw e;
 				})
 			: undefined;
+	// Until Dokploy is decommissioned, its Traefik and its remaining services reach this one by its
+	// old appName (the slug) on Dokploy's network.
+	const decommissioned = sc.service.importedFrom?.startsWith("dokploy:")
+		? (
+				await ctx.db
+					.select({ id: migration.id })
+					.from(migration)
+					.where(
+						and(
+							eq(migration.organizationId, sc.organizationId),
+							eq(migration.status, "decommissioned"),
+						),
+					)
+					.limit(1)
+			).length > 0
+		: true;
+	const bridge = !decommissioned
+		? await ctx.docker.networks
+				.inspect(ctx.cfg.LS_DOKPLOY_NETWORK)
+				.catch((e) => {
+					if (notFound(e)) return undefined;
+					throw e;
+				})
+		: undefined;
+	await checkAdopted(ctx, sc);
 	const pin = await resolvePin(ctx, sc);
 	const input = compileInput(sc, deployment, {
 		networks: {
@@ -216,7 +264,18 @@ export async function desiredInput(
 			ingress: ingress.Id,
 			...(storage ? { storage: storage.Id } : {}),
 			...(db ? { db: db.Id } : {}),
+			...(bridge ? { bridge: bridge.Id } : {}),
 		},
+		// A compose service (`dokploy:<app>/<service>`) is routed by labels in Dokploy's Traefik.
+		...(bridge && sc.service.importedFrom?.includes("/")
+			? {
+					bridgeLabels: bridgeRouterLabels(
+						sc.service.id,
+						ctx.cfg.LS_DOKPLOY_NETWORK,
+						sc.domains,
+					),
+				}
+			: {}),
 		...(pin ? { pinNodeId: pin } : {}),
 		scope: scope(ctx),
 	});

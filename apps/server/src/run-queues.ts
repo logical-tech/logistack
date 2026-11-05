@@ -20,6 +20,7 @@ export async function closeRunQueues() {
 			q.backup.close(),
 			q.schedule.close(),
 			q.maintenance.close(),
+			q.migration.close(),
 		]),
 	);
 }

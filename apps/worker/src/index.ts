@@ -2,6 +2,8 @@ import {
 	BACKUP_QUEUE,
 	type BackupJob,
 	type EventEnvelope,
+	MIGRATION_QUEUE,
+	type MigrationJob,
 	SCHEDULE_QUEUE,
 	type ScheduleJob,
 } from "@logistack/contracts";
@@ -20,13 +22,16 @@ import { loadCleanup, runCleanup } from "./cleanup.ts";
 import { reportCommitStatus } from "./commit-status.ts";
 import { type Config, loadConfig } from "./config.ts";
 import type { Ctx } from "./ctx.ts";
+import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { checkForUpdate } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
+import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
 import { listenForSyncRequests, syncProxy } from "./proxy.ts";
+import { switchProxy } from "./proxy-switch.ts";
 import {
 	createQueues,
 	enqueueDeploy,
@@ -175,6 +180,19 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				await schedules.process(job.data, (d) => job.updateData(d));
 			},
 			{ connection, concurrency: cfg.LS_RUN_CONCURRENCY },
+		),
+		// One cutover at a time: the wizard moves services in order, databases first.
+		new Worker<MigrationJob>(
+			MIGRATION_QUEUE,
+			async (job) => {
+				const d = job.data;
+				if (d.action === "switch_proxy") await switchProxy(ctx, d.migrationId);
+				else if (d.action === "decommission")
+					await decommission(ctx, d.migrationId);
+				else if (d.action === "cutover") await cutOver(ctx, d.itemId);
+				else await rollBack(ctx, d.itemId);
+			},
+			{ connection, concurrency: 1 },
 		),
 	];
 	for (const w of workers) w.on("failed", failed(w.name));

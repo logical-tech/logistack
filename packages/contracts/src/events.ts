@@ -21,6 +21,8 @@ export const eventTypes = [
 	"domain.active",
 	"domain.error",
 	"instance.update_available",
+	/** A migration item changed status; resource `migration:<id>`, payload names the item. */
+	"migration.item_changed",
 ] as const;
 export const EventType = z.enum(eventTypes);
 export type EventType = z.infer<typeof EventType>;

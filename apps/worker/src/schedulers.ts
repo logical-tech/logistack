@@ -2,6 +2,8 @@ import {
 	BACKUP_QUEUE,
 	type BackupJob,
 	backupSchedulerId,
+	MIGRATION_QUEUE,
+	type MigrationJob,
 	SCHEDULE_QUEUE,
 	type ScheduleJob,
 } from "@logistack/contracts";
@@ -16,6 +18,7 @@ export type RunQueues = {
 	backup: Queue<BackupJob>;
 	schedule: Queue<ScheduleJob>;
 	maintenance: Queue;
+	migration: Queue<MigrationJob>;
 };
 
 const keep = { removeOnComplete: { count: 200 }, removeOnFail: { count: 500 } };
@@ -26,6 +29,7 @@ export function openRunQueues(redisUrl: string): RunQueues {
 		backup: new Queue<BackupJob>(BACKUP_QUEUE, { connection }),
 		schedule: new Queue<ScheduleJob>(SCHEDULE_QUEUE, { connection }),
 		maintenance: new Queue("maintenance", { connection }),
+		migration: new Queue<MigrationJob>(MIGRATION_QUEUE, { connection }),
 	};
 }
 

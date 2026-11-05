@@ -9,6 +9,7 @@ import { type Config, loadConfig } from "./config.ts";
 import type { Deps } from "./env.ts";
 import { createBus } from "./events.ts";
 import { log, setLogLevel } from "./log.ts";
+import { resumeImports } from "./migration/import.ts";
 import { nodeTokenAuth } from "./node-tokens.ts";
 import { closeRedis, redisFor } from "./redis.ts";
 import { closeRunQueues } from "./run-queues.ts";
@@ -74,6 +75,7 @@ if (import.meta.main) {
 	await runMigrations(config.DATABASE_URL);
 	const running = await startServer(config);
 	log("info", "listening", { url: running.server.url.href });
+	await resumeImports(running.deps);
 	const stop = async () => {
 		await running.stop();
 		process.exit(0);

@@ -92,6 +92,39 @@ export const UPDATE_STEP_STATUS: Record<
 	rolled_back: { label: "Rolled back", tone: "warn" },
 };
 
+/**
+ * A migration item. `moving` is the client's own state between asking for an import or cutover
+ * and the event that settles it; the server stores only settled states.
+ */
+export const MIGRATION_ITEM_STATUS: Record<
+	| "planned"
+	| "imported"
+	| "cut_over"
+	| "failed"
+	| "rolled_back"
+	| "skipped"
+	| "moving",
+	StatusMeta
+> = {
+	planned: { label: "Planned", tone: "idle" },
+	moving: { label: "In progress", tone: "info", live: true },
+	imported: { label: "Ready to move", tone: "idle" },
+	cut_over: { label: "On LogiStack", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	rolled_back: { label: "Back on Dokploy", tone: "warn" },
+	skipped: { label: "Stays on Dokploy", tone: "idle" },
+};
+
+/** What the inventory found the item can carry over. */
+export const MIGRATION_SUPPORT: Record<
+	"full" | "partial" | "unsupported",
+	StatusMeta
+> = {
+	full: { label: "Full", tone: "ok" },
+	partial: { label: "Partial", tone: "warn" },
+	unsupported: { label: "Not supported", tone: "bad" },
+};
+
 /** Worst first: a project reads as its most urgent service. */
 const SEVERITY: ObservedStatus[] = [
 	"failed",

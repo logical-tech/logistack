@@ -29,6 +29,8 @@ export const idPrefixes = {
 	instanceUpdate: "upd",
 	storageAccessKey: "sak",
 	cloudflareTunnel: "cft",
+	migration: "mig",
+	migrationItem: "mgi",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];

@@ -148,6 +148,41 @@
       "when": 1793853897914,
       "tag": "0020_deployment_spec_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793869657670,
+      "tag": "0021_adopted_volume",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793883361194,
+      "tag": "0022_migration",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793884249437,
+      "tag": "0023_migration_source_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793886445453,
+      "tag": "0024_migration_proxy_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793888912075,
+      "tag": "0025_migration_decommission",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,7 @@ import {
 	mapCompose,
 	parseDotenv,
 	projectNameFromFolder,
-} from "../scripts/dokploy-compose.ts";
+} from "../src/migration/dokploy/compose.ts";
 import { dokployComposes } from "./fixtures/dokploy.ts";
 
 function map(appName: string, opts: { allowSensitive?: boolean } = {}) {
@@ -101,6 +101,13 @@ describe("Dokploy compose to application spec", () => {
 		expect(p.spec.mounts).toEqual([
 			{ kind: "bind", hostPath: "/srv/minecraft", target: "/data" },
 		]);
+		expect(p.volumes).toEqual([
+			{
+				name: "backups",
+				target: "/backups",
+				volume: "minecraft-p2m7rt_backups",
+			},
+		]);
 		expect(p.env.map((e) => [e.key, e.isSecret])).toEqual([
 			["EULA", false],
 			["TYPE", false],
@@ -116,22 +123,24 @@ describe("Dokploy compose to application spec", () => {
 		);
 	});
 
-	test("refuses build, multiple services, named volumes and unknown keys, naming each", () => {
+	test("refuses build, multiple services, odd volumes and unknown keys, naming each", () => {
 		expect(
 			refused(`services:
   app:
     build: .
     image: x
     healthcheck: { test: ["CMD", "true"] }
-    volumes: [ "data:/data", "/srv/a:/a" ]
+    volumes: [ "data:/data", "cache:/cache", "data:/ro:ro", "/srv/a:/a" ]
 volumes:
   data: {}
+  nfs: { driver: local, driver_opts: { type: nfs } }
 `),
 		).toEqual([
-			"volumes (named volumes)",
+			"volumes.nfs.driver, driver_opts",
 			"services.app.build",
 			"services.app.healthcheck",
-			'services.app.volumes named volume "data"',
+			'services.app.volumes undeclared volume "cache"',
+			'services.app.volumes read-only named volume "data"',
 		]);
 		expect(
 			refused("services:\n  a: { image: x }\n  b: { image: y }\n"),
@@ -219,5 +228,35 @@ volumes:
 				["C", "a=b"],
 			]),
 		);
+	});
+
+	test("named volumes become adopted volumes under Dokploy's compose project name", () => {
+		const m = mapCompose({
+			appName: "shop-a1b2c3",
+			compose: Bun.YAML.parse(`services:
+  app:
+    image: nginx:1.27
+    volumes:
+      - "site_data:/usr/share/nginx/html/"
+      - { type: volume, source: logs, target: /var/log/nginx }
+      - "uploads:/uploads"
+volumes:
+  site_data:
+  logs: { name: shared-logs }
+  uploads: { external: true }
+`),
+			dotenv: new Map(),
+		});
+		if (m.kind !== "plan") throw new Error(m.unsupported.join("; "));
+		expect(m.volumes).toEqual([
+			{
+				name: "site-data",
+				target: "/usr/share/nginx/html",
+				volume: "shop-a1b2c3_site_data",
+			},
+			{ name: "logs", target: "/var/log/nginx", volume: "shared-logs" },
+			{ name: "uploads", target: "/uploads", volume: "uploads" },
+		]);
+		expect(m.spec.mounts).toBeUndefined();
 	});
 });

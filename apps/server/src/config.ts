@@ -49,6 +49,12 @@ const ConfigSchema = z.object({
 		.string()
 		.optional()
 		.transform((v) => v || undefined),
+	/** Dokploy's Postgres, set by install.sh on a Dokploy server (MIG-5); see `dokploySource`. */
+	DOKPLOY_POSTGRES_PASSWORD: optional,
+	DOKPLOY_POSTGRES_USER: z.string().min(1).default("dokploy"),
+	DOKPLOY_POSTGRES_DB: z.string().min(1).default("dokploy"),
+	/** Dokploy's ENCRYPTION_KEY or BETTER_AUTH_SECRET, as a file: it encrypts env at rest. */
+	DOKPLOY_KEY_FILE: optional,
 	GITHUB_CLIENT_ID: optional,
 	GITHUB_CLIENT_SECRET: optional,
 	GOOGLE_CLIENT_ID: optional,

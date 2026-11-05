@@ -4,8 +4,10 @@ import {
 	deploymentContextVars,
 } from "@logistack/contracts";
 import {
+	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
+	dataDirOf,
 	serviceFiles,
 } from "../src/compile-service.ts";
 import { databaseCredentials } from "../src/database-credentials.ts";
@@ -533,4 +535,121 @@ describe("host-level application settings", () => {
 		expect(c.CapabilityDrop).toBeUndefined();
 		expect(spec.TaskTemplate.RestartPolicy?.Condition).toBe("any");
 	});
+});
+
+describe("adopted volumes", () => {
+	const mountsOf = (input: CompileServiceInput) =>
+		compileService(input).TaskTemplate.ContainerSpec.Mounts ?? [];
+
+	test("a volume mount uses the adopted name and gets no labels", () => {
+		const [data] = mountsOf({
+			...stateful,
+			adoptedVolumes: { mnt_data000000000000000000000: "shop-a1b2c3_data" },
+		});
+		expect(data).toEqual({
+			Type: "volume",
+			Source: "shop-a1b2c3_data",
+			Target: "/data",
+			ReadOnly: false,
+		});
+	});
+
+	test("a database's data dir uses the adopted volume in place of its own", () => {
+		const mounts = mountsOf({
+			...database("postgres"),
+			adoptedVolumes: { svc_db00000000000000000000000: "pg-data-x1y2z3" },
+		});
+		expect(mounts).toEqual([
+			{
+				Type: "volume",
+				Source: "pg-data-x1y2z3",
+				Target: "/var/lib/postgresql/data",
+			},
+		]);
+	});
+
+	test("an adopted volume of another owner changes nothing", () => {
+		const input = database("postgres");
+		expect(
+			mountsOf({ ...input, adoptedVolumes: { mnt_other: "elsewhere" } }),
+		).toEqual(mountsOf(input));
+	});
+});
+
+describe("Postgres data directory", () => {
+	const dataMount = (version: string) => {
+		const input = database("postgres");
+		const spec = {
+			...input.service.spec,
+			version,
+		} as typeof input.service.spec;
+		return compileService({ ...input, service: { ...input.service, spec } })
+			.TaskTemplate.ContainerSpec.Mounts?.[0]?.Target;
+	};
+
+	test("before 18 the volume is PGDATA itself", () => {
+		expect(dataMount("17-alpine")).toBe("/var/lib/postgresql/data");
+		expect(dataMount("15")).toBe("/var/lib/postgresql/data");
+	});
+
+	test("18 and later, or a tag without a major, mount the parent the image expects", () => {
+		expect(dataMount("18")).toBe("/var/lib/postgresql");
+		expect(dataMount("18-alpine")).toBe("/var/lib/postgresql");
+		expect(dataMount("latest")).toBe("/var/lib/postgresql");
+	});
+
+	test("dataDirOf agrees with what the compiler mounts", () => {
+		for (const version of ["16", "18-alpine"])
+			expect(
+				dataDirOf({
+					kind: "database",
+					engine: "postgres",
+					version,
+					credentialsRef: "r",
+					resources: {},
+				}),
+			).toBe(dataMount(version));
+	});
+});
+
+test("a migrated service joins the old platform's network under its slug", () => {
+	const spec = compileService({
+		...app,
+		networks: { ...app.networks, bridge: "net-dokploy" },
+	});
+	expect(spec.TaskTemplate.Networks?.at(-1)).toEqual({
+		Target: "net-dokploy",
+		Aliases: [app.service.slug],
+	});
+	expect(
+		compileService(app).TaskTemplate.Networks?.some(
+			(n) => n.Target === "net-dokploy",
+		),
+	).toBe(false);
+});
+
+test("a bridged compose service carries routers for Dokploy's Traefik", () => {
+	const labels = bridgeRouterLabels("svc_ab12", "dokploy-network", [
+		{ hostname: "blog.example.com", port: 80, pathPrefix: null, https: false },
+		{
+			hostname: "shop.example.com",
+			port: 3000,
+			pathPrefix: "/api",
+			https: true,
+		},
+	]);
+	expect(labels).toMatchObject({
+		"traefik.enable": "true",
+		"traefik.swarm.network": "dokploy-network",
+		"traefik.http.routers.ls-svc-ab12-0.rule": "Host(`blog.example.com`)",
+		"traefik.http.routers.ls-svc-ab12-0.entrypoints": "web",
+		"traefik.http.services.ls-svc-ab12-0.loadbalancer.server.port": "80",
+		"traefik.http.routers.ls-svc-ab12-1.rule":
+			"Host(`shop.example.com`) && PathPrefix(`/api`)",
+		"traefik.http.routers.ls-svc-ab12-1.tls.certresolver": "letsencrypt",
+	});
+	expect(bridgeRouterLabels("svc_x", "n", [])).toEqual({});
+	const spec = compileService({ ...app, bridgeLabels: labels });
+	expect(spec.Labels?.["traefik.enable"]).toBe("true");
+	expect(spec.Labels?.["logistack.managed"]).toBe("true");
 });

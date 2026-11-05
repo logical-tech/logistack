@@ -9,10 +9,13 @@ import {
 } from "@logistack/contracts";
 import {
 	databaseCredentials,
+	dataDirOf,
 	encrypt,
+	postgresMajor,
 	storageCredentials,
 } from "@logistack/core";
 import {
+	adoptedVolume,
 	deployment,
 	domain,
 	envVar,
@@ -41,7 +44,7 @@ import {
 	slugify,
 } from "../openapi.ts";
 import { checkGit, checkImage } from "../probe.ts";
-import { byParam, inOrganization, requirePermission } from "../scope.ts";
+import { byParam, check, inOrganization, requirePermission } from "../scope.ts";
 import { hostPolicy } from "../ssrf.ts";
 import { ConfigContent, MountTarget } from "./files.ts";
 
@@ -65,6 +68,15 @@ const SourceCheck = z
 		detail: z.string().optional(),
 	})
 	.openapi("SourceCheck");
+
+/** A Docker volume name that is not one of ours: never `logistack_*` (the stack) or an `ls-*` derived name. */
+const AdoptableVolume = z
+	.string()
+	.regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/, "not a Docker volume name")
+	.refine(
+		(n) => !n.startsWith("logistack") && !/(^|[^a-zA-Z0-9])ls-/.test(n),
+		"a LogiStack volume cannot be adopted",
+	);
 
 const ServiceInput = z.object({
 	name: Name,
@@ -97,6 +109,24 @@ const ServiceInput = z.object({
 		.refine(
 			(ms) => new Set(ms.map((m) => m.target)).size === ms.length,
 			"duplicate target",
+		)
+		.optional(),
+	/**
+	 * Existing Docker volumes another platform created, mounted in place (importers; admin only).
+	 * `target` is a volume mount's target, or a database or storage service's data directory.
+	 */
+	adoptedVolumes: z
+		.array(
+			z.object({
+				target: MountTarget,
+				volume: AdoptableVolume,
+				source: z.enum(["dokploy"]),
+			}),
+		)
+		.max(8)
+		.refine(
+			(vs) => new Set(vs.map((v) => v.volume)).size === vs.length,
+			"duplicate volume",
 		)
 		.optional(),
 });
@@ -197,6 +227,37 @@ export const services = router()
 			});
 			const { db, masterKey } = c.var.deps;
 			const spec = input.spec;
+			const adopted = input.adoptedVolumes ?? [];
+			if (adopted.length) {
+				// Mounting a volume by name reaches data outside this organization's own objects.
+				const resource = c.get("resource");
+				if (resource) check(c, "admin", resource);
+				const volumeTargets = new Set(
+					(input.mounts ?? [])
+						.filter((m) => m.kind === "volume")
+						.map((m) => m.target),
+				);
+				for (const a of adopted)
+					if (!volumeTargets.has(a.target) && a.target !== dataDirOf(spec))
+						throw new Failure(
+							"bad_request",
+							`adopted volume ${a.volume}: ${a.target} is neither a volume mount nor the data directory`,
+						);
+				const taken = await db
+					.select({ name: adoptedVolume.volumeName })
+					.from(adoptedVolume)
+					.where(
+						inArray(
+							adoptedVolume.volumeName,
+							adopted.map((a) => a.volume),
+						),
+					);
+				if (taken.length)
+					throw new Failure(
+						"conflict",
+						`volume ${taken[0]?.name} is already adopted by another service`,
+					);
+			}
 			const row = await db.transaction(async (tx) => {
 				const created = one(
 					await tx
@@ -221,14 +282,28 @@ export const services = router()
 						: spec.kind === "database"
 							? databaseCredentials(spec.engine)
 							: undefined;
-				for (const m of input.mounts ?? [])
-					await tx.insert(mount).values({
+				const owners = new Map<string, string>();
+				for (const m of input.mounts ?? []) {
+					const [inserted] = await tx
+						.insert(mount)
+						.values({
+							serviceId: created.id,
+							kind: m.kind,
+							target: m.target,
+							...(m.kind === "volume"
+								? { volumeName: m.name }
+								: { contentEncrypted: await encrypt(masterKey, m.content) }),
+						})
+						.returning({ id: mount.id });
+					if (m.kind === "volume" && inserted)
+						owners.set(m.target, inserted.id);
+				}
+				for (const a of adopted)
+					await tx.insert(adoptedVolume).values({
+						volumeName: a.volume,
+						ownerId: owners.get(a.target) ?? created.id,
 						serviceId: created.id,
-						kind: m.kind,
-						target: m.target,
-						...(m.kind === "volume"
-							? { volumeName: m.name }
-							: { contentEncrypted: await encrypt(masterKey, m.content) }),
+						source: a.source,
 					});
 				if (minted)
 					await tx.insert(envVar).values(
@@ -334,6 +409,26 @@ export const services = router()
 					"bad_request",
 					"spec.engine cannot change: the data volume belongs to the engine",
 				);
+			if (
+				input.spec?.kind === "database" &&
+				current?.spec.kind === "database"
+			) {
+				if (input.spec.engine !== current.spec.engine)
+					throw new Failure(
+						"bad_request",
+						"spec.engine cannot change: the data volume belongs to the engine",
+					);
+				// A Postgres data directory opens only with its own major; upgrade by dump and restore.
+				if (
+					input.spec.engine === "postgres" &&
+					postgresMajor(input.spec.version) !==
+						postgresMajor(current.spec.version)
+				)
+					throw new Failure(
+						"bad_request",
+						"Postgres major version cannot change in place: dump, create a new database and restore",
+					);
+			}
 			let nodeId: string | null | undefined;
 			if (input.spec) {
 				c.set("auditDiff", { before: current?.spec, after: input });

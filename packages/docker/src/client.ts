@@ -10,6 +10,7 @@ import type {
 	ConfigSpec,
 	ContainerCreateRequest,
 	ContainerInspect,
+	ContainerRestartPolicy,
 	ContainerStats,
 	ContainerSummary,
 	DistributionInspect,
@@ -221,8 +222,27 @@ export function createDockerClient(opts: DockerClientOptions = {}) {
 				}),
 			start: (containerId: string) =>
 				post<void>(`/containers/${id(containerId)}/start`),
+			/** Waits up to `timeoutS` for a clean exit, then kills. A stopped container is a no-op (304). */
+			stop: (containerId: string, timeoutS = 10) =>
+				post<void>(`/containers/${id(containerId)}/stop`, undefined, {
+					query: { t: String(timeoutS) },
+				}),
 			remove: (containerId: string, force = false) =>
 				del(`/containers/${id(containerId)}`, { force }),
+			/** Changes a running or stopped container's restart policy. */
+			setRestartPolicy: (containerId: string, policy: ContainerRestartPolicy) =>
+				post<unknown>(`/containers/${id(containerId)}/update`, {
+					RestartPolicy: policy,
+				}),
+			/** A tar of `path` inside the container, read by the daemon (as root), stopped or not. */
+			archive: async (containerId: string, path: string) =>
+				new Uint8Array(
+					await (
+						await t.stream("GET", `/containers/${id(containerId)}/archive`, {
+							query: { path },
+						})
+					).arrayBuffer(),
+				),
 			logs: (containerId: string, o: LogOptions = {}) =>
 				logs(`/containers/${id(containerId)}/logs`, o),
 			stats: (containerId: string) =>

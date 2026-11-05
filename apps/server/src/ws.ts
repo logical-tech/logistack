@@ -6,6 +6,7 @@ import {
 	backupPolicy,
 	backupRun,
 	instanceUpdate,
+	migration,
 	nodeJoin,
 	schedule,
 	scheduleRun,
@@ -79,6 +80,17 @@ async function channelResource(
 		return (await db.$count(instanceUpdate, eq(instanceUpdate.id, id)))
 			? organizationResource(actor.organizationId)
 			: undefined;
+	// Migration progress: the wizard of the organization the migration belongs to.
+	if (kind === "migration") {
+		const n = await db.$count(
+			migration,
+			and(
+				eq(migration.id, id),
+				eq(migration.organizationId, actor.organizationId),
+			),
+		);
+		return n ? organizationResource(actor.organizationId) : undefined;
+	}
 	if (kind === "backup-run") {
 		const [r] = await db
 			.select({ serviceId: backupPolicy.serviceId })

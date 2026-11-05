@@ -387,6 +387,13 @@ export interface ContainerInspect {
 	NetworkSettings: {
 		Networks: Record<string, { NetworkID: string; IPAddress: string }>;
 	};
+	HostConfig: { RestartPolicy: ContainerRestartPolicy };
+}
+
+/** A plain container's restart policy (not a Swarm task's). */
+export interface ContainerRestartPolicy {
+	Name: "" | "no" | "always" | "unless-stopped" | "on-failure";
+	MaximumRetryCount?: number;
 }
 
 /** Body of POST /containers/create (used by tests and one-off jobs; apps run as services). */

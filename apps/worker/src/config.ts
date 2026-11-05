@@ -30,6 +30,33 @@ const ConfigSchema = z.object({
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
 	LS_DB_NETWORK: z.string().default("ls-db"),
+	/** The node label Caddy's placement waits on (`install.sh` writes `pending`, then `true`). */
+	LS_INGRESS_LABEL: z.string().default("logistack.ingress"),
+	/** Dokploy's Traefik, a container or a service by this exact name; the proxy switch stops it. */
+	LS_DOKPLOY_TRAEFIK: z.string().default("dokploy-traefik"),
+	/**
+	 * After a stateless compose with domains starts on LogiStack, how long its source keeps running:
+	 * Dokploy's Traefik learns the bridge routers by polling Swarm (every 15 s), and drops the
+	 * source's routers the moment its containers stop.
+	 */
+	LS_BRIDGE_SETTLE_MS: z.coerce.number().int().min(0).default(20_000),
+	/** How long the proxy switch waits for Caddy before it starts Traefik again. */
+	LS_PROXY_SWITCH_TIMEOUT_MS: z.coerce
+		.number()
+		.int()
+		.positive()
+		.default(90_000),
+	/** Where the decommission archives Dokploy (`install.sh` creates it next to Dokploy). */
+	LS_MIGRATION_ARCHIVE_DIR: z.string().default("/var/lib/logistack/migration"),
+	/** Dokploy's configuration directory, archived as a tarball. */
+	LS_DOKPLOY_ROOT: z.string().default("/etc/dokploy"),
+	/** Dokploy's own Swarm services, removed by these exact names; the first-named database is dumped. */
+	LS_DOKPLOY_POSTGRES: z.string().default("dokploy-postgres"),
+	LS_DOKPLOY_SERVICES: z
+		.string()
+		.default("dokploy,dokploy-postgres,dokploy-redis"),
+	/** Dokploy's shared network: services migrated from it join it until it is gone (MIG-7). */
+	LS_DOKPLOY_NETWORK: z.string().default("dokploy-network"),
 	/** Swarm service name of the Caddy ingress (stack `logistack`, service `caddy`). */
 	LS_CADDY_SERVICE: z.string().default("logistack_caddy"),
 	LS_API_UPSTREAM: z.string().default("logistack-api:3000"),

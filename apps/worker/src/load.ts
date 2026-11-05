@@ -13,6 +13,7 @@ import {
 	resolveEnv,
 } from "@logistack/core";
 import {
+	adoptedVolume,
 	domain,
 	environment,
 	envVar,
@@ -44,6 +45,8 @@ export type ServiceContext = {
 	environmentName: string;
 	env: Record<string, ResolvedEnvVar>;
 	mounts: CompileMount[];
+	/** Docker volumes another platform created, by owner id; see `adopted_volume`. */
+	adoptedVolumes: Record<string, string>;
 	domains: DomainRow[];
 	registry: { host: string; flat: boolean; auth?: RegistryAuth } | null;
 	/** How the clone authenticates; absent for public https repositories. */
@@ -186,6 +189,15 @@ export async function loadService(
 		),
 	);
 
+	const adoptedVolumes = Object.fromEntries(
+		(
+			await ctx.db
+				.select()
+				.from(adoptedVolume)
+				.where(eq(adoptedVolume.serviceId, svc.id))
+		).map((a) => [a.ownerId, a.volumeName]),
+	);
+
 	const domains = await ctx.db
 		.select()
 		.from(domain)
@@ -248,6 +260,7 @@ export async function loadService(
 		environmentName: row.environmentName,
 		env,
 		mounts,
+		adoptedVolumes,
 		domains,
 		registry: host
 			? {
@@ -303,7 +316,10 @@ export type DeploymentRef = {
 export function compileInput(
 	sc: ServiceContext,
 	deployment: DeploymentRef,
-	refs: Pick<CompileServiceInput, "networks" | "pinNodeId" | "scope">,
+	refs: Pick<
+		CompileServiceInput,
+		"networks" | "pinNodeId" | "scope" | "bridgeLabels"
+	>,
 ): CompileServiceInput {
 	return {
 		service: {
@@ -321,6 +337,7 @@ export function compileInput(
 		),
 		context: deploymentContext(sc, deployment),
 		mounts: sc.mounts,
+		adoptedVolumes: sc.adoptedVolumes,
 		domains: sc.domains,
 		...refs,
 		fileIds: {},

@@ -82,6 +82,21 @@ Remove it with `docker rm -f logistack-api-tunnel` when you no longer want the l
 
 The installer is idempotent. Re-running it repairs a broken install and never rotates existing secrets.
 
+## Migrating from Dokploy
+
+Run the installer on the Dokploy server, as for any install. It finds Dokploy from the Swarm service `dokploy` or the directory `/etc/dokploy`, explains the plan, and asks before it changes anything. Dokploy keeps running and keeps serving your sites:
+
+- Ingress is off, as with `--no-ingress`. Caddy stays at 0 tasks, and Dokploy's Traefik (`dokploy-traefik`) keeps ports 80 and 443.
+- Setup is private. Dokploy publishes its own dashboard on port 3000, so the tunnel listens on `127.0.0.1:3001` instead: `ssh -L 3001:127.0.0.1:3001 root@<server>`, then open `http://localhost:3001`. `LOGISTACK_TUNNEL_PORT=<port>` picks another port.
+- `/etc/logistack/migration` records `migration_source=dokploy`.
+- The api reads Dokploy for the migration wizard and never writes to it. It mounts `/etc/dokploy` read-only (compose files, Traefik's configuration) and joins `dokploy-network` to reach Dokploy's database, `dokploy-postgres`. These additions live in `/etc/logistack/stack.dokploy.yml`, which the installer deploys together with `stack.yml` while Dokploy runs.
+
+Dokploy keeps no database credentials under `/etc/dokploy`. Since Dokploy 0.26.6 the password is the Swarm secret that `dokploy-postgres` reads through `POSTGRES_PASSWORD_FILE`, and the api mounts that same secret. On older releases the password is a plain `POSTGRES_PASSWORD` in the service's env; the installer copies it into the secret `logistack-dokploy-postgres-password` through stdin. The password never appears in the installer's output, its log, `/etc/logistack`, or the api's service spec.
+
+A re-run of the installer on the same server keeps this setup. If `/etc/dokploy` exists but neither `dokploy` nor `dokploy-postgres` runs, the installer treats the server as a normal install.
+
+Coolify (the container `coolify` or the directory `/data/coolify`) is only reported: "Coolify migration is not supported yet". The install goes on as usual, so ports 80/443 must be free.
+
 ## What it creates
 
 | Object | Details |
@@ -214,5 +229,7 @@ A `--local-build` image tag is the version plus a hash of the four image ids, fo
 `bash install/smoke.sh` runs the whole install inside a throwaway privileged `docker:dind` container named `ls-test-pkg-dind`. It then completes setup, signs in, deploys `nginx:alpine` through the API and checks the result. It never touches the host's swarm. `KEEP=1` leaves the container running for inspection. The last recorded run is in `docs/spikes/stack-smoke.md`.
 
 By default the smoke test also checks that the panel is private before setup: from another container, the server's address answers nothing on 3000 and 404 on port 80, while `127.0.0.1:3000` answers. `SMOKE_PUBLIC_SETUP=1 bash install/smoke.sh` (container `ls-test-pubsetup-dind`) installs with `--public-setup` and checks that setup through Caddy fails without the token, succeeds with it, and answers 409 afterwards.
+
+`SMOKE_DOKPLOY=1 bash install/smoke.sh` (container `ls-test-mig5-dind`) first builds a stand-in for Dokploy: the services `dokploy` and `dokploy-postgres` (password in a Swarm secret) on `dokploy-network`, a `dokploy-traefik` container on 80/443, `/etc/dokploy`, and a `coolify` container. It checks the detection output, `migration_source=dokploy`, ingress off with the tunnel on 3001, that the password appears nowhere, that the api lists the fake Dokploy project through `readDokploy`, and that a re-run restarts nothing and leaves Dokploy running. Its database has only the columns the reader needs, not Dokploy's real schema.
 
 `SMOKE_UPDATE=1 bash install/smoke.sh` (container `ls-test-rel-dind`) installs `--version 0.0.1`, builds the same images as `localhost/logistack*:0.0.2`, and updates to them with `POST /api/instance/update`, the path the Updates page uses, with the worker's image source set to `localhost`. It checks that every service runs 0.0.2, that `GET /api/version` reports it, that the migrations are all applied and the api healthy, and that `/ws` streamed the progress. CI runs this mode on `main` and on tags.
