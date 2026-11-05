@@ -5,7 +5,7 @@ import {
 	mapCompose,
 	parseDotenv,
 	projectNameFromFolder,
-} from "../scripts/dokploy-compose.ts";
+} from "../src/migration/dokploy/compose.ts";
 import { dokployComposes } from "./fixtures/dokploy.ts";
 
 function map(appName: string, opts: { allowSensitive?: boolean } = {}) {

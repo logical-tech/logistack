@@ -23,14 +23,14 @@ import { loadConfig } from "../src/config.ts";
 import type { Deps } from "../src/env.ts";
 import { closeDeps, createDeps } from "../src/index.ts";
 import { setLogLevel } from "../src/log.ts";
-import { slugify } from "../src/openapi.ts";
 import {
 	type ImportPlan,
 	type Mapped,
 	mapCompose,
 	parseDotenv,
 	projectNameFromFolder,
-} from "./dokploy-compose.ts";
+} from "../src/migration/dokploy/compose.ts";
+import { slugify } from "../src/openapi.ts";
 
 export const ACTOR_ID = "import-dokploy";
 

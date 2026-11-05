@@ -65,33 +65,45 @@ Dokploy's databases and apps keep their data in named volumes that Dokploy creat
 
 ## Read Dokploy into a migration inventory (MIG-2)
 
-This step is pure. It maps Dokploy DB rows plus the compose files on disk to an `Inventory` of items. Each item is `full`, `partial` (with reasons) or `unsupported` (with reasons). No I/O beyond a read-only `pg` connection and file reads.
+This step maps Dokploy DB rows to an `Inventory` with one item per Dokploy service. Each item is `full`, `partial` or `unsupported`, with notes, and carries the LogiStack service drafts that replace it. The code is in `apps/server/src/migration/dokploy/`: `snapshot.ts` (the rows read, parsed with zod), `read.ts` and `inventory.ts` (pure). The Dokploy compose mapper moved there as `compose.ts`.
 
-- [ ] A Dokploy DB reader, pinned to the Dokploy schema versions we have tested (≥ v0.30). It rejects an unknown version with a clear message. Evidence: test against a fixture dump of v0.30.11.
-- [ ] Map the hierarchy: Dokploy project → LogiStack project, Dokploy environment → environment. Project-level and environment-level env vars cascade the way Dokploy applies them. Evidence: mapper test.
-- [ ] Map applications by source type:
-  - [ ] Docker image: maps directly, with image pinning.
-  - [ ] Git with Dockerfile, Nixpacks or static build: build type, repo, branch, build path, Dockerfile path.
-  - [ ] Each git application is bound to its imported git provider (MIG-3).
-  - Evidence: mapper tests.
-- [ ] Map databases: postgres, mysql, mariadb, mongo, redis. Covers image version, credentials, adopted data volume, and external port. Evidence: mapper tests. Credentials appear in tests only as fixture values.
-- [ ] Map compose projects, split into N services (decision above). Compose service names stay resolvable on the environment network, so `DATABASE_URL=postgres://db:5432` keeps working. `depends_on` becomes deploy order. `build:` stays `unsupported`. Evidence: mapper test with a 3-service fixture.
-- [ ] Map these resources:
-  - [ ] Domains with HTTPS and their target port.
-  - [ ] Redirects and basic auth.
-  - [ ] Ports.
-  - [ ] Bind and file mounts. Dokploy "file" mounts become service files.
-  - [ ] Resource limits, replicas, healthcheck.
-  - Evidence: mapper tests.
-- [ ] Map these org-level resources:
+### MIG-2a (done)
+
+- [x] Reader:
+  - [x] Every SELECT runs inside a READ ONLY transaction.
+  - [x] It checks each column it needs against `information_schema` first, and refuses a schema that lacks one, naming the column.
+  - [x] Evidence: `test/dokploy-read.test.ts`. With `DOKPLOY_SRC` set, the test applies Dokploy's own migrations from a checkout with `git show`, so no Dokploy code lands in this repo. Checked on v0.30.0 and v0.30.10.
+- [x] Hierarchy: the Dokploy project and environment names carry over, and each item names both.
+- [x] Env: Dokploy exposes only the service's own lines, with `${{project.X}}` / `${{environment.X}}` substituted. So each service gets its env at service scope, with references resolved. Vault references and invalid keys are skipped and named. Evidence: `serviceEnv` test.
+- [x] Applications:
+  - [x] Sources: docker image, GitHub, GitLab, Gitea, Bitbucket and custom git. A provider-backed source keeps `owner/repo` plus a `gitProvider` reference for MIG-3.
+  - [x] Builds: Dockerfile (path, context, stage, build args), Railpack and static. Nixpacks, Heroku and Paketo become Railpack, with a note.
+  - [x] Ports, replicas, resources (bytes and nano CPUs), placement constraints, healthcheck (`CMD` / `CMD-SHELL`), and the command split on spaces as Dokploy does.
+  - [x] Mounts: bind mounts, adopted volumes, and file mounts as configs.
+  - [x] Domains, including path prefixes, and basic auth users.
+  - [x] Reported but not carried over: redirects, previews, registry credentials, SSH keys, custom Swarm labels, networks, update and restart config, global mode, `stripPath` and `internalPath`. Drop sources and remote servers are `unsupported`.
+  - [x] Evidence: `test/dokploy-inventory.test.ts`.
+- [x] Databases:
+  - [x] The official image only, with its version kept.
+  - [x] The data volume found in Dokploy's `mount` rows at the engine's data directory is adopted.
+  - [x] Dokploy's credentials become the env (`POSTGRES_USER/PASSWORD/DB`...), so the adopted data opens.
+  - [x] Unsupported: custom images such as pgvector, Postgres 18+ (it keeps its data in `/var/lib/postgresql/18/docker`), and a missing data volume. An external port is reported.
+  - [x] Evidence: inventory tests.
+- [x] Compose: a raw single-service file maps through the compose mapper, with Dokploy's domain rows. Evidence: inventory tests.
+- [x] Notes never carry a value. Evidence: test that searches the notes for fixture secrets.
+
+### MIG-2b (next)
+
+- [ ] Multi-service compose, split into N services (decision above). Compose service names must stay resolvable on the environment network. `depends_on` becomes deploy order.
+- [ ] Git-sourced compose files, read from `/etc/dokploy/compose/<appName>/code/<composePath>`.
+- [ ] Org-level resources:
   - [ ] Registries.
   - [ ] S3 destinations.
-  - [ ] Backup schedules for databases.
+  - [ ] Database backup schedules.
   - [ ] Notification channels.
   - [ ] SSH keys.
-  - [ ] GitHub and GitLab providers, including the GitHub App id, private key and webhook secret.
-  - Evidence: mapper tests.
-- [ ] Values flagged as secret in Dokploy, and keys that look sensitive, become secret env vars. The inventory and logs never print a value. Evidence: a test that greps the serialized inventory for fixture secrets.
+  - [ ] GitHub, GitLab and Gitea providers, including the GitHub App id, private key and webhook secret.
+- [ ] Postgres 18+. LogiStack now mounts an 18+ volume on `/var/lib/postgresql` (fixed separately), so PGDATA lands in `18/docker` inside it. Dokploy mounts its volume on `/var/lib/postgresql/18/docker`, so its PGDATA is the volume root. To adopt one, either mount it at Dokploy's target or set `PGDATA` to match. Mounting it on the parent would start an empty cluster beside the data.
 
 ## Run a migration as a resumable state machine (MIG-3)
 

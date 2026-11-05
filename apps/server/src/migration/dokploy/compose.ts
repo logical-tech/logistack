@@ -1,6 +1,6 @@
 /**
  * Pure mapping from one Dokploy compose project (docker-compose.yml + .env) to the
- * LogiStack application service that replaces it. No I/O; `import-dokploy.ts` does that.
+ * LogiStack application service that replaces it. No I/O; `scripts/import-dokploy.ts` does that.
  */
 import { posix } from "node:path";
 import {
