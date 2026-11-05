@@ -26,7 +26,7 @@ import type { Context } from "hono";
 import { type Actor, requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
-import { Failure, notFound, one } from "../errors.ts";
+import { Failure, notFound, one, rejectReservedEnvKeys } from "../errors.ts";
 import { envelope } from "../events.ts";
 import {
 	body,
@@ -34,6 +34,7 @@ import {
 	errors,
 	IdParam,
 	json,
+	reservedEnvKey,
 	router,
 	Service,
 	security,
@@ -550,12 +551,14 @@ export const serviceOps = router()
 				responses: {
 					200: json(z.array(EnvVar), "The service's variables"),
 					...errors,
+					...reservedEnvKey,
 				},
 			}),
 		),
 		async (c) => {
 			const serviceId = c.req.valid("param").id;
 			const { variables } = c.req.valid("json");
+			rejectReservedEnvKeys(variables.map((v) => v.key));
 			const { db, masterKey } = c.var.deps;
 			const scope = and(
 				eq(envVar.scope, "service"),

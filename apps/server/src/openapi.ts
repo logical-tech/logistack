@@ -35,6 +35,11 @@ export const errors = {
 	409: error("Conflict"),
 } as const;
 
+/** A variable name starting with `LOGISTACK_`, reserved for the deployment context. */
+export const reservedEnvKey = {
+	422: error("Reserved variable name"),
+} as const;
+
 export const security: Record<string, string[]>[] = [
 	{ session: [] },
 	{ apiKey: [] },

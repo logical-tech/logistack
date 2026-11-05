@@ -3,6 +3,7 @@ import { z } from "zod";
 export const errorCodes = [
 	"bad_request",
 	"validation_failed",
+	"unprocessable",
 	"unauthorized",
 	"forbidden",
 	"not_found",
