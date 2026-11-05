@@ -11,6 +11,7 @@ export * from "./logs.ts";
 export * from "./monitoring.ts";
 export * from "./network-map.ts";
 export * from "./operations.ts";
+export * from "./organization.ts";
 export * from "./pending-diff.ts";
 export * from "./resources.ts";
 export * from "./service-icon.ts";
