@@ -15,4 +15,5 @@ export * from "./service-icon.ts";
 export * from "./service-spec.ts";
 export * from "./storage.ts";
 export * from "./template.ts";
+export * from "./two-factor.ts";
 export * from "./updates.ts";

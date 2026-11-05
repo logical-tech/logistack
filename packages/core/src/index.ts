@@ -15,4 +15,5 @@ export * from "./ports.ts";
 export * from "./sql.ts";
 export * from "./storage.ts";
 export * from "./template.ts";
+export * from "./two-factor.ts";
 export * from "./version.ts";
