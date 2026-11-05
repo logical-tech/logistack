@@ -1,4 +1,4 @@
-import type { LiveMessage } from "@logistack/contracts";
+import type { EventEnvelope, LiveMessage } from "@logistack/contracts";
 
 /** Log stream frames, mirroring `StreamMessage` in `apps/server/src/streams.ts`. */
 export type StreamFrame =
@@ -83,6 +83,16 @@ function listen(channel: string, fn: Listener, opts?: unknown): () => void {
 		}
 	};
 }
+
+/** Persisted `event` frames for one /ws channel (`migration:<id>`...). Returns the unsubscribe. */
+export const subscribeEvents = (
+	channel: string,
+	fn: (event: EventEnvelope) => void,
+) =>
+	listen(channel, (m) => {
+		const e = (m as { event?: EventEnvelope }).event;
+		if (m.type === "event" && e) fn(e);
+	});
 
 /** Live `data` frames for one /ws channel. Returns the unsubscribe. */
 export const subscribe = (channel: string, fn: (data: LiveMessage) => void) =>

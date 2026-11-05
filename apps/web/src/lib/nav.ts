@@ -1,5 +1,6 @@
 import {
 	Activity,
+	ArrowRightLeft,
 	Bell,
 	Boxes,
 	Cable,
@@ -312,6 +313,14 @@ export const NAV: NavGroup[] = [
 					action: "Check now",
 				},
 				keywords: ["upgrade", "version", "release"],
+			},
+			{
+				to: "/settings/migrate",
+				title: "Migrate",
+				icon: ArrowRightLeft,
+				description:
+					"Move projects, databases, domains and settings over from Dokploy, one service at a time.",
+				keywords: ["dokploy", "import", "migration", "coolify"],
 			},
 			{
 				to: "/settings/audit-log",

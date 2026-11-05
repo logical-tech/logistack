@@ -44,6 +44,7 @@ import { Route as AppSettingsAuthenticationRouteImport } from './routes/_app/set
 import { Route as AppSettingsCertificatesRouteImport } from './routes/_app/settings/certificates'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
+import { Route as AppSettingsMigrateRouteImport } from './routes/_app/settings/migrate'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/ssh-keys'
 import { Route as AppSettingsUpdatesRouteImport } from './routes/_app/settings/updates'
@@ -259,6 +260,11 @@ const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
 const AppSettingsMembersRoute = AppSettingsMembersRouteImport.update({
   id: '/settings/members',
   path: '/settings/members',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsMigrateRoute = AppSettingsMigrateRouteImport.update({
+  id: '/settings/migrate',
+  path: '/settings/migrate',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRolesRoute = AppSettingsRolesRouteImport.update({
@@ -517,6 +523,7 @@ export interface FileRoutesByFullPath {
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/members': typeof AppSettingsMembersRoute
+  '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
@@ -588,6 +595,7 @@ export interface FileRoutesByTo {
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/members': typeof AppSettingsMembersRoute
+  '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
@@ -664,6 +672,7 @@ export interface FileRoutesById {
   '/_app/settings/certificates': typeof AppSettingsCertificatesRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/members': typeof AppSettingsMembersRoute
+  '/_app/settings/migrate': typeof AppSettingsMigrateRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/_app/settings/updates': typeof AppSettingsUpdatesRoute
@@ -740,6 +749,7 @@ export interface FileRouteTypes {
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/members'
+    | '/settings/migrate'
     | '/settings/roles'
     | '/settings/ssh-keys'
     | '/settings/updates'
@@ -811,6 +821,7 @@ export interface FileRouteTypes {
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/members'
+    | '/settings/migrate'
     | '/settings/roles'
     | '/settings/ssh-keys'
     | '/settings/updates'
@@ -886,6 +897,7 @@ export interface FileRouteTypes {
     | '/_app/settings/certificates'
     | '/_app/settings/general'
     | '/_app/settings/members'
+    | '/_app/settings/migrate'
     | '/_app/settings/roles'
     | '/_app/settings/ssh-keys'
     | '/_app/settings/updates'
@@ -1180,6 +1192,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/members'
       fullPath: '/settings/members'
       preLoaderRoute: typeof AppSettingsMembersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/migrate': {
+      id: '/_app/settings/migrate'
+      path: '/settings/migrate'
+      fullPath: '/settings/migrate'
+      preLoaderRoute: typeof AppSettingsMigrateRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/roles': {
@@ -1587,6 +1606,7 @@ interface AppRouteChildren {
   AppSettingsCertificatesRoute: typeof AppSettingsCertificatesRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
+  AppSettingsMigrateRoute: typeof AppSettingsMigrateRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSshKeysRoute: typeof AppSettingsSshKeysRoute
   AppSettingsUpdatesRoute: typeof AppSettingsUpdatesRoute
@@ -1631,6 +1651,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsCertificatesRoute: AppSettingsCertificatesRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsMembersRoute: AppSettingsMembersRoute,
+  AppSettingsMigrateRoute: AppSettingsMigrateRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSshKeysRoute: AppSettingsSshKeysRoute,
   AppSettingsUpdatesRoute: AppSettingsUpdatesRoute,

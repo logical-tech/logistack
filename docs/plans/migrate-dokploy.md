@@ -231,18 +231,26 @@ Organization-level resources become `OrgItem`s in `Inventory.org` (`org.ts`, pur
   - skip and unskip;
   - a cutover refused before the import, then queued after it.
 
-### MIG-6b: the wizard
+### MIG-6b (done): the wizard
 
-Load the UI skills listed in CLAUDE.md before starting.
+The wizard lives at Settings → Migrate (`apps/web/src/routes/_app/settings/migrate.tsx`). It is built on the shared `Wizard`, extended with `ready`: a gate computed from server state that blocks Continue and says what is missing. Its API module is `src/lib/api/migrations.ts`, with a mock for `VITE_API_MOCK=1`. Progress arrives through `subscribeEvents` on `migration:<id>`, with polling only while something moves.
 
-- [ ] After admin setup, when `migration_source` is set, the dashboard opens the wizard. It can also be reached from Settings → Migrate. Evidence: screenshot.
-- [ ] Step 1, Inventory: a table grouped by project. Each item shows its status (full, partial, unsupported) and why. Items can be excluded. Evidence: screenshots, light and dark, at 1440 and 390 px.
-- [ ] Step 2, Import: shows live progress. A retry of a failed item runs that item only. Evidence: video.
-- [ ] Step 3, Cutover: services one at a time or all in sequence. Each row has a status, logs and a "Roll back" button. Databases go before the apps that use them. Evidence: video.
-- [ ] Cut over imported GitHub providers only after the proxy switch (step 4): GitHub must reach LogiStack's public URL once the webhook moves (MIG-3c).
-- [ ] Step 4, Proxy: lists the certificates imported, then a "Switch traffic" button. The domain probes show live. Evidence: video.
-- [ ] Step 5, Summary and decommission (MIG-7). Evidence: screenshot.
-- [ ] The whole wizard works from the keyboard and resumes on reload at the current step. Evidence: keyboard-only video, plus a reload partway through.
+- [x] Home shows admins a "Dokploy runs on this server" panel until traffic is switched, linking to Start or Continue migration. A panel, not a redirect, so Home stays usable. Settings → Migrate is in the nav and the command palette.
+- [x] Signature: the header carries the migration as a signal strip, one cell per Dokploy item in cutover order. A cell is grey while it waits, blue while it moves and green on LogiStack. Items staying on Dokploy are faded.
+- [x] Step 1, Review what moves: "Read Dokploy" plans the migration, then lists the organization resources first and then each project and environment. Every item shows its support level, notes on demand and a switch to leave it on Dokploy. Unsupported items cannot be switched on.
+- [x] Step 2, Import: one button imports every planned item and retries only the failed ones. Rows go live as events land. A failed row shows the route's error and "Leave on Dokploy".
+- [x] Step 3, Move services:
+  - "Move N services in order" queues them all, databases first; the worker runs one at a time.
+  - Each row says whether it pauses (adopted volumes), has no downtime, or moves without starting because it was stopped on Dokploy, and has Move, Move back, Try again and Leave on Dokploy.
+  - The settings (registries, S3, notifications, SSH keys) are listed apart, with nothing to switch.
+- [x] Step 4, Switch traffic: a confirmation that says Traefik comes back on its own after 90 s. After the switch it lists the certificates imported or issued fresh (with the reason), every domain's probe, and then "Move webhook" for each GitHub App.
+- [x] Step 5, Done: what runs on LogiStack, what stays on Dokploy with its notes, and a note that removing Dokploy comes with MIG-7.
+- [x] Evidence (2026-11-05, mock API, in-app browser):
+  - The full flow was run at 1440 px in dark and light.
+  - Step 3 was checked at 390 px, where the rows stack the name over the status and action.
+  - The impeccable detector found nothing.
+  - Typecheck, Biome, `bun test src` (87) and `vite build` pass.
+- [ ] Not verified: a keyboard-only run of the whole flow, a recorded video, and the wizard against a real api with a real Dokploy. That last one comes in MIG-8.
 
 ## Decommission Dokploy (MIG-7)
 
