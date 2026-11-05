@@ -1,5 +1,6 @@
 /**
- * Hands ports 80/443 from Dokploy's Traefik to Caddy (MIG-4), as one worker job:
+ * Hands ports 80/443 from the source platform's proxy (Dokploy's or Coolify's Traefik) to Caddy
+ * (MIG-4), as one worker job:
  *
  * 1. Saves what Traefik is (a container with its restart policy, or a service with its replicas)
  *    and which nodes wait for ingress, before anything changes.
@@ -23,14 +24,12 @@ import {
 } from "@logistack/db";
 import { firstTarFile } from "@logistack/docker";
 import { and, eq, inArray } from "drizzle-orm";
-import {
-	DOKPLOY_ACME_PATH,
-	planAcmeImport,
-	storeInCaddy,
-} from "./acme-import.ts";
+import { planAcmeImport, storeInCaddy } from "./acme-import.ts";
 import { log } from "./bus.ts";
+import { freeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { scale, unlessAlready, waitStopped } from "./migration.ts";
+import { sourceSettings } from "./migration-source.ts";
 import { syncProxy } from "./proxy.ts";
 
 export type Probe = (
@@ -77,10 +76,12 @@ async function migratedHostnames(ctx: Ctx, migrationId: string) {
 	return [...new Set(rows.map((r) => r.hostname))];
 }
 
-async function findTraefik(ctx: Ctx): Promise<ProxySwitchState["traefik"]> {
-	const name = ctx.cfg.LS_DOKPLOY_TRAEFIK;
-	// shortcut: a Traefik container is looked for on the worker's own daemon only, which is where
-	// Dokploy runs it on a single-node server; ask the node's agent once multi-node Dokploy matters.
+async function findTraefik(
+	ctx: Ctx,
+	name: string,
+): Promise<ProxySwitchState["traefik"]> {
+	// shortcut: a proxy container is looked for on the worker's own daemon only, which is where
+	// Dokploy and Coolify run it on a single-node server; ask the node's agent once multi-node matters.
 	const [container] = (
 		await ctx.docker.containers.list({ name: [name] }, true)
 	).filter((c) => c.Names.includes(`/${name}`));
@@ -122,6 +123,7 @@ async function importCertificates(
 	ctx: Ctx,
 	migrationId: string,
 	t: ProxySwitchState["traefik"],
+	acmePath: string,
 ): Promise<NonNullable<ProxySwitchState["certificates"]>> {
 	try {
 		const id = await traefikContainer(ctx, t);
@@ -132,13 +134,13 @@ async function importCertificates(
 				error: "no Traefik container to read acme.json from",
 			};
 		const file = firstTarFile(
-			await ctx.docker.containers.archive(id, DOKPLOY_ACME_PATH),
+			await ctx.docker.containers.archive(id, acmePath),
 		);
 		if (!file)
 			return {
 				imported: [],
 				skipped: [],
-				error: `${DOKPLOY_ACME_PATH} is not a file`,
+				error: `${acmePath} is not a file`,
 			};
 		const plan = planAcmeImport(
 			new TextDecoder().decode(file),
@@ -240,7 +242,8 @@ export async function switchProxy(
 	if (state.result?.status === "switched") return state;
 
 	// What to restore is saved once, before anything changes; a re-run keeps the first answer.
-	state.traefik ??= await findTraefik(ctx);
+	const from = sourceSettings(ctx.cfg, mig.source);
+	state.traefik ??= await findTraefik(ctx, from.proxy);
 	state.nodes ??= (
 		await ctx.docker.nodes.list({
 			"node.label": [`${ctx.cfg.LS_INGRESS_LABEL}=pending`],
@@ -257,9 +260,13 @@ export async function switchProxy(
 		ctx,
 		migrationId,
 		state.traefik,
+		from.acmePath,
 	);
 	await save(ctx, migrationId, state);
 
+	// Coolify's scheduler restarts a stopped proxy; it stays frozen from here (normally since the
+	// first cutover already).
+	if (mig.source === "coolify") await freeze(ctx, migrationId);
 	await stopTraefik(ctx, state.traefik);
 	await labelNodes(ctx, state.nodes, "true");
 	const deadline = Date.now() + ctx.cfg.LS_PROXY_SWITCH_TIMEOUT_MS;

@@ -26,6 +26,7 @@ describe.skipIf(!hasDocker)("migration wizard routes", () => {
 		migrationId = await planMigration(
 			h.deps,
 			orgId,
+			"dokploy",
 			buildInventory(
 				snapshot({
 					applications: [
@@ -51,7 +52,30 @@ describe.skipIf(!hasDocker)("migration wizard routes", () => {
 		});
 		const create = await api("POST", "/migrations");
 		expect(create.status).toBe(409);
-		expect(create.json.error.message).toContain("no Dokploy");
+		expect(create.json.error.message).toContain("no Dokploy or Coolify");
+	});
+
+	test("with Coolify's secrets handed over, the source is Coolify and a failed read says so", async () => {
+		const cfg = h.deps.config as Record<string, unknown>;
+		Object.assign(cfg, {
+			COOLIFY_DB_PASSWORD: "fake-coolify-db-secret",
+			COOLIFY_APP_KEY: `base64:${Buffer.alloc(32, 1).toString("base64")}`,
+			COOLIFY_DB_HOST: "127.0.0.1.invalid",
+		});
+		try {
+			expect((await api("GET", "/migrations/source")).json.source).toBe(
+				"coolify",
+			);
+			const create = await api("POST", "/migrations");
+			expect(create.status).toBe(422);
+			expect(create.json.error.message).toContain("Coolify could not be read");
+			expect(JSON.stringify(create.json)).not.toContain(
+				"fake-coolify-db-secret",
+			);
+		} finally {
+			cfg.COOLIFY_DB_PASSWORD = undefined;
+			cfg.COOLIFY_APP_KEY = undefined;
+		}
 	});
 
 	test("a migration shows its items with notes, never a value", async () => {

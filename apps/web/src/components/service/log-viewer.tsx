@@ -66,26 +66,29 @@ const Row = memo(function Row({
 	query,
 	current,
 	showSlot,
+	tag,
 }: {
 	line: LogLine;
 	number: number;
 	query: string;
 	current: boolean;
 	showSlot: boolean;
+	/** The stream's name column, when lines of several streams are interleaved. */
+	tag?: { color: string; width: number };
 }) {
 	const parts = useMemo(() => segments(line.raw, query), [line.raw, query]);
 	return (
 		<div
 			className={cn(
 				"grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 px-3 sm:px-4",
-				!showSlot && "max-sm:grid-cols-1",
+				!(showSlot || tag) && "max-sm:grid-cols-1",
 				current && "bg-[color-mix(in_oklch,var(--brand)_14%,transparent)]",
 			)}
 		>
 			<span
 				className={cn(
 					"flex gap-3 text-right text-[var(--log-muted)] select-none",
-					!showSlot && "max-sm:hidden",
+					!(showSlot || tag) && "max-sm:hidden",
 				)}
 			>
 				<span className="w-[4ch] tabular max-sm:hidden">{number}</span>
@@ -95,6 +98,14 @@ const Row = memo(function Row({
 					</time>
 				)}
 				{showSlot && <span className="tabular">#{line.slot ?? "?"}</span>}
+				{tag && (
+					<span
+						className="truncate text-left"
+						style={{ color: tag.color, width: `${tag.width}ch` }}
+					>
+						{line.tag}
+					</span>
+				)}
 			</span>
 			<span className="break-all whitespace-pre-wrap">
 				{parts.map((p, i) =>
@@ -129,6 +140,7 @@ export function LogViewer({
 	status,
 	toolbar,
 	showSlot = false,
+	tags,
 	empty,
 	className,
 }: {
@@ -140,6 +152,8 @@ export function LogViewer({
 	/** Filters that belong to the stream, drawn before search. */
 	toolbar?: ReactNode;
 	showSlot?: boolean;
+	/** Colours of the streams' tags; a tag column is drawn when given. */
+	tags?: Map<string, string>;
 	empty: string;
 	className?: string;
 }) {
@@ -150,6 +164,10 @@ export function LogViewer({
 	const [input, setInput] = useState("");
 	const query = useDeferredValue(input.trim().toLowerCase());
 	const [cursor, setCursor] = useState(0);
+	const tagWidth = Math.min(
+		18,
+		Math.max(0, ...[...(tags?.keys() ?? [])].map((t) => t.length)),
+	);
 
 	const matches = useMemo(() => {
 		if (!query) return [];
@@ -332,6 +350,14 @@ export function LogViewer({
 											query={query}
 											current={matches[current] === item.index}
 											showSlot={showSlot}
+											tag={
+												tags && line.tag
+													? {
+															color: tags.get(line.tag) ?? "inherit",
+															width: tagWidth,
+														}
+													: undefined
+											}
 										/>
 									</div>
 								);

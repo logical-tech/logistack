@@ -5,6 +5,7 @@ import { client, setupHeader } from "./client";
 import { networkingHttp } from "./networking";
 import { serviceOpsHttp } from "./service-ops";
 import { ssoHttp } from "./sso";
+import { stacksHttp } from "./stacks";
 import { templatesHttp } from "./templates";
 
 const api = client.api;
@@ -176,5 +177,6 @@ export const httpAdapter: ApiAdapter = {
 	networking: networkingHttp,
 	serviceOps: serviceOpsHttp,
 	sso: ssoHttp,
+	stacks: stacksHttp,
 	templates: templatesHttp,
 };

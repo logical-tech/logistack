@@ -18,6 +18,10 @@ export const serviceKinds = [
 	"storage",
 ] as const;
 export const ServiceKind = z.enum(serviceKinds);
+/** Where a stack's services came from: a catalog template or a pasted compose file. */
+export const stackSources = ["template", "compose"] as const;
+export const StackSource = z.enum(stackSources);
+export type StackSource = z.infer<typeof StackSource>;
 export type ServiceKind = z.infer<typeof ServiceKind>;
 
 export const desiredStates = ["running", "stopped"] as const;
@@ -204,7 +208,7 @@ export const permissionActions = [
 export const PermissionAction = z.enum(permissionActions);
 export type PermissionAction = z.infer<typeof PermissionAction>;
 
-export const migrationSources = ["dokploy"] as const;
+export const migrationSources = ["dokploy", "coolify"] as const;
 export const MigrationSource = z.enum(migrationSources);
 export type MigrationSource = z.infer<typeof MigrationSource>;
 

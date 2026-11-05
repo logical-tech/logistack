@@ -1,4 +1,5 @@
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -13,6 +14,7 @@ import {
 	migrationSource,
 	migrationStatus,
 } from "./enums.ts";
+import { service } from "./hierarchy.ts";
 
 /**
  * What the cutover stopped on the source, so a rollback restores it: Swarm services with the
@@ -46,6 +48,21 @@ export type ProxySwitchState = {
 		| { status: "fell_back"; at: string; error: string };
 };
 
+/**
+ * The source platform's control plane, frozen while services move (Coolify: its `coolify`
+ * container, whose scheduler would bring its proxy back and redeploy on git pushes). Saved before
+ * it is stopped, so unfreezing restores it exactly.
+ */
+export type FreezeState = {
+	containers: {
+		id: string;
+		name: string;
+		restartPolicy: string;
+		running: boolean;
+	}[];
+	frozenAt: string;
+};
+
 /** What the decommission archived and removed, and what it left alone (MIG-7). */
 export type DecommissionState = {
 	/** `<archive dir>/<stamp>`: `dokploy.dump`, `etc-dokploy.tar.gz`, `inventory.json`. */
@@ -68,6 +85,7 @@ export const migration = pgTable("migration", {
 	status: migrationStatus("status").notNull().default("planned"),
 	proxyState: jsonb("proxy_state").$type<ProxySwitchState>(),
 	decommission: jsonb("decommission").$type<DecommissionState>(),
+	freeze: jsonb("freeze").$type<FreezeState>(),
 	/** Where the source's data was archived on decommission (MIG-7). */
 	archivePath: text("archive_path"),
 	...timestamps,
@@ -105,3 +123,21 @@ export const migrationItem = pgTable(
 		index("migration_item_order").on(t.migrationId, t.position),
 	],
 );
+
+/**
+ * A service moved from another platform keeps answering there until that platform is removed:
+ * it joins the platform's bridge network under these names, and, with `routes`, carries routers
+ * for the platform's proxy. The network and router flavour come from the migration's source.
+ */
+export const migrationBridge = pgTable("migration_bridge", {
+	serviceId: text("service_id")
+		.primaryKey()
+		.references(() => service.id, { onDelete: "cascade" }),
+	migrationId: text("migration_id")
+		.notNull()
+		.references(() => migration.id, { onDelete: "cascade" }),
+	/** Exact names the source's clients use: Dokploy's `appName`, Coolify's container names. */
+	aliases: text("aliases").array().notNull(),
+	/** Whether the source's proxy routes the service's domains by labels on it. */
+	routes: boolean("routes").notNull().default(false),
+});

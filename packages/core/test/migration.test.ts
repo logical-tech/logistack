@@ -45,6 +45,9 @@ test("Dokploy is removed only once every item is settled and traffic moved", asy
 		),
 	).toBe("1 item(s) are neither on LogiStack nor left on Dokploy");
 	expect(decommissionBlocker([{ status: "cut_over" }], false)).toBe(
-		"traffic still goes through Dokploy's Traefik",
+		"traffic still goes through Dokploy's proxy",
+	);
+	expect(decommissionBlocker([{ status: "imported" }], true, "coolify")).toBe(
+		"1 item(s) are neither on LogiStack nor left on Coolify",
 	);
 });

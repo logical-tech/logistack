@@ -25,6 +25,7 @@ import {
 } from "./deployment-context.ts";
 import { dockerName } from "./ids.ts";
 import { LIBSQL_ENV, LIBSQL_HEALTH } from "./libsql.ts";
+import type { RouterFlavor } from "./migration.ts";
 import { storageEngineDefs } from "./storage.ts";
 
 export type CompileMount = {
@@ -73,6 +74,10 @@ export type CompileServiceInput = {
 	};
 	/** Labels for the old platform's proxy while bridged (`bridgeRouterLabels`); service-level. */
 	bridgeLabels?: Record<string, string>;
+	/** The same, on the task containers: Coolify's Traefik reads containers, not Swarm services. */
+	bridgeContainerLabels?: Record<string, string>;
+	/** Names the service answers to on `networks.bridge`; the slug when absent. */
+	bridgeAliases?: string[];
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
@@ -408,7 +413,11 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 		TaskTemplate: {
 			ContainerSpec: {
 				Image: image,
-				Labels: { ...labelsFor(input, service.id, kind), ...deploymentLabel },
+				Labels: {
+					...input.bridgeContainerLabels,
+					...labelsFor(input, service.id, kind),
+					...deploymentLabel,
+				},
 				...(engine?.args
 					? { Command: engine.args }
 					: (app?.command ?? store?.args)
@@ -463,7 +472,12 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					: []),
 				...(isDb && input.networks.db ? [{ Target: input.networks.db }] : []),
 				...(input.networks.bridge
-					? [{ Target: input.networks.bridge, Aliases: [service.slug] }]
+					? [
+							{
+								Target: input.networks.bridge,
+								Aliases: input.bridgeAliases ?? [service.slug],
+							},
+						]
 					: []),
 			],
 		},
@@ -494,10 +508,11 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 }
 
 /**
- * Routers for Dokploy's Traefik (swarm provider) to this service, while it is bridged onto
- * Dokploy's network. Dokploy routes compose domains by labels, not by DNS name, so until the
- * proxy switch a compose service moved to LogiStack keeps its domains only through these.
- * Entrypoints and resolver are Dokploy's names (`web`, `websecure`, `letsencrypt`).
+ * Routers for the old platform's Traefik to this service, while it is bridged onto that
+ * platform's network. Dokploy routes compose domains by labels, not by DNS name, and Coolify routes
+ * every domain that way, so until the proxy switch a moved service keeps its domains only through
+ * these. `traefik-swarm` (Dokploy) puts them on the Swarm service and names entrypoints
+ * `web`/`websecure`; `traefik-docker` (Coolify) puts them on the containers, `http`/`https`.
  */
 export function bridgeRouterLabels(
 	serviceId: string,
@@ -508,11 +523,13 @@ export function bridgeRouterLabels(
 		pathPrefix: string | null;
 		https: boolean;
 	}[],
+	flavor: RouterFlavor = "traefik-swarm",
 ): Record<string, string> {
 	if (!domains.length) return {};
+	const swarm = flavor === "traefik-swarm";
 	const labels: Record<string, string> = {
 		"traefik.enable": "true",
-		"traefik.swarm.network": network,
+		[swarm ? "traefik.swarm.network" : "traefik.docker.network"]: network,
 	};
 	domains.forEach((d, i) => {
 		const r = `ls-${serviceId.replaceAll("_", "-")}-${i}`;
@@ -522,9 +539,16 @@ export function bridgeRouterLabels(
 				: "";
 		labels[`traefik.http.routers.${r}.rule`] = `Host(\`${d.hostname}\`)${path}`;
 		labels[`traefik.http.routers.${r}.entrypoints`] = d.https
-			? "websecure"
-			: "web";
+			? swarm
+				? "websecure"
+				: "https"
+			: swarm
+				? "web"
+				: "http";
 		labels[`traefik.http.routers.${r}.service`] = r;
+		// Above the source's own router for the same host (Traefik ranks by rule length), so traffic
+		// moves the moment the old proxy sees this one, before the source stops: no gap at cutover.
+		labels[`traefik.http.routers.${r}.priority`] = "100000";
 		labels[`traefik.http.services.${r}.loadbalancer.server.port`] = String(
 			d.port,
 		);

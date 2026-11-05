@@ -26,13 +26,15 @@ export type ItemAction = "cutover" | "rollback" | "skip" | "unskip";
 
 export type MigrationsApi = {
 	source(): Promise<MigrationSource>;
-	/** Reads Dokploy and plans; nothing changes on either side. */
+	/** Reads the source (Dokploy or Coolify) and plans; nothing changes on either side. */
 	create(): Promise<Migration>;
 	get(id: string): Promise<Migration>;
 	importAll(id: string): Promise<Migration>;
 	switchProxy(id: string): Promise<Migration>;
-	/** Archives Dokploy on the server, then removes it. */
+	/** Archives the source on the server, then removes it. */
 	decommission(id: string): Promise<Migration>;
+	/** Starts Coolify's control plane again after a cutover paused it. */
+	unfreeze(id: string): Promise<Migration>;
 	item(id: string, action: ItemAction): Promise<MigrationItem>;
 	/** Calls `fn` on every item change of the migration; the mock simulates them. */
 	live(id: string, fn: (itemId: string) => void): () => void;
@@ -47,6 +49,7 @@ const http: MigrationsApi = {
 	importAll: (id) => ok(m[":id"].import.$post({ param: { id } })),
 	switchProxy: (id) => ok(m[":id"]["proxy-switch"].$post({ param: { id } })),
 	decommission: (id) => ok(m[":id"].decommission.$post({ param: { id } })),
+	unfreeze: (id) => ok(m[":id"].unfreeze.$post({ param: { id } })),
 	item: (id, action) => ok(items[action].$post({ param: { id } })),
 	live: (id, fn) =>
 		subscribeEvents(`migration:${id}`, (e) => {
@@ -133,12 +136,16 @@ export function useCreateMigration() {
 export function useMigrationAction(id: string) {
 	const qc = useQueryClient();
 	return useMutation({
-		mutationFn: (a: { kind: "import" | "proxy" | "decommission" }) =>
+		mutationFn: (a: {
+			kind: "import" | "proxy" | "decommission" | "unfreeze";
+		}) =>
 			a.kind === "import"
 				? migrationsApi.importAll(id)
 				: a.kind === "proxy"
 					? migrationsApi.switchProxy(id)
-					: migrationsApi.decommission(id),
+					: a.kind === "unfreeze"
+						? migrationsApi.unfreeze(id)
+						: migrationsApi.decommission(id),
 		onSuccess: (mig) => qc.setQueryData(migrationKey(id), mig),
 	});
 }

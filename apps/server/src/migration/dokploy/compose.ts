@@ -8,8 +8,10 @@ import {
 	type BindMount,
 	type Capability,
 	EnvKey,
+	type Healthcheck,
 	isSensitiveHostPath,
 	linuxCapabilities,
+	type MigrationSource,
 	type PortMapping,
 	type RestartCondition,
 } from "@logistack/contracts";
@@ -219,7 +221,7 @@ function volumeNames(
 }
 
 /** `Game Data_1` → `game-data-1`: what the API takes as a volume mount name. */
-const mountName = (key: string) =>
+export const mountName = (key: string) =>
 	key
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "-")
@@ -229,21 +231,25 @@ const mountName = (key: string) =>
 function mapMounts(
 	svc: Raw,
 	path: string,
-	appName: string,
+	input: ComposeInput,
 	declaredVolumes: Map<string, string>,
-	allowSensitive: boolean,
 	unsupported: string[],
 ) {
+	const allowSensitive = input.allowSensitive ?? false;
+	const ignored = new Set(input.ignoredKeys ?? []);
 	const mounts: BindMount[] = [];
 	const volumes: VolumeEntry[] = [];
-	const base = posix.join(DOKPLOY_COMPOSE_ROOT, appName, "code");
+	const base =
+		input.bindRoot ?? posix.join(DOKPLOY_COMPOSE_ROOT, input.appName, "code");
 	for (const v of (svc.volumes as unknown[] | undefined) ?? []) {
 		let source: string;
 		let target: string;
 		let readOnly = false;
 		if (isRecord(v)) {
 			const extra = Object.keys(v).filter(
-				(k) => !["type", "source", "target", "read_only"].includes(k),
+				(k) =>
+					!["type", "source", "target", "read_only"].includes(k) &&
+					!ignored.has(k),
 			);
 			if (!["bind", "volume"].includes(String(v.type)) || extra.length) {
 				unsupported.push(
@@ -272,7 +278,8 @@ function mapMounts(
 			readOnly = mode === "ro";
 		}
 		if (!source.startsWith("/") && !source.startsWith(".")) {
-			const volume = declaredVolumes.get(source);
+			const volume =
+				declaredVolumes.get(source) ?? input.undeclaredVolume?.(source);
 			if (!volume)
 				unsupported.push(`${path}.volumes undeclared volume "${source}"`);
 			// The API mounts named volumes read-write only.
@@ -380,6 +387,68 @@ function mapDomains(
 	return domains;
 }
 
+/** Compose's own word splitting for a string `command`: spaces separate, quotes group. */
+export function splitArgs(s: string): string[] | undefined {
+	const out: string[] = [];
+	let cur = "";
+	let quote: string | undefined;
+	let started = false;
+	for (let i = 0; i < s.length; i++) {
+		const c = s[i] as string;
+		if (quote) {
+			if (c === quote) quote = undefined;
+			else if (c === "\\" && quote === '"' && i + 1 < s.length) cur += s[++i];
+			else cur += c;
+		} else if (c === '"' || c === "'") {
+			quote = c;
+			started = true;
+		} else if (/\s/.test(c)) {
+			if (started) out.push(cur);
+			cur = "";
+			started = false;
+		} else if (c === "\\" && i + 1 < s.length) {
+			cur += s[++i];
+			started = true;
+		} else {
+			cur += c;
+			started = true;
+		}
+	}
+	if (quote) return undefined;
+	if (started) out.push(cur);
+	return out;
+}
+
+function argvOf(
+	v: unknown,
+	path: string,
+	unsupported: string[],
+): string[] | undefined {
+	if (v === undefined || v === null) return undefined;
+	if (Array.isArray(v)) return v.map(String);
+	const args = splitArgs(String(v));
+	if (!args) unsupported.push(`${path} (unbalanced quotes)`);
+	return args;
+}
+
+/** `test` as Docker reads it; timings stay LogiStack's own. `disable` or `NONE` means none. */
+function healthcheckOf(
+	v: unknown,
+	path: string,
+	unsupported: string[],
+): Healthcheck | undefined {
+	if (!isRecord(v) || v.disable === true) return undefined;
+	const test = typeof v.test === "string" ? ["CMD-SHELL", v.test] : v.test;
+	if (!Array.isArray(test) || !test.length) return undefined;
+	const [kind, ...rest] = test.map(String);
+	if (kind === "NONE") return undefined;
+	if (kind === "CMD" && rest.length) return { type: "command", command: rest };
+	if (kind === "CMD-SHELL" && rest.length)
+		return { type: "command", command: ["sh", "-c", rest.join(" ")] };
+	unsupported.push(`${path}.healthcheck.test`);
+	return undefined;
+}
+
 const TOP_LEVEL = new Set([
 	"services",
 	"networks",
@@ -400,6 +469,9 @@ const SERVICE_KEYS = new Set([
 	"labels",
 	"networks",
 	"depends_on",
+	"command",
+	"entrypoint",
+	"healthcheck",
 ]);
 
 /** Deep-maps every string through compose interpolation. */
@@ -420,6 +492,17 @@ type ComposeInput = {
 	compose: unknown;
 	dotenv: Map<string, string>;
 	allowSensitive?: boolean;
+	/** The platform the file comes from: the `importedFrom` prefix. Dokploy when absent. */
+	source?: MigrationSource;
+	/** Where relative bind sources resolve; Dokploy's `<compose root>/<appName>/code` when absent. */
+	bindRoot?: string;
+	/**
+	 * The Docker name of a named volume the file uses without declaring it. Refused when absent;
+	 * Coolify creates such volumes itself as `<uuid>_<name>`.
+	 */
+	undeclaredVolume?: (key: string) => string;
+	/** Keys the source adds to services and volume entries that only it reads; dropped. */
+	ignoredKeys?: string[];
 };
 
 /** A compose file with several services: every one mapped, or the whole file refused. */
@@ -491,8 +574,10 @@ function mapService(
 		unsupported.push(path);
 		return refuse();
 	}
+	const ignored = new Set(input.ignoredKeys ?? []);
 	for (const key of Object.keys(raw))
-		if (!SERVICE_KEYS.has(key)) unsupported.push(`${path}.${key}`);
+		if (!SERVICE_KEYS.has(key) && !ignored.has(key))
+			unsupported.push(`${path}.${key}`);
 	const missing = new Set<string>();
 	const sub = (s: string) => {
 		const r = interpolate(s, dotenv);
@@ -532,11 +617,13 @@ function mapService(
 	const { mounts, volumes } = mapMounts(
 		svc,
 		path,
-		appName,
+		input,
 		declaredVolumes,
-		input.allowSensitive ?? false,
 		unsupported,
 	);
+	const command = argvOf(svc.command, `${path}.command`, unsupported);
+	const entrypoint = argvOf(svc.entrypoint, `${path}.entrypoint`, unsupported);
+	const healthcheck = healthcheckOf(svc.healthcheck, path, unsupported);
 	const capAdd = mapCapabilities(svc.cap_add, `${path}.cap_add`, unsupported);
 	const capDrop = mapCapabilities(
 		svc.cap_drop,
@@ -564,6 +651,9 @@ function mapService(
 		...(capAdd?.length && { capAdd }),
 		...(capDrop?.length && { capDrop }),
 		...(restart && { restart }),
+		...(command?.length && { command }),
+		...(entrypoint?.length && { entrypoint }),
+		...(healthcheck && { healthcheck }),
 	});
 	if (!parsed.success)
 		unsupported.push(
@@ -577,7 +667,7 @@ function mapService(
 		appName,
 		projectName,
 		serviceName,
-		importedFrom: `dokploy:${appName}/${serviceName}`,
+		importedFrom: `${input.source ?? "dokploy"}:${appName}/${serviceName}`,
 		spec: parsed.data,
 		env,
 		domains,

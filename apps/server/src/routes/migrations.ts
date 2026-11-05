@@ -13,6 +13,7 @@ import {
 	decommissionBlocker,
 	decrypt,
 	migrationItemTransition,
+	sourceProfiles,
 } from "@logistack/core";
 import { migration, migrationItem } from "@logistack/db";
 import { and, asc, desc, eq } from "drizzle-orm";
@@ -22,10 +23,8 @@ import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound } from "../errors.ts";
 import { log } from "../log.ts";
-import { buildInventory } from "../migration/dokploy/inventory.ts";
-import { readDokploy } from "../migration/dokploy/read.ts";
-import { dokploySource } from "../migration/dokploy/source.ts";
 import { type Plan, planMigration, runImport } from "../migration/import.ts";
+import { detectSource } from "../migration/sources.ts";
 import { errors, IdParam, json, router, security } from "../openapi.ts";
 import { runQueues } from "../run-queues.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
@@ -87,7 +86,7 @@ const DecommissionView = z
 		status: z.enum(["not_started", "done", "failed"]),
 		at: z.string().nullable(),
 		error: z.string().nullable(),
-		/** On the server, root only: the dump, the tarball of /etc/dokploy and the inventory. */
+		/** On the server, root only: the dump, the tarball of the source's directory and the inventory. */
 		archivePath: z.string().nullable(),
 		removed: z.array(z.string()),
 		kept: z.array(z.object({ name: z.string(), reason: z.string() })),
@@ -103,8 +102,10 @@ const MigrationView = z
 		items: z.array(MigrationItemView),
 		proxy: ProxyView,
 		decommission: DecommissionView,
-		/** Why Dokploy cannot be removed yet; null once it can. */
+		/** Why the source cannot be removed yet; null once it can. */
 		decommissionBlocker: z.string().nullable(),
+		/** When the source's control plane was frozen (Coolify, from the first cutover); null when it runs. */
+		frozenAt: z.string().nullable(),
 	})
 	.openapi("Migration");
 
@@ -231,7 +232,9 @@ async function view(c: Context<Env>, m: MigrationRow) {
 				: (decommissionBlocker(
 						items,
 						m.proxyState?.result?.status === "switched",
+						m.source,
 					) ?? null),
+		frozenAt: m.freeze?.frozenAt ?? null,
 	};
 }
 
@@ -271,9 +274,7 @@ export const migrations = router()
 				.limit(1);
 			return c.json(
 				{
-					source: dokploySource(c.var.deps.config)
-						? ("dokploy" as const)
-						: null,
+					source: detectSource(c.var.deps.config)?.source ?? null,
 					migrationId: latest?.id ?? null,
 				},
 				200,
@@ -288,33 +289,32 @@ export const migrations = router()
 				path: "/migrations",
 				tags,
 				security,
-				summary: "Read Dokploy (read-only) and plan a migration",
+				summary: "Read the source platform (read-only) and plan a migration",
 				description:
-					"Reads Dokploy's database and compose files without changing them, and stores the inventory: one item per service and organization resource, each full, partial or unsupported with notes. Nothing is created in LogiStack yet.",
+					"Reads the database and files of the platform install.sh found (Dokploy or Coolify) without changing them, and stores the inventory: one item per service and organization resource, each full, partial or unsupported with notes. Nothing is created in LogiStack yet.",
 				middleware: [admin],
 				responses: { 201: json(MigrationView, "Planned"), ...errors },
 			}),
 		),
 		async (c) => {
-			const source = dokploySource(c.var.deps.config);
-			if (!source)
+			const found = detectSource(c.var.deps.config);
+			if (!found)
 				throw new Failure(
 					"conflict",
-					"no Dokploy next to this server: install.sh did not find one",
+					"no Dokploy or Coolify next to this server: install.sh did not find one",
 				);
-			const snapshot = await readDokploy(source.url, {
-				composeRoot: source.composeRoot,
-				secrets: source.secrets,
-			}).catch((e: unknown) => {
+			const label = sourceProfiles[found.source].label;
+			const inventory = await found.read().catch((e: unknown) => {
 				throw new Failure(
 					"unprocessable",
-					`Dokploy could not be read: ${e instanceof Error ? e.message : String(e)}`,
+					`${label} could not be read: ${e instanceof Error ? e.message : String(e)}`,
 				);
 			});
 			const id = await planMigration(
 				c.var.deps,
 				requireActor(c).organizationId,
-				buildInventory(snapshot),
+				found.source,
+				inventory,
 			);
 			c.set("auditResourceId", id);
 			return c.json(await view(c, await ownMigration(c, id)), 201);
@@ -376,9 +376,9 @@ export const migrations = router()
 				path: "/migrations/{id}/proxy-switch",
 				tags,
 				security,
-				summary: "Hand ports 80/443 from Dokploy's Traefik to Caddy",
+				summary: "Hand ports 80/443 from the source's proxy to Caddy",
 				description:
-					"Imports Traefik's certificates for the cut-over domains, stops Traefik, turns ingress on and probes every domain. Traefik starts again if Caddy does not come up.",
+					"Imports the source Traefik's certificates for the cut-over domains, stops that proxy, turns ingress on and probes every domain. The proxy starts again if Caddy does not come up.",
 				middleware: [admin],
 				request: { params: IdParam },
 				responses: { 202: json(MigrationView, "Queued"), ...errors },
@@ -397,15 +397,53 @@ export const migrations = router()
 	)
 	.openapi(
 		mutation(
+			"migration.unfreeze",
+			createRoute({
+				method: "post",
+				path: "/migrations/{id}/unfreeze",
+				tags,
+				security,
+				summary: "Start Coolify's control plane again",
+				description:
+					"The first cutover of a Coolify migration stops the `coolify` container so its scheduler cannot restart its proxy or redeploy moved apps. This restores its restart policy and starts it again; the next cutover freezes it once more.",
+				middleware: [admin],
+				request: { params: IdParam },
+				responses: { 202: json(MigrationView, "Queued"), ...errors },
+			}),
+		),
+		async (c) => {
+			const m = await ownMigration(c, c.req.valid("param").id);
+			if (!m.freeze)
+				throw new Failure(
+					"conflict",
+					"the source's control plane is not frozen",
+				);
+			if (m.status === "decommissioned")
+				throw new Failure("conflict", "Coolify is already removed");
+			c.set("auditResourceId", m.id);
+			await runQueues(c.var.deps.config.REDIS_URL).migration.add(
+				"unfreeze",
+				{ migrationId: m.id, action: "unfreeze" },
+				{
+					jobId: `unfreeze-${m.id}`,
+					removeOnComplete: true,
+					removeOnFail: true,
+				},
+			);
+			return c.json(await view(c, m), 202);
+		},
+	)
+	.openapi(
+		mutation(
 			"migration.decommission",
 			createRoute({
 				method: "post",
 				path: "/migrations/{id}/decommission",
 				tags,
 				security,
-				summary: "Archive Dokploy, then remove it",
+				summary: "Archive the source platform, then remove it",
 				description:
-					"Dumps Dokploy's database and archives /etc/dokploy and the inventory on the server, then removes Dokploy's services, Traefik and the sources already moved. Volumes and items left on Dokploy stay. Refused until every item is on LogiStack or left on Dokploy and traffic is switched.",
+					"Dumps the source's database and archives its configuration directory (/etc/dokploy or /data/coolify) and the inventory on the server, then removes the source's own services or containers, its proxy and the sources already moved. Volumes and items left on the source stay. Refused until every item is on LogiStack or left on the source and traffic is switched.",
 				middleware: [admin],
 				request: { params: IdParam },
 				responses: { 202: json(MigrationView, "Queued"), ...errors },
@@ -415,11 +453,14 @@ export const migrations = router()
 			const m = await ownMigration(c, c.req.valid("param").id);
 			const v = await view(c, m);
 			if (m.status === "decommissioned")
-				throw new Failure("conflict", "Dokploy is already removed");
+				throw new Failure(
+					"conflict",
+					`${sourceProfiles[v.source].label} is already removed`,
+				);
 			if (v.decommissionBlocker)
 				throw new Failure(
 					"conflict",
-					`cannot remove Dokploy yet: ${v.decommissionBlocker}`,
+					`cannot remove ${sourceProfiles[v.source].label} yet: ${v.decommissionBlocker}`,
 				);
 			c.set("auditResourceId", m.id);
 			await runQueues(c.var.deps.config.REDIS_URL).migration.add(
@@ -439,7 +480,7 @@ export const migrations = router()
 			"migration_item.cutover",
 			itemAction(
 				"/migration-items/{id}/cutover",
-				"Move one item from Dokploy to LogiStack",
+				"Move one item from the source platform to LogiStack",
 			),
 		),
 		async (c) => {
@@ -468,7 +509,7 @@ export const migrations = router()
 			"migration_item.rollback",
 			itemAction(
 				"/migration-items/{id}/rollback",
-				"Give one item back to Dokploy",
+				"Give one item back to the source platform",
 			),
 		),
 		async (c) => {
@@ -494,7 +535,10 @@ export const migrations = router()
 	.openapi(
 		mutation(
 			"migration_item.skip",
-			itemAction("/migration-items/{id}/skip", "Leave one item on Dokploy"),
+			itemAction(
+				"/migration-items/{id}/skip",
+				"Leave one item on the source platform",
+			),
 		),
 		async (c) => c.json(await skip(c, "skip"), 202),
 	)

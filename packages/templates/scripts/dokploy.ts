@@ -14,7 +14,7 @@ import {
 	type Resolve,
 	Skip,
 	slug,
-} from "./compose.ts";
+} from "../src/compose.ts";
 import type { Draft } from "./draft.ts";
 
 export type DokployBlueprint = {

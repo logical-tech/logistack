@@ -2,20 +2,24 @@
  * Cutover and rollback of one migration item: the source's containers stop, the imported LogiStack
  * services deploy, and if one is not healthy everything goes back as it was.
  *
- * The source is found only by exact name or by its own labels: the Swarm service named after the
- * Dokploy `appName`, a stack's services by `com.docker.stack.namespace`, a compose project's
- * containers by `com.docker.compose.project`. What was running is saved on the item before
- * anything stops, so a rollback after a crash still knows what to start.
+ * The source is found only through the item's stored `SourceDescriptor`: Swarm services by exact
+ * name or stack label, containers by the source's own labels. What was running is saved on the
+ * item before anything stops, so a rollback after a crash still knows what to start.
  *
  * Order: a service with adopted volumes stops the source first, so two processes never write one
  * volume. A stateless one deploys first and stops the source after, so it is never down: both
- * answer on Dokploy's network under the same name meanwhile (see the bridge in `apply.ts`).
+ * answer on the source's network under the same name meanwhile (see the bridge in `apply.ts`).
  */
+
+import type { MigrationSource } from "@logistack/contracts";
 import {
 	decrypt,
+	dokployDescriptor,
 	isTerminal,
 	type MigrationItemEvent,
 	migrationItemTransition,
+	type SourceDescriptor,
+	sourceProfiles,
 } from "@logistack/core";
 import {
 	deployment,
@@ -31,6 +35,7 @@ import { githubConfig, pointGitHubAppHook } from "@logistack/providers";
 import { eq, inArray } from "drizzle-orm";
 import { inspectService } from "./apply.ts";
 import { log } from "./bus.ts";
+import { ensureBridge, freeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { svcName } from "./load.ts";
 import { enqueueDeploy } from "./queues.ts";
@@ -43,6 +48,8 @@ type Plan =
 			item: {
 				kind: string;
 				appName: string;
+				/** Absent on Dokploy plans stored before COOL-1. */
+				source?: SourceDescriptor;
 				services: {
 					slug: string;
 					running: boolean;
@@ -52,18 +59,29 @@ type Plan =
 			};
 	  };
 
-type Item = typeof migrationItem.$inferSelect & { organizationId: string };
+type Item = typeof migrationItem.$inferSelect & {
+	organizationId: string;
+	source: MigrationSource;
+};
 
 const STOP_WAIT_MS = 120_000;
 
 async function load(ctx: Ctx, itemId: string) {
 	const [row] = await ctx.db
-		.select({ item: migrationItem, organizationId: migration.organizationId })
+		.select({
+			item: migrationItem,
+			organizationId: migration.organizationId,
+			source: migration.source,
+		})
 		.from(migrationItem)
 		.innerJoin(migration, eq(migration.id, migrationItem.migrationId))
 		.where(eq(migrationItem.id, itemId));
 	if (!row) throw new Error(`migration item ${itemId} not found`);
-	const item: Item = { ...row.item, organizationId: row.organizationId };
+	const item: Item = {
+		...row.item,
+		organizationId: row.organizationId,
+		source: row.source,
+	};
 	const plan = JSON.parse(
 		await decrypt(ctx.masterKey, item.planEncrypted),
 	) as Plan;
@@ -124,26 +142,37 @@ async function moveGitHubHook(ctx: Ctx, providerId: string) {
 	);
 }
 
+/** The item's descriptor; Dokploy plans from before descriptors get theirs from `appName`. */
+const descriptorOf = (plan: Extract<Plan, { type: "service" }>) =>
+	plan.item.source ??
+	dokployDescriptor(
+		plan.item.kind,
+		plan.item.appName,
+		plan.item.services.some((s) => s.domains?.length),
+	);
+
 /** The source's Swarm services, by exact name or stack label. */
-async function sourceServices(ctx: Ctx, kind: string, appName: string) {
-	const found =
-		kind === "compose"
-			? await ctx.docker.services.list({
-					label: [`com.docker.stack.namespace=${appName}`],
-				})
-			: (await ctx.docker.services.list({ name: [appName] })).filter(
-					// The name filter matches prefixes; only the exact name is Dokploy's.
-					(s) => s.Spec.Name === appName,
-				);
-	return found;
+async function sourceServices(ctx: Ctx, d: SourceDescriptor) {
+	const named = d.services?.length
+		? (await ctx.docker.services.list({ name: d.services })).filter((s) =>
+				// The name filter matches prefixes; only the exact names are the source's.
+				d.services?.includes(s.Spec.Name),
+			)
+		: [];
+	const stacked = d.stack
+		? await ctx.docker.services.list({
+				label: [`com.docker.stack.namespace=${d.stack}`],
+			})
+		: [];
+	return [
+		...named,
+		...stacked.filter((s) => !named.some((n) => n.ID === s.ID)),
+	];
 }
 
-async function sourceContainers(ctx: Ctx, kind: string, appName: string) {
-	return kind === "compose"
-		? ctx.docker.containers.list(
-				{ label: [`com.docker.compose.project=${appName}`] },
-				true,
-			)
+async function sourceContainers(ctx: Ctx, d: SourceDescriptor) {
+	return d.containerLabels?.length
+		? ctx.docker.containers.list({ label: d.containerLabels }, true)
 		: [];
 }
 
@@ -213,17 +242,17 @@ async function saveSource(
 	plan: Extract<Plan, { type: "service" }>,
 ): Promise<MigrationSourceState> {
 	if (item.sourceState) return item.sourceState;
-	const { kind, appName } = plan.item;
+	const d = descriptorOf(plan);
 	const state: MigrationSourceState = {
 		services: Object.fromEntries(
-			(await sourceServices(ctx, kind, appName)).map((s) => {
+			(await sourceServices(ctx, d)).map((s) => {
 				const replicas = replicasOf(s);
 				if (replicas === undefined)
 					throw new Error(`${s.Spec.Name} is not a replicated service`);
 				return [s.Spec.Name, replicas];
 			}),
 		),
-		containers: (await sourceContainers(ctx, kind, appName))
+		containers: (await sourceContainers(ctx, d))
 			.filter((c) => c.State === "running")
 			.map((c) => c.Id),
 	};
@@ -329,15 +358,21 @@ export async function cutOver(ctx: Ctx, itemId: string) {
 	if (plan.type === "org") {
 		if (plan.item.kind !== "gitProvider")
 			return move(ctx, item, { type: "cut_over" }, null);
-		// The provider works either way; only pushes keep going to Dokploy until it is reconnected.
+		// The provider works either way; only pushes keep going to the source until it is reconnected.
 		const why = await moveGitHubHook(ctx, item.targets.id ?? "").then(
 			() => null,
 			(e) =>
-				`the GitHub App's webhook still points at Dokploy (${e instanceof Error ? e.message : String(e)}); reconnect the provider in LogiStack`,
+				`the GitHub App's webhook still points at ${sourceProfiles[item.source].label} (${e instanceof Error ? e.message : String(e)}); reconnect the provider in LogiStack`,
 		);
 		return move(ctx, item, { type: "cut_over" }, why);
 	}
 	const targets = targetsOf(item, plan);
+	if (item.source === "coolify") {
+		// Before anything moves: Coolify must not bring back what the cutover stops, and the bridge
+		// must carry the old names before the new service deploys onto it.
+		await freeze(ctx, item.migrationId);
+		await ensureBridge(ctx);
+	}
 	const state = await saveSource(ctx, { ...item }, plan);
 	const fresh = { ...item, sourceState: state };
 	try {
@@ -355,10 +390,7 @@ export async function cutOver(ctx: Ctx, itemId: string) {
 			await up();
 		} else {
 			await up();
-			if (
-				plan.item.kind === "compose" &&
-				plan.item.services.some((s) => s.domains?.length)
-			)
+			if (descriptorOf(plan).routedByLabels)
 				await Bun.sleep(ctx.cfg.LS_BRIDGE_SETTLE_MS);
 			await stopSource(ctx, state);
 		}

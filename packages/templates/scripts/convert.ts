@@ -27,7 +27,7 @@ import {
 	type TemplateCategory,
 	type TemplateSummary,
 } from "@logistack/contracts";
-import { type Reason, Skip } from "./compose.ts";
+import { type Reason, Skip } from "../src/compose.ts";
 import { fromCoolify } from "./coolify.ts";
 import { fromDokploy } from "./dokploy.ts";
 import type { Draft } from "./draft.ts";

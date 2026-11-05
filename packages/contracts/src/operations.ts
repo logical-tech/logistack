@@ -28,7 +28,9 @@ export type MigrationJob =
 	/** Hands 80/443 from the source's proxy to Caddy (MIG-4). */
 	| { migrationId: string; action: "switch_proxy" }
 	/** Archives the source and removes it (MIG-7). */
-	| { migrationId: string; action: "decommission" };
+	| { migrationId: string; action: "decommission" }
+	/** Gives Coolify's control plane back, as it was before the first cutover froze it (COOL-5). */
+	| { migrationId: string; action: "unfreeze" };
 export const SCHEDULE_QUEUE = "schedule";
 
 /** Job Scheduler ids: one per policy and kind, one per schedule. */

@@ -318,7 +318,12 @@ export function compileInput(
 	deployment: DeploymentRef,
 	refs: Pick<
 		CompileServiceInput,
-		"networks" | "pinNodeId" | "scope" | "bridgeLabels"
+		| "networks"
+		| "pinNodeId"
+		| "scope"
+		| "bridgeLabels"
+		| "bridgeContainerLabels"
+		| "bridgeAliases"
 	>,
 ): CompileServiceInput {
 	return {

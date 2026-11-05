@@ -161,6 +161,8 @@ export type LogLine = {
 	plain: string;
 	at?: string;
 	slot?: number | null;
+	/** Which stream the line came from, when several are read together. */
+	tag?: string;
 };
 
 // shortcut: the newest 20k lines stay in memory; older ones drop off the top. Page from the server if longer logs matter.
@@ -176,7 +178,18 @@ const byTime = (a?: LogLine, b?: LogLine) =>
  * once it says nothing more will come. A new source, or a new `epoch`, starts over.
  */
 export function useLogStream(source: LogSource | null, epoch = "") {
-	const sourceKey = source ? JSON.stringify([source, epoch]) : null;
+	return useLogStreams(source ? [{ tag: "", source }] : null, epoch);
+}
+
+/**
+ * Several log streams read as one timeline, each line tagged with its stream's `tag`.
+ * `ended` is set once every stream has ended, with the first reason given.
+ */
+export function useLogStreams(
+	sources: { tag: string; source: LogSource }[] | null,
+	epoch = "",
+) {
+	const sourceKey = sources ? JSON.stringify([sources, epoch]) : null;
 	const [state, setState] = useState<{
 		key: string | null;
 		lines: LogLine[];
@@ -185,17 +198,19 @@ export function useLogStream(source: LogSource | null, epoch = "") {
 
 	useEffect(() => {
 		if (!sourceKey) return;
-		const [src] = JSON.parse(sourceKey) as [LogSource];
+		const [srcs] = JSON.parse(sourceKey) as [
+			{ tag: string; source: LogSource }[],
+		];
 		setState({ key: sourceKey, lines: [], ended: null });
 		let pending: LogLine[] = [];
-		let ended: string | null = null;
+		const reasons: string[] = [];
 		let frame = 0;
-		// A reconnect replays the deployment log from the start; seq drops what we have.
-		let nextSeq = 0;
 		const flush = () => {
 			frame = 0;
 			const add = pending;
 			pending = [];
+			const ended =
+				reasons.length === srcs.length ? (reasons[0] ?? null) : null;
 			setState((s) => {
 				let lines = add.length ? s.lines.concat(add) : s.lines;
 				// Replicas replay their tails one after another; read them as one timeline.
@@ -211,25 +226,30 @@ export function useLogStream(source: LogSource | null, epoch = "") {
 				};
 			});
 		};
-		const stop = api.serviceOps.streamLogs(src, (f) => {
-			if (f.type === "end") ended = f.reason;
-			else {
-				if (f.seq !== undefined) {
-					if (f.seq < nextSeq) return;
-					nextSeq = f.seq + 1;
+		const stops = srcs.map(({ tag, source }) => {
+			// A reconnect replays the deployment log from the start; seq drops what we have.
+			let nextSeq = 0;
+			return api.serviceOps.streamLogs(source, (f) => {
+				if (f.type === "end") reasons.push(f.reason);
+				else {
+					if (f.seq !== undefined) {
+						if (f.seq < nextSeq) return;
+						nextSeq = f.seq + 1;
+					}
+					pending.push({
+						key: lineKey++,
+						raw: f.line,
+						plain: stripAnsi(f.line),
+						at: f.at || undefined,
+						slot: f.slot,
+						...(tag && { tag }),
+					});
 				}
-				pending.push({
-					key: lineKey++,
-					raw: f.line,
-					plain: stripAnsi(f.line),
-					at: f.at || undefined,
-					slot: f.slot,
-				});
-			}
-			frame ||= requestAnimationFrame(flush);
+				frame ||= requestAnimationFrame(flush);
+			});
 		});
 		return () => {
-			stop();
+			for (const stop of stops) stop();
 			cancelAnimationFrame(frame);
 		};
 	}, [sourceKey]);

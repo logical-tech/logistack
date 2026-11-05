@@ -5,7 +5,6 @@
  */
 import {
 	ApplicationSpec,
-	type BackupRetention,
 	type BindMount,
 	type BuildConfig,
 	DatabaseSpec,
@@ -14,82 +13,41 @@ import {
 	isSensitiveHostPath,
 	type PortMapping,
 } from "@logistack/contracts";
-import { dataDirOf, postgresMajor } from "@logistack/core";
+import { dataDirOf, dokployDescriptor, postgresMajor } from "@logistack/core";
 import { Cron } from "../../cron.ts";
+import {
+	crossChecks,
+	dependencyOrder,
+	orgChecks,
+	SENSITIVE,
+} from "../shared.ts";
+import type {
+	BackupDraft,
+	EnvDraft,
+	Inventory,
+	InventoryItem,
+	ServiceDraft,
+} from "../types.ts";
 import { mapComposeServices, parseDotenv } from "./compose.ts";
 import { isDokployEncrypted } from "./decrypt.ts";
-import { buildOrgItems, type OrgItem } from "./org.ts";
+import { buildOrgItems } from "./org.ts";
 import type {
 	DokployApplication,
 	DokployCompose,
 	DokployDatabase,
 	DokployDomain,
-	DokployEngine,
 	DokployMount,
 	DokploySnapshot,
 } from "./snapshot.ts";
 
-export type Status = "full" | "partial" | "unsupported";
-
-export type EnvDraft = { key: string; value: string; isSecret: boolean };
-
-/** A database backup policy; MIG-3 points it at the destination imported from `destination`. */
-export type BackupDraft = {
-	/** Dokploy's `destinationId`. */
-	destination: string;
-	cron: string;
-	retention: BackupRetention;
-	enabled: boolean;
-};
-
-export type ServiceDraft = {
-	name: string;
-	/**
-	 * DNS name on the environment network: Dokploy's `appName` for apps and databases (what other
-	 * services reach them by on `dokploy-network`), the service name for compose services.
-	 */
-	slug: string;
-	/** Slugs of the services in the same item this one starts after. */
-	dependsOn: string[];
-	/** `dokploy:<appName>`; a re-import skips a service that carries it. */
-	importedFrom: string;
-	spec: ApplicationSpec | DatabaseSpec;
-	mounts: (
-		| { kind: "volume"; name: string; target: string }
-		| { kind: "config"; target: string; content: string }
-	)[];
-	adoptedVolumes: { target: string; volume: string; source: "dokploy" }[];
-	/** Service-scope env; for a database it replaces the credentials LogiStack would mint. */
-	env: EnvDraft[];
-	domains: DomainInput[];
-	basicAuth: { username: string; password: string }[];
-	/** The Dokploy git provider the source needs; MIG-3 binds the imported one. */
-	gitProvider?: {
-		type: "github" | "gitlab" | "gitea" | "bitbucket";
-		dokployId: string;
-	};
-	/** Dokploy last deployed it successfully; a stopped or never-deployed service stays stopped. */
-	running: boolean;
-	backups: BackupDraft[];
-};
-
-export type InventoryItem = {
-	kind: "application" | DokployEngine | "compose";
-	sourceId: string;
-	appName: string;
-	name: string;
-	project: string;
-	environment: string;
-	status: Status;
-	notes: string[];
-	services: ServiceDraft[];
-};
-
-export type Inventory = { items: InventoryItem[]; org: OrgItem[] };
-
-/** Keys whose values are treated as secrets in LogiStack (hidden in the UI). */
-const SENSITIVE =
-	/PASS|SECRET|TOKEN|KEY|PRIVATE|CRED|AUTH|SALT|DSN|URL|URI|CONN/i;
+export type {
+	BackupDraft,
+	EnvDraft,
+	Inventory,
+	InventoryItem,
+	ServiceDraft,
+	Status,
+} from "../types.ts";
 
 /** `${{project.X}}` and `${{environment.X}}`, Dokploy's only way to share a variable. */
 const SHARED_REF = /\$\{\{(project|environment)\.([A-Za-z0-9_]+)\}\}/g;
@@ -337,7 +295,7 @@ function gitSource(a: DokployApplication) {
 						branch,
 						path: cleanPath(path),
 					},
-					...(id && { gitProvider: { type, dokployId: id } }),
+					...(id && { gitProvider: { type, sourceId: id } }),
 				}
 			: undefined;
 	switch (a.sourceType) {
@@ -434,6 +392,11 @@ function mapApplication(a: DokployApplication, ctx: Context): InventoryItem {
 		kind: "application",
 		sourceId: a.applicationId,
 		appName: a.appName,
+		source: dokployDescriptor(
+			"application",
+			a.appName,
+			services.some((x) => x.domains.length),
+		),
 		name: a.name,
 		project: ctx.project,
 		environment: ctx.environment,
@@ -443,7 +406,11 @@ function mapApplication(a: DokployApplication, ctx: Context): InventoryItem {
 				? "partial"
 				: "full",
 		notes,
-		services,
+		// Until Dokploy is removed, its Traefik and services reach each one by its old name.
+		services: services.map((x) => ({
+			...x,
+			bridge: { aliases: [x.slug], routes: false },
+		})),
 	});
 	if (a.serverId) {
 		notes.push("runs on a remote Dokploy server");
@@ -596,6 +563,11 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 		kind: d.engine,
 		sourceId: d.id,
 		appName: d.appName,
+		source: dokployDescriptor(
+			d.engine,
+			d.appName,
+			services.some((x) => x.domains.length),
+		),
 		name: d.name,
 		project: ctx.project,
 		environment: ctx.environment,
@@ -605,7 +577,11 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 				? "partial"
 				: "full",
 		notes,
-		services,
+		// Until Dokploy is removed, its Traefik and services reach each one by its old name.
+		services: services.map((x) => ({
+			...x,
+			bridge: { aliases: [x.slug], routes: false },
+		})),
 	});
 	if (d.serverId) {
 		notes.push("runs on a remote Dokploy server");
@@ -721,6 +697,11 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 		kind: "compose",
 		sourceId: c.composeId,
 		appName: c.appName,
+		source: dokployDescriptor(
+			"compose",
+			c.appName,
+			services.some((x) => x.domains.length),
+		),
 		name: c.name,
 		project: ctx.project,
 		environment: ctx.environment,
@@ -730,7 +711,11 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 				? "partial"
 				: "full",
 		notes,
-		services,
+		// Until Dokploy is removed, its Traefik and services reach each one by its old name.
+		services: services.map((x) => ({
+			...x,
+			bridge: { aliases: [x.slug], routes: true },
+		})),
 	});
 	if (c.serverId) {
 		notes.push("runs on a remote Dokploy server");
@@ -830,112 +815,6 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 		});
 	}
 	return item(dependencyOrder(drafts, notes));
-}
-
-/** Drafts so each comes after what it depends on; a cycle or unknown name is reported, order kept. */
-function dependencyOrder(
-	drafts: ServiceDraft[],
-	notes: string[],
-): ServiceDraft[] {
-	const by = new Map(drafts.map((d) => [d.slug, d]));
-	const out: ServiceDraft[] = [];
-	const state = new Map<string, "visiting" | "done">();
-	const visit = (d: ServiceDraft) => {
-		if (state.get(d.slug) === "done") return;
-		if (state.get(d.slug) === "visiting") {
-			notes.push(`depends_on cycle through ${d.slug}`);
-			return;
-		}
-		state.set(d.slug, "visiting");
-		for (const dep of d.dependsOn) {
-			const target = by.get(dep);
-			if (target) visit(target);
-			else notes.push(`${d.slug} depends on unknown service ${dep}`);
-		}
-		state.set(d.slug, "done");
-		out.push(d);
-	};
-	for (const d of drafts) visit(d);
-	return out;
-}
-
-const statusOf = (item: InventoryItem): Status =>
-	!item.services.length
-		? "unsupported"
-		: item.notes.length
-			? "partial"
-			: "full";
-
-/**
- * Checks across items. Two services with one slug in one LogiStack environment cannot both exist:
- * the later item is refused. Dokploy puts every service on one shared network, LogiStack isolates
- * environments: an env value naming a service of another environment is reported.
- */
-function crossChecks(items: InventoryItem[]): InventoryItem[] {
-	const where = (i: InventoryItem) => `${i.project}\u0000${i.environment}`;
-	const taken = new Map<string, string>();
-	for (const item of items) {
-		const clash = item.services.find((s) =>
-			taken.has(`${where(item)}\u0000${s.slug}`),
-		);
-		if (clash) {
-			item.notes.push(
-				`hostname ${clash.slug} is already used in this environment by ${taken.get(`${where(item)}\u0000${clash.slug}`)}`,
-			);
-			item.services = [];
-		}
-		for (const s of item.services)
-			taken.set(`${where(item)}\u0000${s.slug}`, item.name);
-	}
-	const hosts = items.flatMap((i) =>
-		i.services.map((s) => ({ slug: s.slug, at: where(i), item: i.name })),
-	);
-	for (const item of items)
-		for (const s of item.services)
-			for (const e of s.env)
-				for (const h of hosts)
-					if (
-						h.at !== where(item) &&
-						h.slug.includes("-") &&
-						new RegExp(`(^|[^a-z0-9-])${h.slug}([^a-z0-9-]|$)`).test(e.value)
-					)
-						item.notes.push(
-							`env ${e.key} reaches ${h.item} in another environment; LogiStack environments are isolated`,
-						);
-	for (const item of items) {
-		item.notes = [...new Set(item.notes)];
-		item.status = statusOf(item);
-	}
-	return items;
-}
-
-/**
- * References from services to organization items: a backup whose destination does not import is
- * dropped, and a git source whose provider does not import must be reconnected.
- */
-function orgChecks(items: InventoryItem[], org: OrgItem[]) {
-	const find = (kind: OrgItem["kind"], id: string) =>
-		org.find((o) => o.kind === kind && o.sourceId === id);
-	for (const item of items) {
-		for (const s of item.services) {
-			s.backups = s.backups.filter((b) => {
-				const destination = find("s3Destination", b.destination);
-				if (destination?.draft) return true;
-				item.notes.push(
-					`backup to ${destination?.name ?? "a missing destination"} is not carried over`,
-				);
-				return false;
-			});
-			if (!s.gitProvider) continue;
-			const git = find("gitProvider", s.gitProvider.dokployId);
-			if (!git?.draft)
-				item.notes.push(
-					`git provider ${git?.name ?? s.gitProvider.type} must be reconnected in LogiStack`,
-				);
-		}
-		item.notes = [...new Set(item.notes)];
-		item.status = statusOf(item);
-	}
 }
 
 export function buildInventory(snapshot: DokploySnapshot): Inventory {

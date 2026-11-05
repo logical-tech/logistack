@@ -47,10 +47,11 @@ export const Route = createFileRoute("/_app/settings/migrate")({
 	component: Migrate,
 });
 
-/** What the people running Dokploy call each kind, in the order an inventory reads. */
+/** What the people running the source call each kind, in the order an inventory reads. */
 const KIND: Record<string, string> = {
 	application: "App",
 	compose: "Compose",
+	service: "One-click service",
 	postgres: "PostgreSQL",
 	mysql: "MySQL",
 	mariadb: "MariaDB",
@@ -63,7 +64,31 @@ const KIND: Record<string, string> = {
 	gitProvider: "GitHub App",
 };
 
+/** The words that differ between the platforms a migration comes from. */
+const SOURCE = {
+	dokploy: {
+		label: "Dokploy",
+		proxy: "Dokploy's Traefik",
+		proxyShort: "Traefik",
+		reads: "Dokploy's database and compose files",
+		config: "/etc/dokploy",
+		removes: "its services and Traefik",
+		word: "dokploy",
+	},
+	coolify: {
+		label: "Coolify",
+		proxy: "Coolify's proxy",
+		proxyShort: "the proxy",
+		reads: "Coolify's database",
+		config: "/data/coolify",
+		removes: "its containers and its proxy",
+		word: "coolify",
+	},
+} as const;
+type Source = (typeof SOURCE)[keyof typeof SOURCE];
+
 type Ctx = {
+	src: Source;
 	mig: Migration | undefined;
 	moving: ReadonlySet<string>;
 	act: (
@@ -118,10 +143,12 @@ function Migrate() {
 			);
 	};
 
+	const src = SOURCE[mig?.source ?? source.data?.source ?? "dokploy"];
+
 	if (source.isPending)
 		return (
 			<Page className="max-w-5xl">
-				<Header />
+				<Header src={src} />
 				<Panel title="Loading">
 					<SkeletonRows rows={5} />
 				</Panel>
@@ -131,21 +158,27 @@ function Migrate() {
 	if (!source.data?.source && !migrationId)
 		return (
 			<Page className="max-w-5xl">
-				<Header />
+				<Header src={src} />
 				<EmptyState
 					icon={ArrowRightLeft}
-					title="No Dokploy on this server"
-					description="install.sh looks for Dokploy when it installs LogiStack. Run it on a server where Dokploy runs and this page walks you through moving everything over."
+					title="No Dokploy or Coolify on this server"
+					description="install.sh looks for Dokploy and Coolify when it installs LogiStack. Run it on a server where one of them runs and this page walks you through moving everything over."
 				/>
 			</Page>
 		);
 
-	const ctx: Ctx = { mig, moving: query.moving, act, awaitJob: query.await };
+	const ctx: Ctx = {
+		src,
+		mig,
+		moving: query.moving,
+		act,
+		awaitJob: query.await,
+	};
 	return (
 		<Page className="max-w-5xl">
-			<Header mig={mig} moving={query.moving} />
+			<Header src={src} mig={mig} moving={query.moving} />
 			<Wizard
-				id="migrate-dokploy"
+				id={`migrate-${src.word}`}
 				steps={steps(ctx)}
 				defaultValues={{}}
 				step={step}
@@ -160,29 +193,37 @@ function Migrate() {
 }
 
 function Header({
+	src,
 	mig,
 	moving,
 }: {
+	src: Source;
 	mig?: Migration;
 	moving?: ReadonlySet<string>;
 }) {
 	return (
 		<PageHeader
-			title="Migrate from Dokploy"
-			description="Dokploy keeps serving every site until you move it. Each step is reversible until you switch traffic."
-			actions={mig && <MigrationStrip mig={mig} moving={moving ?? new Set()} />}
+			title={`Migrate from ${src.label}`}
+			description={`${src.label} keeps serving every site until you move it. Each step is reversible until you switch traffic.`}
+			actions={
+				mig && (
+					<MigrationStrip src={src} mig={mig} moving={moving ?? new Set()} />
+				)
+			}
 		/>
 	);
 }
 
 /**
- * The migration as a signal strip: one cell per Dokploy item, in cutover order, grey while it
+ * The migration as a signal strip: one cell per source item, in cutover order, grey while it
  * waits and green once it runs on LogiStack.
  */
 function MigrationStrip({
+	src,
 	mig,
 	moving,
 }: {
+	src: Source;
 	mig: Migration;
 	moving: ReadonlySet<string>;
 }) {
@@ -216,14 +257,14 @@ function MigrationStrip({
 			</div>
 			<p className="text-xs text-muted-foreground tabular">
 				{done} of {total} on LogiStack
-				{staying > 0 && ` · ${staying} staying on Dokploy`}
+				{staying > 0 && ` · ${staying} staying on ${src.label}`}
 			</p>
 		</div>
 	);
 }
 
 function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
-	const { mig } = ctx;
+	const { mig, src } = ctx;
 	const services = mig ? cutoverOrder(mig.items) : [];
 	const org = mig ? mig.items.filter(isOrgItem) : [];
 	const active = (i: MigrationItem) => i.status !== "skipped";
@@ -231,11 +272,10 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 		{
 			id: "inventory",
 			title: "Review what moves",
-			description:
-				"LogiStack read Dokploy without changing it. Turn off anything you want to leave where it is.",
+			description: `LogiStack read ${src.label} without changing it. Turn off anything you want to leave where it is.`,
 			ready: () =>
 				!mig
-					? "Read Dokploy to continue"
+					? `Read ${src.label} to continue`
 					: mig.items.some(active)
 						? true
 						: "Choose at least one item to move",
@@ -244,8 +284,7 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 		{
 			id: "import",
 			title: "Import into LogiStack",
-			description:
-				"Creates each project, service, domain and setting here. Nothing is deployed and Dokploy keeps serving.",
+			description: `Creates each project, service, domain and setting here. Nothing is deployed and ${src.label} keeps serving.`,
 			ready: () => {
 				const left = mig?.items.filter(
 					(i) => i.status === "planned" || i.status === "failed",
@@ -253,7 +292,7 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 				if (!left?.length) return true;
 				const failed = left.filter((i) => i.status === "failed").length;
 				return failed
-					? `${plural(failed, "item")} failed: retry, or leave on Dokploy`
+					? `${plural(failed, "item")} failed: retry, or leave on ${src.label}`
 					: "Import to continue";
 			},
 			render: () => <ImportStep ctx={ctx} />,
@@ -261,15 +300,14 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 		{
 			id: "cutover",
 			title: "Move services",
-			description:
-				"One at a time, databases first. A service without volumes starts here before Dokploy stops, so it never goes down; one with volumes pauses while Dokploy hands them over.",
+			description: `One at a time, databases first. A service without volumes starts here before ${src.label} stops it, so it never goes down; one with volumes pauses while ${src.label} hands them over.`,
 			ready: () => {
 				const left = [
 					...services,
 					...org.filter((o) => !isGitHubProvider(o)),
 				].filter((i) => active(i) && i.status !== "cut_over");
 				return left.length
-					? `${plural(left.length, "item")} still on Dokploy`
+					? `${plural(left.length, "item")} still on ${src.label}`
 					: true;
 			},
 			render: () => <CutoverStep ctx={ctx} />,
@@ -277,8 +315,7 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 		{
 			id: "proxy",
 			title: "Switch traffic",
-			description:
-				"Hands ports 80 and 443 from Dokploy's Traefik to LogiStack, with Traefik's certificates, so no domain waits for a new one.",
+			description: `Hands ports 80 and 443 from ${src.proxy} to LogiStack, with its Traefik certificates, so no domain waits for a new one.`,
 			ready: () => {
 				if (mig?.proxy.status !== "switched")
 					return "Switch traffic to continue";
@@ -292,8 +329,7 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 		{
 			id: "summary",
 			title: "Done",
-			description:
-				"Everything you chose runs on LogiStack. When you're ready, archive and remove Dokploy.",
+			description: `Everything you chose runs on LogiStack. When you're ready, archive and remove ${src.label}.`,
 			render: () => <SummaryStep ctx={ctx} />,
 		},
 	];
@@ -301,14 +337,14 @@ function steps(ctx: Ctx): WizardStep<Record<string, never>>[] {
 
 function InventoryStep({ ctx }: { ctx: Ctx }) {
 	const create = useCreateMigration();
-	const { mig } = ctx;
+	const { mig, src } = ctx;
 	if (!mig)
 		return (
 			<div className="rounded-xl bg-card px-5 py-6 shadow-card ring-1 ring-border">
 				<p className="max-w-[62ch] text-sm text-pretty">
-					LogiStack reads Dokploy's database and compose files, read-only, and
-					lists every project, service and setting it found, with what carries
-					over and what does not.
+					LogiStack reads {src.reads}, read-only, and lists every project,
+					service and setting it found, with what carries over and what does
+					not.
 				</p>
 				<Button
 					type="button"
@@ -317,14 +353,14 @@ function InventoryStep({ ctx }: { ctx: Ctx }) {
 					onClick={() =>
 						create.mutate(undefined, {
 							onError: (e) =>
-								toast.error("Couldn't read Dokploy", {
+								toast.error(`Couldn't read ${src.label}`, {
 									description: e.message,
 								}),
 						})
 					}
 				>
 					{create.isPending && <Loader2 className="animate-spin" />}
-					Read Dokploy
+					Read {src.label}
 				</Button>
 			</div>
 		);
@@ -333,6 +369,7 @@ function InventoryStep({ ctx }: { ctx: Ctx }) {
 			mig={mig}
 			row={(i) => (
 				<ItemRow
+					source={ctx.src.label}
 					item={i}
 					status={<StatusLabel meta={MIGRATION_SUPPORT[i.support]} />}
 					action={
@@ -400,6 +437,7 @@ function ImportStep({ ctx }: { ctx: Ctx }) {
 				hideSkipped
 				row={(i) => (
 					<ItemRow
+						source={ctx.src.label}
 						item={i}
 						status={
 							<StatusLabel
@@ -418,7 +456,7 @@ function ImportStep({ ctx }: { ctx: Ctx }) {
 									size="sm"
 									onClick={() => ctx.act([i], "skip")}
 								>
-									Leave on Dokploy
+									Leave on {ctx.src.label}
 								</Button>
 							) : null
 						}
@@ -430,7 +468,7 @@ function ImportStep({ ctx }: { ctx: Ctx }) {
 }
 
 function CutoverStep({ ctx }: { ctx: Ctx }) {
-	const { mig, moving, act } = ctx;
+	const { mig, moving, act, src } = ctx;
 	const [confirm, setConfirm] = useState(false);
 	if (!mig) return null;
 	const orgWaiting = mig.items.filter(
@@ -446,6 +484,10 @@ function CutoverStep({ ctx }: { ctx: Ctx }) {
 		i.services.some((s) => s.stateful),
 	).length;
 	const busy = order.some((i) => moving.has(i.id));
+	const pauseNote =
+		src.word === "coolify" && !mig.frozenAt
+			? " Coolify itself pauses first, so it cannot redeploy what moves."
+			: "";
 	const settings = mig.items.filter(
 		(i) => isOrgItem(i) && !isGitHubProvider(i) && i.status !== "skipped",
 	);
@@ -473,6 +515,7 @@ function CutoverStep({ ctx }: { ctx: Ctx }) {
 					Every service you chose runs on LogiStack.
 				</p>
 			)}
+			{mig.frozenAt && <Paused ctx={ctx} />}
 			<Panel title="Services" bodyClassName="divide-y">
 				{order.map((i) => (
 					<ItemRow
@@ -480,7 +523,7 @@ function CutoverStep({ ctx }: { ctx: Ctx }) {
 						item={i}
 						detail={
 							i.services.every((s) => !s.running)
-								? "Stopped on Dokploy: moves without starting"
+								? `Stopped on ${src.label}: moves without starting`
 								: i.services.some((s) => s.stateful)
 									? "Pauses while its volumes move"
 									: "No downtime"
@@ -494,6 +537,7 @@ function CutoverStep({ ctx }: { ctx: Ctx }) {
 				<Panel title="Settings" bodyClassName="divide-y">
 					{settings.map((i) => (
 						<ItemRow
+							source={ctx.src.label}
 							key={i.id}
 							item={i}
 							detail="Already in use here: nothing to switch"
@@ -514,8 +558,8 @@ function CutoverStep({ ctx }: { ctx: Ctx }) {
 				}
 				description={
 					pausing
-						? `They move one at a time, databases first. ${plural(pausing, "service")} with volumes ${pausing === 1 ? "pauses" : "pause"} for a few seconds while Dokploy stops. Any that fails goes back to Dokploy on its own.`
-						: "They move one at a time, databases first, without downtime. Any that fails goes back to Dokploy on its own."
+						? `They move one at a time, databases first. ${plural(pausing, "service")} with volumes ${pausing === 1 ? "pauses" : "pause"} for a few seconds while ${src.label} stops ${pausing === 1 ? "it" : "them"}. Any that fails goes back to ${src.label} on its own.${pauseNote}`
+						: `They move one at a time, databases first, without downtime. Any that fails goes back to ${src.label} on its own.${pauseNote}`
 				}
 				confirmLabel={waiting.length ? "Move services" : "Move settings"}
 				pending={false}
@@ -558,7 +602,7 @@ function CutoverAction({ item, ctx }: { item: MigrationItem; ctx: Ctx }) {
 						size="sm"
 						onClick={() => ctx.act([item], "skip")}
 					>
-						Leave on Dokploy
+						Leave on {ctx.src.label}
 					</Button>
 				)}
 				<Button
@@ -621,8 +665,8 @@ function ProxyStep({ ctx }: { ctx: Ctx }) {
 					))}
 					{p.certificates.error && (
 						<p className="px-4 py-3 text-sm text-muted-foreground">
-							Traefik's certificates could not be read ({p.certificates.error}).
-							Caddy issues them instead.
+							{ctx.src.proxy}'s certificates could not be read (
+							{p.certificates.error}). Caddy issues them instead.
 						</p>
 					)}
 				</Panel>
@@ -649,6 +693,7 @@ function ProxyStep({ ctx }: { ctx: Ctx }) {
 				<Panel title="GitHub" bodyClassName="divide-y">
 					{hooks.map((i) => (
 						<ItemRow
+							source={ctx.src.label}
 							key={i.id}
 							item={i}
 							detail="Pushes reach LogiStack once its webhook moves"
@@ -674,7 +719,7 @@ function ProxyStep({ ctx }: { ctx: Ctx }) {
 				onOpenChange={setConfirm}
 				destructive={false}
 				title="Switch traffic to LogiStack?"
-				description="Traefik stops and LogiStack takes ports 80 and 443, usually within seconds. If LogiStack does not come up in 90 seconds, Traefik starts again on its own."
+				description={`${ctx.src.proxy} stops and LogiStack takes ports 80 and 443, usually within seconds. If LogiStack does not come up in 90 seconds, ${ctx.src.proxyShort} starts again on its own.`}
 				confirmLabel="Switch traffic"
 				pending={run.isPending}
 				onConfirm={() =>
@@ -705,6 +750,7 @@ function SummaryStep({ ctx }: { ctx: Ctx }) {
 			<Panel title={`On LogiStack (${moved.length})`} bodyClassName="divide-y">
 				{moved.map((i) => (
 					<ItemRow
+						source={ctx.src.label}
 						key={i.id}
 						item={i}
 						status={<StatusLabel meta={statusOf(i, moving)} />}
@@ -713,22 +759,23 @@ function SummaryStep({ ctx }: { ctx: Ctx }) {
 			</Panel>
 			{staying.length > 0 && (
 				<Panel
-					title={`Still on Dokploy (${staying.length})`}
+					title={`Still on ${ctx.src.label} (${staying.length})`}
 					bodyClassName="divide-y"
 				>
 					{staying.map((i) => (
-						<ItemRow key={i.id} item={i} showNotes />
+						<ItemRow key={i.id} item={i} source={ctx.src.label} showNotes />
 					))}
 				</Panel>
 			)}
-			<RemoveDokploy ctx={ctx} />
+			<RemoveSource ctx={ctx} />
 		</div>
 	);
 }
 
-/** Archive, then remove: the last, deliberate step. Volumes and items left on Dokploy stay. */
-function RemoveDokploy({ ctx }: { ctx: Ctx }) {
+/** Archive, then remove: the last, deliberate step. Volumes and items left on the source stay. */
+function RemoveSource({ ctx }: { ctx: Ctx }) {
 	const mig = ctx.mig as Migration;
+	const { src } = ctx;
 	const run = useMigrationAction(mig.id);
 	const [confirm, setConfirm] = useState(false);
 	const [typed, setTyped] = useState("");
@@ -737,14 +784,14 @@ function RemoveDokploy({ ctx }: { ctx: Ctx }) {
 		run.isPending || (run.isSuccess && d.status === "not_started");
 	if (d.status === "done")
 		return (
-			<Panel title="Dokploy removed" bodyClassName="divide-y">
+			<Panel title={`${src.label} removed`} bodyClassName="divide-y">
 				<div className="px-4 py-3 text-sm">
 					<p>Archived on the server, readable by root only:</p>
 					<p className="mt-1 font-mono text-xs break-all text-muted-foreground">
 						{d.archivePath}
 					</p>
 					<p className="mt-2 text-xs text-muted-foreground">
-						Database dump, a copy of /etc/dokploy and the inventory. Volumes are
+						Database dump, a copy of {src.config} and the inventory. Volumes are
 						kept.
 					</p>
 				</div>
@@ -774,11 +821,11 @@ function RemoveDokploy({ ctx }: { ctx: Ctx }) {
 		);
 	return (
 		<section className="rounded-xl bg-card px-5 py-5 shadow-card ring-1 ring-border">
-			<h3 className="text-sm font-semibold">Remove Dokploy</h3>
+			<h3 className="text-sm font-semibold">Remove {src.label}</h3>
 			<p className="mt-1 max-w-[62ch] text-sm text-muted-foreground text-pretty">
-				Archives Dokploy's database and configuration on this server, then
-				removes its services and Traefik. Volumes and anything you left on
-				Dokploy stay.
+				Archives {src.label}'s database and configuration on this server, then
+				removes {src.removes}. Volumes and anything you left on {src.label}{" "}
+				stay.
 			</p>
 			{d.status === "failed" && (
 				<p className="mt-3 flex gap-1.5 text-sm text-bad-text">
@@ -798,7 +845,7 @@ function RemoveDokploy({ ctx }: { ctx: Ctx }) {
 						? "Archiving and removing"
 						: d.status === "failed"
 							? "Try again"
-							: "Remove Dokploy"}
+							: `Remove ${src.label}`}
 				</Button>
 				{mig.decommissionBlocker && (
 					<p className="text-sm text-muted-foreground">
@@ -812,11 +859,11 @@ function RemoveDokploy({ ctx }: { ctx: Ctx }) {
 					setConfirm(o);
 					if (!o) setTyped("");
 				}}
-				title="Remove Dokploy?"
-				description="Its services and Traefik are removed after its database and configuration are archived. This cannot be undone from LogiStack."
-				confirmLabel="Remove Dokploy"
+				title={`Remove ${src.label}?`}
+				description={`${src.removes.charAt(0).toUpperCase()}${src.removes.slice(1)} are removed after its database and configuration are archived. This cannot be undone from LogiStack.`}
+				confirmLabel={`Remove ${src.label}`}
 				pending={run.isPending}
-				confirmDisabled={typed.trim() !== "dokploy"}
+				confirmDisabled={typed.trim() !== src.word}
 				onConfirm={() =>
 					run.mutate(
 						{ kind: "decommission" },
@@ -827,18 +874,18 @@ function RemoveDokploy({ ctx }: { ctx: Ctx }) {
 								setTyped("");
 							},
 							onError: (e) =>
-								toast.error("Couldn't remove Dokploy", {
+								toast.error(`Couldn't remove ${src.label}`, {
 									description: e.message,
 								}),
 						},
 					)
 				}
 			>
-				<label className="mt-2 block text-sm" htmlFor="confirm-dokploy">
-					Type <span className="font-mono">dokploy</span> to confirm
+				<label className="mt-2 block text-sm" htmlFor="confirm-source">
+					Type <span className="font-mono">{src.word}</span> to confirm
 				</label>
 				<Input
-					id="confirm-dokploy"
+					id="confirm-source"
 					className="mt-1.5"
 					autoComplete="off"
 					value={typed}
@@ -846,6 +893,48 @@ function RemoveDokploy({ ctx }: { ctx: Ctx }) {
 				/>
 			</ConfirmDialog>
 		</section>
+	);
+}
+
+/**
+ * Coolify's control plane is stopped while services move, so its scheduler cannot restart its
+ * proxy or redeploy what LogiStack now runs. It can start again; the next move pauses it once more.
+ */
+function Paused({ ctx }: { ctx: Ctx }) {
+	const mig = ctx.mig as Migration;
+	const run = useMigrationAction(mig.id);
+	return (
+		<div className="flex flex-wrap items-start gap-x-3 gap-y-2 text-sm">
+			<StatusDot meta={{ label: "Paused", tone: "idle" }} className="mt-1.5" />
+			<p className="min-w-0 flex-1 text-muted-foreground text-pretty">
+				Coolify is paused while services move, so it cannot restart its proxy or
+				redeploy what runs here now. Your sites keep running.
+			</p>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				disabled={run.isPending}
+				onClick={() =>
+					run.mutate(
+						{ kind: "unfreeze" },
+						{
+							onSuccess: () =>
+								toast.success("Starting Coolify again", {
+									description: "The next move pauses it once more.",
+								}),
+							onError: (e) =>
+								toast.error("Couldn't start Coolify", {
+									description: e.message,
+								}),
+						},
+					)
+				}
+			>
+				{run.isPending && <Loader2 className="animate-spin" />}
+				Start Coolify
+			</Button>
+		</div>
 	);
 }
 
@@ -884,7 +973,10 @@ function ItemRow({
 	action,
 	detail,
 	showNotes,
+	source,
 }: {
+	/** The source's name, for "Stopped on …". */
+	source?: string;
 	item: MigrationItem;
 	status?: ReactNode;
 	action?: ReactNode;
@@ -899,7 +991,7 @@ function ItemRow({
 			item.services.length > 1 ? plural(item.services.length, "service") : null,
 			domains.length ? domains.join(", ") : null,
 			item.services.length && item.services.every((s) => !s.running)
-				? "Stopped on Dokploy"
+				? `Stopped on ${source ?? "the source"}`
 				: null,
 		]
 			.filter(Boolean)

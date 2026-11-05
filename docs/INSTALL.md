@@ -95,7 +95,25 @@ Dokploy keeps no database credentials under `/etc/dokploy`. Since Dokploy 0.26.6
 
 A re-run of the installer on the same server keeps this setup. If `/etc/dokploy` exists but neither `dokploy` nor `dokploy-postgres` runs, the installer treats the server as a normal install.
 
-Coolify (the container `coolify` or the directory `/data/coolify`) is only reported: "Coolify migration is not supported yet". The install goes on as usual, so ports 80/443 must be free.
+## Migrating from Coolify
+
+Run the installer on the Coolify server, as for any install. It finds Coolify from the running container `coolify`, explains the plan, and asks before it changes anything. Coolify keeps running and keeps serving your sites:
+
+- Ingress is off, as with `--no-ingress`. Coolify's proxy (`coolify-proxy`) keeps ports 80 and 443. Setup is private, through the tunnel on `127.0.0.1:3000`.
+- Coolify uses plain containers and no Swarm. The installer starts the Swarm with an overlay address pool that overlaps none of the server's networks, because Coolify hands Docker `10.0.0.0/8` and a default `swarm init` would give LogiStack's first overlay the same subnet as the `coolify` network. If a Swarm already runs and one of its overlays overlaps a local network, the installer stops with the reason.
+- It reads `DB_PASSWORD` and `APP_KEY` from `/data/coolify/source/.env` into the Swarm secrets `logistack-coolify-db-password` and `logistack-coolify-app-key`, through stdin. Neither appears in its output, its log, `/etc/logistack` or the api's service spec. The APP_KEY decrypts Coolify's secrets (env values, database passwords, keys) for the wizard.
+- It creates LogiStack's overlay `ls-coolify-bridge` and connects `coolify-db` to it. The api joins it to read Coolify's database, read-only (`/etc/logistack/stack.coolify.yml`).
+- `/etc/logistack/migration` records `migration_source=coolify`.
+
+During the migration:
+
+- Each moved service also answers on `ls-coolify-bridge` under its old container name (a database's uuid, a one-click part's `<name>-<uuid>`). Coolify's proxy and the containers still on Coolify join that overlay, so connection strings and domains keep working until traffic is switched.
+- From the first move on, the wizard pauses Coolify's control plane: the `coolify` container is stopped, with restart policy `no`. Otherwise Coolify would restart its proxy after the switch and redeploy moved apps on git pushes. Your sites keep running. "Start Coolify" in the wizard gives it back; the next move pauses it again.
+- Removing Coolify archives its database and `/data/coolify` (without `backups/`) under `/var/lib/logistack/migration/<stamp>/`, then removes `coolify`, `coolify-db`, `coolify-redis`, `coolify-sentinel` and `coolify-proxy`. Volumes and anything left on Coolify stay.
+
+Supported: stable Coolify v4 from 4.0.0 (tested on 4.0.0, 4.5.3 and 4.6.0), resources on its localhost server, Traefik as its proxy (with Caddy as its proxy, the switch works and Caddy issues fresh certificates). Not migrated, and listed in the wizard: remote servers, Swarm destinations, KeyDB, Dragonfly, ClickHouse, SSL-enabled or custom-image databases, Dockerfiles written in Coolify, deploy keys, GitLab and Gitea sources, previews, scheduled tasks and volume backups.
+
+If `/data/coolify` exists but Coolify is not running, the installer treats the server as a normal install.
 
 ## What it creates
 

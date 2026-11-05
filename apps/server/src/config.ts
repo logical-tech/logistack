@@ -55,6 +55,16 @@ const ConfigSchema = z.object({
 	DOKPLOY_POSTGRES_DB: z.string().min(1).default("dokploy"),
 	/** Dokploy's ENCRYPTION_KEY or BETTER_AUTH_SECRET, as a file: it encrypts env at rest. */
 	DOKPLOY_KEY_FILE: optional,
+	/**
+	 * Coolify's Postgres and APP_KEY, set by install.sh on a Coolify server (COOL-4) from
+	 * `/data/coolify/source/.env`, as Swarm secrets (`COOLIFY_DB_PASSWORD_FILE`, `COOLIFY_APP_KEY_FILE`).
+	 * The api reaches `coolify-db` over LogiStack's bridge overlay.
+	 */
+	COOLIFY_DB_PASSWORD: optional,
+	COOLIFY_APP_KEY: optional,
+	COOLIFY_DB_USER: z.string().min(1).default("coolify"),
+	COOLIFY_DB_NAME: z.string().min(1).default("coolify"),
+	COOLIFY_DB_HOST: z.string().min(1).default("coolify-db"),
 	GITHUB_CLIENT_ID: optional,
 	GITHUB_CLIENT_SECRET: optional,
 	GOOGLE_CLIENT_ID: optional,

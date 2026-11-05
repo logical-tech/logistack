@@ -76,7 +76,7 @@ export type TemplateServicePlan = {
  * domains already resolved to hostnames) into services in dependency order.
  */
 export function planTemplate(
-	template: Template,
+	template: Pick<Template, "inputs" | "services">,
 	values: Record<string, string>,
 ): TemplateServicePlan[] {
 	const secret = new Set(

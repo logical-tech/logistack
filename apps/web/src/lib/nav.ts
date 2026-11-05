@@ -328,7 +328,7 @@ export const NAV: NavGroup[] = [
 				title: "Migrate",
 				icon: ArrowRightLeft,
 				description:
-					"Move projects, databases, domains and settings over from Dokploy, one service at a time.",
+					"Move projects, databases, domains and settings over from Dokploy or Coolify, one service at a time.",
 				keywords: ["dokploy", "import", "migration", "coolify"],
 			},
 			{

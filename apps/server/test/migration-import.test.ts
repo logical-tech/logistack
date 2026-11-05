@@ -8,6 +8,7 @@ import {
 	envVar,
 	gitProvider,
 	migration,
+	migrationBridge,
 	migrationItem,
 	notificationChannel,
 	notificationRule,
@@ -233,7 +234,12 @@ describe.skipIf(!hasDocker)("importing a Dokploy migration", () => {
 		h = await startHarness({ area: "migimport", label: "migimport" });
 		orgId = (await h.call("POST", "/api/setup", { body: setupBody })).json
 			.organizationId;
-		migrationId = await planMigration(h.deps, orgId, buildInventory(dokploy()));
+		migrationId = await planMigration(
+			h.deps,
+			orgId,
+			"dokploy",
+			buildInventory(dokploy()),
+		);
 	}, 60_000);
 	afterAll(() => h?.close());
 
@@ -322,6 +328,20 @@ describe.skipIf(!hasDocker)("importing a Dokploy migration", () => {
 			"app",
 			"cache",
 		]);
+
+		// Each service keeps answering on Dokploy's network under its old name until removal;
+		// compose services carry routers for its Traefik.
+		const bridges = await h.deps.db
+			.select()
+			.from(migrationBridge)
+			.where(eq(migrationBridge.migrationId, migrationId));
+		expect(bridges.find((b) => b.serviceId === pg)).toMatchObject({
+			aliases: ["pg-def456"],
+			routes: false,
+		});
+		expect(
+			bridges.find((b) => b.serviceId === all["compose:blog"]?.targets.app),
+		).toMatchObject({ aliases: ["app"], routes: true });
 
 		// The database opens with Dokploy's credentials, not the minted ones.
 		const vars = await h.deps.db
