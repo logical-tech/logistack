@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `check && pass || fail` is intended: pass only prints, so fail runs only when the check failed.
-# shellcheck disable=SC2015
+# shellcheck disable=SC2015,SC2317,SC2329
 # The Dokploy migration end to end (MIG-8), in a throwaway docker:dind named ls-test-mig8-dind:
 #   1. Dokploy v0.30.10 installed the way its installer does (Swarm, dokploy-network, the
 #      dokploy_postgres_password secret, Traefik on 80/443), then seeded through its own API by a
