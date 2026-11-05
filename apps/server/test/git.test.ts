@@ -96,7 +96,7 @@ describe.skipIf(!hasDocker)("git integrations over HTTP", () => {
 	const as = () => ({ headers: { cookie } });
 
 	beforeAll(async () => {
-		h = await startHarness({ area: "qw7", label: "qw7" });
+		h = await startHarness({ area: "git", label: "git" });
 		await h.call("POST", "/api/setup", { body: setupBody });
 		cookie = await h.signIn(owner.email, owner.password);
 	}, 60_000);
