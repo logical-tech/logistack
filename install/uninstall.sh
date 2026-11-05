@@ -5,7 +5,7 @@ set -euo pipefail
 
 STACK_NAME="logistack"
 CONF_DIR="/etc/logistack"
-SECRETS=(logistack-master-key logistack-postgres-password logistack-better-auth-secret logistack-redis-password logistack-agent-token)
+SECRETS=(logistack-master-key logistack-postgres-password logistack-better-auth-secret logistack-redis-password logistack-agent-token logistack-setup-token)
 VOLUMES=("${STACK_NAME}_pgdata" "${STACK_NAME}_redisdata" "${STACK_NAME}_workerdata" "${STACK_NAME}_agentdata" ls-buildkit-cache)
 
 PURGE=0
@@ -63,7 +63,7 @@ fi
 if [ "$(docker service inspect ls-buildkit --format '{{index .Spec.Labels "logistack.managed"}}' 2>/dev/null)" = true ]; then
 	docker service rm ls-buildkit >/dev/null && ok "Service ls-buildkit removed"
 fi
-# install.sh --no-ingress runs the API tunnel as a plain container on ls-control.
+# install.sh runs the loopback API tunnel as a plain container on ls-control.
 if [ "$(docker inspect logistack-api-tunnel --format '{{index .Config.Labels "logistack.managed"}}' 2>/dev/null)" = true ]; then
 	docker rm -f logistack-api-tunnel >/dev/null && ok "Container logistack-api-tunnel removed"
 fi

@@ -1,8 +1,10 @@
 #!/bin/sh
 # Boots Caddy with the admin API bound to this task's ls-control address only,
-# Redis certificate storage, and a catch-all route to the api. The worker later
-# pushes the full config per task (compileProxy with adminListen = this task's
-# ls-control IP, storage key_prefix "caddy"); until then the api catch-all serves.
+# Redis certificate storage, and a catch-all on :80. The worker later pushes the
+# full config per task (compileProxy with adminListen = this task's ls-control IP,
+# storage key_prefix "caddy"); until then the catch-all answers. It proxies to the
+# api only with install.sh --public-setup; by default it answers 404, so an
+# unclaimed setup wizard is reachable only through the installer's loopback tunnel.
 set -eu
 
 prefix=${LS_CONTROL_SUBNET_PREFIX:?LS_CONTROL_SUBNET_PREFIX is required}
@@ -12,6 +14,11 @@ if [ -z "$admin_ip" ]; then
 	exit 1
 fi
 redis_password=$(cat "${REDIS_PASSWORD_FILE:?REDIS_PASSWORD_FILE is required}")
+if [ "${LS_PUBLIC_SETUP:-false}" = true ]; then
+	handler='{ "handler": "reverse_proxy", "upstreams": [{ "dial": "'"${LOGISTACK_API_UPSTREAM:-logistack-api:3000}"'" }] }'
+else
+	handler='{ "handler": "static_response", "status_code": 404 }'
+fi
 
 umask 077
 cat >/tmp/bootstrap.json <<JSON
@@ -31,7 +38,7 @@ cat >/tmp/bootstrap.json <<JSON
         "bootstrap": {
           "listen": [":80"],
           "routes": [
-            { "handle": [{ "handler": "reverse_proxy", "upstreams": [{ "dial": "${LOGISTACK_API_UPSTREAM:-logistack-api:3000}" }] }] }
+            { "handle": [${handler}] }
           ]
         }
       }
