@@ -148,6 +148,13 @@
       "when": 1793853897914,
       "tag": "0020_deployment_spec_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793869657670,
+      "tag": "0021_adopted_volume",
+      "breakpoints": true
     }
   ]
 }

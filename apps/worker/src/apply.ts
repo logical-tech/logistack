@@ -8,6 +8,7 @@ import {
 	authForImage,
 	DockerError,
 	DockerVersionConflictError,
+	LABEL_MANAGED,
 	managedLabels,
 	type RegistryAuth,
 	type Service,
@@ -142,6 +143,27 @@ async function ensureFiles(
 	return ids;
 }
 
+/**
+ * Swarm creates a missing volume empty, so an adopted volume that is gone would silently look
+ * like data loss: refuse to deploy instead. One of ours is never adopted.
+ */
+async function checkAdopted(ctx: Ctx, sc: ServiceContext): Promise<void> {
+	for (const name of Object.values(sc.adoptedVolumes)) {
+		// shortcut: checks this worker's node only; on a multi-node Swarm, ask the pinned node's agent.
+		const v = (await ctx.docker.volumes.list({ name: [name] })).find(
+			(v) => v.Name === name,
+		);
+		if (!v)
+			throw new Error(
+				`service ${sc.service.id}: adopted volume ${name} does not exist`,
+			);
+		if (v.Labels?.[LABEL_MANAGED])
+			throw new Error(
+				`service ${sc.service.id}: volume ${name} is managed by LogiStack and cannot be adopted`,
+			);
+	}
+}
+
 /** Stateful services stay on one node; an unpinned one is pinned to this worker's node and recorded. */
 async function resolvePin(
 	ctx: Ctx,
@@ -209,6 +231,7 @@ export async function desiredInput(
 					throw e;
 				})
 			: undefined;
+	await checkAdopted(ctx, sc);
 	const pin = await resolvePin(ctx, sc);
 	const input = compileInput(sc, deployment, {
 		networks: {

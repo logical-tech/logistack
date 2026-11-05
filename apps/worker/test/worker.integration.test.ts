@@ -3,10 +3,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ApplicationSpec } from "@logistack/contracts";
 import { encrypt } from "@logistack/core";
 import {
+	adoptedVolume,
 	deployment,
 	domain,
 	environment,
 	envVar,
+	mount,
 	organization,
 	project,
 	service,
@@ -312,6 +314,102 @@ describe.skipIf(!enabled)("worker against the real Swarm", () => {
 			),
 		).toBe(d.commitSha as string);
 	}, 320_000);
+
+	test("an adopted volume is mounted as it is and survives its service", async () => {
+		// Stands in for a volume Dokploy created: our test label, none of LogiStack's own.
+		const volume = `${PREFIX}adopt-data`;
+		sh(
+			"docker",
+			"volume",
+			"create",
+			"--label",
+			"logistack.test=worker",
+			volume,
+		);
+		sh(
+			"docker",
+			"run",
+			"--rm",
+			"--label",
+			"logistack.test=worker",
+			"-v",
+			`${volume}:/data`,
+			"busybox:1.37",
+			"sh",
+			"-c",
+			"echo kept-from-dokploy > /data/index.html",
+		);
+		const adoptPort = port + 1;
+		const id = await addService("adopted", {
+			...web,
+			ports: [{ target: 8080, published: adoptPort, protocol: "tcp" }],
+			command: ["httpd", "-f", "-p", "8080", "-h", "/data"],
+		});
+		const [m] = await db()
+			.insert(mount)
+			.values({
+				serviceId: id,
+				kind: "volume",
+				target: "/data",
+				volumeName: "data",
+			})
+			.returning();
+		await db()
+			.insert(adoptedVolume)
+			.values({
+				volumeName: volume,
+				ownerId: m?.id as string,
+				serviceId: id,
+				source: "dokploy",
+			});
+		const d = await waitForDeployment(db(), await queue(id));
+		expect(d.status).toBe("healthy");
+		expect(await (await fetch(`http://127.0.0.1:${adoptPort}/`)).text()).toBe(
+			"kept-from-dokploy\n",
+		);
+		const svc = await inspectService(ctx(), svcName(ctx(), id));
+		expect(svc?.Spec.TaskTemplate.ContainerSpec.Mounts).toEqual([
+			{ Type: "volume", Source: volume, Target: "/data" },
+		]);
+
+		await db().delete(service).where(eq(service.id, id));
+		const removed = await sweepOrphans(
+			ctx(),
+			Date.now() + ctx().cfg.LS_ORPHAN_GRACE_MS + 1,
+		);
+		expect(removed).not.toContain(`volume:${volume}`);
+		await inspectService(ctx(), svcName(ctx(), id)).then((s) =>
+			s ? ctx().docker.services.remove(s.ID) : undefined,
+		);
+		expect(sh("docker", "volume", "inspect", "-f", "{{.Name}}", volume)).toBe(
+			volume,
+		);
+	}, 120_000);
+
+	test("a missing adopted volume fails the deployment instead of mounting an empty one", async () => {
+		const id = await addService("adopted-missing", web);
+		await db()
+			.insert(adoptedVolume)
+			.values({
+				volumeName: `${PREFIX}adopt-missing`,
+				ownerId: `mnt_${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`,
+				serviceId: id,
+				source: "dokploy",
+			});
+		const d = await waitForDeployment(db(), await queue(id));
+		expect(d.status).toBe("failed");
+		expect(
+			sh(
+				"docker",
+				"volume",
+				"ls",
+				"-q",
+				"--filter",
+				`name=${PREFIX}adopt-missing`,
+			),
+		).toBe("");
+		await db().delete(service).where(eq(service.id, id));
+	}, 60_000);
 
 	test("orphaned objects are removed only after the grace period", async () => {
 		const name = svcName(ctx(), webId);

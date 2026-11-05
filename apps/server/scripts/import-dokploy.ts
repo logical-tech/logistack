@@ -225,6 +225,7 @@ export function describePlan(
 		...(pinned ? [`  pinned   ${pinned}`] : []),
 		`  ports    ${s.ports.map((x) => `${x.published ? `${x.published}:` : ""}${x.target}/${x.protocol}${x.mode ? ` ${x.mode}` : ""}`).join(", ") || "-"}`,
 		`  mounts   ${s.mounts?.map((m) => `${m.hostPath}:${m.target}${m.readOnly ? ":ro" : ""}${m.allowSensitiveHostPath ? " (sensitive)" : ""}`).join(", ") || "-"}`,
+		`  volumes  ${p.volumes.map((v) => `${v.volume}:${v.target} (adopted)`).join(", ") || "-"}`,
 	];
 	const host = [
 		s.user && `user ${s.user}`,
@@ -380,6 +381,18 @@ export async function runImport(
 				name: m.serviceName,
 				spec: m.spec,
 				importedFrom: m.importedFrom,
+				...(m.volumes.length && {
+					mounts: m.volumes.map((v) => ({
+						kind: "volume",
+						target: v.target,
+						name: v.name,
+					})),
+					adoptedVolumes: m.volumes.map((v) => ({
+						target: v.target,
+						volume: v.volume,
+						source: "dokploy",
+					})),
+				}),
 			});
 			if (stopped) await call("POST", `/services/${svc.id}/stop`);
 			if (m.env.length)

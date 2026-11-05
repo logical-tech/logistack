@@ -6,6 +6,7 @@ import type {
 	DesiredState,
 	Healthcheck as HealthcheckSpec,
 	MountKind,
+	ServiceSpec as ServiceSpecInput,
 	StorageSpec,
 } from "@logistack/contracts";
 import {
@@ -54,6 +55,8 @@ export type CompileServiceInput = {
 	/** Injected as `LOGISTACK_*` env on top of `env`, with `deploymentId`. */
 	context: Omit<DeploymentContext, "deploymentId">;
 	mounts: CompileMount[];
+	/** Volumes another platform created, by owner id (volume mount id, or service id for a data dir); mounted as they are. */
+	adoptedVolumes?: Record<string, string>;
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
 	/** `db`: the shared network the api reaches databases on for the explorer; absent leaves them off it. */
@@ -157,6 +160,13 @@ export const databaseImage = (engine: DatabaseEngine, version: string) =>
 
 const sha256 = (data: string) =>
 	new Bun.CryptoHasher("sha256").update(data).digest("hex").slice(0, 12);
+
+/** Where a database or storage service keeps its data; an adopted volume can take that place. */
+export function dataDirOf(spec: ServiceSpecInput): string | undefined {
+	if (spec.kind === "database") return engines[spec.engine].dataDir;
+	if (spec.kind === "storage") return storageEngineDefs[spec.engine].dataDir;
+	return undefined;
+}
 
 const prefixOf = (input: CompileServiceInput) => input.scope?.namePrefix ?? "";
 
@@ -268,15 +278,21 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			`service ${service.id}: slug ${service.slug} is not a DNS label`,
 		);
 
+	// An adopted volume keeps its own name and gets no labels: Docker cannot relabel an existing volume.
+	const volume = (ownerId: string, Target: string): Mount => {
+		const adopted = input.adoptedVolumes?.[ownerId];
+		return adopted
+			? { Type: "volume", Source: adopted, Target }
+			: {
+					Type: "volume",
+					Source: `${prefix}${dockerName("vol", ownerId)}`,
+					Target,
+					VolumeOptions: { Labels: labelsFor(input, ownerId, "volume") },
+				};
+	};
 	const volumeMounts: Mount[] = input.mounts
 		.filter((m) => m.kind === "volume")
-		.map((m) => ({
-			Type: "volume",
-			Source: `${prefix}${dockerName("vol", m.id)}`,
-			Target: m.target,
-			ReadOnly: m.readOnly,
-			VolumeOptions: { Labels: labelsFor(input, m.id, "volume") },
-		}));
+		.map((m) => ({ ...volume(m.id, m.target), ReadOnly: m.readOnly }));
 	const engine = db ? engines[db.engine] : undefined;
 	if (db && engine) {
 		const missing = engine.required.filter((k) => !input.env[k]);
@@ -284,12 +300,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			throw new Error(
 				`service ${service.id}: ${db.engine} needs env ${missing.join(", ")}`,
 			);
-		volumeMounts.push({
-			Type: "volume",
-			Source: `${prefix}${dockerName("vol", service.id)}`,
-			Target: engine.dataDir,
-			VolumeOptions: { Labels: labelsFor(input, service.id, "volume") },
-		});
+		volumeMounts.push(volume(service.id, engine.dataDir));
 	}
 	if (store) {
 		const missing = store.required.filter((k) => !input.env[k]);
@@ -301,12 +312,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			throw new Error(
 				`service ${service.id}: storage needs the storage network`,
 			);
-		volumeMounts.push({
-			Type: "volume",
-			Source: `${prefix}${dockerName("vol", service.id)}`,
-			Target: store.dataDir,
-			VolumeOptions: { Labels: labelsFor(input, service.id, "volume") },
-		});
+		volumeMounts.push(volume(service.id, store.dataDir));
 	}
 
 	const bindMounts: Mount[] = (app?.mounts ?? []).map((m) => ({

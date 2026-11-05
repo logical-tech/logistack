@@ -534,3 +534,42 @@ describe("host-level application settings", () => {
 		expect(spec.TaskTemplate.RestartPolicy?.Condition).toBe("any");
 	});
 });
+
+describe("adopted volumes", () => {
+	const mountsOf = (input: CompileServiceInput) =>
+		compileService(input).TaskTemplate.ContainerSpec.Mounts ?? [];
+
+	test("a volume mount uses the adopted name and gets no labels", () => {
+		const [data] = mountsOf({
+			...stateful,
+			adoptedVolumes: { mnt_data000000000000000000000: "shop-a1b2c3_data" },
+		});
+		expect(data).toEqual({
+			Type: "volume",
+			Source: "shop-a1b2c3_data",
+			Target: "/data",
+			ReadOnly: false,
+		});
+	});
+
+	test("a database's data dir uses the adopted volume in place of its own", () => {
+		const mounts = mountsOf({
+			...database("postgres"),
+			adoptedVolumes: { svc_db00000000000000000000000: "pg-data-x1y2z3" },
+		});
+		expect(mounts).toEqual([
+			{
+				Type: "volume",
+				Source: "pg-data-x1y2z3",
+				Target: "/var/lib/postgresql/data",
+			},
+		]);
+	});
+
+	test("an adopted volume of another owner changes nothing", () => {
+		const input = database("postgres");
+		expect(
+			mountsOf({ ...input, adoptedVolumes: { mnt_other: "elsewhere" } }),
+		).toEqual(mountsOf(input));
+	});
+});
