@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { decrypt } from "@logistack/core";
 import {
 	auditLog,
+	certificate,
 	dnsProvider,
 	domain,
 	notificationChannel,
@@ -44,6 +47,7 @@ function fakeCloudflare() {
 		body?: unknown;
 	}[] = [];
 	let next = 1;
+	const state = { originDenied: false };
 	const zones = [{ id: "zone-example", name: "example.com" }];
 	const real = globalThis.fetch;
 	const ok = (result: unknown) =>
@@ -70,6 +74,21 @@ function fakeCloudflare() {
 			);
 		const path = url.pathname.replace("/client/v4", "");
 		if (path === "/zones") return ok(zones);
+		if (path === "/certificates") {
+			if (state.originDenied)
+				return Response.json(
+					{
+						success: false,
+						errors: [{ code: 10000, message: "Authentication error" }],
+					},
+					{ status: 403 },
+				);
+			return ok(
+				method === "POST"
+					? { id: "origin-1", certificate: signCsr(body.csr, body.hostnames) }
+					: [],
+			);
+		}
 		const m = /^\/zones\/([^/]+)\/dns_records(?:\/([^/]+))?$/.exec(path);
 		if (!m) return new Response("not found", { status: 404 });
 		const id = m[2];
@@ -92,7 +111,44 @@ function fakeCloudflare() {
 		records.set(rec.id, rec);
 		return ok(rec);
 	}) as typeof fetch;
-	return { records, calls, restore: () => (globalThis.fetch = real) };
+	return { records, calls, state, restore: () => (globalThis.fetch = real) };
+}
+
+/** Stands in for Origin CA's signer: the fixture certificate signs the CSR's key with the requested SANs. */
+function signCsr(csr: string, hostnames: string[]) {
+	const dir = mkdtempSync(join(tmpdir(), "ls-test-dns-origin-"));
+	try {
+		const ext = join(dir, "ext.cnf");
+		writeFileSync(
+			ext,
+			`subjectAltName=${hostnames.map((h) => `DNS:${h}`).join(",")}\n`,
+		);
+		const files = ["custom-cert.pem", "custom-key.pem"].map((f) =>
+			join(import.meta.dir, "fixtures", f),
+		);
+		const p = Bun.spawnSync(
+			[
+				"openssl",
+				"x509",
+				"-req",
+				"-days",
+				"30",
+				"-set_serial",
+				"7",
+				"-CA",
+				files[0] as string,
+				"-CAkey",
+				files[1] as string,
+				"-extfile",
+				ext,
+			],
+			{ stdin: Buffer.from(csr), stdout: "pipe", stderr: "pipe" },
+		);
+		if (p.exitCode !== 0) throw new Error(p.stderr.toString());
+		return p.stdout.toString();
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 }
 
 const imageSpec = {
@@ -578,6 +634,99 @@ describe.skipIf(!hasDocker)("dns, domains, certificates, notifications", () => {
 			(await h.call("DELETE", `/api/certificates/${stored.json.id}`, as()))
 				.status,
 		).toBe(204);
+	});
+
+	test("Cloudflare Origin CA: key and CSR made here, certificate stored and bound", async () => {
+		const dom = await h.call(
+			"POST",
+			`/api/services/${serviceId}/domains`,
+			as({
+				body: {
+					hostname: "origin.example.com",
+					port: 80,
+					https: true,
+					cert: "auto",
+				},
+			}),
+		);
+		expect(dom.status).toBe(201);
+		const base = `/api/domains/${dom.json.id}/origin-certificate`;
+		const check = await h.call("POST", `${base}/test`, as());
+		expect(check.json).toEqual({
+			hostname: "origin.example.com",
+			provider: { id: providerId, name: expect.any(String) },
+			zone: { id: "zone-example", name: "example.com" },
+			permission: "Zone > SSL and Certificates > Edit",
+		});
+
+		cf.state.originDenied = true;
+		const denied = await h.call("POST", `${base}/test`, as());
+		expect(denied.status).toBe(400);
+		expect(denied.json.error.message).toContain("SSL and Certificates > Edit");
+		cf.state.originDenied = false;
+
+		const issued = await h.call(
+			"POST",
+			base,
+			as({ body: { keyType: "ecc", validityDays: 5475 } }),
+		);
+		expect(issued.status).toBe(201);
+		expect(issued.json).toMatchObject({
+			sans: ["origin.example.com"],
+			issuer: "custom.test",
+			domains: 1,
+		});
+		const sent = cf.calls.find(
+			(x) => x.method === "POST" && x.url.endsWith("/certificates"),
+		)?.body as Record<string, unknown>;
+		expect(sent).toMatchObject({
+			hostnames: ["origin.example.com"],
+			request_type: "origin-ecc",
+			requested_validity: 5475,
+		});
+		expect(String(sent.csr)).toStartWith("-----BEGIN CERTIFICATE REQUEST-----");
+
+		const [d] = await h.deps.db
+			.select()
+			.from(domain)
+			.where(eq(domain.id, dom.json.id));
+		expect(d).toMatchObject({
+			https: true,
+			cert: "custom",
+			customCertificateId: issued.json.id,
+			status: "pending",
+		});
+		const [crt] = await h.deps.db
+			.select()
+			.from(certificate)
+			.where(eq(certificate.id, issued.json.id));
+		expect(crt?.keyPemEncrypted).not.toContain("PRIVATE KEY");
+		expect(
+			await decrypt(h.deps.masterKey, crt?.keyPemEncrypted as string),
+		).toStartWith("-----BEGIN PRIVATE KEY-----");
+		const audits = await h.deps.db
+			.select()
+			.from(auditLog)
+			.where(eq(auditLog.action, "certificate.origin_issue"));
+		expect(JSON.stringify(audits)).not.toContain("PRIVATE KEY");
+
+		const outside = await h.call(
+			"POST",
+			`/api/services/${serviceId}/domains`,
+			as({
+				body: { hostname: "x.other.org", port: 80, https: true, cert: "auto" },
+			}),
+		);
+		const none = await h.call(
+			"POST",
+			`/api/domains/${outside.json.id}/origin-certificate/test`,
+			as(),
+		);
+		expect(none.status).toBe(400);
+		expect(none.json.error.message).toContain("No Cloudflare DNS provider");
+		for (const id of [dom.json.id, outside.json.id])
+			await h.call("DELETE", `/api/domains/${id}`, as());
+		await h.call("DELETE", `/api/certificates/${issued.json.id}`, as());
 	});
 
 	test("managed certificates come from the worker's snapshot", async () => {

@@ -1,11 +1,28 @@
 import { X509Certificate } from "node:crypto";
 import { createRoute, z } from "@hono/zod-openapi";
-import { encrypt } from "@logistack/core";
-import { certificate, domain, instanceSettings } from "@logistack/db";
+import { decrypt, encrypt } from "@logistack/core";
+import {
+	certificate,
+	dnsProvider,
+	domain,
+	instanceSettings,
+} from "@logistack/db";
+import {
+	cloudflare,
+	cloudflareOriginCa,
+	findZoneForHostname,
+	originCaPermission,
+	originKeyAndCsr,
+	originValidityDays,
+	ProviderError,
+} from "@logistack/providers";
 import { and, asc, count, eq, inArray } from "drizzle-orm";
+import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import { managedCertificates } from "../certs.ts";
+import { managedZones, Zone } from "../dns.ts";
+import type { Env } from "../env.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import {
 	body,
@@ -16,9 +33,9 @@ import {
 	router,
 	security,
 } from "../openapi.ts";
-import { commonName, parseCertificate } from "../pem.ts";
+import { commonName, covers, parseCertificate } from "../pem.ts";
 import { requestProxySync } from "../redis.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import { byParam, inOrganization, requirePermission } from "../scope.ts";
 
 // `privateKey`, not `keyPem`: the audit redactor masks keys matching /private/.
 const Upload = z.object({
@@ -67,7 +84,193 @@ const AcmeDirectory = z
 	.openapi("AcmeDirectory");
 const Issuer = z.object({ directory: AcmeDirectory });
 
+const OriginTarget = z
+	.object({
+		hostname: z.string(),
+		provider: z.object({ id: z.string(), name: z.string() }),
+		zone: Zone,
+		permission: z.string(),
+	})
+	.openapi("OriginCertificateTarget");
+
+const OriginRequest = z.object({
+	keyType: z.enum(["rsa", "ecc"]),
+	validityDays: z.literal(originValidityDays),
+});
+
+/**
+ * The Cloudflare provider whose managed zones own the domain's hostname (the domain's own
+ * provider first) and an Origin CA client on its token.
+ */
+async function originTarget(c: Context<Env>, domainId: string) {
+	const { db, masterKey } = c.var.deps;
+	const [d] = await db.select().from(domain).where(eq(domain.id, domainId));
+	if (!d) throw notFound("domain");
+	if (d.tunnel)
+		throw new Failure(
+			"bad_request",
+			"A tunnel domain reaches this server through cloudflared over plain HTTP; it needs no origin certificate",
+		);
+	if (d.hostname.startsWith("*."))
+		throw new Failure(
+			"bad_request",
+			"A wildcard domain keeps automatic HTTPS over DNS-01; issue origin certificates for exact hostnames",
+		);
+	const providers = await db
+		.select()
+		.from(dnsProvider)
+		.where(
+			and(
+				eq(dnsProvider.organizationId, requireActor(c).organizationId),
+				eq(dnsProvider.kind, "cloudflare"),
+			),
+		);
+	providers.sort(
+		(a, b) =>
+			Number(b.id === d.dnsProviderId) - Number(a.id === d.dnsProviderId),
+	);
+	for (const p of providers) {
+		const zone = findZoneForHostname(d.hostname, managedZones(p));
+		if (!zone) continue;
+		const { apiToken } = cloudflare.configSchema.parse(
+			JSON.parse(await decrypt(masterKey, p.credentialsEncrypted)),
+		);
+		return { domain: d, provider: p, zone, ca: cloudflareOriginCa(apiToken) };
+	}
+	throw new Failure(
+		"bad_request",
+		`No Cloudflare DNS provider manages a zone for ${d.hostname}. Connect one under Integrations, DNS first.`,
+	);
+}
+
+/** Cloudflare failures as 400s; a refused token names the permission it lacks. */
+async function viaOriginCa<T>(zone: string, fn: () => Promise<T>) {
+	try {
+		return await fn();
+	} catch (err) {
+		if (!(err instanceof ProviderError)) throw err;
+		throw new Failure(
+			"bad_request",
+			err.status === 401 || err.status === 403
+				? `Cloudflare refused the token for Origin CA. Give it ${originCaPermission} on ${zone}.`
+				: err.message,
+		);
+	}
+}
+
+const originMiddleware = [
+	...admin,
+	requirePermission("write", byParam("domain")),
+];
+
 export const certificates = router()
+	.openapi(
+		mutation(
+			"certificate.origin_test",
+			createRoute({
+				method: "post",
+				path: "/domains/{id}/origin-certificate/test",
+				tags,
+				security,
+				summary:
+					"Check that a Cloudflare provider can issue an Origin CA certificate for a domain",
+				description: `Finds the Cloudflare DNS provider managing the domain's zone and lists that zone's origin certificates with its token, which needs ${originCaPermission}. Issues nothing.`,
+				middleware: originMiddleware,
+				request: { params: IdParam },
+				responses: { 200: json(OriginTarget, "Ready to issue"), ...errors },
+			}),
+		),
+		async (c) => {
+			const t = await originTarget(c, c.req.valid("param").id);
+			await viaOriginCa(t.zone.name, () => t.ca.verify(t.zone.id));
+			return c.json(
+				{
+					hostname: t.domain.hostname,
+					provider: { id: t.provider.id, name: t.provider.name },
+					zone: t.zone,
+					permission: originCaPermission,
+				},
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
+			"certificate.origin_issue",
+			createRoute({
+				method: "post",
+				path: "/domains/{id}/origin-certificate",
+				tags,
+				security,
+				summary:
+					"Issue a Cloudflare Origin CA certificate and serve it on a domain",
+				description:
+					"Generates the private key and CSR on this server, has Cloudflare's Origin CA sign it, stores the pair as a custom certificate (key encrypted) and switches the domain to it. Browsers trust it only through Cloudflare's proxy: keep the record proxied and set the zone's SSL mode to Full (strict).",
+				middleware: originMiddleware,
+				request: { params: IdParam, ...body(OriginRequest) },
+				responses: {
+					201: json(CustomCertificate, "Issued and bound"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { keyType, validityDays } = c.req.valid("json");
+			const { db, masterKey, config } = c.var.deps;
+			const t = await originTarget(c, c.req.valid("param").id);
+			const hostnames = [t.domain.hostname];
+			const { keyPem, csrPem } = originKeyAndCsr(hostnames, keyType);
+			const { certPem } = await viaOriginCa(t.zone.name, () =>
+				t.ca.issue({ csrPem, hostnames, keyType, validityDays }),
+			);
+			const parsed = parseCertificate(certPem, keyPem);
+			if (!parsed.sans.some((n) => covers(n, t.domain.hostname)))
+				throw new Failure(
+					"bad_request",
+					`Cloudflare returned a certificate for ${parsed.sans.join(", ")}, not ${t.domain.hostname}`,
+				);
+			const row = await db.transaction(async (tx) => {
+				const crt = one(
+					await tx
+						.insert(certificate)
+						.values({
+							organizationId: requireActor(c).organizationId,
+							name: `${t.domain.hostname} (Cloudflare Origin)`.slice(0, 100),
+							certPem: certPem.trim(),
+							keyPemEncrypted: await encrypt(masterKey, keyPem),
+							notAfter: parsed.notAfter,
+							sans: parsed.sans,
+						})
+						.returning(),
+				);
+				await tx
+					.update(domain)
+					.set({
+						https: true,
+						cert: "custom",
+						customCertificateId: crt.id,
+						status: "pending",
+						statusMessage: null,
+					})
+					.where(eq(domain.id, t.domain.id));
+				return crt;
+			});
+			c.set("auditResourceId", row.id);
+			await requestProxySync(config.REDIS_URL, "origin certificate").catch(
+				() => {},
+			);
+			return c.json(
+				{
+					id: row.id,
+					name: row.name,
+					...iso(parsed),
+					domains: 1,
+					createdAt: row.createdAt.toISOString(),
+				},
+				201,
+			);
+		},
+	)
 	.openapi(
 		createRoute({
 			method: "get",
