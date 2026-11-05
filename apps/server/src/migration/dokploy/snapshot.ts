@@ -177,6 +177,137 @@ export const DokploySecurity = z.object({
 	password: z.string(),
 });
 
+export const DokployRegistry = z.object({
+	registryId: z.string(),
+	registryName: z.string(),
+	imagePrefix: text,
+	username: z.string(),
+	password: z.string(),
+	registryUrl: z.string(),
+});
+export type DokployRegistry = z.infer<typeof DokployRegistry>;
+
+export const DokployDestination = z.object({
+	destinationId: z.string(),
+	name: z.string(),
+	provider: text,
+	accessKey: z.string(),
+	secretAccessKey: z.string(),
+	bucket: z.string(),
+	region: z.string(),
+	endpoint: z.string(),
+	additionalFlags: z.array(z.string()).nullable(),
+});
+export type DokployDestination = z.infer<typeof DokployDestination>;
+
+export const DokployBackup = z.object({
+	backupId: z.string(),
+	schedule: z.string(),
+	enabled: bool,
+	database: z.string(),
+	prefix: z.string(),
+	destinationId: z.string(),
+	keepLatestCount: int,
+	backupType: z.string(),
+	/** The backed-up database row: `postgresId`, `mysqlId`... or `composeId`, whichever is set. */
+	ownerId: text,
+});
+export type DokployBackup = z.infer<typeof DokployBackup>;
+
+export const notificationTypes = [
+	"slack",
+	"telegram",
+	"discord",
+	"email",
+	"resend",
+	"gotify",
+	"ntfy",
+	"mattermost",
+	"pushover",
+	"custom",
+	"lark",
+	"teams",
+] as const;
+export type DokployNotificationType = (typeof notificationTypes)[number];
+
+/** The event switches of a notification, by Dokploy's column name. */
+const notificationEvents = {
+	appDeploy: z.boolean(),
+	appBuildError: z.boolean(),
+	databaseBackup: z.boolean(),
+	volumeBackup: z.boolean(),
+	dokployRestart: z.boolean(),
+	dokployBackup: z.boolean(),
+	dockerCleanup: z.boolean(),
+	serverThreshold: z.boolean(),
+};
+export const notificationEventColumns = Object.keys(notificationEvents);
+
+export const DokployNotification = z.object({
+	notificationId: z.string(),
+	name: z.string(),
+	notificationType: z.enum(notificationTypes),
+	...notificationEvents,
+	/** The id of its row in the per-type table (`slackId`, `emailId`...). */
+	targetId: text,
+});
+export type DokployNotification = z.infer<typeof DokployNotification>;
+
+/** A row of one per-type table (`slack`, `email`...), its columns under one shape. */
+export const DokployNotificationTarget = z.object({
+	type: z.enum(notificationTypes),
+	targetId: z.string(),
+	webhookUrl: text,
+	channel: text,
+	username: text,
+	botToken: text,
+	chatId: text,
+	messageThreadId: text,
+	smtpServer: text,
+	smtpPort: int,
+	password: text,
+	fromAddress: text,
+	toAddress: z.array(z.string()).nullable(),
+	apiKey: text,
+	serverUrl: text,
+	appToken: text,
+	topic: text,
+	accessToken: text,
+	endpoint: text,
+	userKey: text,
+	apiToken: text,
+});
+export type DokployNotificationTarget = z.infer<
+	typeof DokployNotificationTarget
+>;
+
+export const DokploySshKey = z.object({
+	sshKeyId: z.string(),
+	name: z.string(),
+	privateKey: z.string(),
+});
+
+export const gitProviderTypes = [
+	"github",
+	"gitlab",
+	"gitea",
+	"bitbucket",
+] as const;
+
+/** A `github`/`gitlab`/`gitea`/`bitbucket` row; its name is on the `git_provider` row. */
+export const DokployGitProvider = z.object({
+	type: z.enum(gitProviderTypes),
+	/** `githubId`, `gitlabId`...: what applications reference. */
+	id: z.string(),
+	gitProviderId: z.string(),
+	githubAppId: int,
+	githubInstallationId: text,
+	githubPrivateKey: text,
+	githubWebhookSecret: text,
+	url: text,
+});
+export type DokployGitProvider = z.infer<typeof DokployGitProvider>;
+
 export const DokploySnapshot = z.object({
 	projects: z.array(DokployProject),
 	environments: z.array(DokployEnvironment),
@@ -188,6 +319,16 @@ export const DokploySnapshot = z.object({
 	ports: z.array(DokployPort),
 	redirects: z.array(DokployRedirect),
 	security: z.array(DokploySecurity),
+	registries: z.array(DokployRegistry),
+	destinations: z.array(DokployDestination),
+	backups: z.array(DokployBackup),
+	notifications: z.array(DokployNotification),
+	notificationTargets: z.array(DokployNotificationTarget),
+	sshKeys: z.array(DokploySshKey),
+	gitProviders: z.array(DokployGitProvider),
+	gitProviderNames: z.array(
+		z.object({ gitProviderId: z.string(), name: z.string() }),
+	),
 	/** Git-sourced compose files read from disk, by `composeId`; raw ones live in `composeFile`. */
 	composeFiles: z.record(z.string(), z.string()).default({}),
 });

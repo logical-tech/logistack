@@ -87,7 +87,7 @@ This step maps Dokploy DB rows to an `Inventory` with one item per Dokploy servi
   - [x] The official image only, with its version kept.
   - [x] The data volume found in Dokploy's `mount` rows at the engine's data directory is adopted.
   - [x] Dokploy's credentials become the env (`POSTGRES_USER/PASSWORD/DB`...), so the adopted data opens.
-  - [x] Unsupported: custom images such as pgvector, Postgres 18+ (it keeps its data in `/var/lib/postgresql/18/docker`), and a missing data volume. An external port is reported.
+  - [x] Unsupported: custom images such as pgvector, and a missing data volume. An external port is reported. (Postgres 18+ was unsupported here; MIG-2c adds it.)
   - [x] Evidence: inventory tests.
 - [x] Compose: a raw single-service file maps through the compose mapper, with Dokploy's domain rows. Evidence: inventory tests.
 - [x] Notes never carry a value. Evidence: test that searches the notes for fixture secrets.
@@ -102,16 +102,28 @@ This step maps Dokploy DB rows to an `Inventory` with one item per Dokploy servi
   - [x] An env value that names a service in another environment is reported, because Dokploy shares one network and LogiStack isolates environments.
   - [x] Evidence: "across items" tests.
 
-### MIG-2c (next)
+### MIG-2c (done)
 
-- [ ] Org-level resources:
-  - [ ] Registries.
-  - [ ] S3 destinations.
-  - [ ] Database backup schedules.
-  - [ ] Notification channels.
-  - [ ] SSH keys.
-  - [ ] GitHub, GitLab and Gitea providers, including the GitHub App id, private key and webhook secret.
-- [ ] Postgres 18+. LogiStack now mounts an 18+ volume on `/var/lib/postgresql` (fixed separately), so PGDATA lands in `18/docker` inside it. Dokploy mounts its volume on `/var/lib/postgresql/18/docker`, so its PGDATA is the volume root. To adopt one, either mount it at Dokploy's target or set `PGDATA` to match. Mounting it on the parent would start an empty cluster beside the data.
+Organization-level resources become `OrgItem`s in `Inventory.org` (`org.ts`, pure). Each one carries the body of the LogiStack create route it maps to, already checked against that route's schema (`RegistryInput`, the S3 `Connection`, each channel's and GitHub's `configSchema`). Evidence: "organization resources" tests in `test/dokploy-inventory.test.ts`.
+
+- [x] Registries: the host and image prefix become `host/namespace`. An empty URL or `docker.io` means Docker Hub (`docker.io/<prefix or username>`). `ghcr.io` and `registry.gitlab.com` get their own kinds.
+- [x] S3 destinations: an endpoint without a scheme gets `https://`. Path style is on for every provider except AWS, as rclone does. Other rclone flags are reported. A bucket name LogiStack refuses makes the destination `unsupported`.
+- [x] Database backups: each becomes a `BackupDraft` (cron, retention from `keepLatestCount`, enabled) on its database draft. If Dokploy has no count, retention is empty, so LogiStack keeps every backup too.
+  - A backup whose destination does not import is dropped with a note. So is a cron that is not 5 fields.
+  - Backups of databases inside a compose file are reported.
+  - Earlier Dokploy backups stay in the bucket under their old prefix. LogiStack writes new ones in its own layout.
+- [x] Notification channels: Slack, Discord, Teams, Mattermost, Telegram, email (SMTP and Resend), Gotify, ntfy and Pushover map to LogiStack channels.
+  - Dokploy's switches become one organization-wide rule: deploys, build errors, backups and the server threshold.
+  - Dokploy restarts, Dokploy backups and Docker cleanup have no LogiStack event. They are named in the notes.
+  - Custom webhooks (headers, unsigned) and Lark are `unsupported`.
+- [x] SSH keys: imported with their private key. A key without its private half is `unsupported`.
+- [x] Git providers:
+  - A GitHub App carries over with its id, private key, webhook secret and installation. Its webhook still points at Dokploy until the cutover moves it (MIG-3).
+  - GitHub Enterprise and apps that were never installed are `unsupported`.
+  - GitLab, Gitea and Bitbucket are connected through OAuth or app passwords in Dokploy, while LogiStack needs an access token. They are `unsupported`, and every application that uses one gets a note to reconnect it.
+- [x] Postgres 18+: Dokploy mounts the volume on the image's PGDATA (`/var/lib/postgresql/<major>/docker`), so the cluster sits at the volume root. The draft adopts the volume on LogiStack's data dir (`/var/lib/postgresql`) and sets `PGDATA=/var/lib/postgresql`. Evidence: an inventory test, plus a manual check on postgres:18 (2026-11-05): data written in Dokploy's layout reads back with this mount and `PGDATA`.
+- [x] Reader: the new tables are read the same way, with every column checked first. Evidence: the seeded reader test, and the upstream schema test on v0.30.0 and v0.30.10.
+- [ ] Not read: Dokploy's certificates, volume backups, schedules, SSO, API keys and remote servers. They are left for later or for the user.
 
 ## Run a migration as a resumable state machine (MIG-3)
 

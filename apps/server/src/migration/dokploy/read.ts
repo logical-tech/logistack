@@ -7,8 +7,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import {
 	type DokployEngine,
+	type DokployNotificationType,
 	DokploySnapshot,
 	databaseEngines,
+	gitProviderTypes,
+	notificationEventColumns,
+	notificationTypes,
 } from "./snapshot.ts";
 
 const runtimeColumns = [
@@ -81,10 +85,88 @@ const mountOwners = [
 	"composeId",
 ];
 
+/** Per notification type, the target fields its table has; the others read as null. */
+const notificationTargetColumns: Record<DokployNotificationType, string[]> = {
+	slack: ["webhookUrl", "channel"],
+	telegram: ["botToken", "chatId", "messageThreadId"],
+	discord: ["webhookUrl"],
+	email: [
+		"smtpServer",
+		"smtpPort",
+		"username",
+		"password",
+		"fromAddress",
+		"toAddress",
+	],
+	resend: ["apiKey", "fromAddress", "toAddress"],
+	gotify: ["serverUrl", "appToken"],
+	ntfy: ["serverUrl", "topic", "accessToken"],
+	mattermost: ["webhookUrl", "channel", "username"],
+	pushover: ["userKey", "apiToken"],
+	custom: ["endpoint"],
+	lark: ["webhookUrl"],
+	teams: ["webhookUrl"],
+};
+const notificationTargetFields = [
+	...new Set(Object.values(notificationTargetColumns).flat()),
+];
+
+/** Per git provider type, the fields its table has, by column. */
+const gitProviderColumns: Record<
+	(typeof gitProviderTypes)[number],
+	Record<string, string | null>
+> = {
+	github: {
+		githubAppId: "githubAppId",
+		githubInstallationId: "githubInstallationId",
+		githubPrivateKey: "githubPrivateKey",
+		githubWebhookSecret: "githubWebhookSecret",
+		url: "githubUrl",
+	},
+	gitlab: { url: "gitlabUrl" },
+	gitea: { url: "giteaUrl" },
+	bitbucket: {},
+};
+const gitProviderFields = Object.keys(gitProviderColumns.github);
+
 /** `columns` are the real columns read, for the schema check; `select` is what the SQL says. */
 type Query = { table: string; columns: string[]; select: string[] };
 
 const q = (c: string) => `"${c}"`;
+
+/**
+ * Several tables read into one shape: `constants` are literal fields (`'slack' as "type"`), and
+ * each field reads its column, or null when this table has none.
+ */
+const unified = (
+	table: string,
+	constants: Record<string, string>,
+	fields: Record<string, string | null>,
+): Query => ({
+	table,
+	columns: Object.values(fields).filter((c): c is string => c !== null),
+	select: [
+		...Object.entries(constants).map(([field, v]) => `'${v}' as ${q(field)}`),
+		...Object.entries(fields).map(([field, column]) =>
+			column ? `${q(column)} as ${q(field)}` : `null as ${q(field)}`,
+		),
+	],
+});
+
+/** Columns plus `as` (default `ownerId`): the first of `owners` that is set. */
+const owned = (
+	table: string,
+	columns: string[],
+	owners: string[],
+	as = "ownerId",
+): Query => ({
+	table,
+	columns: [...columns, ...owners],
+	select: [
+		...columns.map(q),
+		`coalesce(${owners.map(q).join(", ")}) as ${q(as)}`,
+	],
+});
 
 /** Every query, built only from the constant column lists above: no outside input reaches SQL. */
 function queries(): Record<string, Query | Query[]> {
@@ -191,8 +273,9 @@ function queries(): Record<string, Query | Query[]> {
 			"applicationId",
 			"composeId",
 		]),
-		mounts: (() => {
-			const columns = [
+		mounts: owned(
+			"mount",
+			[
 				"mountId",
 				"type",
 				"hostPath",
@@ -200,16 +283,9 @@ function queries(): Record<string, Query | Query[]> {
 				"filePath",
 				"content",
 				"mountPath",
-			];
-			return {
-				table: "mount",
-				columns: [...columns, ...mountOwners],
-				select: [
-					...columns.map(q),
-					`coalesce(${mountOwners.map(q).join(", ")}) as "ownerId"`,
-				],
-			};
-		})(),
+			],
+			mountOwners,
+		),
 		ports: plain("port", [
 			"applicationId",
 			"publishedPort",
@@ -224,6 +300,83 @@ function queries(): Record<string, Query | Query[]> {
 			"permanent",
 		]),
 		security: plain("security", ["applicationId", "username", "password"]),
+		registries: plain("registry", [
+			"registryId",
+			"registryName",
+			"imagePrefix",
+			"username",
+			"password",
+			"registryUrl",
+		]),
+		destinations: plain("destination", [
+			"destinationId",
+			"name",
+			"provider",
+			"accessKey",
+			"secretAccessKey",
+			"bucket",
+			"region",
+			"endpoint",
+			"additionalFlags",
+		]),
+		backups: owned(
+			"backup",
+			[
+				"backupId",
+				"schedule",
+				"enabled",
+				"database",
+				"prefix",
+				"destinationId",
+				"keepLatestCount",
+				"backupType",
+			],
+			["postgresId", "mysqlId", "mariadbId", "mongoId", "composeId"],
+		),
+		notifications: owned(
+			"notification",
+			[
+				"notificationId",
+				"name",
+				"notificationType",
+				...notificationEventColumns,
+			],
+			notificationTypes.map((t) => `${t}Id`),
+			"targetId",
+		),
+		notificationTargets: notificationTypes.map((type) =>
+			unified(
+				type,
+				{ type },
+				{
+					targetId: `${type}Id`,
+					...Object.fromEntries(
+						notificationTargetFields.map((f) => [
+							f,
+							notificationTargetColumns[type].includes(f) ? f : null,
+						]),
+					),
+				},
+			),
+		),
+		sshKeys: plain("ssh-key", ["sshKeyId", "name", "privateKey"]),
+		gitProviders: gitProviderTypes.map((type) =>
+			unified(
+				type,
+				{ type },
+				{
+					id: `${type}Id`,
+					gitProviderId: "gitProviderId",
+					...Object.fromEntries(
+						gitProviderFields.map((f) => [
+							f,
+							gitProviderColumns[type][f] ?? null,
+						]),
+					),
+				},
+			),
+		),
+		gitProviderNames: plain("git_provider", ["gitProviderId", "name"]),
 	};
 }
 

@@ -71,6 +71,9 @@ const INT = new Set([
 	"externalPort",
 	"publishedPort",
 	"targetPort",
+	"keepLatestCount",
+	"smtpPort",
+	"githubAppId",
 ]);
 const BOOL = new Set([
 	"https",
@@ -78,7 +81,17 @@ const BOOL = new Set([
 	"permanent",
 	"isPreviewDeploymentsActive",
 	"autoDeploy",
+	"enabled",
+	"appDeploy",
+	"appBuildError",
+	"databaseBackup",
+	"volumeBackup",
+	"dokployRestart",
+	"dokployBackup",
+	"dockerCleanup",
+	"serverThreshold",
 ]);
+const ARRAY = new Set(["additionalFlags", "toAddress"]);
 
 /** Exactly the columns the reader needs, typed as Dokploy types them. */
 export async function minimalSchema(url: string, skip: string[] = []) {
@@ -93,9 +106,11 @@ export async function minimalSchema(url: string, skip: string[] = []) {
 				? "integer"
 				: BOOL.has(c)
 					? "boolean"
-					: c.endsWith("Swarm")
-						? "json"
-						: "text";
+					: ARRAY.has(c)
+						? "text[]"
+						: c.endsWith("Swarm")
+							? "json"
+							: "text";
 			return `"${c}" ${type}`;
 		});
 		await sql.unsafe(`create table "${table}" (${defs.join(", ")})`);

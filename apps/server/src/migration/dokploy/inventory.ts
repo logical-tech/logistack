@@ -5,6 +5,7 @@
  */
 import {
 	ApplicationSpec,
+	type BackupRetention,
 	type BindMount,
 	type BuildConfig,
 	DatabaseSpec,
@@ -13,8 +14,10 @@ import {
 	isSensitiveHostPath,
 	type PortMapping,
 } from "@logistack/contracts";
-import { dataDirOf } from "@logistack/core";
+import { dataDirOf, postgresMajor } from "@logistack/core";
+import { Cron } from "../../cron.ts";
 import { mapComposeServices, parseDotenv } from "./compose.ts";
+import { buildOrgItems, type OrgItem } from "./org.ts";
 import type {
 	DokployApplication,
 	DokployCompose,
@@ -28,6 +31,15 @@ import type {
 export type Status = "full" | "partial" | "unsupported";
 
 export type EnvDraft = { key: string; value: string; isSecret: boolean };
+
+/** A database backup policy; MIG-3 points it at the destination imported from `destination`. */
+export type BackupDraft = {
+	/** Dokploy's `destinationId`. */
+	destination: string;
+	cron: string;
+	retention: BackupRetention;
+	enabled: boolean;
+};
 
 export type ServiceDraft = {
 	name: string;
@@ -57,6 +69,7 @@ export type ServiceDraft = {
 	};
 	/** Dokploy last deployed it successfully; a stopped or never-deployed service stays stopped. */
 	running: boolean;
+	backups: BackupDraft[];
 };
 
 export type InventoryItem = {
@@ -71,7 +84,7 @@ export type InventoryItem = {
 	services: ServiceDraft[];
 };
 
-export type Inventory = { items: InventoryItem[] };
+export type Inventory = { items: InventoryItem[]; org: OrgItem[] };
 
 /** Keys whose values are treated as secrets in LogiStack (hidden in the UI). */
 const SENSITIVE =
@@ -520,6 +533,7 @@ function mapApplication(a: DokployApplication, ctx: Context): InventoryItem {
 				.map(({ username, password }) => ({ username, password })),
 			...(gitProvider && { gitProvider }),
 			running: a.applicationStatus === "done",
+			backups: [],
 		},
 	]);
 }
@@ -593,12 +607,6 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 		return item([]);
 	}
 	const version = image[2] as string;
-	if (d.engine === "postgres" && Number.parseInt(version, 10) >= 18) {
-		notes.push(
-			"Postgres 18+ keeps its data under /var/lib/postgresql/18/docker; not supported yet",
-		);
-		return item([]);
-	}
 	const spec = DatabaseSpec.parse({
 		kind: "database",
 		engine: d.engine,
@@ -606,17 +614,25 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 		credentialsRef: "dokploy",
 		resources: resources(d, notes),
 	});
-	const dataDir = dataDirOf(spec);
+	const dataDir = dataDirOf(spec) as string;
+	// Postgres 18+: Dokploy mounts the volume on the image's PGDATA, so the cluster is the volume
+	// root. LogiStack mounts the parent directory, so PGDATA points back at the root.
+	const major = postgresMajor(version);
+	const pg18 =
+		d.engine === "postgres" && major >= 18
+			? `/var/lib/postgresql/${major}/docker`
+			: undefined;
+	const dokployDir = pg18 ?? dataDir;
 	const mounts = ctx.snapshot.mounts.filter((m) => m.ownerId === d.id);
 	const data = mounts.find(
 		(m) =>
 			m.type === "volume" &&
 			m.volumeName &&
-			m.mountPath.replace(/(.)\/+$/, "$1") === dataDir,
+			m.mountPath.replace(/(.)\/+$/, "$1") === dokployDir,
 	);
 	if (!data?.volumeName) {
 		notes.push(
-			`no volume mounted at ${dataDir}; the data would not carry over`,
+			`no volume mounted at ${dokployDir}; the data would not carry over`,
 		);
 		return item([]);
 	}
@@ -629,7 +645,10 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 		notes.push("placement constraints are not carried over");
 	swarmNotes(d, notes);
 	const extra = serviceEnv(d.env, ctx.sharedEnv, notes);
-	const credentials = credentialsEnv(d);
+	const credentials = [
+		...credentialsEnv(d),
+		...(pg18 ? [{ key: "PGDATA", value: dataDir, isSecret: false }] : []),
+	];
 	return item([
 		{
 			name: d.name,
@@ -640,7 +659,7 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 			mounts: [],
 			adoptedVolumes: [
 				{
-					target: dataDir as string,
+					target: dataDir,
 					volume: data.volumeName,
 					source: "dokploy",
 				},
@@ -652,8 +671,36 @@ function mapDatabase(d: DokployDatabase, ctx: Context): InventoryItem {
 			domains: [],
 			basicAuth: [],
 			running: d.applicationStatus === "done",
+			backups: backupsOf(d, ctx.snapshot, notes),
 		},
 	]);
+}
+
+function backupsOf(
+	d: DokployDatabase,
+	s: DokploySnapshot,
+	notes: string[],
+): BackupDraft[] {
+	const out: BackupDraft[] = [];
+	for (const b of s.backups.filter((x) => x.ownerId === d.id)) {
+		if (!Cron.safeParse(b.schedule).success) {
+			notes.push(
+				`backup schedule "${b.schedule}" is not a 5-field cron, skipped`,
+			);
+			continue;
+		}
+		out.push({
+			destination: b.destinationId,
+			cron: b.schedule.trim(),
+			// Dokploy keeps every backup unless told how many; so does an empty retention.
+			retention:
+				b.keepLatestCount && b.keepLatestCount > 0
+					? { count: b.keepLatestCount }
+					: {},
+			enabled: b.enabled ?? true,
+		});
+	}
+	return out;
 }
 
 function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
@@ -696,6 +743,13 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 		notes.push("compose file is not valid YAML");
 		return item([]);
 	}
+	const backups = ctx.snapshot.backups.filter(
+		(b) => b.ownerId === c.composeId,
+	).length;
+	if (backups)
+		notes.push(
+			`${backups} backup schedule(s) of databases inside the compose file are not carried over`,
+		);
 	if (c.composeType === "stack")
 		notes.push("deployed as a Swarm stack in Dokploy; deploy keys are ignored");
 	const env = serviceEnv(c.env, ctx.sharedEnv, notes);
@@ -760,6 +814,7 @@ function mapComposeItem(c: DokployCompose, ctx: Context): InventoryItem {
 			],
 			basicAuth: [],
 			running: c.composeStatus === "done",
+			backups: [],
 		});
 	}
 	return item(dependencyOrder(drafts, notes));
@@ -842,6 +897,35 @@ function crossChecks(items: InventoryItem[]): InventoryItem[] {
 	return items;
 }
 
+/**
+ * References from services to organization items: a backup whose destination does not import is
+ * dropped, and a git source whose provider does not import must be reconnected.
+ */
+function orgChecks(items: InventoryItem[], org: OrgItem[]) {
+	const find = (kind: OrgItem["kind"], id: string) =>
+		org.find((o) => o.kind === kind && o.sourceId === id);
+	for (const item of items) {
+		for (const s of item.services) {
+			s.backups = s.backups.filter((b) => {
+				const destination = find("s3Destination", b.destination);
+				if (destination?.draft) return true;
+				item.notes.push(
+					`backup to ${destination?.name ?? "a missing destination"} is not carried over`,
+				);
+				return false;
+			});
+			if (!s.gitProvider) continue;
+			const git = find("gitProvider", s.gitProvider.dokployId);
+			if (!git?.draft)
+				item.notes.push(
+					`git provider ${git?.name ?? s.gitProvider.type} must be reconnected in LogiStack`,
+				);
+		}
+		item.notes = [...new Set(item.notes)];
+		item.status = statusOf(item);
+	}
+}
+
 export function buildInventory(snapshot: DokploySnapshot): Inventory {
 	const envs = new Map(snapshot.environments.map((e) => [e.environmentId, e]));
 	const projects = new Map(snapshot.projects.map((p) => [p.projectId, p]));
@@ -855,17 +939,18 @@ export function buildInventory(snapshot: DokploySnapshot): Inventory {
 			sharedEnv: { project: p?.env ?? null, environment: e?.env ?? null },
 		};
 	};
-	return {
-		items: crossChecks([
-			...snapshot.databases.map((d) =>
-				mapDatabase(d, contextOf(d.environmentId)),
-			),
-			...snapshot.applications.map((a) =>
-				mapApplication(a, contextOf(a.environmentId)),
-			),
-			...snapshot.composes.map((c) =>
-				mapComposeItem(c, contextOf(c.environmentId)),
-			),
-		]),
-	};
+	const org = buildOrgItems(snapshot);
+	const items = crossChecks([
+		...snapshot.databases.map((d) =>
+			mapDatabase(d, contextOf(d.environmentId)),
+		),
+		...snapshot.applications.map((a) =>
+			mapApplication(a, contextOf(a.environmentId)),
+		),
+		...snapshot.composes.map((c) =>
+			mapComposeItem(c, contextOf(c.environmentId)),
+		),
+	]);
+	orgChecks(items, org);
+	return { items, org };
 }

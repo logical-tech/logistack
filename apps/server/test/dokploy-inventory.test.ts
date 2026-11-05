@@ -4,10 +4,15 @@ import {
 	type InventoryItem,
 	serviceEnv,
 } from "../src/migration/dokploy/inventory.ts";
+import type { OrgItem } from "../src/migration/dokploy/org.ts";
 import type {
 	DokployApplication,
+	DokployBackup,
 	DokployCompose,
 	DokployDatabase,
+	DokployDestination,
+	DokployNotification,
+	DokployNotificationTarget,
 	DokploySnapshot,
 } from "../src/migration/dokploy/snapshot.ts";
 
@@ -123,9 +128,35 @@ const snapshot = (o: Partial<DokploySnapshot>): DokploySnapshot => ({
 	ports: [],
 	redirects: [],
 	security: [],
+	registries: [],
+	destinations: [],
+	backups: [],
+	notifications: [],
+	notificationTargets: [],
+	sshKeys: [],
+	gitProviders: [],
+	gitProviderNames: [],
 	composeFiles: {},
 	...o,
 });
+
+/** A GitHub App provider `gh1` that imports. */
+const github: Partial<DokploySnapshot> = {
+	gitProviders: [
+		{
+			type: "github",
+			id: "gh1",
+			gitProviderId: "gp1",
+			githubAppId: 123,
+			githubInstallationId: "456",
+			githubPrivateKey:
+				"-----BEGIN RSA PRIVATE KEY-----\nfake-gh-key\n-----END RSA PRIVATE KEY-----",
+			githubWebhookSecret: "fake-gh-hook",
+			url: "https://github.com",
+		},
+	],
+	gitProviderNames: [{ gitProviderId: "gp1", name: "Acme GitHub" }],
+};
 
 const only = (s: DokploySnapshot): InventoryItem => {
 	const [item, ...rest] = buildInventory(s).items;
@@ -291,6 +322,7 @@ describe("Dokploy applications", () => {
 			],
 			basicAuth: [{ username: "admin", password: "fake-basic" }],
 			running: true,
+			backups: [],
 		});
 	});
 
@@ -319,6 +351,7 @@ describe("Dokploy applications", () => {
 					customGitBuildPath: "/",
 				}),
 			],
+			...github,
 		});
 		const [api, site] = buildInventory(s).items;
 		expect(api?.status).toBe("full");
@@ -478,10 +511,33 @@ describe("Dokploy databases", () => {
 			domains: [],
 			basicAuth: [],
 			running: true,
+			backups: [],
 		});
 	});
 
-	test("a custom image, Postgres 18 or a missing data volume is unsupported", () => {
+	test("Postgres 18 adopts Dokploy's volume as its PGDATA", () => {
+		const item = only(
+			snapshot({
+				databases: [
+					db({ id: "new", engine: "postgres", dockerImage: "postgres:18" }),
+				],
+				mounts: [dataMount("new", "new-data", "/var/lib/postgresql/18/docker")],
+			}),
+		);
+		expect(item.status).toBe("full");
+		expect(item.services[0]).toMatchObject({
+			adoptedVolumes: [
+				{
+					target: "/var/lib/postgresql",
+					volume: "new-data",
+					source: "dokploy",
+				},
+			],
+			env: [{ key: "PGDATA", value: "/var/lib/postgresql", isSecret: false }],
+		});
+	});
+
+	test("a custom image or a missing data volume is unsupported", () => {
 		const s = snapshot({
 			databases: [
 				db({
@@ -489,7 +545,6 @@ describe("Dokploy databases", () => {
 					engine: "postgres",
 					dockerImage: "pgvector/pgvector:pg16",
 				}),
-				db({ id: "new", engine: "postgres", dockerImage: "postgres:18" }),
 				db({ id: "nodata", engine: "redis", dockerImage: "redis:7" }),
 				db({
 					id: "exposed",
@@ -499,16 +554,12 @@ describe("Dokploy databases", () => {
 					externalPort: 6379,
 				}),
 			],
-			mounts: [
-				dataMount("new", "new-data", "/var/lib/postgresql/18/docker"),
-				dataMount("exposed", "exposed-data", "/data"),
-			],
+			mounts: [dataMount("exposed", "exposed-data", "/data")],
 		});
-		const [vec, pg18, nodata, exposed] = buildInventory(s).items;
+		const [vec, nodata, exposed] = buildInventory(s).items;
 		expect(vec?.notes).toEqual([
 			"custom image pgvector/pgvector:pg16; LogiStack runs the official postgres image",
 		]);
-		expect(pg18?.status).toBe("unsupported");
 		expect(nodata?.notes).toEqual([
 			"no volume mounted at /data; the data would not carry over",
 		]);
@@ -760,7 +811,388 @@ test("the inventory never carries a secret into its notes", () => {
 			}),
 		],
 	});
-	const notes = JSON.stringify(buildInventory(s).items.map((i) => i.notes));
-	for (const secret of ["fake-token-1", "fake-token-2", "fake-token-3"])
+	const inventory = buildInventory({
+		...s,
+		...github,
+		registries: [
+			{
+				registryId: "r",
+				registryName: "r",
+				imagePrefix: null,
+				username: "u",
+				password: "fake-token-4",
+				registryUrl: "bad url",
+			},
+		],
+		sshKeys: [{ sshKeyId: "k", name: "k", privateKey: "fake-token-5" }],
+	});
+	const notes = JSON.stringify(
+		[...inventory.items, ...inventory.org].map((i) => i.notes),
+	);
+	for (const secret of [
+		"fake-token-1",
+		"fake-token-2",
+		"fake-token-3",
+		"fake-token-4",
+		"fake-token-5",
+		"fake-gh-key",
+		"fake-gh-hook",
+	])
 		expect(notes).not.toContain(secret);
+});
+
+describe("organization resources", () => {
+	const target = (
+		o: Partial<DokployNotificationTarget> &
+			Pick<DokployNotificationTarget, "type" | "targetId">,
+	): DokployNotificationTarget => ({
+		webhookUrl: null,
+		channel: null,
+		username: null,
+		botToken: null,
+		chatId: null,
+		messageThreadId: null,
+		smtpServer: null,
+		smtpPort: null,
+		password: null,
+		fromAddress: null,
+		toAddress: null,
+		apiKey: null,
+		serverUrl: null,
+		appToken: null,
+		topic: null,
+		accessToken: null,
+		endpoint: null,
+		userKey: null,
+		apiToken: null,
+		...o,
+	});
+	const notification = (
+		o: Partial<DokployNotification> &
+			Pick<DokployNotification, "notificationId" | "notificationType">,
+	): DokployNotification => ({
+		name: o.notificationId,
+		targetId: o.notificationId,
+		appDeploy: false,
+		appBuildError: false,
+		databaseBackup: false,
+		volumeBackup: false,
+		dokployRestart: false,
+		dokployBackup: false,
+		dockerCleanup: false,
+		serverThreshold: false,
+		...o,
+	});
+	const destination = (
+		o: Partial<DokployDestination> & { destinationId: string },
+	): DokployDestination => ({
+		name: o.destinationId,
+		provider: "Cloudflare",
+		accessKey: "AKIAFAKE",
+		secretAccessKey: "fake-s3-secret",
+		bucket: "backups",
+		region: "auto",
+		endpoint: "https://acc.r2.cloudflarestorage.com",
+		additionalFlags: null,
+		...o,
+	});
+	const byId = (org: OrgItem[], id: string) =>
+		org.find((o) => o.sourceId === id);
+
+	test("registries keep their host and namespace", () => {
+		const reg = (
+			registryId: string,
+			registryUrl: string,
+			imagePrefix = "",
+		) => ({
+			registryId,
+			registryName: registryId,
+			imagePrefix,
+			username: "Acme",
+			password: "fake-reg-secret",
+			registryUrl,
+		});
+		const { org } = buildInventory(
+			snapshot({
+				registries: [
+					reg("hub", ""),
+					reg("ghcr", "https://ghcr.io/", "acme"),
+					reg("own", "registry.example.com:5000"),
+				],
+			}),
+		);
+		expect(org.map((o) => [o.status, o.draft?.input])).toEqual([
+			[
+				"full",
+				{
+					kind: "dockerhub",
+					url: "docker.io/acme",
+					username: "Acme",
+					password: "fake-reg-secret",
+				},
+			],
+			[
+				"full",
+				{
+					kind: "ghcr",
+					url: "ghcr.io/acme",
+					username: "Acme",
+					password: "fake-reg-secret",
+				},
+			],
+			[
+				"full",
+				{
+					kind: "generic",
+					url: "registry.example.com:5000",
+					username: "Acme",
+					password: "fake-reg-secret",
+				},
+			],
+		]);
+	});
+
+	test("S3 destinations: an endpoint gains its scheme, rclone flags are reported", () => {
+		const { org } = buildInventory(
+			snapshot({
+				destinations: [
+					destination({
+						destinationId: "aws",
+						provider: "AWS",
+						endpoint: "s3.eu-west-1.amazonaws.com",
+						region: "eu-west-1",
+						additionalFlags: ["--s3-acl=private"],
+					}),
+					destination({ destinationId: "bad", bucket: "Not_A_Bucket" }),
+				],
+			}),
+		);
+		expect(byId(org, "aws")).toMatchObject({
+			status: "partial",
+			notes: ["rclone flags --s3-acl=private are not carried over"],
+			draft: {
+				kind: "s3Destination",
+				input: {
+					name: "aws",
+					endpoint: "https://s3.eu-west-1.amazonaws.com",
+					region: "eu-west-1",
+					bucket: "backups",
+					forcePathStyle: false,
+				},
+			},
+		});
+		expect(byId(org, "bad")?.status).toBe("unsupported");
+	});
+
+	test("notification channels map their settings and the events LogiStack has", () => {
+		const { org } = buildInventory(
+			snapshot({
+				notifications: [
+					notification({
+						notificationId: "slack",
+						notificationType: "slack",
+						appDeploy: true,
+						appBuildError: true,
+						databaseBackup: true,
+						dockerCleanup: true,
+					}),
+					notification({
+						notificationId: "mail",
+						notificationType: "email",
+						serverThreshold: true,
+					}),
+					notification({
+						notificationId: "hook",
+						notificationType: "custom",
+						appDeploy: true,
+					}),
+				],
+				notificationTargets: [
+					target({
+						type: "slack",
+						targetId: "slack",
+						webhookUrl: "https://hooks.slack.com/services/fake",
+					}),
+					target({
+						type: "email",
+						targetId: "mail",
+						smtpServer: "smtp.example.com",
+						smtpPort: 465,
+						username: "ops",
+						password: "fake-smtp-secret",
+						fromAddress: "ops@example.com",
+						toAddress: ["team@example.com"],
+					}),
+					target({
+						type: "custom",
+						targetId: "hook",
+						endpoint: "https://example.com/hook",
+					}),
+				],
+			}),
+		);
+		expect(byId(org, "slack")).toMatchObject({
+			status: "partial",
+			notes: ["LogiStack sends no event for Docker cleanup"],
+			draft: {
+				input: {
+					kind: "slack",
+					config: { webhookUrl: "https://hooks.slack.com/services/fake" },
+				},
+				events: [
+					"deployment.succeeded",
+					"deployment.failed",
+					"backup.succeeded",
+					"backup.failed",
+				],
+			},
+		});
+		expect(byId(org, "mail")).toMatchObject({
+			status: "full",
+			draft: {
+				input: {
+					kind: "email",
+					config: {
+						transport: "smtp",
+						host: "smtp.example.com",
+						port: 465,
+						secure: true,
+						to: ["team@example.com"],
+					},
+				},
+				events: ["metric.threshold"],
+			},
+		});
+		expect(byId(org, "hook")?.status).toBe("unsupported");
+	});
+
+	test("SSH keys need their private half", () => {
+		const { org } = buildInventory(
+			snapshot({
+				sshKeys: [
+					{ sshKeyId: "k1", name: "deploy", privateKey: "fake-ssh-private" },
+					{ sshKeyId: "k2", name: "public only", privateKey: "" },
+				],
+			}),
+		);
+		expect(org.map((o) => o.status)).toEqual(["full", "unsupported"]);
+	});
+
+	test("a GitHub App carries over; OAuth providers must be reconnected", () => {
+		const s = snapshot({
+			...github,
+			gitProviders: [
+				...(github.gitProviders ?? []),
+				{
+					type: "gitlab",
+					id: "gl1",
+					gitProviderId: "gp2",
+					githubAppId: null,
+					githubInstallationId: null,
+					githubPrivateKey: null,
+					githubWebhookSecret: null,
+					url: "https://gitlab.com",
+				},
+			],
+			gitProviderNames: [
+				...(github.gitProviderNames ?? []),
+				{ gitProviderId: "gp2", name: "Acme GitLab" },
+			],
+			applications: [
+				app({
+					applicationId: "web",
+					sourceType: "gitlab",
+					buildType: "dockerfile",
+					gitlabPathNamespace: "acme/web",
+					gitlabBranch: "main",
+					gitlabId: "gl1",
+				}),
+			],
+		});
+		const { items, org } = buildInventory(s);
+		expect(byId(org, "gh1")).toMatchObject({
+			name: "Acme GitHub",
+			status: "full",
+			draft: {
+				input: {
+					kind: "github",
+					config: { appId: "123", installationId: "456" },
+				},
+			},
+		});
+		expect(byId(org, "gl1")?.status).toBe("unsupported");
+		expect(items[0]?.notes).toEqual([
+			"git provider Acme GitLab must be reconnected in LogiStack",
+		]);
+	});
+
+	test("database backups follow their destination", () => {
+		const backup = (
+			backupId: string,
+			destinationId: string,
+			o: Partial<DokployBackup> = {},
+		): DokployBackup => ({
+			backupId,
+			schedule: "0 3 * * *",
+			enabled: true,
+			database: "shop",
+			prefix: "/",
+			destinationId,
+			keepLatestCount: null,
+			backupType: "database",
+			ownerId: "pg",
+			...o,
+		});
+		const s = snapshot({
+			databases: [
+				db({ id: "pg", engine: "postgres", dockerImage: "postgres:16" }),
+			],
+			composes: [
+				compose({
+					composeId: "c",
+					composeFile: "services:\n  db: { image: x }\n",
+				}),
+			],
+			mounts: [
+				{
+					mountId: "m",
+					type: "volume",
+					hostPath: null,
+					volumeName: "pg-def456-data",
+					filePath: null,
+					content: null,
+					mountPath: "/var/lib/postgresql/data",
+					ownerId: "pg",
+				},
+			],
+			destinations: [
+				destination({ destinationId: "r2", name: "R2" }),
+				destination({ destinationId: "bad", name: "Bad", bucket: "X" }),
+			],
+			backups: [
+				backup("b1", "r2", { keepLatestCount: 5, enabled: false }),
+				backup("b2", "r2"),
+				backup("b3", "bad"),
+				backup("b4", "r2", { schedule: "@daily" }),
+				backup("b5", "r2", { ownerId: "c", backupType: "compose" }),
+			],
+		});
+		const [pg, c] = buildInventory(s).items;
+		expect(pg?.services[0]?.backups).toEqual([
+			{
+				destination: "r2",
+				cron: "0 3 * * *",
+				retention: { count: 5 },
+				enabled: false,
+			},
+			{ destination: "r2", cron: "0 3 * * *", retention: {}, enabled: true },
+		]);
+		expect(pg?.notes).toEqual([
+			'backup schedule "@daily" is not a 5-field cron, skipped',
+			"backup to Bad is not carried over",
+		]);
+		expect(c?.notes).toEqual([
+			"1 backup schedule(s) of databases inside the compose file are not carried over",
+		]);
+	});
 });

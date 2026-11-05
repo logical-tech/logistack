@@ -37,6 +37,15 @@ describe.skipIf(!hasDocker)("reading a Dokploy database", () => {
 			values ('m1', 'volume', 'shop-db-def456-data', '/var/lib/postgresql/data', 'pg1')`;
 		await sql`insert into port ("applicationId", "publishedPort", "targetPort", protocol, "publishMode")
 			values ('a1', 8080, 80, 'tcp', 'ingress')`;
+		await sql`insert into notification ("notificationId", name, "notificationType", "appDeploy", "appBuildError", "databaseBackup", "volumeBackup", "dokployRestart", "dokployBackup", "dockerCleanup", "serverThreshold", "emailId")
+			values ('n1', 'Ops', 'email', true, false, false, false, false, false, false, false, 'em1')`;
+		await sql`insert into email ("emailId", "smtpServer", "smtpPort", username, password, "fromAddress", "toAddress")
+			values ('em1', 'smtp.example.com', 587, 'ops', 'fake-smtp-secret', 'ops@example.com', '{team@example.com}')`;
+		await sql`insert into backup ("backupId", schedule, enabled, database, prefix, "destinationId", "keepLatestCount", "backupType", "postgresId")
+			values ('b1', '0 3 * * *', true, 'shop', '/', 'd1', 7, 'database', 'pg1')`;
+		await sql`insert into git_provider ("gitProviderId", name) values ('gp1', 'Acme')`;
+		await sql`insert into github ("githubId", "gitProviderId", "githubAppId", "githubInstallationId", "githubUrl")
+			values ('gh1', 'gp1', 123, '456', 'https://github.com')`;
 		await sql.close();
 
 		const s = await readDokploy(url);
@@ -71,6 +80,30 @@ describe.skipIf(!hasDocker)("reading a Dokploy database", () => {
 				protocol: "tcp",
 				publishMode: "ingress",
 			},
+		]);
+		expect(s.notifications).toEqual([
+			expect.objectContaining({ notificationId: "n1", targetId: "em1" }),
+		]);
+		expect(s.notificationTargets).toEqual([
+			expect.objectContaining({
+				type: "email",
+				targetId: "em1",
+				smtpPort: 587,
+				toAddress: ["team@example.com"],
+				webhookUrl: null,
+			}),
+		]);
+		expect(s.backups).toEqual([
+			expect.objectContaining({ backupId: "b1", ownerId: "pg1" }),
+		]);
+		expect(s.gitProviders).toEqual([
+			expect.objectContaining({
+				type: "github",
+				id: "gh1",
+				gitProviderId: "gp1",
+				githubAppId: 123,
+				url: "https://github.com",
+			}),
 		]);
 	});
 
