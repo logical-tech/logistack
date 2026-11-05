@@ -18,7 +18,8 @@ import { eq } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
 import {
-	deploymentContext,
+	compileInput,
+	type DeploymentRef,
 	envNetworkName,
 	type ServiceContext,
 } from "./load.ts";
@@ -184,18 +185,12 @@ export async function inspectService(
 	}
 }
 
-/** Compiles the desired spec, creating the networks, configs and secrets it references. */
-export async function desiredSpec(
+/** The compiler input of a deployment, creating the networks, configs and secrets it references. */
+export async function desiredInput(
 	ctx: Ctx,
 	sc: ServiceContext,
-	deployment: {
-		id: string;
-		imageRef: string | null;
-		commitSha: string | null;
-		commitMessage: string | null;
-		gitRef: string | null;
-	},
-): Promise<ServiceSpec> {
+	deployment: DeploymentRef,
+): Promise<CompileServiceInput> {
 	const envNet = await ensureEnvNetwork(
 		ctx,
 		sc.organizationId,
@@ -214,37 +209,27 @@ export async function desiredSpec(
 					throw e;
 				})
 			: undefined;
-	const input: CompileServiceInput = {
-		service: {
-			id: sc.service.id,
-			organizationId: sc.organizationId,
-			environmentId: sc.service.environmentId,
-			slug: sc.service.slug,
-			desiredState: sc.service.desiredState,
-			spec: sc.service.spec,
-		},
-		deploymentId: deployment.id,
-		...(deployment.imageRef ? { image: deployment.imageRef } : {}),
-		env: Object.fromEntries(
-			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
-		),
-		context: deploymentContext(sc, deployment),
-		mounts: sc.mounts,
-		domains: sc.domains,
+	const pin = await resolvePin(ctx, sc);
+	const input = compileInput(sc, deployment, {
 		networks: {
 			environment: envNet,
 			ingress: ingress.Id,
 			...(storage ? { storage: storage.Id } : {}),
 			...(db ? { db: db.Id } : {}),
 		},
-		fileIds: {},
+		...(pin ? { pinNodeId: pin } : {}),
 		scope: scope(ctx),
-	};
-	const pin = await resolvePin(ctx, sc);
-	if (pin) input.pinNodeId = pin;
+	});
 	input.fileIds = await ensureFiles(ctx, input);
-	return compileService(input);
+	return input;
 }
+
+export const desiredSpec = async (
+	ctx: Ctx,
+	sc: ServiceContext,
+	deployment: DeploymentRef,
+): Promise<ServiceSpec> =>
+	compileService(await desiredInput(ctx, sc, deployment));
 
 export type Applied = { created: boolean; before: Service | undefined };
 

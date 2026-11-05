@@ -5,6 +5,7 @@ import type {
 } from "@logistack/contracts";
 import {
 	type CompileMount,
+	type CompileServiceInput,
 	type DeploymentContext,
 	decrypt,
 	dockerName,
@@ -79,7 +80,7 @@ export type GitAuth =
  * configured token otherwise, or the deploy key of a generic SSH remote.
  */
 async function gitAuth(
-	ctx: Ctx,
+	ctx: LoadCtx,
 	gp: typeof gitProvider.$inferSelect,
 	repository: string,
 ): Promise<GitAuth> {
@@ -117,9 +118,13 @@ async function gitAuth(
 	};
 }
 
+type LoadCtx = Pick<Ctx, "db" | "masterKey">;
+
+/** `gitAuth: false` skips minting clone credentials, for callers that only compile. */
 export async function loadService(
-	ctx: Ctx,
+	ctx: LoadCtx,
 	serviceId: string,
+	{ gitAuth: withGit = true } = {},
 ): Promise<ServiceContext | null> {
 	const [row] = await ctx.db
 		.select({
@@ -206,6 +211,7 @@ export async function loadService(
 	let git: GitAuth | undefined;
 	const spec = svc.spec;
 	if (
+		withGit &&
 		spec.kind === "application" &&
 		spec.source.type === "git" &&
 		spec.source.gitProviderId
@@ -282,5 +288,41 @@ export function deploymentContext(
 		project: sc.projectName,
 		service: sc.service.name,
 		domains: sc.domains,
+	};
+}
+
+export type DeploymentRef = {
+	id: string;
+	imageRef: string | null;
+	commitSha: string | null;
+	commitMessage: string | null;
+	gitRef: string | null;
+};
+
+/** Pure: the compiler input for a deployment of this service; `refs` are the Docker objects it lands on. */
+export function compileInput(
+	sc: ServiceContext,
+	deployment: DeploymentRef,
+	refs: Pick<CompileServiceInput, "networks" | "pinNodeId" | "scope">,
+): CompileServiceInput {
+	return {
+		service: {
+			id: sc.service.id,
+			organizationId: sc.organizationId,
+			environmentId: sc.service.environmentId,
+			slug: sc.service.slug,
+			desiredState: sc.service.desiredState,
+			spec: sc.service.spec,
+		},
+		deploymentId: deployment.id,
+		...(deployment.imageRef ? { image: deployment.imageRef } : {}),
+		env: Object.fromEntries(
+			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
+		),
+		context: deploymentContext(sc, deployment),
+		mounts: sc.mounts,
+		domains: sc.domains,
+		...refs,
+		fileIds: {},
 	};
 }

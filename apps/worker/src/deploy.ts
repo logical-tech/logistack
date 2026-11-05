@@ -6,15 +6,18 @@ import {
 	type EventType,
 } from "@logistack/contracts";
 import {
+	compileService,
 	type DeploymentEvent,
 	deploymentContextEnv,
+	encrypt,
 	isTerminal,
+	specSnapshot,
 	transition,
 } from "@logistack/core";
 import { deployment } from "@logistack/db";
 import { and, asc, eq, inArray, not } from "drizzle-orm";
 import {
-	desiredSpec,
+	desiredInput,
 	inspectService,
 	type RolloutResult,
 	upsertService,
@@ -366,10 +369,21 @@ async function runDeployment(
 					error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
 					rolledBack: true,
 				};
+			const input = await desiredInput(ctx, sc, target);
+			const snapshot = specSnapshot(input, sc.env);
+			await ctx.db
+				.update(deployment)
+				.set({
+					specSnapshotEncrypted: await encrypt(
+						ctx.masterKey,
+						JSON.stringify(snapshot),
+					),
+				})
+				.where(eq(deployment.id, d.id));
 			const applied = await upsertService(
 				ctx,
 				sc.registry?.auth,
-				await desiredSpec(ctx, sc, target),
+				compileService(input),
 			);
 			const result = await waitForRollout(ctx, name, applied, {
 				timeoutMs,
