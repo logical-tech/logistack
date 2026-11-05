@@ -214,7 +214,8 @@ export const mockMigrations: MigrationsApi = {
 				removed: [],
 				kept: [],
 			},
-			decommissionBlocker: "traffic still goes through Dokploy's Traefik",
+			decommissionBlocker: "traffic still goes through Dokploy's proxy",
+			frozenAt: null,
 		};
 		return delay(migration, 1200);
 	},

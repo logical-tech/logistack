@@ -10,14 +10,25 @@
 #                                              through POST /api/instance/update (ls-test-rel-dind)
 #   SMOKE_PUBLIC_SETUP=1 bash install/smoke.sh installs --public-setup: setup through Caddy, with the
 #                                              one-time token (ls-test-pubsetup-dind)
-#   SMOKE_DOKPLOY=1 bash install/smoke.sh      installs next to a fake Dokploy and Coolify: detection,
-#                                              ingress off, the api reads Dokploy (ls-test-mig5-dind)
+#   SMOKE_DOKPLOY=1 bash install/smoke.sh      installs next to a fake Dokploy (and a stopped Coolify's
+#                                              /data/coolify): detection, ingress off, the api reads
+#                                              Dokploy (ls-test-mig5-dind)
+#   SMOKE_COOLIFY=1 bash install/smoke.sh      installs next to a fake Coolify on Coolify's own Docker
+#                                              address pool: Swarm on a clear pool, the bridge, the
+#                                              api reads Coolify (ls-test-cool4-dind)
 set -euo pipefail
 
 UPDATE=${SMOKE_UPDATE:-0}
 PUBLIC_SETUP=${SMOKE_PUBLIC_SETUP:-0}
 DOKPLOY=${SMOKE_DOKPLOY:-0}
-if [ "$DOKPLOY" = 1 ]; then
+COOLIFY=${SMOKE_COOLIFY:-0}
+DIND_ARGS=()
+if [ "$COOLIFY" = 1 ]; then
+	NAME=${SMOKE_NAME:-ls-test-cool4-dind} LABEL=${SMOKE_LABEL:-cool4}
+	# What Coolify's installer writes into daemon.json; the comma is dockerd's syntax.
+	# shellcheck disable=SC2054
+	DIND_ARGS=(--default-address-pool base=10.0.0.0/8,size=24)
+elif [ "$DOKPLOY" = 1 ]; then
 	NAME=${SMOKE_NAME:-ls-test-mig5-dind} LABEL=${SMOKE_LABEL:-mig5}
 elif [ "$UPDATE" = 1 ]; then
 	NAME=${SMOKE_NAME:-ls-test-rel-dind} LABEL=${SMOKE_LABEL:-rel}
@@ -31,13 +42,13 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 if [ "${1:-}" != --inside ]; then
 	docker rm -f -v "$NAME" >/dev/null 2>&1 || true
-	docker run -d --privileged --name "$NAME" --label "logistack.test=$LABEL" -v "$ROOT:/src:ro" "$DIND_IMAGE" >/dev/null
+	docker run -d --privileged --name "$NAME" --label "logistack.test=$LABEL" -v "$ROOT:/src:ro" "$DIND_IMAGE" "${DIND_ARGS[@]}" >/dev/null
 	for _ in $(seq 1 60); do docker exec "$NAME" docker info >/dev/null 2>&1 && break; sleep 1; done
 	docker exec "$NAME" apk add --no-cache -q bash curl jq
 	rc=0
 	# The updater takes images from localhost/: the same path the UI uses, with a local image source.
 	docker exec -e LOGISTACK_WAIT_TIMEOUT="${LOGISTACK_WAIT_TIMEOUT:-600}" -e SMOKE_NO_INGRESS="${SMOKE_NO_INGRESS:-0}" \
-		-e SMOKE_UPDATE="$UPDATE" -e SMOKE_PUBLIC_SETUP="$PUBLIC_SETUP" -e SMOKE_DOKPLOY="$DOKPLOY" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
+		-e SMOKE_UPDATE="$UPDATE" -e SMOKE_PUBLIC_SETUP="$PUBLIC_SETUP" -e SMOKE_DOKPLOY="$DOKPLOY" -e SMOKE_COOLIFY="$COOLIFY" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
 	[ "${KEEP:-0}" = 1 ] || docker rm -f -v "$NAME" >/dev/null
 	exit "$rc"
 fi
@@ -94,7 +105,7 @@ ip=$(hostname -i | awk '{ print $1 }')
 # A stand-in for Dokploy, shaped as Dokploy's own install leaves it: Swarm services `dokploy`
 # (publishing 3000) and `dokploy-postgres` (password in a Swarm secret) on dokploy-network,
 # Traefik holding 80/443, /etc/dokploy. The database carries the columns the reader needs and
-# one project. Plus a `coolify` container, which must only be reported.
+# one project. Plus /data/coolify with no Coolify running, which must only be noted.
 if [ "$DOKPLOY" = 1 ]; then
 	pw="p@ss:w/rd%$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
 	docker swarm init --advertise-addr "$ip" >/dev/null
@@ -107,20 +118,19 @@ if [ "$DOKPLOY" = 1 ]; then
 	docker service create -d -q --name dokploy --network dokploy-network --publish published=3000,target=3000 \
 		alpine:3.22 sleep infinity >/dev/null
 	docker run -d -q --name dokploy-traefik -p 80:80 -p 443:443 alpine:3.22 sleep infinity >/dev/null
-	docker run -d -q --name coolify alpine:3.22 sleep infinity >/dev/null
-	mkdir -p /etc/dokploy/compose
+	mkdir -p /etc/dokploy/compose /data/coolify
 	for _ in $(seq 1 90); do
 		pg=$(docker ps -q --filter label=com.docker.swarm.service.name=dokploy-postgres | head -n1)
 		[ -n "$pg" ] && docker exec "$pg" pg_isready -U dokploy -d dokploy >/dev/null 2>&1 && break
 		sleep 2
 	done
 	sleep 3 # the image's init restarts the server once after pg_isready first answers
-	pass "fake Dokploy: dokploy, dokploy-postgres (secret), dokploy-traefik on 80/443, coolify"
+	pass "fake Dokploy: dokploy, dokploy-postgres (secret), dokploy-traefik on 80/443, /data/coolify"
 
 	install /tmp/install.out || die "install.sh next to Dokploy" "installer failed"
 	grep -E 'Coolify|Dokploy|dokploy|Ingress off|Ports 80|tunnel|migration' /tmp/install.out
-	grep -q 'Coolify migration is not supported yet' /tmp/install.out &&
-		pass "Coolify detected: reported as not supported, install carried on" || fail "Coolify detection" "no notice"
+	grep -q '/data/coolify exists but Coolify is not running' /tmp/install.out &&
+		pass "a stopped Coolify's /data/coolify: noted, Dokploy detection carried on" || fail "Coolify detection" "no notice"
 	grep -q 'Dokploy found' /tmp/install.out && grep -q "Ports 80 and 443 left to Dokploy's Traefik" /tmp/install.out &&
 		grep -q 'password from secret dokploy_postgres_password' /tmp/install.out &&
 		pass "Dokploy detected: plan explained, 80/443 left to Traefik, password from its secret" ||
@@ -168,6 +178,82 @@ console.log(snapshot.projects.map((p) => p.name).join(","));'
 	dokploy=$(docker service ls --filter name=dokploy --format '{{.Name}} {{.Replicas}}' | sort | tr '\n' ' ')
 	[ "$traefik" = true ] && [ "$dokploy" = "dokploy 1/1 dokploy-postgres 1/1 " ] &&
 		pass "Dokploy untouched: traefik running, $dokploy" || fail "Dokploy untouched" "traefik $traefik, $dokploy"
+	exit "$FAILED"
+fi
+# A stand-in for Coolify, shaped as Coolify's own install leaves it: plain containers `coolify`,
+# `coolify-db` (Postgres, password in /data/coolify/source/.env) and `coolify-proxy` holding 80/443,
+# on the local bridge `coolify` that Coolify's address pool (10.0.0.0/8 in /24s) numbers. No Swarm.
+if [ "$COOLIFY" = 1 ]; then
+	pw="p@ss:w/rd%$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+	key="base64:$(head -c 32 /dev/urandom | base64)"
+	mkdir -p /data/coolify/source
+	printf 'APP_ID=x\nAPP_KEY=%s\nDB_USERNAME=coolify\nDB_PASSWORD=%s\nREDIS_PASSWORD=r\n' "$key" "$pw" >/data/coolify/source/.env
+	chmod 600 /data/coolify/source/.env
+	docker network create --attachable coolify >/dev/null
+	docker run -d -q --name coolify-db --network coolify -e POSTGRES_USER=coolify -e POSTGRES_DB=coolify \
+		-e POSTGRES_PASSWORD="$pw" postgres:15-alpine >/dev/null
+	docker run -d -q --name coolify --network coolify --restart always alpine:3.22 sleep infinity >/dev/null
+	docker run -d -q --name coolify-proxy --network coolify -p 80:80 -p 443:443 alpine:3.22 sleep infinity >/dev/null
+	for _ in $(seq 1 90); do
+		docker exec coolify-db pg_isready -U coolify -d coolify >/dev/null 2>&1 && break
+		sleep 2
+	done
+	sleep 3
+	bridge_subnet=$(docker network inspect coolify -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+	pass "fake Coolify: coolify, coolify-db, coolify-proxy on 80/443, network coolify $bridge_subnet"
+
+	install /tmp/install.out || die "install.sh next to Coolify" "installer failed"
+	grep -E 'Coolify|coolify|Swarm|Ingress off|Ports 80|tunnel|migration' /tmp/install.out
+	grep -q 'Coolify found' /tmp/install.out && grep -q "Ports 80 and 443 left to Coolify's proxy" /tmp/install.out &&
+		pass "Coolify detected: plan explained, 80/443 left to its proxy" || fail "Coolify detection" "see /tmp/install.out"
+	[ "$(cat /etc/logistack/migration)" = migration_source=coolify ] &&
+		pass "/etc/logistack/migration: migration_source=coolify" || fail "migration_source" "$(cat /etc/logistack/migration 2>&1)"
+	ingress=$(docker network inspect ingress -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+	overlay=$(docker network inspect ls-coolify-bridge -f '{{.Driver}} {{.Attachable}} {{range .IPAM.Config}}{{.Subnet}}{{end}}')
+	[[ $ingress == 10.248.* ]] && [[ $overlay == "overlay true 10.248."* ]] && [[ $bridge_subnet == 10.0.* ]] &&
+		pass "Swarm on 10.248.0.0/16: ingress $ingress, bridge ${overlay##* }, clear of coolify $bridge_subnet" ||
+		fail "Swarm address pool" "ingress $ingress, bridge $overlay, coolify $bridge_subnet"
+	nets=$(docker inspect coolify-db -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}')
+	[ "$nets" = "coolify ls-coolify-bridge " ] && pass "coolify-db on coolify and ls-coolify-bridge" || fail "coolify-db networks" "$nets"
+	caddy=$(docker service ls --filter name=logistack_caddy --format '{{.Replicas}}')
+	tunnel=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health || true)
+	[ "$caddy" = 0/0 ] && [ "$tunnel" = 200 ] &&
+		pass "ingress off: Caddy 0/0, API through the tunnel on 127.0.0.1:3000" || fail "ingress off next to Coolify" "caddy $caddy, tunnel $tunnel"
+	leaks=$(grep -lF -e "$pw" -e "$key" /tmp/install.out /var/log/logistack-install.log /etc/logistack/* 2>/dev/null || true)
+	leaks+=$(docker service inspect logistack_logistack-api | grep -cF -e "$pw" -e "$key" || true)
+	[ "$leaks" = 0 ] && pass "Coolify's password and APP_KEY are in no output, log, config file or api service spec" ||
+		fail "secret leak" "found in: $leaks"
+
+	# Coolify's real schema comes from its own image (COOL-8); the reader's columns are enough here.
+	url="postgres://coolify:$(jq -rn --arg p "$pw" '$p | @uri')@coolify-db:5432/coolify"
+	docker run --rm --network ls-coolify-bridge -e URL="$url" --entrypoint bun localhost/logistack:build -e '
+		const { minimalCoolifySchema } = await import("/app/apps/server/test/coolify-schema.ts");
+		await minimalCoolifySchema(process.env.URL);
+		const sql = new Bun.SQL(process.env.URL, { max: 1 });
+		await sql`insert into teams (id, name) values (0, ${"Root Team"})`;
+		await sql`insert into projects (id, uuid, name, team_id) values (1, ${"p1"}, ${"Fake Coolify project"}, 0)`;
+		await sql.close();' >/tmp/seed 2>&1 || die "seed fake Coolify schema" "$(tail -n 3 /tmp/seed)"
+	read_coolify='const { loadConfig } = await import("/app/apps/server/src/config.ts");
+const { coolifySource } = await import("/app/apps/server/src/migration/coolify/source.ts");
+const { readCoolify } = await import("/app/apps/server/src/migration/coolify/read.ts");
+const source = coolifySource(loadConfig());
+if (!source) throw new Error("no Coolify source in the api config");
+const snapshot = await readCoolify(source.url, { appKey: source.appKey });
+console.log(snapshot.projects.map((p) => p.name).join(","));'
+	api=$(container_of logistack-api)
+	projects=$(docker exec "$api" /app/install/entrypoint.sh bun -e "$read_coolify" 2>&1 | tail -n1)
+	[ "$projects" = "Fake Coolify project" ] &&
+		pass "api: readCoolify(coolifySource(config)) over ls-coolify-bridge lists 'Fake Coolify project'" ||
+		fail "api reads Coolify" "projects '$projects'"
+
+	before=$(task_ids)
+	install /tmp/reinstall.out || die "install.sh re-run next to Coolify" "installer failed"
+	[ "$before" = "$(task_ids)" ] && pass "install.sh re-run next to Coolify: restarts no task" ||
+		fail "re-run next to Coolify" "tasks changed: $(docker stack ps logistack --format '{{.Name}} {{.DesiredState}} {{.CurrentState}} {{.Error}}' | head -n 20 | tr '\n' ';')"
+	running=$(docker ps --format '{{.Names}}' --filter name=coolify | sort | tr '\n' ' ')
+	policy=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' coolify)
+	[ "$running" = "coolify coolify-db coolify-proxy " ] && [ "$policy" = always ] &&
+		pass "Coolify untouched: $running running, coolify restart policy $policy" || fail "Coolify untouched" "$running $policy"
 	exit "$FAILED"
 fi
 if [ "${SMOKE_NO_INGRESS:-0}" = 1 ]; then

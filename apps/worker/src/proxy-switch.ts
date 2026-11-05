@@ -26,6 +26,7 @@ import { firstTarFile } from "@logistack/docker";
 import { and, eq, inArray } from "drizzle-orm";
 import { planAcmeImport, storeInCaddy } from "./acme-import.ts";
 import { log } from "./bus.ts";
+import { freeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { scale, unlessAlready, waitStopped } from "./migration.ts";
 import { sourceSettings } from "./migration-source.ts";
@@ -263,6 +264,9 @@ export async function switchProxy(
 	);
 	await save(ctx, migrationId, state);
 
+	// Coolify's scheduler restarts a stopped proxy; it stays frozen from here (normally since the
+	// first cutover already).
+	if (mig.source === "coolify") await freeze(ctx, migrationId);
 	await stopTraefik(ctx, state.traefik);
 	await labelNodes(ctx, state.nodes, "true");
 	const deadline = Date.now() + ctx.cfg.LS_PROXY_SWITCH_TIMEOUT_MS;

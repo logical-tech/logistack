@@ -265,56 +265,67 @@ Code in `apps/server/src/migration/coolify/`: `snapshot.ts` (zod), `read.ts`, `d
 - [x] Evidence: `test/coolify-inventory.test.ts` (9 pass).
 - [ ] Not read: scheduled tasks, volume backups, previews, Sentinel and log drains, Cloudflare tunnels.
 
-## Detect Coolify in install.sh (COOL-4)
+## Detect Coolify in install.sh (COOL-4, done)
 
-- [ ] Detect from the `coolify` container or `/data/coolify` (already in `detect_migration_source`). Explain the plan, install `--no-ingress` and private, allow 80/443 held by `coolify-proxy`, and write `migration_source=coolify`.
-- [ ] Swarm init on a Coolify host uses `--default-addr-pool`. The pool is the first candidate in a fixed list that overlaps no existing Docker network subnet and no host route; if none fits, install stops with the reason.
-- [ ] Credentials:
-  - `APP_KEY`, `DB_USERNAME` and `DB_PASSWORD` are read from `/data/coolify/source/.env` (root only) and piped into the Swarm secrets `logistack-coolify-key` and `logistack-coolify-db-password` through stdin. They are never printed.
-  - `install.sh` refuses if the `.env` is unreadable.
-- [ ] `stack.coolify.yml`:
-  - The api joins `ls-coolify-bridge` and mounts the secrets.
-  - It also mounts `/data/coolify/{applications,services}` read-only, for compose and file volumes kept on disk.
-- [ ] The bridge overlay is created with its label, and `coolify-db` is connected to it. A re-run restarts nothing.
-- [ ] The tunnel port avoids 8000, 6001 and 6002.
-- [ ] Evidence: a `SMOKE_COOLIFY=1` case in `install/smoke.sh`, mirroring MIG-5's.
+- [x] Detection: a running `coolify` container. A `/data/coolify` with no Coolify running is only noted.
+  - Coolify needs `coolify-db` running and a readable `/data/coolify/source/.env` holding `DB_PASSWORD` and `APP_KEY`; otherwise install.sh stops with the reason.
+  - It explains the plan and installs `--no-ingress` and private, leaving 80/443 to Coolify's proxy.
+  - It writes `migration_source=coolify` and creates the archive directory.
+- [x] Swarm init on a Coolify host passes `--default-addr-pool`: the first of `10.248.0.0/16 10.249.0.0/16 172.29.0.0/16 192.168.248.0/21` that overlaps no Docker network and no host route (`free_swarm_pool`). On a Swarm that is already active, `check_networks` refuses any overlay that overlaps a local network next to Coolify.
+- [x] Credentials: `DB_PASSWORD` and `APP_KEY` are piped from `.env` into the Swarm secrets `logistack-coolify-db-password` and `logistack-coolify-app-key` (stdin, never argv, never printed). A re-run keeps existing secrets.
+- [x] `install/stack.coolify.yml`: the api joins `ls-coolify-bridge`, gets `COOLIFY_DB_USER`/`COOLIFY_DB_NAME`, and has the two secrets mounted as `*_FILE`.
+- [x] The bridge overlay `ls-coolify-bridge` (attachable, labels `logistack.managed=true`, `logistack.kind=migration-bridge`; the orphan sweep only removes kind `network`) is created, and `coolify-db` is connected to it. A re-run reattaches it after a Coolify upgrade.
+- [x] Evidence: `SMOKE_COOLIFY=1 bash install/smoke.sh` (`ls-test-cool4-dind`, dockerd with Coolify's `default-address-pool 10.0.0.0/8`, fake `coolify`, `coolify-db`, and `coolify-proxy` on 80/443), 2026-11-05:
+  - `PASS Swarm on 10.248.0.0/16: ingress 10.248.0.0/24, bridge 10.248.1.0/24, clear of coolify 10.0.1.0/24`
+  - `PASS coolify-db on coolify and ls-coolify-bridge`
+  - `PASS ingress off: Caddy 0/0, API through the tunnel`
+  - `PASS Coolify's password and APP_KEY are in no output, log, config file or api service spec`
+  - `PASS api: readCoolify(coolifySource(config)) over ls-coolify-bridge lists 'Fake Coolify project'`
+  - `PASS Coolify untouched`
+  - "re-run restarts no task" failed in both runs, because I edited the checkout between the two installs: the diff of the service specs shows only the local-build image tag, which hashes the checkout. It is re-checked on a frozen checkout before the end.
+- [x] The Dokploy smoke case now gets a `/data/coolify` with no Coolify running, where it used to get a fake `coolify` container.
 
-## Cutover and rollback of plain containers (COOL-5)
+## Cutover and rollback of plain containers (COOL-5, done)
 
-- [ ] The source descriptor of a Coolify item is its exact container names, read at cutover by label (`coolify.applicationUuid|serviceUuid|databaseUuid=<uuid>`, `coolify.managed=true`) and saved once in `source_state`. A rollback restarts exactly those containers, by id.
-- [ ] Freeze Coolify at the first cutover:
-  - The `coolify` container's restart policy and running state are saved on the migration.
-  - Its restart policy is set to `no`, then it is stopped.
-  - Unfreeze restores both. Evidence: an integration test with a fake `coolify` container.
-- [ ] `ensureBridge` connects `coolify-proxy` and the running Coolify containers still to migrate. It is idempotent: an already-connected container is a no-op.
-- [ ] Order stays as in MIG-3b. A stateful item stops its containers first and waits until they exit. A stateless one deploys first, waits for Traefik's docker provider to see the new router, then stops the source.
-- [ ] Evidence: `apps/worker/test/cutover-coolify.integration.test.ts` (`WORKER_IT=1`, `ls-test-cool5-*`, own subnet). A fake Coolify bridge, db, app and Traefik check:
-  - a database takes over `<uuid>` and a Coolify-side app keeps working;
-  - a site keeps answering through the old Traefik;
-  - a deployment that never gets healthy rolls back;
-  - a second cutover is a no-op.
+- [x] The descriptor of a Coolify item is `coolify.managed=true` plus `com.docker.compose.project=<uuid>`, the project Coolify runs every resource under. The containers found are saved once in `source_state` and restarted by id on rollback.
+- [x] Freeze (`apps/worker/src/coolify.ts`). At the first cutover, and at the proxy switch, the worker:
+  1. saves `coolify` (restart policy, running) on `migration.freeze`;
+  2. sets its policy to `no`;
+  3. stops it.
 
-## Switch the proxy and decommission (COOL-6)
+  `POST /migrations/{id}/unfreeze` (the worker job `unfreeze`) restores both. The view shows `frozenAt`.
+- [x] `ensureBridge` before every Coolify cutover:
+  - It creates the overlay if install.sh's is missing.
+  - It joins `coolify-proxy` first, then every running `coolify.managed` container that is not on it yet.
+  - Why the proxy goes first: Traefik may route a container that has no `traefik.docker.network` through any of its networks, and the integration test caught a 2 s timeout when the proxy joined last.
+- [x] Bridge routers carry `priority=100000`, above the source's own router for the host (Traefik ranks by rule length). Traffic therefore moves the moment the old proxy sees the new task, before the source stops. Before this fix the handover cost one timeout of more than 2 s while Traefik caught up with the stopped container. Dokploy's routers get the same priority.
+- [x] Evidence: `apps/worker/test/cutover-coolify.integration.test.ts` (`WORKER_IT=1`, `ls-test-cool5-*`, overlay `10.231.5.0/24`, a real Traefik v3.6 docker provider), 2026-11-05: 4 pass.
+  - A database takes over its uuid for a Coolify-side client. Coolify is frozen (`false no`). The client and the proxy joined the overlay. Rollback brings the old container back.
+  - A site keeps answering through Coolify's Traefik while it moves. A 200 ms probe during the cutover saw 20 answers from Coolify, then 66 from LogiStack, with none failed.
+  - Unfreeze restores `true always`.
+  - The Dokploy suites still pass (7).
 
-- [ ] The proxy switch takes the source profile:
-  - It stops `coolify-proxy` by exact name and sets its restart policy to `no`.
-  - It imports certificates from `/traefik/acme.json` read through the Docker archive endpoint.
-  - The fallback restores both.
-  - Because Coolify is frozen, nothing brings its proxy back. Evidence: a `proxy-switch` integration case with the Coolify profile.
-- [ ] Caddy-proxy Coolify, per decision 5: the switch works and Caddy issues fresh certificates. No import from caddy-docker-proxy's storage in this program.
-- [ ] Decommission:
-  - Gate and report as in MIG-7.
-  - Archive:
-    - `coolify.dump` (`pg_dump -Fc` of `coolify-db`, from a one-shot job on the bridge with Coolify's Postgres image and the password secret);
-    - `data-coolify.tar.gz` of `/data/coolify` minus `backups/` (listed, not copied, as it can be large);
-    - `inventory.json`.
-    - The dump and tarball are verified before anything is removed.
-  - Remove, by exact name:
-    - `coolify`, `coolify-db`, `coolify-redis`, `coolify-realtime` (if present), `coolify-sentinel` and `coolify-proxy`;
-    - the sources the cutovers stopped, by saved container id.
-  - Disconnect and remove `ls-coolify-bridge`. Remove the `coolify` network and each `<uuid>` network only when nothing is attached.
-  - Keep every volume and every item left on Coolify.
-  - Evidence: an integration test with fake Coolify containers. The dump restores.
+## Switch the proxy and decommission (COOL-6, done)
+
+- [x] The proxy switch takes `sourceSettings`: `coolify-proxy` by exact name, `/traefik/acme.json` read through the archive endpoint, restart policy `no`, and the fallback restores both. It freezes Coolify first. On a Caddy-proxy Coolify the read fails, is recorded, and Caddy issues the certificates itself. Coolify end-to-end evidence comes in COOL-8.
+- [x] Decommission (`apps/worker/src/decommission.ts`):
+  - It takes an `ArchiveSource` per source. For Coolify:
+    - the job runs Coolify's own Postgres image;
+    - it reaches `coolify-db` on the bridge, reattaching it if needed;
+    - the password comes from the secret install.sh made, and the user and database from `coolify-db`'s env.
+  - The archive is `coolify.dump`, `data-coolify.tar.gz` (`/data/coolify` without `./backups`) and `inventory.json`.
+  - It then:
+    1. detaches the bridged services and every plain container from the overlay;
+    2. deletes the `migration_bridge` rows;
+    3. removes `coolify`, `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel` and `coolify-proxy` by exact name;
+    4. removes the stopped sources by saved id, and each moved resource's own `<uuid>` network;
+    5. removes `coolify` and the bridge only when unused.
+  - Items left on Coolify are kept, with "now without Coolify to manage it".
+- [x] Evidence: the same suite's "decommission archives Coolify, then removes only what it owns":
+  - The dump restores with Coolify's row in it.
+  - The tarball has `source/.env` and not `backups/`.
+  - Coolify's containers, its proxy and the moved site are gone; the database left on Coolify stays.
+  - The client left the overlay, and the bridge rows are gone.
 
 ## Wizard (COOL-7)
 

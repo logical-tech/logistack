@@ -546,6 +546,9 @@ export function bridgeRouterLabels(
 				? "web"
 				: "http";
 		labels[`traefik.http.routers.${r}.service`] = r;
+		// Above the source's own router for the same host (Traefik ranks by rule length), so traffic
+		// moves the moment the old proxy sees this one, before the source stops: no gap at cutover.
+		labels[`traefik.http.routers.${r}.priority`] = "100000";
 		labels[`traefik.http.services.${r}.loadbalancer.server.port`] = String(
 			d.port,
 		);

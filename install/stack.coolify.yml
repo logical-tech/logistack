@@ -1,0 +1,31 @@
+# Merged over stack.yml by install.sh on a server running Coolify (COOL-4), so the migration wizard
+# can read Coolify: its Postgres (`coolify-db`, a plain container) over the ls-coolify-bridge
+# overlay install.sh creates and connects it to. The password and APP_KEY come from
+# /data/coolify/source/.env through Swarm secrets install.sh made; they are never in this file.
+version: "3.9"
+
+services:
+  logistack-api:
+    environment:
+      COOLIFY_DB_USER: ${LOGISTACK_COOLIFY_DB_USER:?set LOGISTACK_COOLIFY_DB_USER}
+      COOLIFY_DB_NAME: ${LOGISTACK_COOLIFY_DB_NAME:?set LOGISTACK_COOLIFY_DB_NAME}
+      COOLIFY_DB_PASSWORD_FILE: /run/secrets/coolify_db_password
+      COOLIFY_APP_KEY_FILE: /run/secrets/coolify_app_key
+    secrets:
+      - source: coolify-db-password
+        target: coolify_db_password
+      - source: coolify-app-key
+        target: coolify_app_key
+    networks: [ls-coolify-bridge]
+
+networks:
+  ls-coolify-bridge:
+    external: true
+
+secrets:
+  coolify-db-password:
+    external: true
+    name: logistack-coolify-db-password
+  coolify-app-key:
+    external: true
+    name: logistack-coolify-app-key

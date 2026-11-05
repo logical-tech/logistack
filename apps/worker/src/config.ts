@@ -64,6 +64,8 @@ const ConfigSchema = z.object({
 	 * moved from Coolify answer on it under their old names until Coolify is removed (COOL-1).
 	 */
 	LS_COOLIFY_NETWORK: z.string().default("ls-coolify-bridge"),
+	/** The label on every container Coolify manages; those still running join the bridge. */
+	LS_COOLIFY_MANAGED_LABEL: z.string().default("coolify.managed=true"),
 	/** Coolify's control plane, frozen during the migration so it cannot restart its proxy or redeploy. */
 	LS_COOLIFY_CONTROL: z.string().default("coolify"),
 	/** Coolify's database container, dumped by the decommission. */
@@ -74,6 +76,8 @@ const ConfigSchema = z.object({
 		.default(
 			"coolify,coolify-db,coolify-redis,coolify-realtime,coolify-sentinel",
 		),
+	/** Coolify's own Docker network (its destination); removed once nothing uses it. */
+	LS_COOLIFY_SOURCE_NETWORK: z.string().default("coolify"),
 	/** Coolify's data directory, archived as a tarball (without `backups/`). */
 	LS_COOLIFY_ROOT: z.string().default("/data/coolify"),
 	/** The Swarm secret install.sh made from Coolify's DB_PASSWORD. */

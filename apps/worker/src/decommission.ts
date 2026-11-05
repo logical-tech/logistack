@@ -1,17 +1,21 @@
 /**
- * Decommissions Dokploy once every item is on LogiStack or left there on purpose (MIG-7):
+ * Decommissions the source platform once every item is on LogiStack or left there on purpose
+ * (MIG-7, COOL-6):
  *
  * 1. Archives it under `LS_MIGRATION_ARCHIVE_DIR/<stamp>/`, in a one-shot Swarm job on this node
- *    that runs Dokploy's own Postgres image (so `pg_dump` matches the server) and reads the
- *    password the way `dokploy-postgres` does: its secret file, or its env on releases before
- *    0.26.6. It writes `dokploy.dump`, `etc-dokploy.tar.gz` and `inventory.json` and checks the
- *    dump and the tarball before anything is removed.
- * 2. Detaches the migrated services from `dokploy-network` (the MIG-3b bridge).
- * 3. Removes Dokploy's own services and Traefik, and the sources the cutovers stopped, by exact
- *    name or container id. Items staying on Dokploy and every volume are left alone.
- * 4. Removes `dokploy-network` if nothing uses it any more.
+ *    that runs the source's own Postgres image (so `pg_dump` matches the server) with its
+ *    password as a Swarm secret: Dokploy's own (or its env before 0.26.6), or the one install.sh
+ *    made from Coolify's `.env`. It writes the dump, a tarball of the source's directory
+ *    (`/etc/dokploy`, or `/data/coolify` without its local backups) and `inventory.json`, and
+ *    checks the dump and the tarball before anything is removed.
+ * 2. Detaches the migrated services from the bridge network, and Coolify's containers from
+ *    LogiStack's overlay.
+ * 3. Removes the source's own services or containers and its proxy, and the sources the cutovers
+ *    stopped, by exact name or container id. Items staying on the source and every volume are
+ *    left alone.
+ * 4. Removes the bridge network (and Coolify's own networks) if nothing uses it any more.
  *
- * A failure before step 2 leaves Dokploy exactly as it was.
+ * A failure before step 2 leaves the source exactly as it was.
  */
 
 import { decommissionBlocker } from "@logistack/core";
@@ -25,9 +29,11 @@ import { DockerError, managedLabels, type Service } from "@logistack/docker";
 import { and, eq } from "drizzle-orm";
 import { inspectService } from "./apply.ts";
 import { log } from "./bus.ts";
+import { bridgeNetwork, detachPlainContainers } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { scope } from "./ctx.ts";
 import { svcName } from "./load.ts";
+import { sourceSettings } from "./migration-source.ts";
 
 const ARCHIVE_TIMEOUT_MS = 30 * 60_000;
 
@@ -36,10 +42,11 @@ dir="/archive/$STAMP"
 mkdir -p "$dir"
 chmod 700 "$dir"
 if [ -n "\${PGPASSWORD_FILE:-}" ]; then PGPASSWORD="$(cat "$PGPASSWORD_FILE")"; export PGPASSWORD; fi
-pg_dump -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -Fc -f "$dir/dokploy.dump"
-pg_restore -l "$dir/dokploy.dump" >/dev/null
-tar -czf "$dir/etc-dokploy.tar.gz" -C /src .
-tar -tzf "$dir/etc-dokploy.tar.gz" >/dev/null
+pg_dump -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -Fc -f "$dir/$DUMP"
+pg_restore -l "$dir/$DUMP" >/dev/null
+if [ -n "\${TAR_EXCLUDE:-}" ]; then set -- "--exclude=$TAR_EXCLUDE"; else set --; fi
+tar -czf "$dir/$TARBALL" "$@" -C /src .
+tar -tzf "$dir/$TARBALL" >/dev/null
 cp /inventory.json "$dir/inventory.json"
 chmod 600 "$dir"/*
 echo archived`;
@@ -87,12 +94,23 @@ async function waitForJob(ctx: Ctx, name: string) {
 	}
 }
 
-/** Runs the archive job and returns the archive's path. */
-async function archive(
-	ctx: Ctx,
-	mig: typeof migration.$inferSelect,
-	inventory: unknown,
-): Promise<string> {
+/** What the archive job dumps and packs, per source. */
+type ArchiveSource = {
+	image: string;
+	host: string;
+	user: string;
+	database: string;
+	/** A Swarm secret holding the password, or (Dokploy before 0.26.6) the password itself. */
+	password:
+		| { secret: { SecretID: string; SecretName: string } }
+		| { value: string };
+	root: string;
+	exclude?: string;
+	networkId: string;
+	files: [dump: string, tarball: string];
+};
+
+async function dokployArchive(ctx: Ctx): Promise<ArchiveSource> {
 	const pg = await inspectService(ctx, ctx.cfg.LS_DOKPLOY_POSTGRES);
 	if (!pg)
 		throw new Error(
@@ -114,6 +132,73 @@ async function archive(
 	if (!secret && !env.POSTGRES_PASSWORD)
 		throw new Error(`${ctx.cfg.LS_DOKPLOY_POSTGRES}: no password to dump with`);
 	const network = await ctx.docker.networks.inspect(ctx.cfg.LS_DOKPLOY_NETWORK);
+	return {
+		image: pg.Spec.TaskTemplate.ContainerSpec.Image,
+		host: ctx.cfg.LS_DOKPLOY_POSTGRES,
+		user,
+		database: env.POSTGRES_DB || user,
+		// shortcut: before 0.26.6 Dokploy keeps the password in its service env; it is copied into
+		// the job's env (never argv) for the minutes the job lives.
+		password: secret
+			? { secret: { SecretID: secret.SecretID, SecretName: secret.SecretName } }
+			: { value: env.POSTGRES_PASSWORD as string },
+		root: ctx.cfg.LS_DOKPLOY_ROOT,
+		networkId: network.Id,
+		files: ["dokploy.dump", "etc-dokploy.tar.gz"],
+	};
+}
+
+async function coolifyArchive(ctx: Ctx): Promise<ArchiveSource> {
+	const name = ctx.cfg.LS_COOLIFY_DB;
+	const db = await ctx.docker.containers.inspect(name).catch((e) => {
+		if (notFound(e)) return undefined;
+		throw e;
+	});
+	if (!db?.State.Running)
+		throw new Error(`${name} is not running: nothing to archive from`);
+	const env = Object.fromEntries(
+		(db.Config.Env ?? []).map((e) => [
+			e.slice(0, e.indexOf("=")),
+			e.slice(e.indexOf("=") + 1),
+		]),
+	);
+	const [secret] = (
+		await ctx.docker.secrets.list({ name: [ctx.cfg.LS_COOLIFY_DB_SECRET] })
+	).filter((s) => s.Spec.Name === ctx.cfg.LS_COOLIFY_DB_SECRET);
+	if (!secret)
+		throw new Error(
+			`no Swarm secret ${ctx.cfg.LS_COOLIFY_DB_SECRET} with Coolify's database password; re-run install.sh`,
+		);
+	// A Coolify upgrade recreates coolify-db without LogiStack's overlay; the job reaches it there.
+	const net = await bridgeNetwork(ctx);
+	if (
+		!Object.values(db.NetworkSettings.Networks).some(
+			(n) => n.NetworkID === net.Id,
+		)
+	)
+		await ctx.docker.networks.connect(net.Id, db.Id);
+	const user = env.POSTGRES_USER || "coolify";
+	return {
+		image: db.Config.Image,
+		host: name,
+		user,
+		database: env.POSTGRES_DB || user,
+		password: { secret: { SecretID: secret.ID, SecretName: secret.Spec.Name } },
+		root: ctx.cfg.LS_COOLIFY_ROOT,
+		// Coolify's local database dumps can be large and are listed, not copied.
+		exclude: "./backups",
+		networkId: net.Id,
+		files: ["coolify.dump", "data-coolify.tar.gz"],
+	};
+}
+
+/** Runs the archive job and returns the archive's path. */
+async function archive(
+	ctx: Ctx,
+	mig: typeof migration.$inferSelect,
+	inventory: unknown,
+	src: ArchiveSource,
+): Promise<string> {
 	const self = (await ctx.docker.info()).Swarm.NodeID;
 
 	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -141,34 +226,35 @@ async function archive(
 			Mode: { ReplicatedJob: { MaxConcurrent: 1, TotalCompletions: 1 } },
 			TaskTemplate: {
 				ContainerSpec: {
-					Image: pg.Spec.TaskTemplate.ContainerSpec.Image,
+					Image: src.image,
 					Labels: labels,
 					Command: ["sh", "-c", ARCHIVE_SCRIPT],
 					Env: [
 						`STAMP=${stamp}`,
-						`PGHOST=${ctx.cfg.LS_DOKPLOY_POSTGRES}`,
-						`PGUSER=${user}`,
-						`PGDATABASE=${env.POSTGRES_DB || user}`,
-						// shortcut: before 0.26.6 Dokploy keeps the password in its service env; it is
-						// copied into this job's env (never argv) for the minutes the job lives.
-						...(secret
-							? ["PGPASSWORD_FILE=/run/secrets/dokploy_pg_password"]
-							: [`PGPASSWORD=${env.POSTGRES_PASSWORD}`]),
+						`PGHOST=${src.host}`,
+						`PGUSER=${src.user}`,
+						`PGDATABASE=${src.database}`,
+						`DUMP=${src.files[0]}`,
+						`TARBALL=${src.files[1]}`,
+						...(src.exclude ? [`TAR_EXCLUDE=${src.exclude}`] : []),
+						...("secret" in src.password
+							? ["PGPASSWORD_FILE=/run/secrets/source_pg_password"]
+							: [`PGPASSWORD=${src.password.value}`]),
 					],
-					Secrets: secret
-						? [
-								{
-									SecretID: secret.SecretID,
-									SecretName: secret.SecretName,
-									File: {
-										Name: "dokploy_pg_password",
-										UID: "0",
-										GID: "0",
-										Mode: 0o400,
+					Secrets:
+						"secret" in src.password
+							? [
+									{
+										...src.password.secret,
+										File: {
+											Name: "source_pg_password",
+											UID: "0",
+											GID: "0",
+											Mode: 0o400,
+										},
 									},
-								},
-							]
-						: [],
+								]
+							: [],
 					Configs: [
 						{
 							ConfigID: config.ID,
@@ -184,7 +270,7 @@ async function archive(
 					Mounts: [
 						{
 							Type: "bind",
-							Source: ctx.cfg.LS_DOKPLOY_ROOT,
+							Source: src.root,
 							Target: "/src",
 							ReadOnly: true,
 						},
@@ -197,7 +283,7 @@ async function archive(
 				},
 				RestartPolicy: { Condition: "none" },
 				Placement: { Constraints: [`node.id==${self}`] },
-				Networks: [{ Target: network.Id }],
+				Networks: [{ Target: src.networkId }],
 			},
 		});
 		await waitForJob(ctx, name);
@@ -252,6 +338,37 @@ async function removeContainer(ctx: Ctx, id: string) {
 	);
 }
 
+async function removeContainerNamed(ctx: Ctx, name: string) {
+	const [c] = (await ctx.docker.containers.list({ name: [name] }, true)).filter(
+		(x) => x.Names.includes(`/${name}`),
+	);
+	return c ? removeContainer(ctx, c.Id) : false;
+}
+
+const csv = (v: string) =>
+	v
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean);
+
+const networkExists = (ctx: Ctx, name: string) =>
+	ctx.docker.networks.inspect(name).then(
+		(n) => n.Name === name,
+		(e) => {
+			if (notFound(e)) return false;
+			throw e;
+		},
+	);
+
+/** A network by exact name, removed only when nothing uses it; `in use` is the reason kept. */
+async function removeNetwork(ctx: Ctx, idOrName: string) {
+	return ctx.docker.networks.remove(idOrName).then(
+		() => undefined,
+		(e: unknown) =>
+			notFound(e) ? undefined : e instanceof Error ? e.message : String(e),
+	);
+}
+
 export async function decommission(ctx: Ctx, migrationId: string) {
 	const [mig] = await ctx.db
 		.select()
@@ -259,6 +376,7 @@ export async function decommission(ctx: Ctx, migrationId: string) {
 		.where(eq(migration.id, migrationId));
 	if (!mig) throw new Error(`migration ${migrationId} not found`);
 	if (mig.status === "decommissioned") return mig.decommission;
+	const from = sourceSettings(ctx.cfg, mig.source);
 	const items = await ctx.db
 		.select()
 		.from(migrationItem)
@@ -268,7 +386,7 @@ export async function decommission(ctx: Ctx, migrationId: string) {
 		mig.proxyState?.result?.status === "switched",
 		mig.source,
 	);
-	if (blocker) throw new Error(`cannot remove Dokploy yet: ${blocker}`);
+	if (blocker) throw new Error(`cannot remove ${from.label} yet: ${blocker}`);
 
 	const state: DecommissionState = { ...(mig.decommission ?? {}) };
 	delete state.result;
@@ -287,18 +405,19 @@ export async function decommission(ctx: Ctx, migrationId: string) {
 				status: i.status,
 				targets: i.targets,
 			}));
-			const path = await archive(ctx, mig, inventory);
-			state.archive = {
-				path,
-				files: ["dokploy.dump", "etc-dokploy.tar.gz", "inventory.json"],
-			};
+			const src =
+				mig.source === "coolify"
+					? await coolifyArchive(ctx)
+					: await dokployArchive(ctx);
+			const path = await archive(ctx, mig, inventory, src);
+			state.archive = { path, files: [...src.files, "inventory.json"] };
 			await save();
 		}
 		const removed = new Set(state.removed ?? []);
 		const kept: NonNullable<DecommissionState["kept"]> = [];
 
 		const network = await ctx.docker.networks
-			.inspect(ctx.cfg.LS_DOKPLOY_NETWORK)
+			.inspect(from.network)
 			.catch((e) => {
 				if (notFound(e)) return undefined;
 				throw e;
@@ -307,28 +426,36 @@ export async function decommission(ctx: Ctx, migrationId: string) {
 			.select({ id: migrationBridge.serviceId })
 			.from(migrationBridge)
 			.where(eq(migrationBridge.migrationId, migrationId));
-		if (network)
+		if (network) {
 			for (const s of bridged)
 				await detach(ctx, svcName(ctx, s.id), network.Id);
+			if (mig.source === "coolify")
+				await detachPlainContainers(ctx, network.Id);
+		}
 		// Nothing bridges any more: the next deploy of a moved service leaves the source behind.
 		await ctx.db
 			.delete(migrationBridge)
 			.where(eq(migrationBridge.migrationId, migrationId));
 
-		for (const name of ctx.cfg.LS_DOKPLOY_SERVICES.split(",")
-			.map((s) => s.trim())
-			.filter(Boolean))
-			if (await removeService(ctx, name)) removed.add(name);
-		const traefik = ctx.cfg.LS_DOKPLOY_TRAEFIK;
-		if (await removeService(ctx, traefik)) removed.add(traefik);
-		const [tc] = (
-			await ctx.docker.containers.list({ name: [traefik] }, true)
-		).filter((c) => c.Names.includes(`/${traefik}`));
-		if (tc && (await removeContainer(ctx, tc.Id))) removed.add(traefik);
+		if (mig.source === "coolify") {
+			for (const name of [...csv(ctx.cfg.LS_COOLIFY_CONTAINERS), from.proxy])
+				if (await removeContainerNamed(ctx, name)) removed.add(name);
+		} else {
+			for (const name of csv(ctx.cfg.LS_DOKPLOY_SERVICES))
+				if (await removeService(ctx, name)) removed.add(name);
+			if (await removeService(ctx, from.proxy)) removed.add(from.proxy);
+			if (await removeContainerNamed(ctx, from.proxy)) removed.add(from.proxy);
+		}
 
 		for (const i of items) {
 			if (i.status === "skipped") {
-				kept.push({ name: i.name, reason: "stays on Dokploy" });
+				kept.push({
+					name: i.name,
+					reason:
+						mig.source === "coolify"
+							? "stays as it is, now without Coolify to manage it"
+							: "stays on Dokploy",
+				});
 				continue;
 			}
 			for (const name of Object.keys(i.sourceState?.services ?? {}))
@@ -336,20 +463,30 @@ export async function decommission(ctx: Ctx, migrationId: string) {
 			for (const id of i.sourceState?.containers ?? [])
 				if (await removeContainer(ctx, id))
 					removed.add(`${i.name} (${id.slice(0, 12)})`);
+			// A one-click service or compose app had its own network, named after its uuid.
+			if (
+				mig.source === "coolify" &&
+				(await networkExists(ctx, i.sourceId)) &&
+				(await removeNetwork(ctx, i.sourceId)) === undefined
+			)
+				removed.add(i.sourceId);
 		}
 
-		if (network) {
-			const left = await ctx.docker.networks.remove(network.Id).then(
-				() => undefined,
-				(e: unknown) =>
-					notFound(e) ? undefined : e instanceof Error ? e.message : String(e),
-			);
-			if (left === undefined) removed.add(ctx.cfg.LS_DOKPLOY_NETWORK);
+		const networks =
+			mig.source === "coolify"
+				? [ctx.cfg.LS_COOLIFY_SOURCE_NETWORK, from.network]
+				: [from.network];
+		for (const name of networks) {
+			if (!(await networkExists(ctx, name))) continue;
+			const left = await removeNetwork(ctx, name);
+			if (left === undefined) removed.add(name);
 			else
 				kept.push({
-					name: ctx.cfg.LS_DOKPLOY_NETWORK,
+					name,
 					reason:
-						"still in use; re-run install.sh to detach LogiStack's api, then remove it",
+						name === from.network
+							? "still in use; re-run install.sh to detach LogiStack's api, then remove it"
+							: "still in use by containers left on it",
 				});
 		}
 		state.removed = [...removed];

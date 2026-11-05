@@ -86,7 +86,7 @@ const DecommissionView = z
 		status: z.enum(["not_started", "done", "failed"]),
 		at: z.string().nullable(),
 		error: z.string().nullable(),
-		/** On the server, root only: the dump, the tarball of /etc/dokploy and the inventory. */
+		/** On the server, root only: the dump, the tarball of the source's directory and the inventory. */
 		archivePath: z.string().nullable(),
 		removed: z.array(z.string()),
 		kept: z.array(z.object({ name: z.string(), reason: z.string() })),
@@ -102,8 +102,10 @@ const MigrationView = z
 		items: z.array(MigrationItemView),
 		proxy: ProxyView,
 		decommission: DecommissionView,
-		/** Why Dokploy cannot be removed yet; null once it can. */
+		/** Why the source cannot be removed yet; null once it can. */
 		decommissionBlocker: z.string().nullable(),
+		/** When the source's control plane was frozen (Coolify, from the first cutover); null when it runs. */
+		frozenAt: z.string().nullable(),
 	})
 	.openapi("Migration");
 
@@ -232,6 +234,7 @@ async function view(c: Context<Env>, m: MigrationRow) {
 						m.proxyState?.result?.status === "switched",
 						m.source,
 					) ?? null),
+		frozenAt: m.freeze?.frozenAt ?? null,
 	};
 }
 
@@ -373,9 +376,9 @@ export const migrations = router()
 				path: "/migrations/{id}/proxy-switch",
 				tags,
 				security,
-				summary: "Hand ports 80/443 from Dokploy's Traefik to Caddy",
+				summary: "Hand ports 80/443 from the source's proxy to Caddy",
 				description:
-					"Imports Traefik's certificates for the cut-over domains, stops Traefik, turns ingress on and probes every domain. Traefik starts again if Caddy does not come up.",
+					"Imports the source Traefik's certificates for the cut-over domains, stops that proxy, turns ingress on and probes every domain. The proxy starts again if Caddy does not come up.",
 				middleware: [admin],
 				request: { params: IdParam },
 				responses: { 202: json(MigrationView, "Queued"), ...errors },
@@ -388,6 +391,44 @@ export const migrations = router()
 				"switch_proxy",
 				{ migrationId: m.id, action: "switch_proxy" },
 				{ jobId: `proxy-${m.id}`, removeOnComplete: true, removeOnFail: true },
+			);
+			return c.json(await view(c, m), 202);
+		},
+	)
+	.openapi(
+		mutation(
+			"migration.unfreeze",
+			createRoute({
+				method: "post",
+				path: "/migrations/{id}/unfreeze",
+				tags,
+				security,
+				summary: "Start Coolify's control plane again",
+				description:
+					"The first cutover of a Coolify migration stops the `coolify` container so its scheduler cannot restart its proxy or redeploy moved apps. This restores its restart policy and starts it again; the next cutover freezes it once more.",
+				middleware: [admin],
+				request: { params: IdParam },
+				responses: { 202: json(MigrationView, "Queued"), ...errors },
+			}),
+		),
+		async (c) => {
+			const m = await ownMigration(c, c.req.valid("param").id);
+			if (!m.freeze)
+				throw new Failure(
+					"conflict",
+					"the source's control plane is not frozen",
+				);
+			if (m.status === "decommissioned")
+				throw new Failure("conflict", "Coolify is already removed");
+			c.set("auditResourceId", m.id);
+			await runQueues(c.var.deps.config.REDIS_URL).migration.add(
+				"unfreeze",
+				{ migrationId: m.id, action: "unfreeze" },
+				{
+					jobId: `unfreeze-${m.id}`,
+					removeOnComplete: true,
+					removeOnFail: true,
+				},
 			);
 			return c.json(await view(c, m), 202);
 		},

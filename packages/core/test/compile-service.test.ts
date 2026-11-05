@@ -665,6 +665,7 @@ test("a service bridged to Coolify carries container routers and the old names",
 		"traefik.enable": "true",
 		"traefik.docker.network": "ls-coolify-bridge",
 		"traefik.http.routers.ls-svc-ab12-0.entrypoints": "https",
+		"traefik.http.routers.ls-svc-ab12-0.priority": "100000",
 		"traefik.http.routers.ls-svc-ab12-0.tls.certresolver": "letsencrypt",
 	});
 	expect(labels["traefik.swarm.network"]).toBeUndefined();

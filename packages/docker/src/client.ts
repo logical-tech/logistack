@@ -321,6 +321,11 @@ export function createDockerClient(opts: DockerClientOptions = {}) {
 					Container: containerId,
 					EndpointConfig: aliases ? { Aliases: aliases } : undefined,
 				}),
+			disconnect: (networkId: string, containerId: string, force = false) =>
+				post<void>(`/networks/${id(networkId)}/disconnect`, {
+					Container: containerId,
+					Force: force,
+				}),
 		},
 
 		volumes: {
