@@ -69,6 +69,7 @@ import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/se
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
 import { Route as AppProjectsProjectIdServicesNewRouteImport } from './routes/_app/projects/$projectId/services/new'
+import { Route as AppProjectsProjectIdStacksStackIdRouteRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/route'
 import { Route as AppProjectsProjectIdTemplatesIndexRouteImport } from './routes/_app/projects/$projectId/templates/index'
 import { Route as AppProjectsProjectIdTemplatesTemplateIdRouteImport } from './routes/_app/projects/$projectId/templates/$templateId'
 import { Route as AppProjectsProjectIdServicesServiceIdIndexRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/index'
@@ -83,6 +84,9 @@ import { Route as AppProjectsProjectIdServicesServiceIdMetricsRouteImport } from
 import { Route as AppProjectsProjectIdServicesServiceIdSettingsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/settings'
 import { Route as AppProjectsProjectIdServicesServiceIdStorageRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/storage'
 import { Route as AppProjectsProjectIdServicesServiceIdTerminalRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/terminal'
+import { Route as AppProjectsProjectIdStacksStackIdIndexRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/index'
+import { Route as AppProjectsProjectIdStacksStackIdComposeRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/compose'
+import { Route as AppProjectsProjectIdStacksStackIdLogsRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/logs'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -400,6 +404,12 @@ const AppProjectsProjectIdServicesNewRoute =
     path: '/services/new',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
   } as any)
+const AppProjectsProjectIdStacksStackIdRouteRoute =
+  AppProjectsProjectIdStacksStackIdRouteRouteImport.update({
+    id: '/stacks/$stackId',
+    path: '/stacks/$stackId',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdTemplatesIndexRoute =
   AppProjectsProjectIdTemplatesIndexRouteImport.update({
     id: '/templates/',
@@ -484,6 +494,24 @@ const AppProjectsProjectIdServicesServiceIdTerminalRoute =
     path: '/terminal',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdStacksStackIdIndexRoute =
+  AppProjectsProjectIdStacksStackIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppProjectsProjectIdStacksStackIdRouteRoute,
+  } as any)
+const AppProjectsProjectIdStacksStackIdComposeRoute =
+  AppProjectsProjectIdStacksStackIdComposeRouteImport.update({
+    id: '/compose',
+    path: '/compose',
+    getParentRoute: () => AppProjectsProjectIdStacksStackIdRouteRoute,
+  } as any)
+const AppProjectsProjectIdStacksStackIdLogsRoute =
+  AppProjectsProjectIdStacksStackIdLogsRouteImport.update({
+    id: '/logs',
+    path: '/logs',
+    getParentRoute: () => AppProjectsProjectIdStacksStackIdRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -542,6 +570,7 @@ export interface FileRoutesByFullPath {
   '/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
+  '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
@@ -557,7 +586,10 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
   '/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
+  '/projects/$projectId/stacks/$stackId/compose': typeof AppProjectsProjectIdStacksStackIdComposeRoute
+  '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
+  '/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
@@ -627,7 +659,10 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
   '/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
+  '/projects/$projectId/stacks/$stackId/compose': typeof AppProjectsProjectIdStacksStackIdComposeRoute
+  '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
+  '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -689,6 +724,7 @@ export interface FileRoutesById {
   '/_app/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
   '/_app/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
+  '/_app/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/_app/integrations/dns_/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
@@ -704,7 +740,10 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
   '/_app/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/_app/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
+  '/_app/projects/$projectId/stacks/$stackId/compose': typeof AppProjectsProjectIdStacksStackIdComposeRoute
+  '/_app/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/_app/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
+  '/_app/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -765,6 +804,7 @@ export interface FileRouteTypes {
     | '/monitoring/nodes/'
     | '/projects/$projectId/'
     | '/projects/$projectId/services/$serviceId'
+    | '/projects/$projectId/stacks/$stackId'
     | '/integrations/dns/$providerId/$zoneId'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
@@ -780,7 +820,10 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/settings'
     | '/projects/$projectId/services/$serviceId/storage'
     | '/projects/$projectId/services/$serviceId/terminal'
+    | '/projects/$projectId/stacks/$stackId/compose'
+    | '/projects/$projectId/stacks/$stackId/logs'
     | '/projects/$projectId/services/$serviceId/'
+    | '/projects/$projectId/stacks/$stackId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -850,7 +893,10 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/settings'
     | '/projects/$projectId/services/$serviceId/storage'
     | '/projects/$projectId/services/$serviceId/terminal'
+    | '/projects/$projectId/stacks/$stackId/compose'
+    | '/projects/$projectId/stacks/$stackId/logs'
     | '/projects/$projectId/services/$serviceId'
+    | '/projects/$projectId/stacks/$stackId'
   id:
     | '__root__'
     | '/_app'
@@ -911,6 +957,7 @@ export interface FileRouteTypes {
     | '/_app/monitoring/nodes/'
     | '/_app/projects/$projectId/'
     | '/_app/projects/$projectId/services/$serviceId'
+    | '/_app/projects/$projectId/stacks/$stackId'
     | '/_app/integrations/dns_/$providerId/$zoneId'
     | '/_app/projects/$projectId/services/new'
     | '/_app/projects/$projectId/templates/$templateId'
@@ -926,7 +973,10 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/$serviceId/settings'
     | '/_app/projects/$projectId/services/$serviceId/storage'
     | '/_app/projects/$projectId/services/$serviceId/terminal'
+    | '/_app/projects/$projectId/stacks/$stackId/compose'
+    | '/_app/projects/$projectId/stacks/$stackId/logs'
     | '/_app/projects/$projectId/services/$serviceId/'
+    | '/_app/projects/$projectId/stacks/$stackId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1357,6 +1407,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesNewRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
     }
+    '/_app/projects/$projectId/stacks/$stackId': {
+      id: '/_app/projects/$projectId/stacks/$stackId'
+      path: '/stacks/$stackId'
+      fullPath: '/projects/$projectId/stacks/$stackId'
+      preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdRouteRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
     '/_app/projects/$projectId/templates/': {
       id: '/_app/projects/$projectId/templates/'
       path: '/templates'
@@ -1455,6 +1512,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdTerminalRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/stacks/$stackId/': {
+      id: '/_app/projects/$projectId/stacks/$stackId/'
+      path: '/'
+      fullPath: '/projects/$projectId/stacks/$stackId/'
+      preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdIndexRouteImport
+      parentRoute: typeof AppProjectsProjectIdStacksStackIdRouteRoute
+    }
+    '/_app/projects/$projectId/stacks/$stackId/compose': {
+      id: '/_app/projects/$projectId/stacks/$stackId/compose'
+      path: '/compose'
+      fullPath: '/projects/$projectId/stacks/$stackId/compose'
+      preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdComposeRouteImport
+      parentRoute: typeof AppProjectsProjectIdStacksStackIdRouteRoute
+    }
+    '/_app/projects/$projectId/stacks/$stackId/logs': {
+      id: '/_app/projects/$projectId/stacks/$stackId/logs'
+      path: '/logs'
+      fullPath: '/projects/$projectId/stacks/$stackId/logs'
+      preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdLogsRouteImport
+      parentRoute: typeof AppProjectsProjectIdStacksStackIdRouteRoute
+    }
   }
 }
 
@@ -1525,9 +1603,31 @@ const AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren =
     AppProjectsProjectIdServicesServiceIdRouteRouteChildren,
   )
 
+interface AppProjectsProjectIdStacksStackIdRouteRouteChildren {
+  AppProjectsProjectIdStacksStackIdComposeRoute: typeof AppProjectsProjectIdStacksStackIdComposeRoute
+  AppProjectsProjectIdStacksStackIdLogsRoute: typeof AppProjectsProjectIdStacksStackIdLogsRoute
+  AppProjectsProjectIdStacksStackIdIndexRoute: typeof AppProjectsProjectIdStacksStackIdIndexRoute
+}
+
+const AppProjectsProjectIdStacksStackIdRouteRouteChildren: AppProjectsProjectIdStacksStackIdRouteRouteChildren =
+  {
+    AppProjectsProjectIdStacksStackIdComposeRoute:
+      AppProjectsProjectIdStacksStackIdComposeRoute,
+    AppProjectsProjectIdStacksStackIdLogsRoute:
+      AppProjectsProjectIdStacksStackIdLogsRoute,
+    AppProjectsProjectIdStacksStackIdIndexRoute:
+      AppProjectsProjectIdStacksStackIdIndexRoute,
+  }
+
+const AppProjectsProjectIdStacksStackIdRouteRouteWithChildren =
+  AppProjectsProjectIdStacksStackIdRouteRoute._addFileChildren(
+    AppProjectsProjectIdStacksStackIdRouteRouteChildren,
+  )
+
 interface AppProjectsProjectIdRouteRouteChildren {
   AppProjectsProjectIdIndexRoute: typeof AppProjectsProjectIdIndexRoute
   AppProjectsProjectIdServicesServiceIdRouteRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
+  AppProjectsProjectIdStacksStackIdRouteRoute: typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   AppProjectsProjectIdServicesNewRoute: typeof AppProjectsProjectIdServicesNewRoute
   AppProjectsProjectIdTemplatesTemplateIdRoute: typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   AppProjectsProjectIdTemplatesIndexRoute: typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -1538,6 +1638,8 @@ const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChil
     AppProjectsProjectIdIndexRoute: AppProjectsProjectIdIndexRoute,
     AppProjectsProjectIdServicesServiceIdRouteRoute:
       AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren,
+    AppProjectsProjectIdStacksStackIdRouteRoute:
+      AppProjectsProjectIdStacksStackIdRouteRouteWithChildren,
     AppProjectsProjectIdServicesNewRoute: AppProjectsProjectIdServicesNewRoute,
     AppProjectsProjectIdTemplatesTemplateIdRoute:
       AppProjectsProjectIdTemplatesTemplateIdRoute,

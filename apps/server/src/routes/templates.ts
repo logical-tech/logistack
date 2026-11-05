@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createRoute, z } from "@hono/zod-openapi";
 import {
-	defaultServiceIcon,
 	Hostname,
 	isServiceIcon,
 	Template,
@@ -10,47 +9,25 @@ import {
 	TemplateSummary,
 } from "@logistack/contracts";
 import {
-	encrypt,
 	generateInput,
 	newId,
 	planTemplate,
 	type Resource,
-	type TemplateServicePlan,
 } from "@logistack/core";
-import {
-	deployment,
-	domain,
-	envVar,
-	instanceSettings,
-	mount,
-	service,
-} from "@logistack/db";
+import { domain, instanceSettings, service, stack } from "@logistack/db";
 import { catalogIndex, logoPath, readTemplate } from "@logistack/templates";
-import { and, eq, inArray, like } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
-import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound } from "../errors.ts";
-import { envelope } from "../events.ts";
-import { guardHostSettings } from "../host-settings.ts";
-import { log } from "../log.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
 import { publicIp } from "../probe.ts";
-import { requestProxySync } from "../redis.ts";
 import { byParam, check, inOrganization, requirePermission } from "../scope.ts";
 import { generatedHostname } from "./domains.ts";
+import { createStack, DeployedService } from "./stacks.ts";
 
 const tags = ["templates"];
-
-const DeployedService = z.object({
-	id: z.string(),
-	name: z.string(),
-	kind: z.enum(["application", "database"]),
-	/** null for a service deployed before; poll its deployments instead. */
-	deploymentId: z.string().nullable(),
-	hostname: z.string().nullable(),
-});
 
 const DeployResult = z
 	.object({
@@ -58,6 +35,7 @@ const DeployResult = z
 		created: z.boolean(),
 		name: z.string(),
 		templateId: z.string(),
+		stackId: z.string(),
 		services: z.array(DeployedService),
 	})
 	.openapi("TemplateDeployResult");
@@ -66,40 +44,36 @@ const DeployResult = z
 const provenance = (templateId: string, name: string, svc: string) =>
 	`template:${templateId}:${name}/${svc}`;
 
-/** Services of an instance already in the environment, in the shape a deploy returns. */
+/** The stack an earlier deploy of instance `name` created, in the shape a deploy returns. */
 async function existingInstance(
 	c: Context<Env>,
 	environmentId: string,
 	name: string,
 ) {
 	const { db } = c.var.deps;
+	const [st] = await db
+		.select({ id: stack.id, templateId: stack.templateId })
+		.from(stack)
+		.where(and(eq(stack.environmentId, environmentId), eq(stack.name, name)));
+	if (!st) return undefined;
 	const rows = await db
-		.select({
-			id: service.id,
-			slug: service.slug,
-			kind: service.kind,
-			importedFrom: service.importedFrom,
-		})
+		.select({ id: service.id, slug: service.slug, kind: service.kind })
 		.from(service)
-		.where(
-			and(
-				eq(service.environmentId, environmentId),
-				like(service.importedFrom, `template:%:${name}/%`),
-			),
-		);
-	if (!rows.length) return undefined;
-	const hosts = await db
-		.select({ serviceId: domain.serviceId, hostname: domain.hostname })
-		.from(domain)
-		.where(
-			inArray(
-				domain.serviceId,
-				rows.map((r) => r.id),
-			),
-		);
+		.where(eq(service.stackId, st.id));
+	const hosts = rows.length
+		? await db
+				.select({ serviceId: domain.serviceId, hostname: domain.hostname })
+				.from(domain)
+				.where(
+					inArray(
+						domain.serviceId,
+						rows.map((r) => r.id),
+					),
+				)
+		: [];
 	return {
-		templateId:
-			/^template:([^:]+):/.exec(rows[0]?.importedFrom ?? "")?.[1] ?? "",
+		stackId: st.id,
+		templateId: st.templateId ?? "",
 		services: rows.map((r) => ({
 			id: r.id,
 			name: r.slug,
@@ -216,7 +190,6 @@ export const templates = router()
 		async (c) => {
 			const { id: environmentId, templateId } = c.req.valid("param");
 			const input = c.req.valid("json");
-			const actor = requireActor(c);
 			check(c, "deploy", c.get("resource") as Resource);
 			const t = readTemplate(templateId);
 			if (!t) throw notFound("template");
@@ -233,26 +206,7 @@ export const templates = router()
 			if (again) return c.json({ created: false, name, ...again }, 200);
 			checkInputs(t, input.inputs);
 
-			const { db, masterKey, config } = c.var.deps;
-			const taken = await db
-				.select({ slug: service.slug })
-				.from(service)
-				.where(
-					and(
-						eq(service.environmentId, environmentId),
-						inArray(
-							service.slug,
-							t.services.map((s) => s.name),
-						),
-					),
-				);
-			if (taken.length)
-				throw new Failure(
-					"conflict",
-					`this environment already has services named ${taken.map((s) => s.slug).join(", ")}; deploy the template into another environment`,
-					{ conflicts: taken.map((s) => s.slug) },
-				);
-
+			const { db, config } = c.var.deps;
 			// Ids first: a generated hostname is derived from its service's id.
 			const ids = new Map(t.services.map((s) => [s.name, newId("svc")]));
 			const values: Record<string, string> = {};
@@ -284,115 +238,29 @@ export const templates = router()
 					generated.add(values[i.key] as string);
 				} else values[i.key] = generateInput(i) ?? "";
 			}
-			const plan = planTemplate(t, values);
-			const nodeIds = new Map<string, string | null | undefined>();
-			for (const p of plan)
-				nodeIds.set(
-					p.name,
-					await guardHostSettings(c, { spec: p.spec, nodeId: null }),
-				);
 
-			let created: {
-				plan: TemplateServicePlan;
-				id: string;
-				deploymentId: string;
-			}[];
+			let created: Awaited<ReturnType<typeof createStack>>;
 			try {
-				created = await db.transaction(async (tx) => {
-					const out: typeof created = [];
-					for (const p of plan) {
-						const id = ids.get(p.name) as string;
-						await tx.insert(service).values({
-							id,
-							environmentId,
-							name: p.name,
-							slug: p.name,
-							kind: p.spec.kind,
-							spec: p.spec,
-							nodeId: nodeIds.get(p.name) ?? null,
-							createdBy: actor.userId,
-							importedFrom: provenance(t.id, name, p.name),
-							icon: defaultServiceIcon(p.spec) ?? templateIcon(t.id),
-						});
-						if (p.env.length)
-							await tx.insert(envVar).values(
-								await Promise.all(
-									p.env.map(async (e) => ({
-										scope: "service" as const,
-										scopeId: id,
-										key: e.key,
-										valueEncrypted: await encrypt(masterKey, e.value),
-										isSecret: e.isSecret,
-									})),
-								),
-							);
-						for (const m of p.mounts)
-							await tx.insert(mount).values({
-								serviceId: id,
-								kind: m.kind,
-								target: m.target,
-								readOnly: m.readOnly,
-								...(m.kind === "volume"
-									? { volumeName: m.volumeName }
-									: { contentEncrypted: await encrypt(masterKey, m.content) }),
-							});
-						if (p.domain)
-							await tx.insert(domain).values({
-								serviceId: id,
-								hostname: p.domain.hostname,
-								port: p.domain.port,
-								isGenerated: generated.has(p.domain.hostname),
-							});
-						const [d] = await tx
-							.insert(deployment)
-							.values({
-								serviceId: id,
-								trigger: actor.kind === "user" ? "manual" : "api",
-							})
-							.returning({ id: deployment.id });
-						out.push({ plan: p, id, deploymentId: d?.id as string });
-					}
-					return out;
+				created = await createStack(c, {
+					environmentId,
+					name,
+					source: "template",
+					templateId: t.id,
+					services: planTemplate(t, values).map((p) => ({
+						plan: p,
+						id: ids.get(p.name) as string,
+						icon: templateIcon(t.id),
+					})),
+					generated,
+					provenance: (svc) => provenance(t.id, name, svc),
 				});
 			} catch (err) {
-				// A concurrent request with the same name won the slugs: return what it made.
+				// A concurrent request with the same name won the stack: return what it made.
 				const raced = await existingInstance(c, environmentId, name);
 				if (raced) return c.json({ created: false, name, ...raced }, 200);
 				throw err;
 			}
-
-			for (const s of created)
-				await c.var.deps.bus.publishEvent(
-					envelope(
-						"deployment.queued",
-						actor.organizationId,
-						{ type: "deployment", id: s.deploymentId },
-						{
-							serviceId: s.id,
-							trigger: actor.kind === "user" ? "manual" : "api",
-						},
-					),
-				);
-			if (created.some((s) => s.plan.domain))
-				await requestProxySync(config.REDIS_URL, "template deployed").catch(
-					(err: unknown) =>
-						log("warn", "proxy sync request failed", { error: String(err) }),
-				);
-			return c.json(
-				{
-					created: true,
-					name,
-					templateId: t.id,
-					services: created.map((s) => ({
-						id: s.id,
-						name: s.plan.name,
-						kind: s.plan.spec.kind as "application" | "database",
-						deploymentId: s.deploymentId,
-						hostname: s.plan.domain?.hostname ?? null,
-					})),
-				},
-				201,
-			);
+			return c.json({ created: true, name, templateId: t.id, ...created }, 201);
 		},
 	)
 	.get(

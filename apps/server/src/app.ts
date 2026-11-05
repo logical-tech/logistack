@@ -45,6 +45,7 @@ import { services } from "./routes/services.ts";
 import { setup } from "./routes/setup.ts";
 import { sshKeys } from "./routes/ssh-keys.ts";
 import { sso } from "./routes/sso.ts";
+import { stacks } from "./routes/stacks.ts";
 import { storage } from "./routes/storage.ts";
 import { templates } from "./routes/templates.ts";
 import { tunnels } from "./routes/tunnels.ts";
@@ -131,6 +132,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", folders)
 		.route("/api", projects)
 		.route("/api", services)
+		.route("/api", stacks)
 		.route("/api", envVars)
 		.route("/api", domains)
 		.route("/api", dnsProviders)

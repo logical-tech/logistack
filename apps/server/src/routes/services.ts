@@ -13,6 +13,7 @@ import {
 	storageCredentials,
 } from "@logistack/core";
 import {
+	type Db,
 	deployment,
 	domain,
 	envVar,
@@ -20,7 +21,7 @@ import {
 	service,
 	serviceStatus,
 } from "@logistack/db";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import { Failure, one } from "../errors.ts";
@@ -46,7 +47,7 @@ import { hostPolicy } from "../ssrf.ts";
 import { ConfigContent, MountTarget } from "./files.ts";
 
 /** The service row plus what list views draw: observed state, last deployment, hostnames. */
-const ServiceListItem = Service.extend({
+export const ServiceListItem = Service.extend({
 	status: z.object({
 		observed: ObservedState,
 		replicasRunning: z.int(),
@@ -112,6 +113,45 @@ const ServicePatch = patchOf(
 	}),
 );
 
+/** List items for the services matching `where`, by name. */
+export async function listServices(db: Db, where: SQL) {
+	const rows = await db
+		.select({ service, status: serviceStatus })
+		.from(service)
+		.leftJoin(serviceStatus, eq(serviceStatus.serviceId, service.id))
+		.where(where)
+		.orderBy(asc(service.name));
+	const ids = rows.map((r) => r.service.id);
+	const [latest, hosts] = ids.length
+		? await Promise.all([
+				db
+					.selectDistinctOn([deployment.serviceId])
+					.from(deployment)
+					.where(inArray(deployment.serviceId, ids))
+					.orderBy(deployment.serviceId, desc(deployment.createdAt)),
+				db
+					.select({
+						serviceId: domain.serviceId,
+						hostname: domain.hostname,
+					})
+					.from(domain)
+					.where(inArray(domain.serviceId, ids))
+					.orderBy(asc(domain.hostname)),
+			])
+		: [[], []];
+	return rows.map(({ service: s, status }) => ({
+		...s,
+		status: {
+			observed: status?.observed ?? ("unknown" as const),
+			replicasRunning: status?.replicasRunning ?? 0,
+			replicasDesired: status?.replicasDesired ?? 0,
+			observedAt: status?.observedAt ?? null,
+		},
+		latestDeployment: latest.find((d) => d.serviceId === s.id) ?? null,
+		domains: hosts.filter((h) => h.serviceId === s.id).map((h) => h.hostname),
+	}));
+}
+
 export const services = router()
 	.openapi(
 		createRoute({
@@ -126,49 +166,14 @@ export const services = router()
 				...errors,
 			},
 		}),
-		async (c) => {
-			const { db } = c.var.deps;
-			const rows = await db
-				.select({ service, status: serviceStatus })
-				.from(service)
-				.leftJoin(serviceStatus, eq(serviceStatus.serviceId, service.id))
-				.where(eq(service.environmentId, c.req.valid("param").id))
-				.orderBy(asc(service.name));
-			const ids = rows.map((r) => r.service.id);
-			const [latest, hosts] = ids.length
-				? await Promise.all([
-						db
-							.selectDistinctOn([deployment.serviceId])
-							.from(deployment)
-							.where(inArray(deployment.serviceId, ids))
-							.orderBy(deployment.serviceId, desc(deployment.createdAt)),
-						db
-							.select({
-								serviceId: domain.serviceId,
-								hostname: domain.hostname,
-							})
-							.from(domain)
-							.where(inArray(domain.serviceId, ids))
-							.orderBy(asc(domain.hostname)),
-					])
-				: [[], []];
-			return c.json(
-				rows.map(({ service: s, status }) => ({
-					...s,
-					status: {
-						observed: status?.observed ?? ("unknown" as const),
-						replicasRunning: status?.replicasRunning ?? 0,
-						replicasDesired: status?.replicasDesired ?? 0,
-						observedAt: status?.observedAt ?? null,
-					},
-					latestDeployment: latest.find((d) => d.serviceId === s.id) ?? null,
-					domains: hosts
-						.filter((h) => h.serviceId === s.id)
-						.map((h) => h.hostname),
-				})),
+		async (c) =>
+			c.json(
+				await listServices(
+					c.var.deps.db,
+					eq(service.environmentId, c.req.valid("param").id),
+				),
 				200,
-			);
-		},
+			),
 	)
 	.openapi(
 		mutation(

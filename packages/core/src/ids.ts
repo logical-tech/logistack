@@ -3,6 +3,7 @@ export const idPrefixes = {
 	project: "prj",
 	environment: "env",
 	service: "svc",
+	stack: "stk",
 	envVar: "var",
 	mount: "mnt",
 	node: "nod",

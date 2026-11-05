@@ -1,5 +1,5 @@
-import { useNavigate } from "@tanstack/react-router";
-import { Play, Rocket, RotateCw, Square } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Layers, Play, Rocket, RotateCw, Square } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -12,6 +12,7 @@ import {
 	type ServiceOverview,
 	useServiceMutation,
 } from "@/lib/api/service-ops";
+import type { StackId } from "@/lib/api/stacks";
 import type { ProjectId } from "@/lib/api/types";
 
 /** What the service runs, in one line: its source; the built image lives on the overview. */
@@ -76,6 +77,16 @@ export function ServiceHeader({
 								Desired {o.desiredState}, {note}
 							</span>
 						)}
+						{o.stackId ? (
+							<Link
+								to="/projects/$projectId/stacks/$stackId"
+								params={{ projectId, stackId: o.stackId as StackId }}
+								className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+							>
+								<Layers className="size-3.5" aria-hidden />
+								Part of a stack
+							</Link>
+						) : null}
 						<span>{o.environmentName}</span>
 						<span className="min-w-0 truncate font-mono text-xs">
 							{sourceLabel(o)}

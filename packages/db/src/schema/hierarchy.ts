@@ -20,6 +20,7 @@ import {
 	envVarScope,
 	mountKind,
 	serviceKind,
+	stackSource,
 } from "./enums.ts";
 import { node } from "./runtime.ts";
 
@@ -89,6 +90,32 @@ export const environment = pgTable(
 	],
 );
 
+/**
+ * Services created together from one template or compose file. Deleting a stack deletes its
+ * services; the reconciler then removes their Docker objects.
+ */
+export const stack = pgTable(
+	"stack",
+	{
+		id: id("stk"),
+		environmentId: text("environment_id")
+			.notNull()
+			.references(() => environment.id, { onDelete: "cascade" }),
+		/** The instance name; also the provenance key of its services. */
+		name: text("name").notNull(),
+		source: stackSource("source").notNull(),
+		/** Catalog template id when `source` is template. */
+		templateId: text("template_id"),
+		/** The compose file as pasted, encrypted (it may hold credentials), when `source` is compose. */
+		composeYamlEncrypted: text("compose_yaml_encrypted"),
+		createdBy: text("created_by").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		...timestamps,
+	},
+	(t) => [unique("stack_name_unique").on(t.environmentId, t.name)],
+);
+
 export const service = pgTable(
 	"service",
 	{
@@ -109,10 +136,14 @@ export const service = pgTable(
 		importedFrom: text("imported_from"),
 		/** A brand icon slug (`postgresql`, `nginx`, …); null falls back to the engine or image icon, then the kind's. */
 		icon: text("icon").$type<ServiceIcon>(),
+		stackId: text("stack_id").references((): AnyPgColumn => stack.id, {
+			onDelete: "cascade",
+		}),
 		...timestamps,
 	},
 	(t) => [
 		unique("service_slug_unique").on(t.environmentId, t.slug),
+		index("service_stack_id_idx").on(t.stackId),
 		index("service_node_id_idx").on(t.nodeId),
 		check("service_spec_kind_check", sql`${t.spec}->>'kind' = ${t.kind}::text`),
 	],

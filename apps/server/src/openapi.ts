@@ -121,6 +121,8 @@ export const Service = z
 		importedFrom: z.string().nullable(),
 		/** Brand icon slug; null shows the engine's or image's default. */
 		icon: ServiceIcon.nullable(),
+		/** The stack (template or compose) the service was created with, if any. */
+		stackId: z.string().nullable(),
 		createdAt: Timestamp,
 		updatedAt: Timestamp,
 	})

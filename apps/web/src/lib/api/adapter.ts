@@ -2,6 +2,7 @@ import type { AccessAdapter } from "./access-adapter";
 import type { NetworkingApi } from "./networking";
 import type { ServiceOpsApi } from "./service-ops";
 import type { SsoApi } from "./sso";
+import type { StacksApi } from "./stacks";
 import type { TemplatesApi } from "./templates";
 import type {
 	ClusterNode,
@@ -106,6 +107,7 @@ export type ApiAdapter = {
 	networking: NetworkingApi;
 	serviceOps: ServiceOpsApi;
 	sso: SsoApi;
+	stacks: StacksApi;
 	templates: TemplatesApi;
 };
 
