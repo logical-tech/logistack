@@ -20,6 +20,8 @@ export type CreatedApiKey = Created<Api["api-keys"]["$post"]>;
 export type ServiceAccount = Ok<Api["service-accounts"]["$get"]>[number];
 export type SshKey = Ok<Api["ssh-keys"]["$get"]>[number];
 export type InstanceSettings = Ok<Api["instance"]["settings"]["$get"]>;
+export type OrganizationProfile = Ok<Api["organization"]["$get"]>;
+export type OrganizationUpdateInput = Body<Api["organization"]["$patch"]>;
 export type TwoFactorSetting = Ok<Api["organization"]["two-factor"]["$get"]>;
 export type TwoFactorPolicyInput = Body<
 	Api["organization"]["two-factor"]["$put"]

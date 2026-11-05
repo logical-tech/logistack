@@ -1,9 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 import { LogoMark } from "@/components/brand";
+import { OrgAvatar } from "@/components/org-avatar";
 import { UpdateBadge } from "@/components/shell/update-badge";
 import { StatusDot } from "@/components/status";
 import {
@@ -33,9 +33,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useMe, useOrganization } from "@/lib/api/access";
 import { versionQuery } from "@/lib/api/instance";
 import { nodesQuery } from "@/lib/api/monitoring";
-import { auth, type Org } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { NAV } from "@/lib/nav";
 import { NODE_STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -47,10 +48,12 @@ const orgsQuery = {
 };
 
 function OrgSwitcher() {
+	const qc = useQueryClient();
 	const { data: orgs = [] } = useQuery(orgsQuery);
-	const [activeId, setActiveId] = useState<string | null>(null);
-	const active: Org | undefined =
-		orgs.find((o) => o.id === activeId) ?? orgs[0];
+	// The session's active organization, not the first in the list.
+	const { data: active } = useOrganization();
+	const { data: me } = useMe();
+	const role = me?.roles[0];
 
 	return (
 		<SidebarMenu>
@@ -62,13 +65,23 @@ function OrgSwitcher() {
 							className="data-[state=open]:bg-sidebar-accent"
 							tooltip={active?.name ?? "Organization"}
 						>
-							<LogoMark className="size-8" />
+							{active ? (
+								<OrgAvatar
+									name={active.name}
+									logo={active.logo}
+									className="size-8"
+								/>
+							) : (
+								<LogoMark className="size-8" />
+							)}
 							<span className="grid min-w-0 flex-1 leading-tight">
 								<span className="truncate text-sm font-semibold">
 									{active?.name ?? "…"}
 								</span>
 								<span className="truncate text-xs text-muted-foreground">
-									Owner
+									{role
+										? role.charAt(0).toUpperCase() + role.slice(1)
+										: "\u00a0"}
 								</span>
 							</span>
 							<ChevronsUpDown className="ml-auto text-muted-foreground" />
@@ -84,14 +97,18 @@ function OrgSwitcher() {
 							<DropdownMenuItem
 								key={o.id}
 								onSelect={async () => {
-									setActiveId(o.id);
+									if (o.id === active?.id) return;
 									await auth.setActiveOrganization(o.id);
+									// Everything on screen belonged to the previous organization.
+									await qc.invalidateQueries();
 									toast.success(`Switched to ${o.name}`);
 								}}
 							>
-								<span className="grid size-5 place-items-center rounded-sm bg-muted text-2xs font-semibold">
-									{o.name[0]}
-								</span>
+								<OrgAvatar
+									name={o.name}
+									logo={o.logo}
+									className="size-5 rounded-sm text-2xs"
+								/>
 								{o.name}
 								{o.id === active?.id && <Check className="ml-auto" />}
 							</DropdownMenuItem>

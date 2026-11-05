@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { OrganizationPanel } from "@/components/organization-panel";
 import { Page, PageHeader } from "@/components/page-header";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
@@ -74,12 +75,13 @@ function General() {
 				description="Your organization and the values this instance was set up with."
 			/>
 			<div className="grid gap-8">
+				<OrganizationPanel />
+
 				<Panel id="instance" title="Instance">
 					{isPending || !s ? (
 						<SkeletonRows rows={5} />
 					) : (
 						<dl className="divide-y">
-							<Row label="Organization">{s.organizationName}</Row>
 							<Row label="Instance URL" mono>
 								{s.publicUrl ?? "Not set"}
 							</Row>
