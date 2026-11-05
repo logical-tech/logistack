@@ -549,7 +549,11 @@ function mapApplication(a: CoolifyApplication, ctx: Context): InventoryItem {
 	const internal = settings?.is_consistent_container_name_enabled
 		? (settings.custom_internal_name || a.uuid).toLowerCase()
 		: undefined;
-	const slug = internal ?? (slugify(a.name).slice(0, 63) || a.uuid);
+	// Name plus a uuid prefix, like Dokploy's appNames: a one-click service's parts take bare
+	// compose names (`web`, `db`) in the same environment, which Coolify keeps apart by network.
+	const slug =
+		internal ??
+		`${slugify(a.name).slice(0, 50) || "app"}-${a.uuid.slice(0, 8)}`;
 	return item([
 		{
 			name: a.name,

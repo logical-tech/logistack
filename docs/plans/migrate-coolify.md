@@ -338,22 +338,44 @@ Code in `apps/server/src/migration/coolify/`: `snapshot.ts` (zod), `read.ts`, `d
   - Typecheck, Biome, `bun test src` (155) and `vite build` pass.
 - [ ] Not verified: a keyboard-only pass, light theme, and the wizard against a real api with a real Coolify (COOL-8 drives the same routes through the API, not the browser).
 
-## Prove it end to end (COOL-8)
+## Prove it end to end (COOL-8, done)
 
-- [ ] `bash install/smoke-migrate-coolify.sh` (`ls-test-cool8-dind`, `KEEP=1`). The run:
-  - Uses Coolify **v4.5.3**, installed with its own `install.sh` inside docker:dind, with images preloaded from the host.
-  - Creates the root user and API token through tinker and enables the API in SQL. Everything else is seeded through `/api/v1`:
-    - a dockerimage app with a domain and a `DATABASE_URL` to the database;
-    - a Postgres with a row of data and a backup to a MinIO S3 (the S3 row through tinker, since the API refuses private endpoints);
-    - a multi-service one-click service with a domain.
-  - Runs `install.sh --local-build` next to Coolify, then setup and the wizard through LogiStack's API.
-- [ ] Checks:
-  - Coolify keeps working after `swarm init` (UI 200, a redeploy, its proxy routes).
-  - Every domain answers through Coolify's Traefik after each cutover.
-  - Row 42 is read through the app on LogiStack's Postgres, over the adopted volume.
-  - The proxy-switch HTTP gap is measured.
-  - Coolify is removed and its archive is on disk.
-  - The data, domains and volumes stay.
+`bash install/smoke-migrate-coolify.sh` (`ls-test-cool8-dind`, `KEEP=1`, `STOP_AFTER=coolify|seed`) runs everything in a throwaway docker:dind. That dind's dockerd uses Coolify's address pool, and images are preloaded from the host.
+
+- Coolify v4.5.3 is brought up the way its installer leaves it: `/data/coolify` and its `.env`, its SSH key to the host (sshd in the dind), the `coolify` network, and its own compose files read from the checkout at the tag. Coolify then validates its host over SSH and starts its own Traefik on 80/443.
+- The root user and API token come from Coolify's tinker, and the API is switched on in its settings. The private MinIO S3 storage and its allowlist entry also go through tinker, since the API refuses private endpoints. Everything else is seeded through `/api/v1` and deployed by Coolify:
+  - a Postgres 17 with row 42 and a daily S3 backup, run once into MinIO;
+  - an nginx app on `web.smoke.test` with a `DATABASE_URL` to the database's uuid;
+  - a two-service compose stored as a service (web + cache with a named volume, `SERVICE_FQDN_WEB_80`, `SERVICE_PASSWORD_WEB`) on `blog.smoke.test`.
+
+  A real catalogue template was not used: the small multi-service ones still pull large images.
+- Then `install.sh --local-build`, setup, and the wizard driven through LogiStack's API.
+
+Evidence: run 3 (2026-11-05), every check passes, exit 0:
+- install.sh started Swarm on `10.248.0.0/16`, clear of `coolify` `10.0.1.0/24`.
+- Coolify still works with Swarm on: UI healthy, and `web` redeployed through its API and routed.
+- The inventory had 4 items, none unsupported, with every secret decrypted. The import created all of them, nothing deployed.
+- Cutovers: shop-db (16 s), web (25 s), blog (9 s), MinIO. `web` answered 228 probes out of 228 through every cutover. `blog` paused 8.2 s, since it has a volume, as the wizard says.
+- Coolify was paused (`false no`).
+- Row 42 is read on LogiStack's Postgres over the adopted `postgres-data-<uuid>`. `web` on LogiStack resolves the uuid in its `DATABASE_URL`.
+- Proxy switch: an HTTP gap of 1.2 s (200 ×10, nothing listening ×3, 404 ×1, 200 ×47). Both sites answer through Caddy. `coolify-proxy` is `exited no`.
+- Decommission: archive in `/var/lib/logistack/migration/<stamp>/`. Removed `coolify`, `coolify-db`, `coolify-redis`, `coolify-sentinel`, `coolify-proxy`, the stopped sources and blog's own network. Row 42 and both sites stay, and the database volume is kept.
+
+The runs found and fixed:
+- [x] An app slug from its bare name (`web`) collided with a one-click part of the same name. Coolify keeps those on separate networks; LogiStack environments share one. Apps now take `<name>-<uuid prefix>`. Evidence: an inventory test, and run 2 planned `blog` as full.
+- [x] The private S3 endpoint is refused by Coolify unless `webhook_allowed_internal_hosts` allows it. That is a property of the test environment, so the test sets it.
+- [x] One 502 on `web` as the bridge formed: the first app container joined before the proxy's new endpoint was ready. The worker now waits 2 s after joining the proxy. Evidence: run 3, 0 failed probes on web.
+- [x] The test now measures the documented pause of an item with volumes instead of counting it as failures.
+
+Also re-run on the final checkout: `SMOKE_COOLIFY=1` 10/10 (including "re-run restarts no task"), `SMOKE_DOKPLOY=1` 9/9, `WORKER_IT=1` Coolify and Dokploy suites 11/11, `bun test` 1236 pass, typecheck, Biome.
+
+### Not verified
+
+- A real server with real DNS and Let's Encrypt. In the dind, the switch's own probes fail on DNS for the `.smoke.test` names, and the sites are checked with a Host header.
+- Certificate import from Coolify's `acme.json` with real certificates. The path and format match Dokploy's, which is tested; the dind has none.
+- Coolify 4.0.0 and 4.6.0 end to end. Their schemas and data are read and planned by the upstream test.
+- Applications built from git (Railpack and Dockerfile builds), GitHub App webhook moves, and one-click templates from Coolify's catalogue, end to end.
+- Caddy as Coolify's proxy; multiple Coolify teams; a Coolify upgrade during the migration (the bridge repair is idempotent, not exercised).
 
 ## Risks
 

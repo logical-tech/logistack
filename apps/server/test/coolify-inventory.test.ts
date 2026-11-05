@@ -174,9 +174,12 @@ describe("Coolify applications", () => {
 		});
 		const [svc] = item?.services ?? [];
 		expect(svc).toMatchObject({
-			slug: "shop-web",
+			slug: "shop-web-webq0c8o",
 			importedFrom: "coolify:webq0c8o4wk4gk8ows8sg",
-			bridge: { aliases: ["shop-web", "webq0c8o4wk4gk8ows8sg"], routes: true },
+			bridge: {
+				aliases: ["shop-web-webq0c8o", "webq0c8o4wk4gk8ows8sg"],
+				routes: true,
+			},
 			running: true,
 			spec: {
 				source: { type: "image", image: "nginx:1.27-alpine" },
@@ -561,6 +564,32 @@ describe("Coolify one-click services", () => {
 		expect(items[0]?.status).toBe("unsupported");
 		expect(items[0]?.notes).toContain("services.a.build");
 	});
+});
+
+test("an app and a one-click service's part with one name share an environment", () => {
+	const { items } = buildCoolifyInventory(
+		snapshot({
+			applications: [app({ name: "web" })],
+			services: [
+				{
+					id: 1,
+					uuid: "svc1",
+					name: "blog",
+					environment_id: 1,
+					server_id: 0,
+					destination_type: DOCKER,
+					destination_id: 1,
+					service_type: null,
+					connect_to_docker_network: false,
+					docker_compose_raw: "services:\n  web:\n    image: nginx:alpine\n",
+				},
+			],
+		}),
+	);
+	expect(items.map((i) => [i.services[0]?.slug, i.status])).toEqual([
+		["web-webq0c8o", "full"],
+		["web", "full"],
+	]);
 });
 
 test("a value Coolify's key does not open is named, never echoed; no secret reaches a note", () => {

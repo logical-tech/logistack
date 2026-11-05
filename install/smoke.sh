@@ -42,7 +42,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 if [ "${1:-}" != --inside ]; then
 	docker rm -f -v "$NAME" >/dev/null 2>&1 || true
-	docker run -d --privileged --name "$NAME" --label "logistack.test=$LABEL" -v "$ROOT:/src:ro" "$DIND_IMAGE" "${DIND_ARGS[@]}" >/dev/null
+	docker run -d --privileged --name "$NAME" --label "logistack.test=$LABEL" -v "$ROOT:/src:ro" "$DIND_IMAGE" ${DIND_ARGS[@]+"${DIND_ARGS[@]}"} >/dev/null
 	for _ in $(seq 1 60); do docker exec "$NAME" docker info >/dev/null 2>&1 && break; sleep 1; done
 	docker exec "$NAME" apk add --no-cache -q bash curl jq
 	rc=0

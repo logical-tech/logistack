@@ -159,6 +159,9 @@ export async function ensureBridge(ctx: Ctx) {
 			throw e;
 		});
 		log("info", "joined the Coolify bridge", { container: c.Name });
+		// Give the proxy's new endpoint a moment before routes can point through it: without this
+		// the end-to-end test saw one 502 as the first app joined.
+		if (id === proxy?.Id) await Bun.sleep(2_000);
 	}
 	return net;
 }
