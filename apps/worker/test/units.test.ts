@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { deploymentContextEnv } from "@logistack/core";
 import type { Task } from "@logistack/docker";
 import { buildPlan } from "../src/build.ts";
-import type { DomainRow } from "../src/load.ts";
+import {
+	type DomainRow,
+	deploymentContext,
+	type ServiceContext,
+} from "../src/load.ts";
 import { domainRoute, routeAccess } from "../src/proxy.ts";
 import { observe } from "../src/reconcile.ts";
 
@@ -227,5 +232,41 @@ describe("routeAccess", () => {
 				],
 			},
 		]);
+	});
+});
+
+describe("deploymentContext", () => {
+	const sc = {
+		service: {
+			name: "web",
+			spec: {
+				kind: "application",
+				source: {
+					type: "git",
+					repository: "https://g/r.git",
+					branch: "main",
+					path: ".",
+				},
+			},
+		},
+		environmentName: "production",
+		projectName: "shop",
+		domains: [],
+	} as unknown as ServiceContext;
+	const d = { id: "dep_1", commitSha: "abc", commitMessage: "msg" };
+
+	test("a branch deployment names its branch", () => {
+		expect(
+			deploymentContextEnv(deploymentContext(sc, { ...d, gitRef: null }))
+				.LOGISTACK_BRANCH,
+		).toBe("main");
+	});
+
+	test("a tag or release deployment claims no branch", () => {
+		const env = deploymentContextEnv(
+			deploymentContext(sc, { ...d, gitRef: "v1.2.3" }),
+		);
+		expect(env.LOGISTACK_BRANCH).toBeUndefined();
+		expect(env.LOGISTACK_COMMIT_SHA).toBe("abc");
 	});
 });

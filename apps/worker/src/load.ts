@@ -259,7 +259,13 @@ export async function loadService(
 /** The `LOGISTACK_*` context of a deployment of this service, for its build and its containers. */
 export function deploymentContext(
 	sc: ServiceContext,
-	d: { id: string; commitSha: string | null; commitMessage: string | null },
+	d: {
+		id: string;
+		commitSha: string | null;
+		commitMessage: string | null;
+		/** Set for a tag or release deployment, which is not on a branch. */
+		gitRef: string | null;
+	},
 ): DeploymentContext {
 	const source =
 		sc.service.spec.kind === "application" ? sc.service.spec.source : null;
@@ -269,7 +275,7 @@ export function deploymentContext(
 			commit: {
 				sha: d.commitSha,
 				message: d.commitMessage,
-				...(source?.type === "git" && { branch: source.branch }),
+				...(source?.type === "git" && !d.gitRef && { branch: source.branch }),
 			},
 		}),
 		environment: sc.environmentName,

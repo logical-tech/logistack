@@ -305,7 +305,7 @@ async function runDeployment(
 					.filter(([, v]) => v.isBuildTime)
 					.map(([key, v]) => ({ key, value: v.value, isSecret: v.isSecret })),
 				context: deploymentContextEnv(
-					deploymentContext(sc, { id: d.id, ...commit }),
+					deploymentContext(sc, { id: d.id, gitRef: d.gitRef, ...commit }),
 				),
 				imageRef: ref,
 				railpackFrontend: ctx.cfg.LS_RAILPACK_FRONTEND,
@@ -336,7 +336,7 @@ async function runDeployment(
 		},
 		async deploy() {
 			line(`==> deploying ${ref}`);
-			const target = { id: d.id, imageRef: ref, ...commit };
+			const target = { id: d.id, imageRef: ref, gitRef: d.gitRef, ...commit };
 			const name = svcName(ctx, sc.service.id);
 			const current = await inspectService(ctx, name);
 			const label = (s?: {

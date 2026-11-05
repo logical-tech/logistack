@@ -193,6 +193,7 @@ export async function desiredSpec(
 		imageRef: string | null;
 		commitSha: string | null;
 		commitMessage: string | null;
+		gitRef: string | null;
 	},
 ): Promise<ServiceSpec> {
 	const envNet = await ensureEnvNetwork(
