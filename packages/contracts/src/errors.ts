@@ -6,6 +6,8 @@ export const errorCodes = [
 	"unprocessable",
 	"unauthorized",
 	"forbidden",
+	/** The organization requires a second factor this user has not set up; enrol, then retry. */
+	"two_factor_required",
 	"not_found",
 	"conflict",
 	"rate_limited",

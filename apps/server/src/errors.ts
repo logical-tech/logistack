@@ -21,6 +21,7 @@ const statusOf: Record<ErrorCode, ContentfulStatusCode> = {
 	unprocessable: 422,
 	unauthorized: 401,
 	forbidden: 403,
+	two_factor_required: 403,
 	not_found: 404,
 	conflict: 409,
 	rate_limited: 429,

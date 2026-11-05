@@ -5,6 +5,7 @@ import {
 	invitation,
 	member,
 	organizationRole,
+	passkey,
 	roleGrant,
 	user,
 } from "@logistack/db";
@@ -44,6 +45,8 @@ const Member = z
 		email: z.string(),
 		role: z.string(),
 		twoFactorEnabled: z.boolean(),
+		/** Has at least one passkey, which satisfies a two-factor requirement on its own. */
+		passkey: z.boolean(),
 		createdAt: z.string(),
 	})
 	.openapi("Member");
@@ -129,6 +132,7 @@ export const members = router()
 					email: user.email,
 					role: member.role,
 					twoFactorEnabled: sql<boolean>`coalesce(${user.twoFactorEnabled}, false)`,
+					passkey: sql<boolean>`exists (select 1 from ${passkey} where ${passkey.userId} = ${user.id})`,
 					createdAt: member.createdAt,
 				})
 				.from(member)
@@ -170,6 +174,7 @@ export const members = router()
 						name: user.name,
 						email: user.email,
 						twoFactorEnabled: user.twoFactorEnabled,
+						passkey: sql<boolean>`exists (select 1 from ${passkey} where ${passkey.userId} = ${user.id})`,
 					})
 					.from(user)
 					.where(and(eq(user.email, input.email), eq(user.kind, "human"))),
@@ -199,6 +204,7 @@ export const members = router()
 					name: u.name,
 					email: u.email,
 					twoFactorEnabled: u.twoFactorEnabled ?? false,
+					passkey: u.passkey,
 				},
 				201,
 			);
