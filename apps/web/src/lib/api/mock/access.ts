@@ -11,6 +11,7 @@ import type {
 	Scope,
 	ServiceAccount,
 	SshKey,
+	TwoFactorSetting,
 } from "../access-types";
 import { ApiError } from "../adapter";
 
@@ -74,6 +75,7 @@ const state = {
 			email,
 			role,
 			twoFactorEnabled,
+			passkey: userId === "usr_ana",
 			createdAt: ago(days * 1440),
 		}),
 	),
@@ -139,6 +141,12 @@ const state = {
 		},
 	] as SshKey[],
 	allowPrivateHosts: false,
+	twoFactor: {
+		mode: "off",
+		graceDays: 7,
+		trustIdpMfa: false,
+		enabledAt: null,
+	} as TwoFactorSetting,
 	audit: [] as AuditEntry[],
 };
 
@@ -431,6 +439,7 @@ export const mockAccess: AccessAdapter = {
 			roles: ["owner"],
 			grants: [{ role: "owner", scope: { kind: "organization", id: ORG } }],
 			keyScopes: null,
+			twoFactor: null,
 		}),
 	members: {
 		list: () => delay(state.members),
@@ -615,6 +624,19 @@ export const mockAccess: AccessAdapter = {
 		remove: async (id) => {
 			remove(state.sshKeys, id);
 			await delay(null);
+		},
+	},
+	twoFactor: {
+		get: () => delay({ ...state.twoFactor }),
+		set: async (policy) => {
+			state.twoFactor = {
+				...policy,
+				enabledAt:
+					policy.mode === "off"
+						? null
+						: (state.twoFactor.enabledAt ?? new Date().toISOString()),
+			};
+			return mockAccess.twoFactor.get();
 		},
 	},
 	instance: {

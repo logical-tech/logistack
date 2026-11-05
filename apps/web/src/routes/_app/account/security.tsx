@@ -6,6 +6,7 @@ import {
 	SessionsSection,
 } from "@/components/access/account-devices";
 import { TwoFactorSection } from "@/components/access/account-two-factor";
+import { TwoFactorRequirement } from "@/components/access/two-factor-requirement";
 import { Page, PageHeader } from "@/components/page-header";
 import { useSessionUser } from "@/lib/auth";
 import { stepParam } from "@/lib/search";
@@ -36,6 +37,7 @@ function AccountSecurity() {
 				}
 			/>
 			<div className="grid gap-8">
+				<TwoFactorRequirement />
 				<TwoFactorSection
 					step={step}
 					onStepChange={onStepChange}

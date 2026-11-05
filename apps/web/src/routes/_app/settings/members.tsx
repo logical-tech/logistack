@@ -41,9 +41,11 @@ import {
 	useRemoveGrant,
 	useRemoveMember,
 	useSetMemberRole,
+	useTwoFactorSetting,
 } from "@/lib/api/access";
 import type { Member, RoleGrant } from "@/lib/api/access-types";
 import { daysUntil, relativeTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/settings/members")({
 	staticData: { crumb: "Members" },
@@ -218,6 +220,7 @@ function MemberRow({
 }) {
 	const setRole = useSetMemberRole();
 	const removeGrant = useRemoveGrant();
+	const required = useTwoFactorSetting().data?.mode === "required";
 
 	function changeRole(role: string) {
 		setRole.mutate(
@@ -263,15 +266,20 @@ function MemberRow({
 				<p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
 					<span className="truncate">{m.email}</span>
 					<span aria-hidden>·</span>
-					{m.twoFactorEnabled ? (
+					{m.twoFactorEnabled || m.passkey ? (
 						<span className="inline-flex shrink-0 items-center gap-1 text-ok-text">
 							<ShieldCheck className="size-3.5" aria-hidden />
-							2FA
+							{m.twoFactorEnabled ? "2FA" : "Passkey"}
 						</span>
 					) : (
-						<span className="inline-flex shrink-0 items-center gap-1">
+						<span
+							className={cn(
+								"inline-flex shrink-0 items-center gap-1",
+								required && "text-warn-text",
+							)}
+						>
 							<ShieldOff className="size-3.5" aria-hidden />
-							No 2FA
+							{required ? "No 2FA, required" : "No 2FA"}
 						</span>
 					)}
 				</p>
