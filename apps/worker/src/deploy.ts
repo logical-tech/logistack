@@ -1,6 +1,10 @@
 import { appendFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import type { DeploymentStatus, EventType } from "@logistack/contracts";
+import {
+	type DeploymentStatus,
+	deploymentStatuses,
+	type EventType,
+} from "@logistack/contracts";
 import {
 	type DeploymentEvent,
 	deploymentContextEnv,
@@ -59,10 +63,13 @@ export type QueuePlan =
 /**
  * Pure: what to do next with a service's non-terminal deployments. One in flight is resumed
  * first (a running deployment is only ever cancelled explicitly); otherwise the newest queued
- * one runs and every older queued one is superseded by it.
+ * one runs and every older queued one is superseded by it. Deployments awaiting checks belong
+ * to the checks poller until it queues them.
  */
 export function planQueue(pending: readonly DeploymentRow[]): QueuePlan {
-	const live = pending.filter((d) => !isTerminal(d.status));
+	const live = pending.filter(
+		(d) => !isTerminal(d.status) && d.status !== "awaiting_checks",
+	);
 	const inFlight = live.find((d) => d.status !== "queued");
 	if (inFlight) return { kind: "resume", deployment: inFlight };
 	const queued = live
@@ -263,9 +270,11 @@ async function runDeployment(
 		async clone() {
 			if (spec.kind !== "application" || spec.source.type !== "git")
 				throw new Error("not a git source");
-			line(`==> cloning ${spec.source.repository}#${spec.source.branch}`);
+			const ref = d.gitRef ?? spec.source.branch;
+			line(`==> cloning ${spec.source.repository}#${ref}`);
 			const c = await clone(ctx, spec.source, {
 				deploymentId: d.id,
+				ref,
 				...(sc.git ? { auth: sc.git } : {}),
 				log: line,
 				signal,
@@ -411,12 +420,7 @@ async function failAll(ctx: Ctx, pending: DeploymentRow[], error: string) {
 	log("error", "service cannot be deployed", { error, count: pending.length });
 }
 
-const terminal: DeploymentStatus[] = [
-	"healthy",
-	"failed",
-	"cancelled",
-	"superseded",
-];
+export const terminal = deploymentStatuses.filter(isTerminal);
 
 /** The `deploy` job: drains a service's deployments one at a time until none is pending. */
 export async function processService(

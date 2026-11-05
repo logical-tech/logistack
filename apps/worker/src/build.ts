@@ -105,6 +105,8 @@ export async function clone(
 	source: Extract<ApplicationSpec["source"], { type: "git" }>,
 	o: {
 		deploymentId: string;
+		/** Branch or tag to check out. */
+		ref: string;
 		auth?: GitAuth;
 		log: LogLine;
 		signal: AbortSignal;
@@ -165,7 +167,7 @@ export async function clone(
 			"1",
 			"--single-branch",
 			"--branch",
-			source.branch,
+			o.ref,
 			"--",
 			target,
 			dir,

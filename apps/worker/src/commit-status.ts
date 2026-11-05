@@ -12,6 +12,7 @@ import {
 	gitProviders,
 	Http,
 	instantiate,
+	LOGISTACK_CHECK,
 	ownerRepoPath,
 } from "@logistack/providers";
 import { eq } from "drizzle-orm";
@@ -72,7 +73,7 @@ export async function reportCommitStatus(
 		`https://api.github.com/repos/${ownerRepoPath("github", source.repository)}/statuses/${encodeURIComponent(row.commitSha)}`,
 		{
 			state: mapped.state,
-			context: "LogiStack",
+			context: LOGISTACK_CHECK,
 			description: mapped.description,
 			...(settings?.publicUrl
 				? {
