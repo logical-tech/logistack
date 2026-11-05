@@ -4,6 +4,9 @@
  */
 import type { MigrationSource } from "@logistack/contracts";
 import type { Config } from "../config.ts";
+import { buildCoolifyInventory } from "./coolify/inventory.ts";
+import { readCoolify } from "./coolify/read.ts";
+import { coolifySource } from "./coolify/source.ts";
 import { buildInventory } from "./dokploy/inventory.ts";
 import { readDokploy } from "./dokploy/read.ts";
 import { dokploySource } from "./dokploy/source.ts";
@@ -25,6 +28,15 @@ export function detectSource(cfg: Config): DetectedSource | undefined {
 						composeRoot: dokploy.composeRoot,
 						secrets: dokploy.secrets,
 					}),
+				),
+		};
+	const coolify = coolifySource(cfg);
+	if (coolify)
+		return {
+			source: "coolify",
+			read: async () =>
+				buildCoolifyInventory(
+					await readCoolify(coolify.url, { appKey: coolify.appKey }),
 				),
 		};
 	return undefined;

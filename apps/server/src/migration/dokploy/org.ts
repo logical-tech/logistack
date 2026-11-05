@@ -9,9 +9,9 @@ import {
 	type NotificationChannelKind,
 } from "@logistack/contracts";
 import { githubConfig, notificationChannels } from "@logistack/providers";
-import type { z } from "zod";
 import { RegistryInput } from "../../routes/registries.ts";
 import { Connection } from "../../routes/s3-destinations.ts";
+import { orgItem as item, refused } from "../shared.ts";
 import type { OrgDraft, OrgItem } from "../types.ts";
 import type {
 	DokployDestination,
@@ -23,33 +23,6 @@ import type {
 } from "./snapshot.ts";
 
 export type { OrgDraft, OrgItem };
-
-const item = (
-	kind: OrgItem["kind"],
-	sourceId: string,
-	name: string,
-	notes: string[],
-	draft: OrgDraft | undefined,
-): OrgItem => ({
-	kind,
-	sourceId,
-	name,
-	notes,
-	status: !draft ? "unsupported" : notes.length ? "partial" : "full",
-	...(draft && { draft }),
-});
-
-/** Zod messages for a body the LogiStack route would refuse, or none. */
-const refused = (schema: z.ZodType, input: unknown, notes: string[]) => {
-	const parsed = schema.safeParse(input);
-	if (parsed.success) return false;
-	notes.push(
-		...parsed.error.issues.map(
-			(i) => `${i.path.join(".") || "input"}: ${i.message}`,
-		),
-	);
-	return true;
-};
 
 const DOCKER_HUB = /^((index|registry-1)\.)?docker\.io$/;
 

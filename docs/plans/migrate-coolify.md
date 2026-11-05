@@ -201,53 +201,69 @@ Consequences:
 - [x] Worker settings per source: `sourceSettings(cfg, source)` gives the proxy name, `acme.json` path and bridge network, with `LS_COOLIFY_*` beside the `LS_DOKPLOY_*` overrides. The proxy switch uses it.
 - [ ] The wizard's copy per source moves to COOL-7.
 
-## Read Coolify into an inventory (COOL-2)
+## Read Coolify into an inventory (COOL-2, done)
 
-Code in `apps/server/src/migration/coolify/`: `snapshot.ts` (zod), `read.ts` and `decrypt.ts`, plus a pure `inventory.ts` producing the same `Inventory` and `ServiceDraft` types.
+Code in `apps/server/src/migration/coolify/`: `snapshot.ts` (zod), `read.ts`, `decrypt.ts`, `source.ts`, and the pure `inventory.ts` and `org.ts`, producing the shared `Inventory` (`../types.ts`). Source-agnostic helpers moved to `migration/shared.ts`: `orgItem`, `refused`, `dependencyOrder`, `crossChecks` and `orgChecks`. The cross-environment check now also looks for Coolify's uuids, which have no dash.
 
-- [ ] Reader:
+- [x] Reader:
   - It runs inside a READ ONLY transaction.
-  - It checks each required column against `information_schema` and names the missing one.
-  - Columns added after v4.0.0 are optional.
-  - Soft-deleted rows (`deleted_at`) are skipped.
-  - Only resources on the localhost server (`servers.id = 0`) are read; others are `unsupported` (multi-server is out of scope).
-- [ ] Upstream schema test (`COOLIFY_SRC`, opt-in): it runs Coolify's own image at each pinned tag (`php artisan migrate` against a scratch Postgres) and checks the reader's columns against it. No Coolify code lands in this repo. Tags: v4.0.0, v4.5.3 and v4.6.0.
-- [ ] `decrypt.ts`: Laravel CBC with MAC check, the serialized and raw variants, and the plaintext fallback only where Coolify's own migration says rows can be plaintext. Evidence: unit tests on payloads made with a known key, including a wrong MAC.
-- [ ] Env:
-  - The service's runtime rows are read (`is_preview=false`), with shared `{{team|project|environment|server.KEY}}` and `$SIBLING` references resolved.
-  - `{{vault.*}}`, unresolvable references and invalid keys are skipped and named.
-  - Build-only rows become build args.
-  - The notes never carry a value. Evidence: a test that searches the notes for fixture secrets.
-- [ ] Applications:
-  - `dockerimage` (pinned to the running container's image digest, as Dokploy's importer does), `dockerfile` (path or inline), `nixpacks`/`railpack` → Railpack with a note, and `static` (`publish_directory`, SPA).
-  - Git sources: GitHub App, deploy key, public URL.
-  - Ports from `ports_exposes`, with host `ports_mappings` reported. Domains from `fqdn`, including path, scheme and port override. Limits, health check and basic auth.
-  - Persistent volumes are adopted under their Docker name. File volumes become configs.
-- [ ] Standalone databases:
-  - Postgres, MySQL, MariaDB, MongoDB and Redis on their official image keep their version and adopt `<type>-data-<uuid>`. Postgres 18+ gets the same `PGDATA` handling as Dokploy.
-  - The credentials are written into the env, Redis's from its env rows.
-  - KeyDB, Dragonfly, ClickHouse, custom images and SSL-enabled databases are `unsupported` until LogiStack has those engines. `is_public` is reported.
-- [ ] `dockercompose` applications go through the existing `mapComposeServices`, with `docker_compose_domains`.
-- [ ] Evidence: `test/coolify-inventory.test.ts` and `test/coolify-read.test.ts`, seeded against the schema of the upstream test.
+  - It checks each required column against `information_schema` and names the missing ones.
+  - Columns and tables added after v4.0.0 are optional: `domain_port_overrides`, `enable_ssl`, `use_path_style_endpoint`, `scheduled_database_backup_s3_storage`, and the KeyDB, Dragonfly and ClickHouse tables.
+  - Soft-deleted rows are skipped.
+  - Secrets are decrypted on the way out. A value no key opens becomes null and is listed in `undecryptable` by table, row name and column.
+- [x] Real schema and data per release. Coolify's own image (`coollabsio/coolify:<tag>`) migrates a scratch Postgres, then `test/fixtures/coolify-seed.php` seeds it through Coolify's own Eloquent models, so the rows are cast and encrypted by Coolify. The reader and the inventory then run on it.
+  - Evidence: `COOLIFY_TAGS=4.0.0,4.5.3,4.6.0 bun test test/coolify-read.test.ts` (2026-11-05): 4 pass. Every release reads with nothing undecryptable and plans the database, the application and the one-click service as `full`.
+  - Schema diff (4.0.0 → 4.5.3), from the same run: the only columns the reader needs that 4.0.0 lacks are the optional ones above.
+- [x] `decrypt.ts`:
+  - Laravel AES-256-CBC with the HMAC checked first; `encrypt()` payloads are unserialized.
+  - Plaintext rows from older releases pass through.
+  - Evidence: `test/coolify-decrypt.test.ts`, on payloads Coolify 4.5.3's own encrypter made with a test key, plus a wrong key and a tampered payload.
+  - Finding: `local_file_volumes.fs_path` and `mount_path` are encrypted too, not only `content`.
+- [x] Env:
+  - The non-preview rows of the resource.
+  - `{{team|project|environment|server.KEY}}` is resolved against the shared variables of the resource's own team, project or environment, and a whole-value `$SIBLING` against the resource's own rows. `is_literal` rows are kept as written.
+  - Vault references, values the key did not open and invalid keys are skipped and named.
+  - Build-only rows are counted in a note.
+  - Evidence: inventory tests, including one that searches the notes for every fixture secret.
+- [x] Applications:
+  - `dockerimage` maps to `name:tag`. A digest stays a digest, because Coolify keeps `@sha256` in the name.
+  - Git sources:
+    - a GitHub App keeps `owner/repo` and its provider;
+    - the public GitHub source becomes the repository URL;
+    - a deploy key, GitLab or Gitea is reported.
+  - Builds: `dockerfile`, `static`, and `nixpacks`/`railpack` → Railpack (static when `is_static`). An inline Dockerfile is unsupported.
+  - Domains from `fqdn` keep their scheme, path and port.
+  - `ports_mappings` become host ports. The HTTP health check, memory and CPU limits (Docker size strings), basic auth, persistent volumes (adopted, or bind when they have a host path) and file volumes (configs, or binds for directories) all map.
+  - Reported, not carried over: previews, GPU, pre- and post-deploy commands, custom run options and labels the user added.
+  - Remote servers and Swarm destinations are unsupported.
+  - Slug: the consistent container name when set, else from the name. The bridge aliases are the slug and the uuid.
+- [x] Standalone databases:
+  - Postgres, MySQL, MariaDB, MongoDB and Redis on their official image keep their version.
+  - They adopt the volume at LogiStack's data dir, which is the same path Coolify mounts, so Postgres 18 needs no `PGDATA`.
+  - Coolify's credentials become the env, with Redis's taken from its env rows.
+  - Backups become S3 policies, with Coolify's frequency aliases as cron and retention from `retention_amount_s3`.
+  - SSL, KeyDB, Dragonfly, ClickHouse, custom images and a missing data volume are unsupported.
+  - The slug and the alias are the uuid.
+- [x] `dockercompose` applications go through the compose mapper, with `docker_compose_domains`.
+- [x] Detection: `detectSource` finds Coolify from `COOLIFY_DB_PASSWORD` and `COOLIFY_APP_KEY` (secrets). `POST /migrations` reads it, and a failed read is a 422 that never echoes the password. Evidence: `migration-routes.test.ts` (6 pass).
 
-## One-click services and organization resources (COOL-3)
+## One-click services and organization resources (COOL-3, done)
 
-- [ ] One-click services, per decision 2:
-  - `docker_compose_raw` goes through `mapComposeServices`, one LogiStack service per compose service.
-  - The stored magic-variable rows become plain env values, so generated passwords stay the same.
-  - `service_applications.fqdn` becomes domains.
-  - Coolify-only compose extensions are reported. One that changes behaviour (`exclude_from_hc`, `coolify.*` labels) refuses the item.
-  - Named volumes are adopted as `<uuid>_<name>`.
-- [ ] Organization items, reusing `org.ts`'s checked bodies:
-  - S3 storages (path style from `use_path_style_endpoint`);
-  - private keys;
-  - GitHub Apps (private key from `private_keys`; webhook moved after the switch, as MIG-3c does);
-  - Discord, Slack, Telegram, email (SMTP and Resend) and Pushover notifications, with Coolify's switches mapped to one rule.
-  - GitLab and Gitea apps and the generic webhook are `unsupported`, with a note to reconnect.
-- [ ] Database backups:
-  - `frequency` → cron, aliases like `daily` expanded. Retention from `retention_amount_s3`.
-  - Every destination from the M:N table. A backup with no S3 destination is reported.
-- [ ] Not read: scheduled tasks, volume backups, previews, Sentinel and log drains, Cloudflare tunnels, server settings. They are reported where they exist.
+- [x] One-click services:
+  - `docker_compose_raw` goes through `mapComposeServices`, with the service's stored env rows as the dotenv, so generated `SERVICE_PASSWORD_*` values stay.
+  - Named volumes, declared or not, are adopted as `<uuid>_<name>`.
+  - `exclude_from_hc` and Coolify's file-content keys are ignored.
+  - A part's domain comes from `service_applications.fqdn`. Its port comes from the URL, else the `SERVICE_FQDN_<NAME>_<PORT>` variable, else its first port.
+  - Each part answers on the bridge as `<name>-<uuid>`.
+- [x] The compose mapper (shared with Dokploy) now maps `command`, `entrypoint` (compose word splitting) and `healthcheck` (`CMD`, `CMD-SHELL`, a string, `NONE`, `disable`). Dokploy composes gain these too. Evidence: `dokploy-compose.test.ts` "command, entrypoint and healthcheck carry over as argv".
+- [x] Organization items:
+  - S3 storages, with path style defaulting to on.
+  - Git-related deploy keys. Coolify's own server key and GitHub App keys are not users' keys and are skipped.
+  - GitHub Apps, not the seeded public one. GitHub Enterprise and uninstalled apps are unsupported.
+  - Discord, Slack, Telegram, Pushover and email (SMTP or Resend; instance-wide SMTP is reported). The switches map to one rule, and switches with no LogiStack event are named.
+  - GitLab apps and the generic webhook are unsupported.
+- [x] Evidence: `test/coolify-inventory.test.ts` (9 pass).
+- [ ] Not read: scheduled tasks, volume backups, previews, Sentinel and log drains, Cloudflare tunnels.
 
 ## Detect Coolify in install.sh (COOL-4)
 

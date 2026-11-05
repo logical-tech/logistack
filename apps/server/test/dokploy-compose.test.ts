@@ -5,6 +5,7 @@ import {
 	mapCompose,
 	parseDotenv,
 	projectNameFromFolder,
+	splitArgs,
 } from "../src/migration/dokploy/compose.ts";
 import { dokployComposes } from "./fixtures/dokploy.ts";
 
@@ -123,13 +124,39 @@ describe("Dokploy compose to application spec", () => {
 		);
 	});
 
+	test("command, entrypoint and healthcheck carry over as argv", () => {
+		const r = mapCompose({
+			appName: "app-abc123",
+			compose: Bun.YAML.parse(`services:
+  app:
+    image: x
+    command: sh -c 'echo "a b" && sleep 1'
+    entrypoint: ["/init", "--"]
+    healthcheck:
+      test: wget -qO- http://127.0.0.1:3000/health
+      interval: 5s
+`),
+			dotenv: new Map(),
+		});
+		expect(r.kind).toBe("plan");
+		if (r.kind !== "plan") return;
+		expect(r.spec.command).toEqual(["sh", "-c", 'echo "a b" && sleep 1']);
+		expect(r.spec.entrypoint).toEqual(["/init", "--"]);
+		expect(r.spec.healthcheck).toEqual({
+			type: "command",
+			command: ["sh", "-c", "wget -qO- http://127.0.0.1:3000/health"],
+		});
+		expect(splitArgs('a "b c"   d\\ e')).toEqual(["a", "b c", "d e"]);
+		expect(splitArgs('unbalanced "')).toBeUndefined();
+	});
+
 	test("refuses build, multiple services, odd volumes and unknown keys, naming each", () => {
 		expect(
 			refused(`services:
   app:
     build: .
     image: x
-    healthcheck: { test: ["CMD", "true"] }
+    privileged: true
     volumes: [ "data:/data", "cache:/cache", "data:/ro:ro", "/srv/a:/a" ]
 volumes:
   data: {}
@@ -138,7 +165,7 @@ volumes:
 		).toEqual([
 			"volumes.nfs.driver, driver_opts",
 			"services.app.build",
-			"services.app.healthcheck",
+			"services.app.privileged",
 			'services.app.volumes undeclared volume "cache"',
 			'services.app.volumes read-only named volume "data"',
 		]);
