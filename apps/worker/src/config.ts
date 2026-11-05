@@ -30,6 +30,8 @@ const ConfigSchema = z.object({
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
 	LS_DB_NETWORK: z.string().default("ls-db"),
+	/** Dokploy's shared network: services migrated from it join it until it is gone (MIG-7). */
+	LS_DOKPLOY_NETWORK: z.string().default("dokploy-network"),
 	/** Swarm service name of the Caddy ingress (stack `logistack`, service `caddy`). */
 	LS_CADDY_SERVICE: z.string().default("logistack_caddy"),
 	LS_API_UPSTREAM: z.string().default("logistack-api:3000"),

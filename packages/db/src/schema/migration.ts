@@ -14,6 +14,15 @@ import {
 	migrationStatus,
 } from "./enums.ts";
 
+/**
+ * What the cutover stopped on the source, so a rollback restores it: Swarm services with the
+ * replicas they had, and containers that were running.
+ */
+export type MigrationSourceState = {
+	services: Record<string, number>;
+	containers: string[];
+};
+
 /** A migration from another platform into one organization; its items carry the work. */
 export const migration = pgTable("migration", {
 	id: id("mig"),
@@ -49,6 +58,8 @@ export const migrationItem = pgTable(
 			.$type<Record<string, string>>()
 			.notNull()
 			.default({}),
+		/** Saved by the first cutover step, before anything is stopped; never overwritten. */
+		sourceState: jsonb("source_state").$type<MigrationSourceState>(),
 		lastError: text("last_error"),
 		...timestamps,
 	},

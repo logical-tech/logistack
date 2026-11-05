@@ -610,3 +610,19 @@ describe("Postgres data directory", () => {
 			).toBe(dataMount(version));
 	});
 });
+
+test("a migrated service joins the old platform's network under its slug", () => {
+	const spec = compileService({
+		...app,
+		networks: { ...app.networks, bridge: "net-dokploy" },
+	});
+	expect(spec.TaskTemplate.Networks?.at(-1)).toEqual({
+		Target: "net-dokploy",
+		Aliases: [app.service.slug],
+	});
+	expect(
+		compileService(app).TaskTemplate.Networks?.some(
+			(n) => n.Target === "net-dokploy",
+		),
+	).toBe(false);
+});

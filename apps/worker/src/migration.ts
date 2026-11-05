@@ -1,0 +1,332 @@
+/**
+ * Cutover and rollback of one migration item: the source's containers stop, the imported LogiStack
+ * services deploy, and if one is not healthy everything goes back as it was.
+ *
+ * The source is found only by exact name or by its own labels: the Swarm service named after the
+ * Dokploy `appName`, a stack's services by `com.docker.stack.namespace`, a compose project's
+ * containers by `com.docker.compose.project`. What was running is saved on the item before
+ * anything stops, so a rollback after a crash still knows what to start.
+ *
+ * Order: a service with adopted volumes stops the source first, so two processes never write one
+ * volume. A stateless one deploys first and stops the source after, so it is never down: both
+ * answer on Dokploy's network under the same name meanwhile (see the bridge in `apply.ts`).
+ */
+import type { MigrationItemStatus } from "@logistack/contracts";
+import {
+	decrypt,
+	isTerminal,
+	type MigrationItemEvent,
+	migrationItemTransition,
+} from "@logistack/core";
+import {
+	deployment,
+	type MigrationSourceState,
+	migrationItem,
+	service,
+} from "@logistack/db";
+import { DockerError, type Service } from "@logistack/docker";
+import { eq, inArray } from "drizzle-orm";
+import { inspectService } from "./apply.ts";
+import { log } from "./bus.ts";
+import type { Ctx } from "./ctx.ts";
+import { svcName } from "./load.ts";
+import { enqueueDeploy } from "./queues.ts";
+
+/** The part of the stored plan (`apps/server/src/migration/import.ts`) the cutover reads. */
+type Plan =
+	| { type: "org" }
+	| {
+			type: "service";
+			item: {
+				kind: string;
+				appName: string;
+				services: {
+					slug: string;
+					running: boolean;
+					adoptedVolumes: unknown[];
+				}[];
+			};
+	  };
+
+type Item = typeof migrationItem.$inferSelect;
+
+const STOP_WAIT_MS = 120_000;
+
+async function load(ctx: Ctx, itemId: string) {
+	const [item] = await ctx.db
+		.select()
+		.from(migrationItem)
+		.where(eq(migrationItem.id, itemId));
+	if (!item) throw new Error(`migration item ${itemId} not found`);
+	const plan = JSON.parse(
+		await decrypt(ctx.masterKey, item.planEncrypted),
+	) as Plan;
+	return { item, plan };
+}
+
+async function move(
+	ctx: Ctx,
+	item: { id: string; status: MigrationItemStatus },
+	event: MigrationItemEvent,
+	lastError: string | null,
+) {
+	const next = migrationItemTransition(item.status, event);
+	if (!next.ok)
+		throw new Error(
+			`migration item ${item.id}: cannot ${next.error.event} from ${next.error.from}`,
+		);
+	await ctx.db
+		.update(migrationItem)
+		.set({ status: next.state, lastError })
+		.where(eq(migrationItem.id, item.id));
+}
+
+/** The source's Swarm services, by exact name or stack label. */
+async function sourceServices(ctx: Ctx, kind: string, appName: string) {
+	const found =
+		kind === "compose"
+			? await ctx.docker.services.list({
+					label: [`com.docker.stack.namespace=${appName}`],
+				})
+			: (await ctx.docker.services.list({ name: [appName] })).filter(
+					// The name filter matches prefixes; only the exact name is Dokploy's.
+					(s) => s.Spec.Name === appName,
+				);
+	return found;
+}
+
+async function sourceContainers(ctx: Ctx, kind: string, appName: string) {
+	return kind === "compose"
+		? ctx.docker.containers.list(
+				{ label: [`com.docker.compose.project=${appName}`] },
+				true,
+			)
+		: [];
+}
+
+/** Replicas of a replicated service; undefined for global or job modes, which cannot be scaled. */
+const replicasOf = (s: Service): number | undefined => {
+	const mode = s.Spec.Mode;
+	if (!mode) return 1;
+	return "Replicated" in mode ? mode.Replicated.Replicas : undefined;
+};
+
+/** Sets a Swarm service's replicas, retrying on a stale version. */
+async function scale(ctx: Ctx, name: string, replicas: number) {
+	for (let attempt = 0; ; attempt++) {
+		const svc = await inspectService(ctx, name);
+		if (!svc) return;
+		const current = replicasOf(svc);
+		if (current === undefined)
+			throw new Error(
+				`${name} is not a replicated service and cannot be scaled`,
+			);
+		if (current === replicas) return;
+		try {
+			await ctx.docker.services.update(svc.ID, svc.Version.Index, {
+				...svc.Spec,
+				Mode: { Replicated: { Replicas: replicas } },
+			});
+			return;
+		} catch (e) {
+			if (attempt < 3 && e instanceof DockerError && e.status === 500) continue;
+			throw e;
+		}
+	}
+}
+
+/** Until no task of the service runs, or `STOP_WAIT_MS` passes. */
+async function waitStopped(ctx: Ctx, name: string) {
+	const deadline = Date.now() + STOP_WAIT_MS;
+	while (Date.now() < deadline) {
+		const tasks = await ctx.docker.tasks.list({ service: [name] });
+		if (
+			!tasks.some((t) =>
+				[
+					"running",
+					"starting",
+					"preparing",
+					"assigned",
+					"accepted",
+					"pending",
+				].includes(t.Status?.State ?? ""),
+			)
+		)
+			return;
+		await Bun.sleep(500);
+	}
+	throw new Error(`${name} did not stop within ${STOP_WAIT_MS / 1000} s`);
+}
+
+/** 304: the container already is in the state asked for. */
+const unlessAlready = (e: unknown) => {
+	if (!(e instanceof DockerError && e.status === 304)) throw e;
+};
+
+/** Saves what runs on the source, once: a retried cutover finds it already stopped. */
+async function saveSource(
+	ctx: Ctx,
+	item: Item,
+	plan: Extract<Plan, { type: "service" }>,
+): Promise<MigrationSourceState> {
+	if (item.sourceState) return item.sourceState;
+	const { kind, appName } = plan.item;
+	const state: MigrationSourceState = {
+		services: Object.fromEntries(
+			(await sourceServices(ctx, kind, appName)).map((s) => {
+				const replicas = replicasOf(s);
+				if (replicas === undefined)
+					throw new Error(`${s.Spec.Name} is not a replicated service`);
+				return [s.Spec.Name, replicas];
+			}),
+		),
+		containers: (await sourceContainers(ctx, kind, appName))
+			.filter((c) => c.State === "running")
+			.map((c) => c.Id),
+	};
+	await ctx.db
+		.update(migrationItem)
+		.set({ sourceState: state })
+		.where(eq(migrationItem.id, item.id));
+	return state;
+}
+
+async function stopSource(ctx: Ctx, state: MigrationSourceState) {
+	for (const name of Object.keys(state.services)) {
+		await scale(ctx, name, 0);
+		await waitStopped(ctx, name);
+	}
+	for (const id of state.containers)
+		await ctx.docker.containers.stop(id).catch(unlessAlready);
+}
+
+async function restoreSource(ctx: Ctx, state: MigrationSourceState) {
+	for (const [name, replicas] of Object.entries(state.services))
+		await scale(ctx, name, replicas);
+	for (const id of state.containers)
+		await ctx.docker.containers.start(id).catch(unlessAlready);
+}
+
+/** Queues a deployment and waits for it; anything but healthy throws with its error. */
+async function deploy(ctx: Ctx, serviceId: string) {
+	await ctx.db
+		.update(service)
+		.set({ desiredState: "running" })
+		.where(eq(service.id, serviceId));
+	const [d] = await ctx.db
+		.insert(deployment)
+		.values({ serviceId, trigger: "api" })
+		.returning({ id: deployment.id });
+	if (!d) throw new Error("deployment not created");
+	await enqueueDeploy(ctx.queues, serviceId);
+	const deadline = Date.now() + ctx.cfg.LS_DEPLOY_TIMEOUT_MS + 60_000;
+	for (;;) {
+		const [row] = await ctx.db
+			.select()
+			.from(deployment)
+			.where(eq(deployment.id, d.id));
+		if (row && isTerminal(row.status)) {
+			if (row.status === "healthy") return;
+			throw new Error(
+				`deployment ${d.id} ${row.status}${row.error ? `: ${row.error}` : ""}`,
+			);
+		}
+		if (Date.now() > deadline)
+			throw new Error(`deployment ${d.id} did not finish`);
+		await Bun.sleep(1_000);
+	}
+}
+
+/** Stops the imported services: desired state first, so the reconciler does not bring them back. */
+async function stopTargets(ctx: Ctx, ids: string[]) {
+	if (!ids.length) return;
+	await ctx.db
+		.update(service)
+		.set({ desiredState: "stopped" })
+		.where(inArray(service.id, ids));
+	for (const id of ids) {
+		const name = svcName(ctx, id);
+		await scale(ctx, name, 0);
+		await waitStopped(ctx, name);
+	}
+}
+
+const stateful = (plan: Extract<Plan, { type: "service" }>) =>
+	plan.item.services.some((s) => s.adoptedVolumes.length > 0);
+
+const targetsOf = (item: Item, plan: Extract<Plan, { type: "service" }>) =>
+	plan.item.services.map((s) => {
+		const id = item.targets[s.slug];
+		if (!id) throw new Error(`${s.slug} was not imported`);
+		return { id, running: s.running };
+	});
+
+async function rollBackItem(
+	ctx: Ctx,
+	item: Item,
+	plan: Extract<Plan, { type: "service" }>,
+) {
+	const ids = plan.item.services
+		.map((s) => item.targets[s.slug])
+		.filter((id): id is string => !!id);
+	const state = item.sourceState ?? { services: {}, containers: [] };
+	if (stateful(plan)) {
+		await stopTargets(ctx, ids);
+		await restoreSource(ctx, state);
+	} else {
+		await restoreSource(ctx, state);
+		await stopTargets(ctx, ids);
+	}
+}
+
+export async function cutOver(ctx: Ctx, itemId: string) {
+	const { item, plan } = await load(ctx, itemId);
+	if (item.status === "cut_over") return;
+	// Organization resources have nothing to switch; the GitHub webhook moves in MIG-3c.
+	if (plan.type === "org") return move(ctx, item, { type: "cut_over" }, null);
+	const targets = targetsOf(item, plan);
+	const state = await saveSource(ctx, { ...item }, plan);
+	const fresh = { ...item, sourceState: state };
+	try {
+		const up = async () => {
+			for (const t of targets)
+				if (t.running) await deploy(ctx, t.id);
+				else
+					await ctx.db
+						.update(service)
+						.set({ desiredState: "stopped" })
+						.where(eq(service.id, t.id));
+		};
+		if (stateful(plan)) {
+			await stopSource(ctx, state);
+			await up();
+		} else {
+			await up();
+			await stopSource(ctx, state);
+		}
+		await move(ctx, item, { type: "cut_over" }, null);
+	} catch (error) {
+		const cause = error instanceof Error ? error.message : String(error);
+		log("warn", "cutover failed, rolling back", { itemId, error: cause });
+		try {
+			await rollBackItem(ctx, fresh, plan);
+		} catch (e) {
+			// The item stays where it was, with both errors, for a person to look at.
+			const both = `${cause}; rollback failed: ${e instanceof Error ? e.message : String(e)}`;
+			await ctx.db
+				.update(migrationItem)
+				.set({ lastError: both })
+				.where(eq(migrationItem.id, item.id));
+			throw new Error(both);
+		}
+		await move(ctx, item, { type: "rolled_back" }, cause);
+	}
+}
+
+/** A person asked to go back to the source. */
+export async function rollBack(ctx: Ctx, itemId: string) {
+	const { item, plan } = await load(ctx, itemId);
+	if (item.status === "rolled_back") return;
+	if (plan.type === "service") await rollBackItem(ctx, item, plan);
+	await move(ctx, item, { type: "rolled_back" }, null);
+}

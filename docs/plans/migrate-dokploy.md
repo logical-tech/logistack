@@ -152,13 +152,29 @@ Organization-level resources become `OrgItem`s in `Inventory.org` (`org.ts`, pur
 - [ ] Routes to start a migration and run the import, for the wizard. They come with MIG-5 and MIG-6, once the api can reach Dokploy's database.
 - [ ] Shortcut: one api process runs an import at a time (an in-process guard). Take a row lease once the api runs replicas.
 
-### MIG-3b (next): cutover
+### MIG-3b (done): cutover
 
-- [ ] Cutover for one service, as a worker job. Each step is idempotent:
-  - [ ] Scale Dokploy's Swarm service to 0, or stop its compose containers. The service is not removed.
-  - [ ] Deploy the LogiStack service and wait for health.
-  - [ ] On failure, scale the LogiStack service to 0, restore Dokploy's replicas, and mark the item `rolled_back` with the cause.
-  - Evidence: integration test on OrbStack Swarm with a fake "Dokploy" service named `ls-test-mig-*`.
+- [x] Cutover and rollback of one item run as a worker job on the `migration` queue, one at a time (`apps/worker/src/migration.ts`). The api enqueues them once the wizard's routes exist.
+- [x] The source is found by exact name or by Dokploy's own labels:
+  - the Swarm service named after the `appName`;
+  - a stack's services, by `com.docker.stack.namespace`;
+  - a compose project's containers, by `com.docker.compose.project`.
+- [x] Before anything stops, the item's `source_state` saves the replicas of each source service and the ids of its running containers. It is never overwritten, so a rollback after a crash, or after a second cutover, restores what originally ran.
+- [x] Order:
+  - A service with adopted volumes stops the source first and waits until no task runs, so two processes never write one volume.
+  - A stateless service deploys first and stops the source after, so it is never down.
+  - A service Dokploy had stopped is imported stopped and not deployed.
+  - Dokploy's services are scaled to 0 and its containers stopped. Nothing is removed.
+- [x] Bridge: a service imported from Dokploy joins `dokploy-network` (`LS_DOKPLOY_NETWORK`) under its slug, which is Dokploy's `appName`. Until MIG-4 and MIG-7, Dokploy's Traefik and the services still on Dokploy reach it by its old name. Checked on Swarm (2026-11-05): with both running, requests split between them. Once Dokploy's service is at 0 replicas, Docker DNS answers only with the LogiStack service.
+- [x] Deploy: the job queues a deployment and waits for it to be healthy. Anything else rolls the item back:
+  - It stops the LogiStack service (desired state `stopped` first, so the reconciler leaves it down) and restores Dokploy's replicas and containers.
+  - The item is `rolled_back` with the cause.
+  - If the rollback itself fails, the item stays where it was and its error names both failures.
+- [x] Evidence: `apps/worker/test/cutover.integration.test.ts` (`WORKER_IT=1`) uses a fake Dokploy (`ls-test-mig-*`) on the real Swarm. It covers:
+  - A stateless app takes over Dokploy's name on its network, then hands it back.
+  - A deployment that never gets healthy rolls back on its own.
+  - A compose with a volume has its container stopped before LogiStack starts, and started again on rollback.
+- [ ] Shortcut: a global-mode or job-mode Dokploy service is refused. Dokploy creates replicated services only.
 
 ### MIG-3c: GitHub webhook and progress
 
@@ -198,6 +214,7 @@ Load the UI skills listed in CLAUDE.md before starting.
 ## Decommission Dokploy (MIG-7)
 
 - [ ] Archive under `/var/lib/logistack/migration/<timestamp>/`: a `pg_dump` of Dokploy's DB, a tarball of `/etc/dokploy`, and the inventory JSON. Evidence: files exist and the dump restores into a scratch Postgres.
+- [ ] Detach the migrated services from `dokploy-network` (the MIG-3b bridge) before removing it: Docker refuses to remove a network services still use. Turn the bridge off, update each migrated service without it, then remove the network.
 - [ ] Remove Dokploy's Swarm services (`dokploy`, `dokploy-postgres`, `dokploy-redis`, `dokploy-traefik`) and its app services and containers, matched by Dokploy's own labels or the exact names in the inventory. Remove the `dokploy-network` once it is empty. Volumes stay. Evidence: integration test listing what is left.
 - [ ] Do not decommission while any migrated item is not `cut_over` or `skipped`. Evidence: unit test.
 - [ ] A later "Purge archive and old volumes" action is confirmed by typing the server name. It never deletes adopted volumes. Evidence: test.

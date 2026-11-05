@@ -231,6 +231,16 @@ export async function desiredInput(
 					throw e;
 				})
 			: undefined;
+	// Until Dokploy is decommissioned, its Traefik and its remaining services reach this one by its
+	// old appName (the slug) on Dokploy's network.
+	const bridge = sc.service.importedFrom?.startsWith("dokploy:")
+		? await ctx.docker.networks
+				.inspect(ctx.cfg.LS_DOKPLOY_NETWORK)
+				.catch((e) => {
+					if (notFound(e)) return undefined;
+					throw e;
+				})
+		: undefined;
 	await checkAdopted(ctx, sc);
 	const pin = await resolvePin(ctx, sc);
 	const input = compileInput(sc, deployment, {
@@ -239,6 +249,7 @@ export async function desiredInput(
 			ingress: ingress.Id,
 			...(storage ? { storage: storage.Id } : {}),
 			...(db ? { db: db.Id } : {}),
+			...(bridge ? { bridge: bridge.Id } : {}),
 		},
 		...(pin ? { pinNodeId: pin } : {}),
 		scope: scope(ctx),

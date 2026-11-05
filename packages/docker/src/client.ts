@@ -221,6 +221,11 @@ export function createDockerClient(opts: DockerClientOptions = {}) {
 				}),
 			start: (containerId: string) =>
 				post<void>(`/containers/${id(containerId)}/start`),
+			/** Waits up to `timeoutS` for a clean exit, then kills. A stopped container is a no-op (304). */
+			stop: (containerId: string, timeoutS = 10) =>
+				post<void>(`/containers/${id(containerId)}/stop`, undefined, {
+					query: { t: String(timeoutS) },
+				}),
 			remove: (containerId: string, force = false) =>
 				del(`/containers/${id(containerId)}`, { force }),
 			logs: (containerId: string, o: LogOptions = {}) =>

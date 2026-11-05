@@ -1,0 +1,1 @@
+ALTER TABLE "migration_item" ADD COLUMN "source_state" jsonb;

@@ -60,11 +60,16 @@ export type CompileServiceInput = {
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
 	/** `db`: the shared network the api reaches databases on for the explorer; absent leaves them off it. */
+	/**
+	 * `bridge`: the network of the platform a service was migrated from (`dokploy-network`), joined
+	 * under the slug, so that platform's proxy and services still reach it until they are gone.
+	 */
 	networks: {
 		environment: string;
 		ingress: string;
 		storage?: string;
 		db?: string;
+		bridge?: string;
 	};
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
@@ -454,6 +459,9 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					? [{ Target: input.networks.storage }]
 					: []),
 				...(isDb && input.networks.db ? [{ Target: input.networks.db }] : []),
+				...(input.networks.bridge
+					? [{ Target: input.networks.bridge, Aliases: [service.slug] }]
+					: []),
 			],
 		},
 		Mode: { Replicated: { Replicas: replicas } },

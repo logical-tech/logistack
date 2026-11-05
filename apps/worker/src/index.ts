@@ -2,6 +2,8 @@ import {
 	BACKUP_QUEUE,
 	type BackupJob,
 	type EventEnvelope,
+	MIGRATION_QUEUE,
+	type MigrationJob,
 	SCHEDULE_QUEUE,
 	type ScheduleJob,
 } from "@logistack/contracts";
@@ -23,6 +25,7 @@ import type { Ctx } from "./ctx.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { checkForUpdate } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
+import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
@@ -175,6 +178,15 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				await schedules.process(job.data, (d) => job.updateData(d));
 			},
 			{ connection, concurrency: cfg.LS_RUN_CONCURRENCY },
+		),
+		// One cutover at a time: the wizard moves services in order, databases first.
+		new Worker<MigrationJob>(
+			MIGRATION_QUEUE,
+			async (job) => {
+				if (job.data.action === "cutover") await cutOver(ctx, job.data.itemId);
+				else await rollBack(ctx, job.data.itemId);
+			},
+			{ connection, concurrency: 1 },
 		),
 	];
 	for (const w of workers) w.on("failed", failed(w.name));
