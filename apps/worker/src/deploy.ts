@@ -1,7 +1,12 @@
 import { appendFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { DeploymentStatus, EventType } from "@logistack/contracts";
-import { type DeploymentEvent, isTerminal, transition } from "@logistack/core";
+import {
+	type DeploymentEvent,
+	deploymentContextEnv,
+	isTerminal,
+	transition,
+} from "@logistack/core";
 import { deployment } from "@logistack/db";
 import { and, asc, eq, inArray, not } from "drizzle-orm";
 import {
@@ -23,7 +28,13 @@ import {
 } from "./build.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
-import { imageRef, loadService, type ServiceContext, svcName } from "./load.ts";
+import {
+	deploymentContext,
+	imageRef,
+	loadService,
+	type ServiceContext,
+	svcName,
+} from "./load.ts";
 
 export type DeploymentRow = typeof deployment.$inferSelect;
 type Patch = Partial<
@@ -244,6 +255,8 @@ async function runDeployment(
 			? spec.source.image
 			: imageRef(ctx, sc, d.id));
 	let checkout: string | undefined;
+	// Cloned commits land in the row through advance(); `d` is the row as it was read.
+	let commit = { commitSha: d.commitSha, commitMessage: d.commitMessage };
 	const state = { id: d.id, status: d.status };
 
 	const steps: Steps = {
@@ -259,7 +272,8 @@ async function runDeployment(
 			});
 			checkout = c.dir;
 			line(`==> commit ${c.commitSha} ${c.commitMessage}`);
-			return { commitSha: c.commitSha, commitMessage: c.commitMessage };
+			commit = { commitSha: c.commitSha, commitMessage: c.commitMessage };
+			return commit;
 		},
 		async build() {
 			if (
@@ -281,6 +295,9 @@ async function runDeployment(
 				buildEnv: Object.entries(sc.env)
 					.filter(([, v]) => v.isBuildTime)
 					.map(([key, v]) => ({ key, value: v.value, isSecret: v.isSecret })),
+				context: deploymentContextEnv(
+					deploymentContext(sc, { id: d.id, ...commit }),
+				),
 				imageRef: ref,
 				railpackFrontend: ctx.cfg.LS_RAILPACK_FRONTEND,
 			});
@@ -310,7 +327,7 @@ async function runDeployment(
 		},
 		async deploy() {
 			line(`==> deploying ${ref}`);
-			const target = { id: d.id, imageRef: ref };
+			const target = { id: d.id, imageRef: ref, ...commit };
 			const name = svcName(ctx, sc.service.id);
 			const current = await inspectService(ctx, name);
 			const label = (s?: {

@@ -3,6 +3,7 @@ export * from "./crypto.ts";
 export * from "./database-credentials.ts";
 export * from "./db-scripts.ts";
 export * from "./deployment.ts";
+export * from "./deployment-context.ts";
 export * from "./env.ts";
 export * from "./folders.ts";
 export * from "./ids.ts";

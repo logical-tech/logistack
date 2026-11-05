@@ -158,6 +158,18 @@ describe.skipIf(!enabled)("worker against the real Swarm", () => {
 		);
 		const res = await fetch(`http://127.0.0.1:${port}/`);
 		expect(await res.text()).toBe("v=1\n");
+		const env = svc?.Spec.TaskTemplate.ContainerSpec.Env ?? [];
+		expect(env).toEqual(
+			expect.arrayContaining([
+				`LOGISTACK_DEPLOYMENT_ID=${firstDeployment}`,
+				"LOGISTACK_PROJECT=P",
+				"LOGISTACK_ENVIRONMENT=Prod",
+				"LOGISTACK_SERVICE=web",
+				"LOGISTACK_URL=https://web.test",
+				"LOGISTACK_FQDN=web.test",
+			]),
+		);
+		expect(env.filter((e) => /^LOGISTACK_(COMMIT|BRANCH)/.test(e))).toEqual([]);
 	}, 120_000);
 
 	test("redeploy with new env rolls start-first with zero failed requests", async () => {
@@ -274,6 +286,31 @@ describe.skipIf(!enabled)("worker against the real Swarm", () => {
 		const log = await Bun.file(d.logPath as string).text();
 		expect(log).toContain("==> building");
 		expect(log).toContain("==> healthy");
+		const env =
+			(await inspectService(ctx(), svcName(ctx(), appId)))?.Spec.TaskTemplate
+				.ContainerSpec.Env ?? [];
+		expect(env).toEqual(
+			expect.arrayContaining([
+				`LOGISTACK_COMMIT_SHA=${d.commitSha}`,
+				"LOGISTACK_COMMIT_MESSAGE=fixture app",
+				"LOGISTACK_BRANCH=main",
+			]),
+		);
+		// The Dockerfile declares this ARG, so the build saw the cloned commit.
+		expect(
+			sh(
+				"docker",
+				"run",
+				"--rm",
+				"--name",
+				`${PREFIX}commit`,
+				"--label",
+				"logistack.test=worker",
+				d.imageRef as string,
+				"cat",
+				"/www/commit",
+			),
+		).toBe(d.commitSha as string);
 	}, 320_000);
 
 	test("orphaned objects are removed only after the grace period", async () => {

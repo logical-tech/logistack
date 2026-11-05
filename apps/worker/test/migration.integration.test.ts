@@ -90,6 +90,7 @@ describe.skipIf(!enabled)("migration settings on the real Swarm", () => {
 				},
 			},
 			deploymentId: "dep_mig",
+			context: { project: "p", environment: "e", service: "s", domains: [] },
 			image: "alpine:3.21",
 			env: {},
 			mounts: [],

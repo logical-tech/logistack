@@ -17,7 +17,11 @@ import {
 import { eq } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
-import { envNetworkName, type ServiceContext } from "./load.ts";
+import {
+	deploymentContext,
+	envNetworkName,
+	type ServiceContext,
+} from "./load.ts";
 
 const notFound = (e: unknown) => e instanceof DockerError && e.notFound;
 const conflict = (e: unknown) => e instanceof DockerError && e.conflict;
@@ -184,7 +188,12 @@ export async function inspectService(
 export async function desiredSpec(
 	ctx: Ctx,
 	sc: ServiceContext,
-	deployment: { id: string; imageRef: string | null },
+	deployment: {
+		id: string;
+		imageRef: string | null;
+		commitSha: string | null;
+		commitMessage: string | null;
+	},
 ): Promise<ServiceSpec> {
 	const envNet = await ensureEnvNetwork(
 		ctx,
@@ -218,6 +227,7 @@ export async function desiredSpec(
 		env: Object.fromEntries(
 			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
 		),
+		context: deploymentContext(sc, deployment),
 		mounts: sc.mounts,
 		domains: sc.domains,
 		networks: {

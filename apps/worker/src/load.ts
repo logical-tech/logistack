@@ -5,6 +5,7 @@ import type {
 } from "@logistack/contracts";
 import {
 	type CompileMount,
+	type DeploymentContext,
 	decrypt,
 	dockerName,
 	type ResolvedEnvVar,
@@ -29,7 +30,7 @@ import {
 	gitProviders,
 	instantiate,
 } from "@logistack/providers";
-import { and, eq, or } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
 
 export type ServiceRow = typeof service.$inferSelect;
@@ -38,6 +39,8 @@ export type DomainRow = typeof domain.$inferSelect;
 export type ServiceContext = {
 	service: ServiceRow & { spec: ApplicationSpec | DatabaseSpec | StorageSpec };
 	organizationId: string;
+	projectName: string;
+	environmentName: string;
 	env: Record<string, ResolvedEnvVar>;
 	mounts: CompileMount[];
 	domains: DomainRow[];
@@ -119,7 +122,12 @@ export async function loadService(
 	serviceId: string,
 ): Promise<ServiceContext | null> {
 	const [row] = await ctx.db
-		.select({ service, organizationId: project.organizationId, project })
+		.select({
+			service,
+			organizationId: project.organizationId,
+			project,
+			environmentName: environment.name,
+		})
 		.from(service)
 		.innerJoin(environment, eq(environment.id, service.environmentId))
 		.innerJoin(project, eq(project.id, environment.projectId))
@@ -176,7 +184,8 @@ export async function loadService(
 	const domains = await ctx.db
 		.select()
 		.from(domain)
-		.where(eq(domain.serviceId, svc.id));
+		.where(eq(domain.serviceId, svc.id))
+		.orderBy(asc(domain.createdAt), asc(domain.id));
 
 	const [reg] = await ctx.db
 		.select()
@@ -229,6 +238,8 @@ export async function loadService(
 	return {
 		service: { ...svc, spec },
 		organizationId: orgId,
+		projectName: row.project.name,
+		environmentName: row.environmentName,
 		env,
 		mounts,
 		domains,
@@ -242,5 +253,28 @@ export async function loadService(
 			: null,
 		...(git ? { git } : {}),
 		...(pinnedSwarmNodeId ? { pinnedSwarmNodeId } : {}),
+	};
+}
+
+/** The `LOGISTACK_*` context of a deployment of this service, for its build and its containers. */
+export function deploymentContext(
+	sc: ServiceContext,
+	d: { id: string; commitSha: string | null; commitMessage: string | null },
+): DeploymentContext {
+	const source =
+		sc.service.spec.kind === "application" ? sc.service.spec.source : null;
+	return {
+		deploymentId: d.id,
+		...(d.commitSha && {
+			commit: {
+				sha: d.commitSha,
+				message: d.commitMessage,
+				...(source?.type === "git" && { branch: source.branch }),
+			},
+		}),
+		environment: sc.environmentName,
+		project: sc.projectName,
+		service: sc.service.name,
+		domains: sc.domains,
 	};
 }

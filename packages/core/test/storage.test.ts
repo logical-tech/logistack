@@ -33,6 +33,7 @@ function storage(engine: StorageEngine): CompileServiceInput {
 			spec: { kind: "storage", engine, resources: { memoryMb: 512 } },
 		},
 		deploymentId: "dep_one0000000000000000000000",
+		context: { project: "p", environment: "e", service: "s", domains: [] },
 		env: { ...FIXED_CREDS },
 		mounts: [],
 		domains: [],

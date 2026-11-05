@@ -140,6 +140,7 @@ describe("planTemplate", () => {
 					spec: p.spec,
 				},
 				deploymentId: `dep_${i}`.padEnd(28, "0"),
+				context: { project: "p", environment: "e", service: "s", domains: [] },
 				...(p.spec.kind === "application" &&
 					p.spec.source.type === "image" && { image: p.spec.source.image }),
 				env: Object.fromEntries(p.env.map((e) => [e.key, e.value])),

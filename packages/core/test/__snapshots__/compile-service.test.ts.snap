@@ -43,6 +43,10 @@ exports[`snapshots stateless application 1`] = `
       "Configs": [],
       "Env": [
         "API_KEY=s3cret",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "PORT=8080",
       ],
       "Image": "registry.example.com/org_acme/ls-svc-app:dep_one",
@@ -146,6 +150,10 @@ exports[`snapshots stateful application with domain, config and secret 1`] = `
       ],
       "Env": [
         "API_KEY=s3cret",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "PORT=8080",
       ],
       "Healthcheck": {
@@ -266,6 +274,10 @@ exports[`snapshots database postgres 1`] = `
     "ContainerSpec": {
       "Configs": [],
       "Env": [
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "POSTGRES_PASSWORD=pw",
         "POSTGRES_USER=app",
       ],
@@ -368,6 +380,10 @@ exports[`snapshots database mysql 1`] = `
     "ContainerSpec": {
       "Configs": [],
       "Env": [
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "MYSQL_ROOT_PASSWORD=pw",
       ],
       "Healthcheck": {
@@ -473,6 +489,10 @@ exports[`snapshots database mariadb 1`] = `
     "ContainerSpec": {
       "Configs": [],
       "Env": [
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "MARIADB_ROOT_PASSWORD=pw",
       ],
       "Healthcheck": {
@@ -576,6 +596,10 @@ exports[`snapshots database mongo 1`] = `
     "ContainerSpec": {
       "Configs": [],
       "Env": [
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "MONGO_INITDB_ROOT_PASSWORD=pw",
         "MONGO_INITDB_ROOT_USERNAME=root",
       ],
@@ -686,6 +710,10 @@ exports[`snapshots database redis 1`] = `
       ],
       "Configs": [],
       "Env": [
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "REDIS_PASSWORD=pw",
       ],
       "Healthcheck": {
@@ -788,6 +816,10 @@ exports[`snapshots database libsql 1`] = `
       "Configs": [],
       "Env": [
         "LIBSQL_AUTH_TOKEN=token",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "SQLD_AUTH_JWT_KEY=key",
       ],
       "Healthcheck": {
@@ -861,6 +893,33 @@ exports[`snapshots database libsql 1`] = `
 }
 `;
 
+exports[`deployment context image source without domains 1`] = `
+{
+  "API_KEY": "s3cret",
+  "LOGISTACK_DEPLOYMENT_ID": "dep_one0000000000000000000000",
+  "LOGISTACK_ENVIRONMENT": "production",
+  "LOGISTACK_PROJECT": "Shop",
+  "LOGISTACK_SERVICE": "Web",
+  "PORT": "8080",
+}
+`;
+
+exports[`deployment context git source with domains 1`] = `
+{
+  "API_KEY": "s3cret",
+  "LOGISTACK_BRANCH": "main",
+  "LOGISTACK_COMMIT_MESSAGE": "fix: checkout total",
+  "LOGISTACK_COMMIT_SHA": "0123456789abcdef0123456789abcdef01234567",
+  "LOGISTACK_DEPLOYMENT_ID": "dep_one0000000000000000000000",
+  "LOGISTACK_ENVIRONMENT": "production",
+  "LOGISTACK_FQDN": "web-1-2-3-4.sslip.io,*.preview.acme.dev,shop.acme.dev",
+  "LOGISTACK_PROJECT": "Shop",
+  "LOGISTACK_SERVICE": "Web",
+  "LOGISTACK_URL": "https://shop.acme.dev/app",
+  "PORT": "8080",
+}
+`;
+
 exports[`host-level application settings snapshot 1`] = `
 {
   "EndpointSpec": {
@@ -905,6 +964,10 @@ exports[`host-level application settings snapshot 1`] = `
       "Configs": [],
       "Env": [
         "API_KEY=s3cret",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
         "PORT=8080",
       ],
       "Image": "registry.example.com/org_acme/ls-svc-app:dep_one",

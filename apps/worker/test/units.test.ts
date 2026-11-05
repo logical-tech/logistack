@@ -15,6 +15,7 @@ describe("buildPlan", () => {
 			{ key: "PUBLIC_URL", value: "https://x", isSecret: false },
 			{ key: "NPM_TOKEN", value: "t0ken", isSecret: true },
 		],
+		context: { LOGISTACK_DEPLOYMENT_ID: "dep_1", LOGISTACK_COMMIT_SHA: "abc" },
 	};
 
 	test("dockerfile build: paths resolve inside the checkout, secrets go through env", () => {
@@ -45,6 +46,10 @@ describe("buildPlan", () => {
 			"id=NPM_TOKEN,env=NPM_TOKEN",
 			"--opt",
 			"build-arg:PUBLIC_URL=https://x",
+			"--opt",
+			"build-arg:LOGISTACK_COMMIT_SHA=abc",
+			"--opt",
+			"build-arg:LOGISTACK_DEPLOYMENT_ID=dep_1",
 			"--output",
 			"type=docker,name=ls-local/org/ls-svc-a:dep_1",
 		]);
@@ -81,6 +86,8 @@ describe("buildPlan", () => {
 			"source=ghcr.io/railwayapp/railpack-frontend:v1",
 		);
 		expect(plan.args).toContain("filename=railpack-plan.json");
+		// The railpack frontend reads its plan, not Dockerfile ARGs.
+		expect(plan.args.join(" ")).not.toContain("LOGISTACK_");
 	});
 });
 

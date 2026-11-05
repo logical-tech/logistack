@@ -195,12 +195,17 @@ export type BuildPlan = {
 	prepare?: string[];
 };
 
-/** Pure: the buildctl invocation for a build config. Secret build-time vars go through env, never argv. */
+/**
+ * Pure: the buildctl invocation for a build config. Secret build-time vars go through env, never argv.
+ * Context vars are Dockerfile build args only: BuildKit hands an arg to the build only where an `ARG` declares it.
+ */
 export function buildPlan(o: {
 	dir: string;
 	appPath: string;
 	build: ApplicationSpec["build"];
 	buildEnv: { key: string; value: string; isSecret: boolean }[];
+	/** The deployment's `LOGISTACK_*` values; none of them is secret. */
+	context: Record<string, string>;
 	imageRef: string;
 	railpackFrontend: string;
 }): BuildPlan {
@@ -233,6 +238,9 @@ export function buildPlan(o: {
 					.sort(([a], [b]) => (a < b ? -1 : 1))
 					.flatMap(([k, v]) => ["--opt", `build-arg:${k}=${v}`]),
 				...vars,
+				...Object.entries(o.context)
+					.sort(([a], [b]) => (a < b ? -1 : 1))
+					.flatMap(([k, v]) => ["--opt", `build-arg:${k}=${v}`]),
 				...output,
 			];
 			return { args, env };
