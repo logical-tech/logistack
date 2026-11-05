@@ -275,6 +275,7 @@ async function runDeployment(
 			const c = await clone(ctx, spec.source, {
 				deploymentId: d.id,
 				ref,
+				sha: d.commitSha,
 				...(sc.git ? { auth: sc.git } : {}),
 				log: line,
 				signal,

@@ -100,6 +100,38 @@ export type CloneResult = {
 	commitMessage: string;
 };
 
+/**
+ * Pure: the git invocations that check out a deployment's source into `dir`. A known sha is fetched
+ * and checked out detached, so the built commit is the one the trigger named (and whose checks passed)
+ * even after the branch moved on.
+ */
+export function cloneCommands(o: {
+	ref: string;
+	sha?: string | null;
+	target: string;
+	dir: string;
+}): string[][] {
+	if (!o.sha)
+		return [
+			[
+				"clone",
+				"--depth",
+				"1",
+				"--single-branch",
+				"--branch",
+				o.ref,
+				"--",
+				o.target,
+				o.dir,
+			],
+		];
+	return [
+		["init", "--quiet", "--", o.dir],
+		["-C", o.dir, "fetch", "--depth", "1", "--", o.target, o.sha],
+		["-C", o.dir, "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+	];
+}
+
 export async function clone(
 	ctx: Ctx,
 	source: Extract<ApplicationSpec["source"], { type: "git" }>,
@@ -107,6 +139,8 @@ export async function clone(
 		deploymentId: string;
 		/** Branch or tag to check out. */
 		ref: string;
+		/** The exact commit to check out, from the trigger; without one the head of `ref` is built. */
+		sha?: string | null;
 		auth?: GitAuth;
 		log: LogLine;
 		signal: AbortSignal;
@@ -161,17 +195,8 @@ export async function clone(
 		});
 		const git = (args: string[], cwd?: string) =>
 			run(["git", ...args], { log: o.log, signal: o.signal, env, cwd });
-		await git([
-			"clone",
-			"--depth",
-			"1",
-			"--single-branch",
-			"--branch",
-			o.ref,
-			"--",
-			target,
-			dir,
-		]);
+		for (const args of cloneCommands({ ref: o.ref, sha: o.sha, target, dir }))
+			await git(args);
 		const commitSha = await git(["rev-parse", "HEAD"], dir);
 		const commitMessage = await git(["log", "-1", "--format=%s"], dir);
 		return { dir, commitSha, commitMessage };

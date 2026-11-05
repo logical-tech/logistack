@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { deploymentContextEnv } from "@logistack/core";
 import type { Task } from "@logistack/docker";
-import { buildPlan } from "../src/build.ts";
+import { buildPlan, clone, cloneCommands, run } from "../src/build.ts";
+import type { Ctx } from "../src/ctx.ts";
 import {
 	type DomainRow,
 	deploymentContext,
@@ -232,6 +236,105 @@ describe("routeAccess", () => {
 				],
 			},
 		]);
+	});
+});
+
+describe("clone", () => {
+	const SHA = "0123456789abcdef0123456789abcdef01234567";
+
+	test("without a sha: shallow clone of the branch head", () => {
+		expect(
+			cloneCommands({ ref: "main", target: "https://g/r.git", dir: "/w/d" }),
+		).toEqual([
+			[
+				"clone",
+				"--depth",
+				"1",
+				"--single-branch",
+				"--branch",
+				"main",
+				"--",
+				"https://g/r.git",
+				"/w/d",
+			],
+		]);
+	});
+
+	test("with a sha: fetch exactly that commit and check it out detached", () => {
+		expect(
+			cloneCommands({
+				ref: "main",
+				sha: SHA,
+				target: "https://g/r.git",
+				dir: "/w/d",
+			}),
+		).toEqual([
+			["init", "--quiet", "--", "/w/d"],
+			["-C", "/w/d", "fetch", "--depth", "1", "--", "https://g/r.git", SHA],
+			["-C", "/w/d", "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+		]);
+	});
+
+	test("builds the triggered commit even after the branch moved on", async () => {
+		const root = await mkdtemp(join(tmpdir(), "ls-clone-"));
+		const repo = join(root, "repo");
+		const quiet = { log: () => {}, signal: new AbortController().signal };
+		const git = (...args: string[]) =>
+			run(
+				[
+					"git",
+					"-C",
+					repo,
+					"-c",
+					"user.name=t",
+					"-c",
+					"user.email=t@t",
+					...args,
+				],
+				quiet,
+			);
+		try {
+			await run(
+				["git", "init", "--quiet", "--initial-branch", "main", repo],
+				quiet,
+			);
+			await writeFile(join(repo, "v"), "checked");
+			await git("add", "v");
+			await git("commit", "--quiet", "-m", "checked commit");
+			const checked = await git("rev-parse", "HEAD");
+			await writeFile(join(repo, "v"), "moved");
+			await git("commit", "--quiet", "-am", "pushed while checks ran");
+			const head = await git("rev-parse", "HEAD");
+			expect(head).not.toBe(checked);
+
+			const ctx = {
+				cfg: { LS_WORK_DIR: join(root, "work"), LS_ALLOW_LOCAL_GIT: true },
+			} as unknown as Ctx;
+			const source = {
+				type: "git" as const,
+				repository: repo,
+				branch: "main",
+				path: ".",
+			};
+			const pinned = await clone(ctx, source, {
+				deploymentId: "dep_sha",
+				ref: "main",
+				sha: checked,
+				...quiet,
+			});
+			expect(pinned.commitSha).toBe(checked);
+			expect(pinned.commitMessage).toBe("checked commit");
+			expect(await readFile(join(pinned.dir, "v"), "utf8")).toBe("checked");
+
+			const manual = await clone(ctx, source, {
+				deploymentId: "dep_head",
+				ref: "main",
+				...quiet,
+			});
+			expect(manual.commitSha).toBe(head);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });
 
