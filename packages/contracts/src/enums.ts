@@ -48,6 +48,7 @@ export const NodeStatus = z.enum(nodeStatuses);
 export type NodeStatus = z.infer<typeof NodeStatus>;
 
 export const deploymentStatuses = [
+	"awaiting_checks",
 	"queued",
 	"cloning",
 	"building",
@@ -57,6 +58,7 @@ export const deploymentStatuses = [
 	"failed",
 	"cancelled",
 	"superseded",
+	"skipped",
 ] as const;
 export const DeploymentStatus = z.enum(deploymentStatuses);
 export type DeploymentStatus = z.infer<typeof DeploymentStatus>;
@@ -205,3 +207,28 @@ export const permissionActions = [
 ] as const;
 export const PermissionAction = z.enum(permissionActions);
 export type PermissionAction = z.infer<typeof PermissionAction>;
+
+export const migrationSources = ["dokploy", "coolify"] as const;
+export const MigrationSource = z.enum(migrationSources);
+export type MigrationSource = z.infer<typeof MigrationSource>;
+
+export const migrationStatuses = [
+	"planned",
+	"importing",
+	"imported",
+	/** Dokploy archived and removed (MIG-7). */
+	"decommissioned",
+] as const;
+export const MigrationStatus = z.enum(migrationStatuses);
+export type MigrationStatus = z.infer<typeof MigrationStatus>;
+
+export const migrationItemStatuses = [
+	"planned",
+	"imported",
+	"cut_over",
+	"failed",
+	"rolled_back",
+	"skipped",
+] as const;
+export const MigrationItemStatus = z.enum(migrationItemStatuses);
+export type MigrationItemStatus = z.infer<typeof MigrationItemStatus>;

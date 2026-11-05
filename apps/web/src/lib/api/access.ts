@@ -42,6 +42,14 @@ export const sshKeysQuery = queryOptions({
 	queryKey: ["access", "ssh-keys"],
 	queryFn: () => a.sshKeys.list(),
 });
+export const organizationQuery = queryOptions({
+	queryKey: ["access", "organization"],
+	queryFn: () => a.organization.get(),
+});
+export const twoFactorSettingQuery = queryOptions({
+	queryKey: ["access", "two-factor"],
+	queryFn: () => a.twoFactor.get(),
+});
 export const instanceSettingsQuery = queryOptions({
 	queryKey: ["access", "instance"],
 	queryFn: () => a.instance.get(),
@@ -61,6 +69,8 @@ export const useApiKeys = () => useQuery(apiKeysQuery);
 export const useServiceAccounts = () => useQuery(serviceAccountsQuery);
 export const useSshKeys = () => useQuery(sshKeysQuery);
 export const useInstanceSettings = () => useQuery(instanceSettingsQuery);
+export const useOrganization = () => useQuery(organizationQuery);
+export const useTwoFactorSetting = () => useQuery(twoFactorSettingQuery);
 
 /** A mutation that refreshes every access view (members, roles, grants, keys) on success. */
 function useAccessMutation<I, O>(fn: (input: I) => Promise<O>) {
@@ -100,6 +110,34 @@ export const useRemoveServiceAccount = () =>
 	useAccessMutation(a.serviceAccounts.remove);
 export const useCreateSshKey = () => useAccessMutation(a.sshKeys.create);
 export const useRemoveSshKey = () => useAccessMutation(a.sshKeys.remove);
+/** Saving the requirement also changes what `/me` reports about the signed-in person. */
+export function useSetTwoFactorPolicy() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: a.twoFactor.set,
+		onSuccess: () =>
+			Promise.all([
+				qc.invalidateQueries({ queryKey: ["access"] }),
+				qc.invalidateQueries({ queryKey: ["audit"] }),
+				qc.invalidateQueries({ queryKey: meQuery.queryKey }),
+			]),
+	});
+}
+
+/** The org switcher lists organizations through better-auth, so its list refreshes too. */
+export function useUpdateOrganization() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: a.organization.update,
+		onSuccess: () =>
+			Promise.all([
+				qc.invalidateQueries({ queryKey: ["access"] }),
+				qc.invalidateQueries({ queryKey: ["audit"] }),
+				qc.invalidateQueries({ queryKey: ["organizations"] }),
+			]),
+	});
+}
+
 export const useSetAllowPrivateHosts = () =>
 	useAccessMutation(a.instance.setAllowPrivateHosts);
 

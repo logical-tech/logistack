@@ -1,5 +1,10 @@
 import type { Hook } from "@hono/zod-openapi";
-import type { ApiError, ErrorCode } from "@logistack/contracts";
+import {
+	type ApiError,
+	type ErrorCode,
+	isReservedEnvKey,
+	reservedEnvKeyMessage,
+} from "@logistack/contracts";
 import {
 	DatabaseError,
 	type DatabaseFailure,
@@ -13,8 +18,10 @@ import { log } from "./log.ts";
 const statusOf: Record<ErrorCode, ContentfulStatusCode> = {
 	bad_request: 400,
 	validation_failed: 400,
+	unprocessable: 422,
 	unauthorized: 401,
 	forbidden: 403,
+	two_factor_required: 403,
 	not_found: 404,
 	conflict: 409,
 	rate_limited: 429,
@@ -57,6 +64,16 @@ export function parseInput<T>(
 			r.error.issues,
 		);
 	return r.data;
+}
+
+/** User-defined variables may not shadow the ones every deployment injects. */
+export function rejectReservedEnvKeys(keys: readonly string[]) {
+	const reserved = keys.filter(isReservedEnvKey);
+	const [first] = reserved;
+	if (first)
+		throw new Failure("unprocessable", reservedEnvKeyMessage(first), {
+			keys: reserved,
+		});
 }
 
 /** The single row of a `returning()` or keyed select; 404 when there is none. */

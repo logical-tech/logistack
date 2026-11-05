@@ -21,6 +21,7 @@ import { backups } from "./routes/backups.ts";
 import { certificates } from "./routes/certificates.ts";
 import { databases } from "./routes/databases.ts";
 import { dnsProviders } from "./routes/dns-providers.ts";
+import { domainAccess } from "./routes/domain-access.ts";
 import { domains } from "./routes/domains.ts";
 import { envVars } from "./routes/env-vars.ts";
 import { files } from "./routes/files.ts";
@@ -31,6 +32,7 @@ import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
 import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
+import { migrations } from "./routes/migrations.ts";
 import { networkMapRoutes } from "./routes/network-map.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
@@ -135,6 +137,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", stacks)
 		.route("/api", envVars)
 		.route("/api", domains)
+		.route("/api", domainAccess)
 		.route("/api", dnsProviders)
 		.route("/api", certificates)
 		.route("/api", notifications)
@@ -163,6 +166,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", files)
 		.route("/api", storage)
 		.route("/api", databases)
+		.route("/api", migrations)
 		.route("/", realtime)
 		.route("/", terminal);
 

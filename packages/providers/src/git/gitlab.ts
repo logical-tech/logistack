@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { defineProvider, Http, safeEqual, secret } from "../http.ts";
 import {
+	type CheckState,
 	changedPaths,
 	type GitEvent,
 	type GitProvider,
 	type GitRepo,
 	type PrAction,
+	refOf,
+	summarizeChecks,
 	WebhookRejectedError,
 	withCredentials,
 } from "./types.ts";
@@ -21,9 +24,11 @@ export const gitlabConfig = z.object({
 export type GitLabConfig = z.infer<typeof gitlabConfig>;
 
 const pushPayload = z.object({
-	object_kind: z.literal("push"),
+	object_kind: z.enum(["push", "tag_push"]),
 	ref: z.string(),
 	after: z.string(),
+	/** The commit a tag points at (`after` is the tag object for an annotated tag). */
+	checkout_sha: z.string().nullish(),
 	user_name: z.string().optional(),
 	project: z.object({ path_with_namespace: z.string() }),
 	total_commits_count: z.number().optional(),
@@ -39,6 +44,19 @@ const pushPayload = z.object({
 			}),
 		)
 		.default([]),
+});
+
+const releasePayload = z.object({
+	object_kind: z.literal("release"),
+	action: z.string(),
+	tag: z.string(),
+	name: z.string().nullish(),
+	project: z.object({ path_with_namespace: z.string() }),
+	commit: z.object({
+		id: z.string(),
+		message: z.string(),
+		author: z.object({ name: z.string() }).optional(),
+	}),
 });
 
 const mrPayload = z.object({
@@ -66,23 +84,49 @@ const mrActions: Record<string, PrAction> = {
 
 const ZERO_SHA = /^0+$/;
 
+// A manual job never runs on its own and a skipped one never will: neither holds a deployment back.
+const jobState: Record<string, CheckState> = {
+	success: "success",
+	manual: "success",
+	skipped: "success",
+	failed: "failure",
+	canceled: "failure",
+};
+
 function normalize(event: string | null, body: unknown): GitEvent | null {
-	if (event === "Push Hook") {
+	if (event === "Push Hook" || event === "Tag Push Hook") {
 		const p = pushPayload.parse(body);
-		if (!p.ref.startsWith("refs/heads/") || ZERO_SHA.test(p.after)) return null;
-		const head = p.commits.find((c) => c.id === p.after) ?? p.commits.at(-1);
+		const ref = refOf(p.ref);
+		if (!ref || ZERO_SHA.test(p.after)) return null;
+		const sha = p.checkout_sha ?? p.after;
+		const head = p.commits.find((c) => c.id === sha) ?? p.commits.at(-1);
 		return {
 			kind: "push",
 			repo: p.project.path_with_namespace,
-			branch: p.ref.slice("refs/heads/".length),
-			commitSha: p.after,
+			ref,
+			commitSha: sha,
 			commitMessage: head?.message ?? "",
 			author: head?.author?.name ?? p.user_name ?? "",
 			// GitLab lists at most 20 commits; total_commits_count says whether it cut some.
-			changedPaths: changedPaths(
-				p.commits,
-				(p.total_commits_count ?? p.commits.length) > p.commits.length,
-			),
+			changedPaths:
+				ref.kind === "branch"
+					? changedPaths(
+							p.commits,
+							(p.total_commits_count ?? p.commits.length) > p.commits.length,
+						)
+					: undefined,
+		};
+	}
+	if (event === "Release Hook") {
+		const p = releasePayload.parse(body);
+		if (p.action !== "create") return null;
+		return {
+			kind: "push",
+			repo: p.project.path_with_namespace,
+			ref: { kind: "release", name: p.tag },
+			commitSha: p.commit.id,
+			commitMessage: p.commit.message,
+			author: p.commit.author?.name ?? "",
 		};
 	}
 	if (event === "Merge Request Hook") {
@@ -153,6 +197,25 @@ export const gitlab = defineProvider({
 			async getCloneUrl(repo) {
 				const path = repo.split("/").map(encodeURIComponent).join("/");
 				return withCredentials(`${base}/${path}.git`, "oauth2", config.token);
+			},
+			async commitChecks(repo, ref) {
+				const statuses = await all<{
+					name: string;
+					status: string;
+					allow_failure?: boolean;
+				}>(
+					"commitStatuses",
+					`/projects/${encodeURIComponent(repo)}/repository/commits/${encodeURIComponent(ref)}/statuses`,
+				);
+				return summarizeChecks(
+					statuses.map((s) => {
+						const state = jobState[s.status] ?? "pending";
+						return {
+							name: s.name,
+							state: state === "failure" && s.allow_failure ? "success" : state,
+						};
+					}),
+				);
 			},
 			async verifyWebhook(headers, rawBody) {
 				const token = headers.get("x-gitlab-token");

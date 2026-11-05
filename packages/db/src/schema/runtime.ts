@@ -57,10 +57,16 @@ export const deployment = pgTable(
 		trigger: deploymentTrigger("trigger").notNull(),
 		commitSha: text("commit_sha"),
 		commitMessage: text("commit_message"),
+		/** The tag to clone for a tag or release trigger; null clones the source branch. */
+		gitRef: text("git_ref"),
 		imageRef: text("image_ref"),
+		/** Encrypted `SpecSnapshot` JSON of what the deploy applied; the pending diff's baseline. */
+		specSnapshotEncrypted: text("spec_snapshot_encrypted"),
 		startedAt: tstz("started_at"),
 		finishedAt: tstz("finished_at"),
 		error: text("error"),
+		/** Why the deployment is awaiting checks, or why it was skipped (skip marker, watch paths, tag pattern, checks). */
+		reason: text("reason"),
 		logPath: text("log_path"),
 		supersededBy: text("superseded_by").references(
 			(): AnyPgColumn => deployment.id,

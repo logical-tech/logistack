@@ -3,6 +3,7 @@
 	"private": true,
 	"type": "module",
 	"exports": {
+		"./load": "./src/load.ts",
 		"./node-runner": "./src/node-runner.ts",
 		"./schedulers": "./src/schedulers.ts"
 	},

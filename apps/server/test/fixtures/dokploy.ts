@@ -65,6 +65,7 @@ networks:
         protocol: tcp
     volumes:
       - /srv/minecraft:/data
+      - backups:/backups
     environment:
       EULA: "TRUE"
       TYPE: PAPER
@@ -74,6 +75,8 @@ networks:
       ENABLE_RCON: "true"
       RCON_PASSWORD: \${RCON_PASSWORD}
       OPS: \${OPS}
+volumes:
+  backups: {}
 `,
 			env: "APP_NAME=minecraft-p2m7rt\nCOMPOSE_PROJECT_NAME=minecraft-p2m7rt\nDOCKER_CONFIG=/root/.docker\nRCON_PASSWORD=fake-rcon-secret-71c\nOPS=steve\n",
 		},

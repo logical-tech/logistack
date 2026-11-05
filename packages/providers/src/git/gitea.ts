@@ -2,10 +2,12 @@ import { z } from "zod";
 import { defineProvider, Http, secret } from "../http.ts";
 import { normalizeGitHubStyle } from "./github-style.ts";
 import {
+	type CheckState,
 	type GitProvider,
 	type GitRepo,
 	ownerRepoPath,
 	requireHmac,
+	summarizeChecks,
 	withCredentials,
 } from "./types.ts";
 
@@ -19,6 +21,14 @@ export const giteaConfig = z.object({
 export type GiteaConfig = z.infer<typeof giteaConfig>;
 
 const PAGE = 50;
+
+const statusState: Record<string, CheckState> = {
+	success: "success",
+	warning: "success",
+	pending: "pending",
+	failure: "failure",
+	error: "failure",
+};
 
 export const gitea = defineProvider({
 	configSchema: giteaConfig,
@@ -67,6 +77,22 @@ export const gitea = defineProvider({
 					`${base}/${ownerRepoPath("gitea", repo)}.git`,
 					"oauth2",
 					config.token,
+				);
+			},
+			async commitChecks(repo, ref) {
+				// The combined status keeps the latest status per context; Gitea Actions report here too.
+				const combined = await http.json<{
+					statuses: { context: string; status: string }[] | null;
+				}>(
+					"commitStatus",
+					`${base}/api/v1/repos/${ownerRepoPath("gitea", repo)}/commits/${encodeURIComponent(ref)}/status?limit=${PAGE}`,
+					{ headers },
+				);
+				return summarizeChecks(
+					(combined.statuses ?? []).map((s) => ({
+						name: s.context,
+						state: statusState[s.status] ?? "pending",
+					})),
 				);
 			},
 			async verifyWebhook(headers, rawBody) {

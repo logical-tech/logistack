@@ -1,5 +1,5 @@
 {
-  "id": "203b36fe-c7bc-406a-a5d0-49b7a9933b39",
+  "id": "7ec32c25-eb21-44cb-b7e1-40c705472622",
   "prevId": "fd62d3d7-792e-4799-9505-e2430122ba30",
   "version": "7",
   "dialect": "postgresql",
@@ -2041,12 +2041,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "stack_id": {
-          "name": "stack_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2063,21 +2057,6 @@
         }
       },
       "indexes": {
-        "service_stack_id_idx": {
-          "name": "service_stack_id_idx",
-          "columns": [
-            {
-              "expression": "stack_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "service_node_id_idx": {
           "name": "service_node_id_idx",
           "columns": [
@@ -2132,19 +2111,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "service_stack_id_stack_id_fk": {
-          "name": "service_stack_id_stack_id_fk",
-          "tableFrom": "service",
-          "tableTo": "stack",
-          "columnsFrom": [
-            "stack_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2217,112 +2183,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.stack": {
-      "name": "stack",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "environment_id": {
-          "name": "environment_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "stack_source",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "template_id": {
-          "name": "template_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "compose_yaml_encrypted": {
-          "name": "compose_yaml_encrypted",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "stack_environment_id_environment_id_fk": {
-          "name": "stack_environment_id_environment_id_fk",
-          "tableFrom": "stack",
-          "tableTo": "environment",
-          "columnsFrom": [
-            "environment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "stack_created_by_user_id_fk": {
-          "name": "stack_created_by_user_id_fk",
-          "tableFrom": "stack",
-          "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "stack_name_unique": {
-          "name": "stack_name_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "environment_id",
-            "name"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -3512,6 +3372,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "access": {
+          "name": "access",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "status": {
           "name": "status",
@@ -5563,14 +5430,6 @@
         "database",
         "compose",
         "storage"
-      ]
-    },
-    "public.stack_source": {
-      "name": "stack_source",
-      "schema": "public",
-      "values": [
-        "template",
-        "compose"
       ]
     },
     "public.storage_key_access": {

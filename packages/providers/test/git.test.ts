@@ -14,11 +14,12 @@ import {
 	instantiate,
 	ownerRepoPath,
 	ProviderError,
+	pointGitHubAppHook,
 	signGitHubAppJwt,
 	WebhookRejectedError,
 } from "../src/index.ts";
 import * as fx from "./fixtures/git.ts";
-import { mockFetch } from "./helpers.ts";
+import { type Call, json, mockFetch } from "./helpers.ts";
 
 const SECRET = "whsec_0123456789";
 // Independent HMAC (node:crypto) so the verifier is not checked against itself.
@@ -76,7 +77,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "Codertocat/Hello-World",
-			branch: "main",
+			ref: { kind: "branch", name: "main" },
 			commitSha: "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
 			commitMessage: "Update README.md",
 			author: "Codertocat",
@@ -114,7 +115,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "mike/diaspora",
-			branch: "master",
+			ref: { kind: "branch", name: "master" },
 			commitSha: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
 			commitMessage: "fixed readme",
 			author: "GitLab dev user",
@@ -157,7 +158,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "gitea/webhooks",
-			branch: "develop",
+			ref: { kind: "branch", name: "develop" },
 			commitSha: "bffeb74224043ba2feb48d137756c8a9331c449a",
 			commitMessage: "Webhooks Yay!",
 			author: "Gitea",
@@ -195,7 +196,7 @@ const cases: Case[] = [
 		expected: {
 			kind: "push",
 			repo: "team/repo",
-			branch: "main",
+			ref: { kind: "branch", name: "main" },
 			commitSha: "709d658dc5b6d6afcd46049c2f332ee3f515a67d",
 			commitMessage: "Fix the build\n",
 			author: "Emma",
@@ -293,7 +294,7 @@ describe("webhook verification", () => {
 		).toBeNull();
 		expect(
 			await github.verifyWebhook(
-				...signed("push", { ...fx.githubPush, ref: "refs/tags/v1" }),
+				...signed("push", { ...fx.githubPush, ref: "refs/notes/commits" }),
 			),
 		).toBeNull();
 		expect(
@@ -374,8 +375,9 @@ describe("GitHub App", () => {
 				metadata: "read",
 				pull_requests: "write",
 				statuses: "write",
+				checks: "read",
 			},
-			default_events: ["push", "pull_request"],
+			default_events: ["push", "pull_request", "release"],
 		});
 	});
 
@@ -579,6 +581,40 @@ describe("generic SSH", () => {
 		expect(await g.getCloneUrl("ignored")).toBe("git@host:a/b.git");
 		expect(await rejection(g.verifyWebhook(new Headers(), "{}"))).toBe(
 			"not_configured",
+		);
+	});
+});
+
+describe("moving a GitHub App's webhook", () => {
+	const app = { appId: "42", privateKey: pkcs1Pem, webhookSecret: "kept" };
+
+	test("PATCHes the app's hook config as the app, keeping its secret", async () => {
+		const m = mockFetch(() => Response.json({}));
+		await pointGitHubAppHook(
+			app,
+			"https://ls.example.com/api/webhooks/git/git_1",
+			m,
+		);
+		const [call] = m.calls;
+		expect(call?.method).toBe("PATCH");
+		expect(call?.url).toBe("https://api.github.com/app/hook/config");
+		const jwt = call?.headers.authorization?.replace("Bearer ", "") ?? "";
+		const [, payload = ""] = jwt.split(".");
+		expect(
+			JSON.parse(Buffer.from(payload, "base64url").toString()),
+		).toMatchObject({ iss: "42" });
+		expect(json(call as Call)).toEqual({
+			url: "https://ls.example.com/api/webhooks/git/git_1",
+			content_type: "json",
+			insecure_ssl: "0",
+			secret: "kept",
+		});
+	});
+
+	test("a refusal from GitHub throws with its status", async () => {
+		const m = mockFetch(() => new Response("Bad credentials", { status: 401 }));
+		await expect(pointGitHubAppHook(app, "https://x/y", m)).rejects.toThrow(
+			"HTTP 401",
 		);
 	});
 });

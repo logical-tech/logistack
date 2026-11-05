@@ -1,6 +1,6 @@
 /**
  * Pure mapping from one Dokploy compose project (docker-compose.yml + .env) to the
- * LogiStack application service that replaces it. No I/O; `import-dokploy.ts` does that.
+ * LogiStack application service that replaces it. No I/O; `scripts/import-dokploy.ts` does that.
  */
 import { posix } from "node:path";
 import {
@@ -8,8 +8,10 @@ import {
 	type BindMount,
 	type Capability,
 	EnvKey,
+	type Healthcheck,
 	isSensitiveHostPath,
 	linuxCapabilities,
+	type MigrationSource,
 	type PortMapping,
 	type RestartCondition,
 } from "@logistack/contracts";
@@ -29,6 +31,14 @@ const IGNORED_NETWORKS = new Set(["dokploy-network", "default"]);
 
 export type EnvEntry = { key: string; value: string; isSecret: boolean };
 export type DomainEntry = { hostname: string; port: number };
+/** A named volume Dokploy's compose created, mounted in place by LogiStack (an adopted volume). */
+export type VolumeEntry = {
+	/** LogiStack's mount name, from the compose key. */
+	name: string;
+	target: string;
+	/** The Docker volume as it exists on the host. */
+	volume: string;
+};
 
 export type ImportPlan = {
 	kind: "plan";
@@ -40,6 +50,9 @@ export type ImportPlan = {
 	spec: ApplicationSpec;
 	env: EnvEntry[];
 	domains: DomainEntry[];
+	volumes: VolumeEntry[];
+	/** Sibling compose services this one starts after. */
+	dependsOn: string[];
 	/** Names keys only, never values. */
 	warnings: string[];
 };
@@ -176,26 +189,71 @@ function mapPorts(svc: Raw, path: string, unsupported: string[]) {
 	return ports;
 }
 
+/**
+ * Docker volume names of the compose file's top-level `volumes`. Dokploy runs compose with
+ * `-p <appName>`, so a plain volume is `<appName>_<key>`; `name:` or `external: true` keep their own.
+ */
+function volumeNames(
+	declared: unknown,
+	appName: string,
+	unsupported: string[],
+): Map<string, string> {
+	const names = new Map<string, string>();
+	for (const [key, raw] of Object.entries(isRecord(declared) ? declared : {})) {
+		const v = isRecord(raw) ? raw : {};
+		const extra = Object.keys(v).filter(
+			(k) => !["name", "external"].includes(k),
+		);
+		if (extra.length) {
+			unsupported.push(`volumes.${key}.${extra.join(", ")}`);
+			continue;
+		}
+		names.set(
+			key,
+			typeof v.name === "string"
+				? v.name
+				: v.external === true
+					? key
+					: `${appName}_${key}`,
+		);
+	}
+	return names;
+}
+
+/** `Game Data_1` → `game-data-1`: what the API takes as a volume mount name. */
+export const mountName = (key: string) =>
+	key
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 40) || "data";
+
 function mapMounts(
 	svc: Raw,
 	path: string,
-	appName: string,
-	allowSensitive: boolean,
+	input: ComposeInput,
+	declaredVolumes: Map<string, string>,
 	unsupported: string[],
 ) {
+	const allowSensitive = input.allowSensitive ?? false;
+	const ignored = new Set(input.ignoredKeys ?? []);
 	const mounts: BindMount[] = [];
-	const base = posix.join(DOKPLOY_COMPOSE_ROOT, appName, "code");
+	const volumes: VolumeEntry[] = [];
+	const base =
+		input.bindRoot ?? posix.join(DOKPLOY_COMPOSE_ROOT, input.appName, "code");
 	for (const v of (svc.volumes as unknown[] | undefined) ?? []) {
 		let source: string;
 		let target: string;
 		let readOnly = false;
 		if (isRecord(v)) {
 			const extra = Object.keys(v).filter(
-				(k) => !["type", "source", "target", "read_only"].includes(k),
+				(k) =>
+					!["type", "source", "target", "read_only"].includes(k) &&
+					!ignored.has(k),
 			);
-			if (v.type !== "bind" || extra.length) {
+			if (!["bind", "volume"].includes(String(v.type)) || extra.length) {
 				unsupported.push(
-					v.type !== "bind"
+					!["bind", "volume"].includes(String(v.type))
 						? `${path}.volumes ${v.type} "${v.source ?? v.target}"`
 						: `${path}.volumes ${extra.join(", ")}`,
 				);
@@ -220,7 +278,19 @@ function mapMounts(
 			readOnly = mode === "ro";
 		}
 		if (!source.startsWith("/") && !source.startsWith(".")) {
-			unsupported.push(`${path}.volumes named volume "${source}"`);
+			const volume =
+				declaredVolumes.get(source) ?? input.undeclaredVolume?.(source);
+			if (!volume)
+				unsupported.push(`${path}.volumes undeclared volume "${source}"`);
+			// The API mounts named volumes read-write only.
+			else if (readOnly)
+				unsupported.push(`${path}.volumes read-only named volume "${source}"`);
+			else
+				volumes.push({
+					name: mountName(source),
+					target: posix.normalize(target).replace(/(.)\/$/, "$1"),
+					volume,
+				});
 			continue;
 		}
 		const hostPath = posix.resolve(base, source);
@@ -239,7 +309,7 @@ function mapMounts(
 			...(sensitive && { allowSensitiveHostPath: true as const }),
 		});
 	}
-	return mounts;
+	return { mounts, volumes };
 }
 
 function mapCapabilities(
@@ -317,7 +387,75 @@ function mapDomains(
 	return domains;
 }
 
-const TOP_LEVEL = new Set(["services", "networks", "version", "name"]);
+/** Compose's own word splitting for a string `command`: spaces separate, quotes group. */
+export function splitArgs(s: string): string[] | undefined {
+	const out: string[] = [];
+	let cur = "";
+	let quote: string | undefined;
+	let started = false;
+	for (let i = 0; i < s.length; i++) {
+		const c = s[i] as string;
+		if (quote) {
+			if (c === quote) quote = undefined;
+			else if (c === "\\" && quote === '"' && i + 1 < s.length) cur += s[++i];
+			else cur += c;
+		} else if (c === '"' || c === "'") {
+			quote = c;
+			started = true;
+		} else if (/\s/.test(c)) {
+			if (started) out.push(cur);
+			cur = "";
+			started = false;
+		} else if (c === "\\" && i + 1 < s.length) {
+			cur += s[++i];
+			started = true;
+		} else {
+			cur += c;
+			started = true;
+		}
+	}
+	if (quote) return undefined;
+	if (started) out.push(cur);
+	return out;
+}
+
+function argvOf(
+	v: unknown,
+	path: string,
+	unsupported: string[],
+): string[] | undefined {
+	if (v === undefined || v === null) return undefined;
+	if (Array.isArray(v)) return v.map(String);
+	const args = splitArgs(String(v));
+	if (!args) unsupported.push(`${path} (unbalanced quotes)`);
+	return args;
+}
+
+/** `test` as Docker reads it; timings stay LogiStack's own. `disable` or `NONE` means none. */
+function healthcheckOf(
+	v: unknown,
+	path: string,
+	unsupported: string[],
+): Healthcheck | undefined {
+	if (!isRecord(v) || v.disable === true) return undefined;
+	const test = typeof v.test === "string" ? ["CMD-SHELL", v.test] : v.test;
+	if (!Array.isArray(test) || !test.length) return undefined;
+	const [kind, ...rest] = test.map(String);
+	if (kind === "NONE") return undefined;
+	if (kind === "CMD" && rest.length) return { type: "command", command: rest };
+	if (kind === "CMD-SHELL" && rest.length)
+		return { type: "command", command: ["sh", "-c", rest.join(" ")] };
+	unsupported.push(`${path}.healthcheck.test`);
+	return undefined;
+}
+
+const TOP_LEVEL = new Set([
+	"services",
+	"networks",
+	"volumes",
+	"version",
+	"name",
+]);
 const SERVICE_KEYS = new Set([
 	"image",
 	"ports",
@@ -330,6 +468,10 @@ const SERVICE_KEYS = new Set([
 	"environment",
 	"labels",
 	"networks",
+	"depends_on",
+	"command",
+	"entrypoint",
+	"healthcheck",
 ]);
 
 /** Deep-maps every string through compose interpolation. */
@@ -343,16 +485,82 @@ function interpolateAll(v: unknown, sub: (s: string) => string): unknown {
 	return v;
 }
 
-export function mapCompose(input: {
+type ComposeInput = {
 	appName: string;
 	projectName?: string;
 	/** Parsed docker-compose.yml. */
 	compose: unknown;
 	dotenv: Map<string, string>;
 	allowSensitive?: boolean;
-}): Mapped {
-	const { appName, dotenv } = input;
+	/** The platform the file comes from: the `importedFrom` prefix. Dokploy when absent. */
+	source?: MigrationSource;
+	/** Where relative bind sources resolve; Dokploy's `<compose root>/<appName>/code` when absent. */
+	bindRoot?: string;
+	/**
+	 * The Docker name of a named volume the file uses without declaring it. Refused when absent;
+	 * Coolify creates such volumes itself as `<uuid>_<name>`.
+	 */
+	undeclaredVolume?: (key: string) => string;
+	/** Keys the source adds to services and volume entries that only it reads; dropped. */
+	ignoredKeys?: string[];
+};
+
+/** A compose file with several services: every one mapped, or the whole file refused. */
+export type MappedAll =
+	| { kind: "plans"; appName: string; projectName: string; plans: ImportPlan[] }
+	| Refusal;
+
+/** Every service of the file; any service LogiStack cannot represent refuses the whole file. */
+export function mapComposeServices(input: ComposeInput): MappedAll {
+	const { appName } = input;
 	const projectName = input.projectName ?? projectNameFromFolder(appName);
+	const unsupported: string[] = [];
+	const compose = isRecord(input.compose) ? input.compose : {};
+	for (const key of Object.keys(compose))
+		if (!TOP_LEVEL.has(key)) unsupported.push(key);
+	const declaredVolumes = volumeNames(compose.volumes, appName, unsupported);
+	for (const net of Object.keys(
+		isRecord(compose.networks) ? compose.networks : {},
+	))
+		if (!IGNORED_NETWORKS.has(net)) unsupported.push(`networks.${net}`);
+	const services = isRecord(compose.services) ? compose.services : {};
+	if (!Object.keys(services).length) unsupported.push("no services");
+	const plans: ImportPlan[] = [];
+	for (const [name, raw] of Object.entries(services)) {
+		const r = mapService(name, raw, input, declaredVolumes, projectName);
+		if (r.kind === "plan") plans.push(r);
+		else unsupported.push(...r.unsupported);
+	}
+	return unsupported.length
+		? { kind: "refused", appName, projectName, unsupported }
+		: { kind: "plans", appName, projectName, plans };
+}
+
+/** One-service files only (the CLI importer); several services are refused. */
+export function mapCompose(input: ComposeInput): Mapped {
+	const all = mapComposeServices(input);
+	if (all.kind === "refused") return all;
+	const [only, ...rest] = all.plans;
+	if (!only || rest.length)
+		return {
+			kind: "refused",
+			appName: all.appName,
+			projectName: all.projectName,
+			unsupported: [
+				`multiple services (${all.plans.map((p) => p.serviceName).join(", ")})`,
+			],
+		};
+	return only;
+}
+
+function mapService(
+	serviceName: string,
+	raw: unknown,
+	input: ComposeInput,
+	declaredVolumes: Map<string, string>,
+	projectName: string,
+): Mapped {
+	const { appName, dotenv } = input;
 	const unsupported: string[] = [];
 	const warnings: string[] = [];
 	const refuse = (): Refusal => ({
@@ -361,40 +569,22 @@ export function mapCompose(input: {
 		projectName,
 		unsupported,
 	});
-	const compose = isRecord(input.compose) ? input.compose : {};
-
-	for (const key of Object.keys(compose))
-		if (!TOP_LEVEL.has(key))
-			unsupported.push(key === "volumes" ? "volumes (named volumes)" : key);
-	for (const net of Object.keys(
-		isRecord(compose.networks) ? compose.networks : {},
-	))
-		if (!IGNORED_NETWORKS.has(net)) unsupported.push(`networks.${net}`);
-	const services = isRecord(compose.services) ? compose.services : {};
-	const names = Object.keys(services);
-	if (names.length !== 1) {
-		unsupported.push(
-			names.length ? `multiple services (${names.join(", ")})` : "no services",
-		);
-		return refuse();
-	}
-	const serviceName = names[0] as string;
 	const path = `services.${serviceName}`;
-	const raw = services[serviceName];
 	if (!isRecord(raw)) {
 		unsupported.push(path);
 		return refuse();
 	}
+	const ignored = new Set(input.ignoredKeys ?? []);
 	for (const key of Object.keys(raw))
-		if (!SERVICE_KEYS.has(key)) unsupported.push(`${path}.${key}`);
-
+		if (!SERVICE_KEYS.has(key) && !ignored.has(key))
+			unsupported.push(`${path}.${key}`);
 	const missing = new Set<string>();
 	const sub = (s: string) => {
 		const r = interpolate(s, dotenv);
 		for (const m of r.missing) missing.add(m);
 		return r;
 	};
-	const { environment, ...rest } = raw;
+	const { environment, depends_on, ...rest } = raw;
 	const svc = interpolateAll(rest, (s) => sub(s).value) as Raw;
 
 	for (const net of entries(svc.networks).map(([k]) => k))
@@ -424,13 +614,16 @@ export function mapCompose(input: {
 		warnings.push(`\${${m}} is not set in .env, substituted with ""`);
 
 	const ports = mapPorts(svc, path, unsupported);
-	const mounts = mapMounts(
+	const { mounts, volumes } = mapMounts(
 		svc,
 		path,
-		appName,
-		input.allowSensitive ?? false,
+		input,
+		declaredVolumes,
 		unsupported,
 	);
+	const command = argvOf(svc.command, `${path}.command`, unsupported);
+	const entrypoint = argvOf(svc.entrypoint, `${path}.entrypoint`, unsupported);
+	const healthcheck = healthcheckOf(svc.healthcheck, path, unsupported);
 	const capAdd = mapCapabilities(svc.cap_add, `${path}.cap_add`, unsupported);
 	const capDrop = mapCapabilities(
 		svc.cap_drop,
@@ -458,6 +651,9 @@ export function mapCompose(input: {
 		...(capAdd?.length && { capAdd }),
 		...(capDrop?.length && { capDrop }),
 		...(restart && { restart }),
+		...(command?.length && { command }),
+		...(entrypoint?.length && { entrypoint }),
+		...(healthcheck && { healthcheck }),
 	});
 	if (!parsed.success)
 		unsupported.push(
@@ -471,10 +667,16 @@ export function mapCompose(input: {
 		appName,
 		projectName,
 		serviceName,
-		importedFrom: `dokploy:${appName}/${serviceName}`,
+		importedFrom: `${input.source ?? "dokploy"}:${appName}/${serviceName}`,
 		spec: parsed.data,
 		env,
 		domains,
+		volumes,
+		dependsOn: Array.isArray(depends_on)
+			? depends_on.map(String)
+			: isRecord(depends_on)
+				? Object.keys(depends_on)
+				: [],
 		warnings,
 	};
 }

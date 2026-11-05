@@ -122,6 +122,25 @@ describe("planTemplate", () => {
 		expect(db?.mounts).toEqual([]);
 	});
 
+	test("on Postgres 18 the engine volume is the parent of PGDATA", () => {
+		const [db18] = planTemplate(
+			{
+				...template,
+				services: template.services.map((s) =>
+					s.kind === "database"
+						? {
+								...s,
+								version: "18-alpine",
+								volumes: [{ name: "data", target: "/var/lib/postgresql" }],
+							}
+						: s,
+				),
+			},
+			values,
+		);
+		expect(db18?.mounts).toEqual([]);
+	});
+
 	test("missing inputs are an error", () => {
 		expect(() =>
 			planTemplate(template, { ...values, dbPassword: undefined } as never),
@@ -140,6 +159,7 @@ describe("planTemplate", () => {
 					spec: p.spec,
 				},
 				deploymentId: `dep_${i}`.padEnd(28, "0"),
+				context: { project: "p", environment: "e", service: "s", domains: [] },
 				...(p.spec.kind === "application" &&
 					p.spec.source.type === "image" && { image: p.spec.source.image }),
 				env: Object.fromEntries(p.env.map((e) => [e.key, e.value])),

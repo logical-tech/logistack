@@ -8,6 +8,7 @@ import {
 	type TemplateInput,
 	templateRefs,
 } from "@logistack/contracts";
+import { databaseDataDir } from "./compile-service.ts";
 
 const ALNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const LOWER = "abcdefghijklmnopqrstuvwxyz";
@@ -70,16 +71,6 @@ export type TemplateServicePlan = {
 	dependsOn: string[];
 };
 
-/** Where each engine keeps data; compileService mounts its own volume there. */
-const DATA_DIRS: Record<DatabaseSpec["engine"], string> = {
-	postgres: "/var/lib/postgresql/data",
-	mysql: "/var/lib/mysql",
-	mariadb: "/var/lib/mysql",
-	mongo: "/data/db",
-	redis: "/data",
-	libsql: "/var/lib/sqld",
-};
-
 /**
  * Pure: turns a template plus a complete value per input (generated ones already filled,
  * domains already resolved to hostnames) into services in dependency order.
@@ -110,7 +101,8 @@ export function planTemplate(
 				(r) => r.kind === "input" && secret.has(r.key),
 			),
 		}));
-		const dataDir = s.kind === "database" ? DATA_DIRS[s.engine] : undefined;
+		// compileService mounts the database's own volume here; a template volume on it is dropped.
+		const dataDir = s.kind === "database" ? databaseDataDir(s) : undefined;
 		const mounts: TemplateMount[] = [
 			...s.volumes
 				.filter((v) => v.target !== dataDir)

@@ -1,3 +1,8 @@
+import {
+	deploymentContextVars,
+	isReservedEnvKey,
+	RESERVED_ENV_PREFIX,
+} from "@logistack/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	ClipboardPaste,
@@ -85,6 +90,8 @@ function rowError(r: Row, rows: Row[], stored: Set<string>) {
 	if (!r.key) return "Name it";
 	if (!KEY.test(r.key))
 		return "Letters, digits and _, not starting with a digit";
+	if (isReservedEnvKey(r.key))
+		return `${RESERVED_ENV_PREFIX} names are set by LogiStack`;
 	if (rows.filter((o) => o.key === r.key).length > 1) return "Defined twice";
 	if (r.value === null && !stored.has(r.key))
 		return "Enter a value: the stored one is hidden from you";
@@ -475,6 +482,28 @@ export function EnvEditor({
 						})}
 					</ul>
 				)}
+			</Panel>
+
+			<Panel title="Set on every deployment" id="context-vars">
+				<p className="border-b px-4 py-3 text-sm text-pretty text-muted-foreground">
+					Read-only. Containers get these at runtime, and a Dockerfile build
+					gets the ones it declares with <code className="font-mono">ARG</code>.
+				</p>
+				<dl className="divide-y">
+					{Object.entries(deploymentContextVars).map(([key, about]) => (
+						<div
+							key={key}
+							className="grid gap-x-3 gap-y-0.5 px-4 py-2.5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-baseline"
+						>
+							<dt className="truncate font-mono text-[13px]" title={key}>
+								{key}
+							</dt>
+							<dd className="text-sm text-pretty text-muted-foreground">
+								{about}
+							</dd>
+						</div>
+					))}
+				</dl>
 			</Panel>
 
 			{dirty && (

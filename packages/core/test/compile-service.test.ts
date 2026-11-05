@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import type { DatabaseEngine } from "@logistack/contracts";
 import {
+	type DatabaseEngine,
+	deploymentContextVars,
+} from "@logistack/contracts";
+import {
+	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
+	dataDirOf,
 	serviceFiles,
 } from "../src/compile-service.ts";
 import { databaseCredentials } from "../src/database-credentials.ts";
@@ -30,6 +35,12 @@ const app: CompileServiceInput = {
 	deploymentId: "dep_one0000000000000000000000",
 	image: "registry.example.com/org_acme/ls-svc-app:dep_one",
 	env: { PORT: "8080", API_KEY: "s3cret" },
+	context: {
+		project: "Shop",
+		environment: "production",
+		service: "Web",
+		domains: [],
+	},
 	mounts: [],
 	domains: [],
 	networks: { environment: "net-env-id", ingress: "net-ingress-id" },
@@ -115,6 +126,114 @@ describe("snapshots", () => {
 			expect(compileService(database(engine))).toMatchSnapshot();
 		});
 	}
+});
+
+describe("deployment context", () => {
+	const domain = {
+		https: true,
+		tunnel: false,
+		pathPrefix: null,
+		redirectTo: null,
+		isGenerated: false,
+	};
+	const gitApp: CompileServiceInput = {
+		...app,
+		service: {
+			...app.service,
+			spec: {
+				...app.service.spec,
+				source: {
+					type: "git",
+					repository: "https://github.com/acme/shop.git",
+					branch: "main",
+					path: ".",
+				},
+				build: {
+					type: "dockerfile",
+					dockerfilePath: "Dockerfile",
+					context: ".",
+				},
+			} as CompileServiceInput["service"]["spec"],
+		},
+		context: {
+			...app.context,
+			commit: {
+				sha: "0123456789abcdef0123456789abcdef01234567",
+				message: "fix: checkout total\n\nLong body that must not leak.",
+				branch: "main",
+			},
+			domains: [
+				{ ...domain, hostname: "web-1-2-3-4.sslip.io", isGenerated: true },
+				{ ...domain, hostname: "*.preview.acme.dev" },
+				{ ...domain, hostname: "old.acme.dev", redirectTo: "shop.acme.dev" },
+				{ ...domain, hostname: "shop.acme.dev", pathPrefix: "/app" },
+				{ ...domain, hostname: "shop.acme.dev", pathPrefix: "/api" },
+			],
+		},
+	};
+	const env = (i: CompileServiceInput) =>
+		Object.fromEntries(
+			(compileService(i).TaskTemplate.ContainerSpec.Env ?? []).map((e) => {
+				const at = e.indexOf("=");
+				return [e.slice(0, at), e.slice(at + 1)];
+			}),
+		);
+
+	test("image source without domains", () => {
+		expect(env(app)).toMatchSnapshot();
+	});
+
+	test("git source with domains", () => {
+		expect(env(gitApp)).toMatchSnapshot();
+	});
+
+	test("image-only services get every variable except the commit ones", () => {
+		const vars = env({
+			...gitApp,
+			context: { ...gitApp.context, commit: undefined },
+		});
+		const injected = Object.keys(vars).filter((k) =>
+			k.startsWith("LOGISTACK_"),
+		);
+		expect(injected.sort()).toEqual(
+			Object.keys(deploymentContextVars)
+				.filter((k) => !/COMMIT|BRANCH/.test(k))
+				.sort(),
+		);
+	});
+
+	test("the primary domain is the first custom one; a tunnel is served over https", () => {
+		const url = (domains: CompileServiceInput["context"]["domains"]) =>
+			env({ ...app, context: { ...app.context, domains } }).LOGISTACK_URL;
+		expect(
+			url([{ ...domain, hostname: "a.sslip.io", isGenerated: true }]),
+		).toBe("https://a.sslip.io");
+		expect(url([{ ...domain, hostname: "a.dev", https: false }])).toBe(
+			"http://a.dev",
+		);
+		expect(
+			url([{ ...domain, hostname: "a.dev", https: false, tunnel: true }]),
+		).toBe("https://a.dev");
+		expect(url([{ ...domain, hostname: "*.a.dev" }])).toBeUndefined();
+	});
+
+	test("a long commit message is cut to its first 200 characters", () => {
+		const vars = env({
+			...gitApp,
+			context: {
+				...gitApp.context,
+				commit: { sha: "abc", message: "x".repeat(300), branch: "main" },
+			},
+		});
+		expect(vars.LOGISTACK_COMMIT_MESSAGE).toBe("x".repeat(200));
+	});
+
+	test("a stored variable with a reserved name never shadows the injected one", () => {
+		expect(
+			env({ ...app, env: { LOGISTACK_DEPLOYMENT_ID: "spoofed" } })
+				.LOGISTACK_DEPLOYMENT_ID,
+		).toBe(app.deploymentId);
+	});
 });
 
 describe("networks", () => {
@@ -415,5 +534,156 @@ describe("host-level application settings", () => {
 		expect(c.CapabilityAdd).toBeUndefined();
 		expect(c.CapabilityDrop).toBeUndefined();
 		expect(spec.TaskTemplate.RestartPolicy?.Condition).toBe("any");
+	});
+});
+
+describe("adopted volumes", () => {
+	const mountsOf = (input: CompileServiceInput) =>
+		compileService(input).TaskTemplate.ContainerSpec.Mounts ?? [];
+
+	test("a volume mount uses the adopted name and gets no labels", () => {
+		const [data] = mountsOf({
+			...stateful,
+			adoptedVolumes: { mnt_data000000000000000000000: "shop-a1b2c3_data" },
+		});
+		expect(data).toEqual({
+			Type: "volume",
+			Source: "shop-a1b2c3_data",
+			Target: "/data",
+			ReadOnly: false,
+		});
+	});
+
+	test("a database's data dir uses the adopted volume in place of its own", () => {
+		const mounts = mountsOf({
+			...database("postgres"),
+			adoptedVolumes: { svc_db00000000000000000000000: "pg-data-x1y2z3" },
+		});
+		expect(mounts).toEqual([
+			{
+				Type: "volume",
+				Source: "pg-data-x1y2z3",
+				Target: "/var/lib/postgresql/data",
+			},
+		]);
+	});
+
+	test("an adopted volume of another owner changes nothing", () => {
+		const input = database("postgres");
+		expect(
+			mountsOf({ ...input, adoptedVolumes: { mnt_other: "elsewhere" } }),
+		).toEqual(mountsOf(input));
+	});
+});
+
+describe("Postgres data directory", () => {
+	const dataMount = (version: string) => {
+		const input = database("postgres");
+		const spec = {
+			...input.service.spec,
+			version,
+		} as typeof input.service.spec;
+		return compileService({ ...input, service: { ...input.service, spec } })
+			.TaskTemplate.ContainerSpec.Mounts?.[0]?.Target;
+	};
+
+	test("before 18 the volume is PGDATA itself", () => {
+		expect(dataMount("17-alpine")).toBe("/var/lib/postgresql/data");
+		expect(dataMount("15")).toBe("/var/lib/postgresql/data");
+	});
+
+	test("18 and later, or a tag without a major, mount the parent the image expects", () => {
+		expect(dataMount("18")).toBe("/var/lib/postgresql");
+		expect(dataMount("18-alpine")).toBe("/var/lib/postgresql");
+		expect(dataMount("latest")).toBe("/var/lib/postgresql");
+	});
+
+	test("dataDirOf agrees with what the compiler mounts", () => {
+		for (const version of ["16", "18-alpine"])
+			expect(
+				dataDirOf({
+					kind: "database",
+					engine: "postgres",
+					version,
+					credentialsRef: "r",
+					resources: {},
+				}),
+			).toBe(dataMount(version));
+	});
+});
+
+test("a migrated service joins the old platform's network under its slug", () => {
+	const spec = compileService({
+		...app,
+		networks: { ...app.networks, bridge: "net-dokploy" },
+	});
+	expect(spec.TaskTemplate.Networks?.at(-1)).toEqual({
+		Target: "net-dokploy",
+		Aliases: [app.service.slug],
+	});
+	expect(
+		compileService(app).TaskTemplate.Networks?.some(
+			(n) => n.Target === "net-dokploy",
+		),
+	).toBe(false);
+});
+
+test("a bridged compose service carries routers for Dokploy's Traefik", () => {
+	const labels = bridgeRouterLabels("svc_ab12", "dokploy-network", [
+		{ hostname: "blog.example.com", port: 80, pathPrefix: null, https: false },
+		{
+			hostname: "shop.example.com",
+			port: 3000,
+			pathPrefix: "/api",
+			https: true,
+		},
+	]);
+	expect(labels).toMatchObject({
+		"traefik.enable": "true",
+		"traefik.swarm.network": "dokploy-network",
+		"traefik.http.routers.ls-svc-ab12-0.rule": "Host(`blog.example.com`)",
+		"traefik.http.routers.ls-svc-ab12-0.entrypoints": "web",
+		"traefik.http.services.ls-svc-ab12-0.loadbalancer.server.port": "80",
+		"traefik.http.routers.ls-svc-ab12-1.rule":
+			"Host(`shop.example.com`) && PathPrefix(`/api`)",
+		"traefik.http.routers.ls-svc-ab12-1.tls.certresolver": "letsencrypt",
+	});
+	expect(bridgeRouterLabels("svc_x", "n", [])).toEqual({});
+	const spec = compileService({ ...app, bridgeLabels: labels });
+	expect(spec.Labels?.["traefik.enable"]).toBe("true");
+	expect(spec.Labels?.["logistack.managed"]).toBe("true");
+});
+
+test("a service bridged to Coolify carries container routers and the old names", () => {
+	const labels = bridgeRouterLabels(
+		"svc_ab12",
+		"ls-coolify-bridge",
+		[{ hostname: "app.example.com", port: 80, pathPrefix: null, https: true }],
+		"traefik-docker",
+	);
+	expect(labels).toMatchObject({
+		"traefik.enable": "true",
+		"traefik.docker.network": "ls-coolify-bridge",
+		"traefik.http.routers.ls-svc-ab12-0.entrypoints": "https",
+		"traefik.http.routers.ls-svc-ab12-0.priority": "100000",
+		"traefik.http.routers.ls-svc-ab12-0.tls.certresolver": "letsencrypt",
+	});
+	expect(labels["traefik.swarm.network"]).toBeUndefined();
+	const spec = compileService({
+		...app,
+		networks: { ...app.networks, bridge: "net-coolify" },
+		bridgeAliases: ["k8s0wc8gw4o0c4ws"],
+		bridgeContainerLabels: labels,
+	});
+	expect(spec.TaskTemplate.ContainerSpec?.Labels?.["traefik.enable"]).toBe(
+		"true",
+	);
+	expect(spec.TaskTemplate.ContainerSpec?.Labels?.["logistack.managed"]).toBe(
+		"true",
+	);
+	expect(spec.Labels?.["traefik.enable"]).toBeUndefined();
+	expect(spec.TaskTemplate.Networks?.at(-1)).toEqual({
+		Target: "net-coolify",
+		Aliases: ["k8s0wc8gw4o0c4ws"],
 	});
 });

@@ -16,6 +16,7 @@ import {
 	storageEngineDefs,
 } from "@logistack/core";
 import {
+	adoptedVolume,
 	backupPolicy,
 	backupRun,
 	environment,
@@ -185,8 +186,17 @@ async function volumeNode(ctx: Ctx, svc: ServiceRow): Promise<string> {
 }
 
 /** Docker name of the volume a policy reads: a mount's, or a database's data directory. */
-const volumeDockerName = (ctx: Ctx, volumeOwnerId: string) =>
-	`${ctx.cfg.LS_NAME_PREFIX}${dockerName("vol", volumeOwnerId)}`;
+/** The Docker volume of an owner (mount or service id): the adopted one, else the one we name. */
+async function volumeDockerName(ctx: Ctx, volumeOwnerId: string) {
+	const [adopted] = await ctx.db
+		.select({ name: adoptedVolume.volumeName })
+		.from(adoptedVolume)
+		.where(eq(adoptedVolume.ownerId, volumeOwnerId));
+	return (
+		adopted?.name ??
+		`${ctx.cfg.LS_NAME_PREFIX}${dockerName("vol", volumeOwnerId)}`
+	);
+}
 
 function labels(ctx: Ctx, orgId: string, resource: string, kind: string) {
 	return {
@@ -409,7 +419,7 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 			mounts: [
 				{
 					type: "volume",
-					source: volumeDockerName(ctx, policy.volumeName ?? ""),
+					source: await volumeDockerName(ctx, policy.volumeName ?? ""),
 					target: "/data",
 					readOnly: true,
 				},
@@ -598,7 +608,7 @@ async function restore(ctx: Ctx, l: Loaded, run: Run, job: BackupJob) {
 	const nodeId = await volumeNode(ctx, target);
 	const volume = job.newVolume
 		? `${ctx.cfg.LS_NAME_PREFIX}ls-vol-${body(run.id)}`
-		: volumeDockerName(ctx, policy.volumeName ?? "");
+		: await volumeDockerName(ctx, policy.volumeName ?? "");
 	const write = () =>
 		withHelper(
 			ctx,

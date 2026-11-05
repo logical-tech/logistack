@@ -625,7 +625,15 @@ function buildSteps(
 			}),
 			render: (w) => (
 				<div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_8rem]">
-					<Field id="wz-hostname" label="Hostname" error={w.error("hostname")}>
+					<Field
+						id="wz-hostname"
+						label="Hostname"
+						error={w.error("hostname")}
+						hint={
+							isWildcard(w.values) &&
+							`Matches every name one level under ${host(w.values).slice(2) || "the zone"}; exact hostnames still win. Its certificate comes over DNS-01, so a connected DNS provider must manage the zone.`
+						}
+					>
 						<Input
 							{...w.bind("hostname")}
 							placeholder="app.example.com"
@@ -789,11 +797,23 @@ function buildSteps(
 				const choices = tlsChoices(w.values);
 				if (choices.length === 0)
 					return (
-						<p className="text-sm text-bad-text">
-							A wildcard needs DNS-01, so its zone has to be managed by a
-							connected DNS provider. Go back and use a hostname in a managed
-							zone, or connect the provider first.
-						</p>
+						<div className="grid max-w-[62ch] gap-2 text-sm">
+							<p className="font-medium text-bad-text">
+								No connected DNS provider manages this zone.
+							</p>
+							<p className="text-muted-foreground">
+								Let's Encrypt issues wildcard certificates only over DNS-01:
+								LogiStack proves it controls the zone by writing a TXT record,
+								which needs the provider's API.{" "}
+								<Link
+									to="/integrations/dns/new"
+									className="text-foreground underline underline-offset-4"
+								>
+									Connect the provider
+								</Link>{" "}
+								and come back, or go back and use an exact hostname.
+							</p>
+						</div>
 					);
 				return (
 					<div className="grid gap-5">

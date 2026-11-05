@@ -35,6 +35,11 @@ export const errors = {
 	409: error("Conflict"),
 } as const;
 
+/** A variable name starting with `LOGISTACK_`, reserved for the deployment context. */
+export const reservedEnvKey = {
+	422: error("Reserved variable name"),
+} as const;
+
 export const security: Record<string, string[]>[] = [
 	{ session: [] },
 	{ apiKey: [] },
@@ -136,10 +141,14 @@ export const Deployment = z
 		trigger: DeploymentTrigger,
 		commitSha: z.string().nullable(),
 		commitMessage: z.string().nullable(),
+		/** The tag a tag or release trigger deploys; null deploys the source branch. */
+		gitRef: z.string().nullable(),
 		imageRef: z.string().nullable(),
 		startedAt: Timestamp.nullable(),
 		finishedAt: Timestamp.nullable(),
 		error: z.string().nullable(),
+		/** Why the deployment is awaiting checks or was skipped. */
+		reason: z.string().nullable(),
 		logPath: z.string().nullable(),
 		supersededBy: z.string().nullable(),
 		createdAt: Timestamp,

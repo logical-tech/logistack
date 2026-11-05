@@ -1,23 +1,31 @@
 import {
+	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
 	serviceFiles,
 } from "@logistack/core";
-import { node, service } from "@logistack/db";
+import { migration, migrationBridge, node, service } from "@logistack/db";
 import {
 	authForImage,
 	DockerError,
 	DockerVersionConflictError,
+	LABEL_MANAGED,
 	managedLabels,
 	type RegistryAuth,
 	type Service,
 	type ServiceSpec,
 	type Task,
 } from "@logistack/docker";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
-import { envNetworkName, type ServiceContext } from "./load.ts";
+import {
+	compileInput,
+	type DeploymentRef,
+	envNetworkName,
+	type ServiceContext,
+} from "./load.ts";
+import { sourceSettings } from "./migration-source.ts";
 
 const notFound = (e: unknown) => e instanceof DockerError && e.notFound;
 const conflict = (e: unknown) => e instanceof DockerError && e.conflict;
@@ -137,6 +145,27 @@ async function ensureFiles(
 	return ids;
 }
 
+/**
+ * Swarm creates a missing volume empty, so an adopted volume that is gone would silently look
+ * like data loss: refuse to deploy instead. One of ours is never adopted.
+ */
+async function checkAdopted(ctx: Ctx, sc: ServiceContext): Promise<void> {
+	for (const name of Object.values(sc.adoptedVolumes)) {
+		// shortcut: checks this worker's node only; on a multi-node Swarm, ask the pinned node's agent.
+		const v = (await ctx.docker.volumes.list({ name: [name] })).find(
+			(v) => v.Name === name,
+		);
+		if (!v)
+			throw new Error(
+				`service ${sc.service.id}: adopted volume ${name} does not exist`,
+			);
+		if (v.Labels?.[LABEL_MANAGED])
+			throw new Error(
+				`service ${sc.service.id}: volume ${name} is managed by LogiStack and cannot be adopted`,
+			);
+	}
+}
+
 /** Stateful services stay on one node; an unpinned one is pinned to this worker's node and recorded. */
 async function resolvePin(
 	ctx: Ctx,
@@ -180,12 +209,12 @@ export async function inspectService(
 	}
 }
 
-/** Compiles the desired spec, creating the networks, configs and secrets it references. */
-export async function desiredSpec(
+/** The compiler input of a deployment, creating the networks, configs and secrets it references. */
+export async function desiredInput(
 	ctx: Ctx,
 	sc: ServiceContext,
-	deployment: { id: string; imageRef: string | null },
-): Promise<ServiceSpec> {
+	deployment: DeploymentRef,
+): Promise<CompileServiceInput> {
 	const envNet = await ensureEnvNetwork(
 		ctx,
 		sc.organizationId,
@@ -204,36 +233,69 @@ export async function desiredSpec(
 					throw e;
 				})
 			: undefined;
-	const input: CompileServiceInput = {
-		service: {
-			id: sc.service.id,
-			organizationId: sc.organizationId,
-			environmentId: sc.service.environmentId,
-			slug: sc.service.slug,
-			desiredState: sc.service.desiredState,
-			spec: sc.service.spec,
-		},
-		deploymentId: deployment.id,
-		...(deployment.imageRef ? { image: deployment.imageRef } : {}),
-		env: Object.fromEntries(
-			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
-		),
-		mounts: sc.mounts,
-		domains: sc.domains,
+	// Until the source platform is decommissioned, its proxy and its remaining services reach a
+	// moved service by its old names on the source's network.
+	const [moved] = await ctx.db
+		.select({
+			aliases: migrationBridge.aliases,
+			routes: migrationBridge.routes,
+			source: migration.source,
+		})
+		.from(migrationBridge)
+		.innerJoin(migration, eq(migration.id, migrationBridge.migrationId))
+		.where(
+			and(
+				eq(migrationBridge.serviceId, sc.service.id),
+				ne(migration.status, "decommissioned"),
+			),
+		);
+	const from = moved ? sourceSettings(ctx.cfg, moved.source) : undefined;
+	const bridge = from
+		? await ctx.docker.networks.inspect(from.network).catch((e) => {
+				if (notFound(e)) return undefined;
+				throw e;
+			})
+		: undefined;
+	await checkAdopted(ctx, sc);
+	const pin = await resolvePin(ctx, sc);
+	const input = compileInput(sc, deployment, {
 		networks: {
 			environment: envNet,
 			ingress: ingress.Id,
 			...(storage ? { storage: storage.Id } : {}),
 			...(db ? { db: db.Id } : {}),
+			...(bridge ? { bridge: bridge.Id } : {}),
 		},
-		fileIds: {},
+		...(bridge && moved && from
+			? {
+					bridgeAliases: moved.aliases,
+					...(moved.routes
+						? {
+								[from.router === "traefik-swarm"
+									? "bridgeLabels"
+									: "bridgeContainerLabels"]: bridgeRouterLabels(
+									sc.service.id,
+									from.network,
+									sc.domains,
+									from.router,
+								),
+							}
+						: {}),
+				}
+			: {}),
+		...(pin ? { pinNodeId: pin } : {}),
 		scope: scope(ctx),
-	};
-	const pin = await resolvePin(ctx, sc);
-	if (pin) input.pinNodeId = pin;
+	});
 	input.fileIds = await ensureFiles(ctx, input);
-	return compileService(input);
+	return input;
 }
+
+export const desiredSpec = async (
+	ctx: Ctx,
+	sc: ServiceContext,
+	deployment: DeploymentRef,
+): Promise<ServiceSpec> =>
+	compileService(await desiredInput(ctx, sc, deployment));
 
 export type Applied = { created: boolean; before: Service | undefined };
 

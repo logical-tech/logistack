@@ -49,8 +49,9 @@ export type ApiAdapter = {
 	access: AccessAdapter;
 	instance: {
 		status(): Promise<InstanceStatus>;
-		checkDns(hostname: string): Promise<DnsCheck>;
-		completeSetup(input: SetupInput): Promise<void>;
+		/** `setupToken`: what install.sh --public-setup printed; empty when the server needs none. */
+		checkDns(hostname: string, setupToken: string): Promise<DnsCheck>;
+		completeSetup(input: SetupInput, setupToken: string): Promise<void>;
 		version(): Promise<{ version: string; commit?: string }>;
 	};
 	overview: {

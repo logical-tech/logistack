@@ -4,6 +4,10 @@ exports[`planTemplate siblings reach each other by template name on the environm
 [
   {
     "env": [
+      "LOGISTACK_DEPLOYMENT_ID=dep_000000000000000000000000",
+      "LOGISTACK_ENVIRONMENT=e",
+      "LOGISTACK_PROJECT=p",
+      "LOGISTACK_SERVICE=s",
       "POSTGRES_PASSWORD=pw-24",
       "POSTGRES_USER=notes",
     ],
@@ -20,6 +24,10 @@ exports[`planTemplate siblings reach each other by template name on the environm
   {
     "env": [
       "DATABASE_URL=postgres://notes:pw-24@db:5432/notes",
+      "LOGISTACK_DEPLOYMENT_ID=dep_100000000000000000000000",
+      "LOGISTACK_ENVIRONMENT=e",
+      "LOGISTACK_PROJECT=p",
+      "LOGISTACK_SERVICE=s",
       "PUBLIC_URL=https://notes.example.com",
       "TZ=UTC",
     ],

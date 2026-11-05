@@ -1,8 +1,17 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { deploymentContextEnv } from "@logistack/core";
 import type { Task } from "@logistack/docker";
-import { buildPlan } from "../src/build.ts";
-import type { DomainRow } from "../src/load.ts";
-import { domainRoute } from "../src/proxy.ts";
+import { buildPlan, clone, cloneCommands, run } from "../src/build.ts";
+import type { Ctx } from "../src/ctx.ts";
+import {
+	type DomainRow,
+	deploymentContext,
+	type ServiceContext,
+} from "../src/load.ts";
+import { domainRoute, routeAccess } from "../src/proxy.ts";
 import { observe } from "../src/reconcile.ts";
 
 describe("buildPlan", () => {
@@ -15,6 +24,7 @@ describe("buildPlan", () => {
 			{ key: "PUBLIC_URL", value: "https://x", isSecret: false },
 			{ key: "NPM_TOKEN", value: "t0ken", isSecret: true },
 		],
+		context: { LOGISTACK_DEPLOYMENT_ID: "dep_1", LOGISTACK_COMMIT_SHA: "abc" },
 	};
 
 	test("dockerfile build: paths resolve inside the checkout, secrets go through env", () => {
@@ -45,6 +55,10 @@ describe("buildPlan", () => {
 			"id=NPM_TOKEN,env=NPM_TOKEN",
 			"--opt",
 			"build-arg:PUBLIC_URL=https://x",
+			"--opt",
+			"build-arg:LOGISTACK_COMMIT_SHA=abc",
+			"--opt",
+			"build-arg:LOGISTACK_DEPLOYMENT_ID=dep_1",
 			"--output",
 			"type=docker,name=ls-local/org/ls-svc-a:dep_1",
 		]);
@@ -81,6 +95,8 @@ describe("buildPlan", () => {
 			"source=ghcr.io/railwayapp/railpack-frontend:v1",
 		);
 		expect(plan.args).toContain("filename=railpack-plan.json");
+		// The railpack frontend reads its plan, not Dockerfile ARGs.
+		expect(plan.args.join(" ")).not.toContain("LOGISTACK_");
 	});
 });
 
@@ -179,5 +195,181 @@ describe("domainRoute", () => {
 				redirectTo: "https://www.example.com",
 			},
 		});
+	});
+});
+
+describe("routeAccess", () => {
+	const ip = { type: "ip_allow" as const, cidrs: ["10.0.0.0/8"] };
+	const svc = [
+		{ username: "ops", hash: "svc-ops" },
+		{ username: "ci", hash: "svc-ci" },
+	];
+
+	test("no service basic auth leaves the domain's rules as they are", () => {
+		expect(routeAccess([ip], null)).toEqual([ip]);
+		expect(routeAccess([], [])).toEqual([]);
+	});
+
+	test("service basic auth alone protects every domain of the service", () => {
+		expect(routeAccess([ip], svc)).toEqual([
+			ip,
+			{ type: "basic_auth", users: svc },
+		]);
+	});
+
+	test("domain and service users merge into one check, the domain's entry winning", () => {
+		const own = {
+			type: "basic_auth" as const,
+			users: [
+				{ username: "ops", hash: "dom-ops" },
+				{ username: "qa", hash: "dom-qa" },
+			],
+		};
+		expect(routeAccess([own, ip], svc)).toEqual([
+			ip,
+			{
+				type: "basic_auth",
+				users: [
+					{ username: "ops", hash: "dom-ops" },
+					{ username: "qa", hash: "dom-qa" },
+					{ username: "ci", hash: "svc-ci" },
+				],
+			},
+		]);
+	});
+});
+
+describe("clone", () => {
+	const SHA = "0123456789abcdef0123456789abcdef01234567";
+
+	test("without a sha: shallow clone of the branch head", () => {
+		expect(
+			cloneCommands({ ref: "main", target: "https://g/r.git", dir: "/w/d" }),
+		).toEqual([
+			[
+				"clone",
+				"--depth",
+				"1",
+				"--single-branch",
+				"--branch",
+				"main",
+				"--",
+				"https://g/r.git",
+				"/w/d",
+			],
+		]);
+	});
+
+	test("with a sha: fetch exactly that commit and check it out detached", () => {
+		expect(
+			cloneCommands({
+				ref: "main",
+				sha: SHA,
+				target: "https://g/r.git",
+				dir: "/w/d",
+			}),
+		).toEqual([
+			["init", "--quiet", "--", "/w/d"],
+			["-C", "/w/d", "fetch", "--depth", "1", "--", "https://g/r.git", SHA],
+			["-C", "/w/d", "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+		]);
+	});
+
+	test("builds the triggered commit even after the branch moved on", async () => {
+		const root = await mkdtemp(join(tmpdir(), "ls-clone-"));
+		const repo = join(root, "repo");
+		const quiet = { log: () => {}, signal: new AbortController().signal };
+		const git = (...args: string[]) =>
+			run(
+				[
+					"git",
+					"-C",
+					repo,
+					"-c",
+					"user.name=t",
+					"-c",
+					"user.email=t@t",
+					...args,
+				],
+				quiet,
+			);
+		try {
+			await run(
+				["git", "init", "--quiet", "--initial-branch", "main", repo],
+				quiet,
+			);
+			await writeFile(join(repo, "v"), "checked");
+			await git("add", "v");
+			await git("commit", "--quiet", "-m", "checked commit");
+			const checked = await git("rev-parse", "HEAD");
+			await writeFile(join(repo, "v"), "moved");
+			await git("commit", "--quiet", "-am", "pushed while checks ran");
+			const head = await git("rev-parse", "HEAD");
+			expect(head).not.toBe(checked);
+
+			const ctx = {
+				cfg: { LS_WORK_DIR: join(root, "work"), LS_ALLOW_LOCAL_GIT: true },
+			} as unknown as Ctx;
+			const source = {
+				type: "git" as const,
+				repository: repo,
+				branch: "main",
+				path: ".",
+			};
+			const pinned = await clone(ctx, source, {
+				deploymentId: "dep_sha",
+				ref: "main",
+				sha: checked,
+				...quiet,
+			});
+			expect(pinned.commitSha).toBe(checked);
+			expect(pinned.commitMessage).toBe("checked commit");
+			expect(await readFile(join(pinned.dir, "v"), "utf8")).toBe("checked");
+
+			const manual = await clone(ctx, source, {
+				deploymentId: "dep_head",
+				ref: "main",
+				...quiet,
+			});
+			expect(manual.commitSha).toBe(head);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("deploymentContext", () => {
+	const sc = {
+		service: {
+			name: "web",
+			spec: {
+				kind: "application",
+				source: {
+					type: "git",
+					repository: "https://g/r.git",
+					branch: "main",
+					path: ".",
+				},
+			},
+		},
+		environmentName: "production",
+		projectName: "shop",
+		domains: [],
+	} as unknown as ServiceContext;
+	const d = { id: "dep_1", commitSha: "abc", commitMessage: "msg" };
+
+	test("a branch deployment names its branch", () => {
+		expect(
+			deploymentContextEnv(deploymentContext(sc, { ...d, gitRef: null }))
+				.LOGISTACK_BRANCH,
+		).toBe("main");
+	});
+
+	test("a tag or release deployment claims no branch", () => {
+		const env = deploymentContextEnv(
+			deploymentContext(sc, { ...d, gitRef: "v1.2.3" }),
+		);
+		expect(env.LOGISTACK_BRANCH).toBeUndefined();
+		expect(env.LOGISTACK_COMMIT_SHA).toBe("abc");
 	});
 });

@@ -3,7 +3,6 @@ import { decrypt } from "@logistack/core";
 import { deployment, gitProvider } from "@logistack/db";
 import { hmacSha256 } from "@logistack/providers";
 import { eq } from "drizzle-orm";
-import { touchesWatchPaths } from "../src/routes/webhooks.ts";
 import {
 	type Harness,
 	hasDocker,
@@ -11,20 +10,6 @@ import {
 	setupBody,
 	startHarness,
 } from "./harness.ts";
-
-describe("touchesWatchPaths", () => {
-	test("globs, directory prefixes, and the deploy-anyway cases", () => {
-		expect(touchesWatchPaths(["apps/web/src/a.ts"], ["apps/web"])).toBe(true);
-		expect(touchesWatchPaths(["apps/web-old/a.ts"], ["apps/web"])).toBe(false);
-		expect(touchesWatchPaths(["apps/api/x.ts"], ["/apps/web/"])).toBe(false);
-		expect(
-			touchesWatchPaths(["packages/ui/b.css"], ["packages/**/*.css"]),
-		).toBe(true);
-		expect(touchesWatchPaths(["README.md"], [])).toBe(true);
-		// Bitbucket lists no files, truncated lists are unknown: deploy.
-		expect(touchesWatchPaths(undefined, ["apps/web"])).toBe(true);
-	});
-});
 
 const pushPayload = (o: { branch: string; files: string[]; sha?: string }) => ({
 	ref: `refs/heads/${o.branch}`,
@@ -111,7 +96,7 @@ describe.skipIf(!hasDocker)("git integrations over HTTP", () => {
 	const as = () => ({ headers: { cookie } });
 
 	beforeAll(async () => {
-		h = await startHarness();
+		h = await startHarness({ area: "git", label: "git" });
 		await h.call("POST", "/api/setup", { body: setupBody });
 		cookie = await h.signIn(owner.email, owner.password);
 	}, 60_000);
@@ -230,7 +215,10 @@ describe.skipIf(!hasDocker)("git integrations over HTTP", () => {
 				pushPayload({ branch: "main", files: ["docs/readme.md"] }),
 			);
 			expect(unwatched.status).toBe(202);
-			expect(unwatched.json.reason).toContain("watch path");
+			expect(unwatched.json).toMatchObject({
+				outcome: "skipped",
+				reason: "No watched path changed",
+			});
 			const glob = await deliver(
 				pushPayload({ branch: "main", files: ["packages/ui/button.css"] }),
 			);
@@ -242,7 +230,75 @@ describe.skipIf(!hasDocker)("git integrations over HTTP", () => {
 			expect(tag.status).toBe(202);
 			const unknownEvent = await deliver({ zen: "hi" }, { event: "ping" });
 			expect(unknownEvent.status).toBe(202);
-			expect(await h.deps.db.$count(deployment)).toBe(before + 1);
+			// The glob match deployed; the unwatched push left a skipped record.
+			expect(await h.deps.db.$count(deployment)).toBe(before + 2);
+		});
+
+		test("skipped triggers are listed with their reason; tag triggers wait for checks", async () => {
+			const marked = pushPayload({ branch: "main", files: ["apps/web/a.ts"] });
+			marked.head_commit.message = "docs: tweak [skip ci]";
+			const skip = await deliver(marked);
+			expect(skip.status).toBe(202);
+			expect(skip.json.outcome).toBe("skipped");
+			const list = await h.call(
+				"GET",
+				`/api/services/${serviceId}/deployments`,
+				as(),
+			);
+			expect(list.json[0]).toMatchObject({
+				id: skip.json.skipped[0],
+				status: "skipped",
+				reason: "Commit message contains [skip ci]",
+				commitMessage: "docs: tweak [skip ci]",
+			});
+			expect(list.json[0].finishedAt).not.toBeNull();
+
+			const rules = {
+				on: "tag",
+				tagPattern: "v*.*.*",
+				waitForChecks: true,
+				checksTimeoutMinutes: 15,
+			};
+			const put = await h.call(
+				"PUT",
+				`/api/services/${serviceId}/git-trigger`,
+				{ ...as(), body: rules },
+			);
+			expect(put.status).toBe(200);
+			expect(
+				(await h.call("GET", `/api/services/${serviceId}/git-trigger`, as()))
+					.json,
+			).toEqual(rules);
+
+			const tag = (name: string) => ({
+				...pushPayload({ branch: "main", files: [] }),
+				ref: `refs/tags/${name}`,
+			});
+			const release = await deliver(tag("v1.2.3"));
+			expect(release.status).toBe(200);
+			const [held] = await h.deps.db
+				.select()
+				.from(deployment)
+				.where(eq(deployment.id, release.json.deployments[0]));
+			expect(held).toMatchObject({
+				status: "awaiting_checks",
+				gitRef: "v1.2.3",
+				commitSha: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+			});
+			const nightly = await deliver(tag("nightly"));
+			expect(nightly.json).toMatchObject({
+				outcome: "skipped",
+				reason: "Tag nightly does not match v*.*.*",
+			});
+			const branch = await deliver(
+				pushPayload({ branch: "main", files: ["apps/web/a.ts"] }),
+			);
+			expect(branch.json.outcome).toBe("ignored");
+
+			await h.call("PUT", `/api/services/${serviceId}/git-trigger`, {
+				...as(),
+				body: { on: "branch" },
+			});
 		});
 
 		test("an unknown provider is 404", async () => {

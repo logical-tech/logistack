@@ -354,3 +354,936 @@ exports[`full config snapshot 1`] = `
   },
 }
 `;
+
+exports[`access rules ip_allow 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules ip_allow with trusted proxies 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+              {
+                "client_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+                "remote_ip": {
+                  "ranges": [
+                    "10.0.0.0/8",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules forward_auth 1`] = `
+[
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "delete": [
+                    "Remote-Groups",
+                    "Remote-User",
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-Groups": [
+                      "{http.reverse_proxy.header.Remote-Groups}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-Groups}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-User": [
+                      "{http.reverse_proxy.header.Remote-User}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-User}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/verify?rd=https%3A%2F%2Flogin",
+    },
+    "transport": {
+      "protocol": "http",
+      "tls": {},
+    },
+    "upstreams": [
+      {
+        "dial": "auth.example.com:443",
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules forward_auth over http, no headers 1`] = `
+[
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "vars",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/authz/forward-auth",
+    },
+    "upstreams": [
+      {
+        "dial": "authelia:9091",
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules basic_auth 1`] = `
+[
+  {
+    "handler": "authentication",
+    "providers": {
+      "http_basic": {
+        "accounts": [
+          {
+            "password": "$2a$10$abc",
+            "username": "ops",
+          },
+        ],
+        "hash": {
+          "algorithm": "bcrypt",
+        },
+        "realm": "restricted",
+      },
+    },
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules ip_allow + basic_auth 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handler": "authentication",
+    "providers": {
+      "http_basic": {
+        "accounts": [
+          {
+            "password": "$2a$10$abc",
+            "username": "ops",
+          },
+        ],
+        "hash": {
+          "algorithm": "bcrypt",
+        },
+        "realm": "restricted",
+      },
+    },
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules ip_allow + forward_auth 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "delete": [
+                    "Remote-Groups",
+                    "Remote-User",
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-Groups": [
+                      "{http.reverse_proxy.header.Remote-Groups}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-Groups}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-User": [
+                      "{http.reverse_proxy.header.Remote-User}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-User}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/verify?rd=https%3A%2F%2Flogin",
+    },
+    "transport": {
+      "protocol": "http",
+      "tls": {},
+    },
+    "upstreams": [
+      {
+        "dial": "auth.example.com:443",
+      },
+    ],
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`access rules all three 1`] = `
+[
+  {
+    "handler": "subroute",
+    "routes": [
+      {
+        "handle": [
+          {
+            "body": "Forbidden",
+            "handler": "static_response",
+            "status_code": 403,
+          },
+        ],
+        "match": [
+          {
+            "not": [
+              {
+                "remote_ip": {
+                  "ranges": [
+                    "203.0.113.0/24",
+                    "2001:db8::/32",
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "handle_response": [
+      {
+        "match": {
+          "status_code": [
+            2,
+          ],
+        },
+        "routes": [
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "delete": [
+                    "Remote-Groups",
+                    "Remote-User",
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-Groups": [
+                      "{http.reverse_proxy.header.Remote-Groups}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-Groups}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            "handle": [
+              {
+                "handler": "headers",
+                "request": {
+                  "set": {
+                    "Remote-User": [
+                      "{http.reverse_proxy.header.Remote-User}",
+                    ],
+                  },
+                },
+              },
+            ],
+            "match": [
+              {
+                "not": [
+                  {
+                    "vars": {
+                      "{http.reverse_proxy.header.Remote-User}": [
+                        "",
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    "handler": "reverse_proxy",
+    "headers": {
+      "request": {
+        "set": {
+          "Host": [
+            "{http.reverse_proxy.upstream.hostport}",
+          ],
+          "X-Forwarded-Method": [
+            "{http.request.method}",
+          ],
+          "X-Forwarded-Uri": [
+            "{http.request.uri}",
+          ],
+        },
+      },
+    },
+    "rewrite": {
+      "method": "GET",
+      "uri": "/api/verify?rd=https%3A%2F%2Flogin",
+    },
+    "transport": {
+      "protocol": "http",
+      "tls": {},
+    },
+    "upstreams": [
+      {
+        "dial": "auth.example.com:443",
+      },
+    ],
+  },
+  {
+    "handler": "authentication",
+    "providers": {
+      "http_basic": {
+        "accounts": [
+          {
+            "password": "$2a$10$abc",
+            "username": "ops",
+          },
+        ],
+        "hash": {
+          "algorithm": "bcrypt",
+        },
+        "realm": "restricted",
+      },
+    },
+  },
+  {
+    "handler": "reverse_proxy",
+    "upstreams": [
+      {
+        "dial": "ls-svc-a1:8080",
+      },
+    ],
+  },
+]
+`;
+
+exports[`wildcard and explicit hosts on one zone snapshot 1`] = `
+{
+  "admin": {
+    "listen": "0.0.0.0:2019",
+  },
+  "apps": {
+    "http": {
+      "grace_period": "10s",
+      "http_port": 80,
+      "https_port": 443,
+      "servers": {
+        "http": {
+          "listen": [
+            ":80",
+          ],
+          "logs": {
+            "default_logger_name": "ls-access",
+          },
+          "routes": [
+            {
+              "@id": "ls-https-redirect",
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "headers": {
+                    "Location": [
+                      "https://{http.request.host}{http.request.uri}",
+                    ],
+                  },
+                  "status_code": 308,
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "*.shop.example.com",
+                    "admin.shop.example.com",
+                    "ls.example.com",
+                    "shop.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-not-found-http",
+              "handle": [
+                {
+                  "body": "<!doctype html><html><head><meta charset="utf-8"><title>Not found</title></head><body style="font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;color:#555"><div><h1>404</h1><p>No application is configured for this address.</p></div></body></html>",
+                  "handler": "static_response",
+                  "headers": {
+                    "Content-Type": [
+                      "text/html; charset=utf-8",
+                    ],
+                  },
+                  "status_code": 404,
+                },
+              ],
+              "terminal": true,
+            },
+          ],
+        },
+        "https": {
+          "automatic_https": {
+            "disable_redirects": true,
+          },
+          "listen": [
+            ":443",
+          ],
+          "logs": {
+            "default_logger_name": "ls-access",
+          },
+          "routes": [
+            {
+              "@id": "ls-dashboard",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "logistack-api:3000",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "ls.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-admin",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-admin:80",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "admin.shop.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-apex",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-site:80",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "shop.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-domain-wild",
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [
+                    {
+                      "dial": "ls-svc-tenants:80",
+                    },
+                  ],
+                },
+              ],
+              "match": [
+                {
+                  "host": [
+                    "*.shop.example.com",
+                  ],
+                },
+              ],
+              "terminal": true,
+            },
+            {
+              "@id": "ls-not-found-https",
+              "handle": [
+                {
+                  "body": "<!doctype html><html><head><meta charset="utf-8"><title>Not found</title></head><body style="font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;color:#555"><div><h1>404</h1><p>No application is configured for this address.</p></div></body></html>",
+                  "handler": "static_response",
+                  "headers": {
+                    "Content-Type": [
+                      "text/html; charset=utf-8",
+                    ],
+                  },
+                  "status_code": 404,
+                },
+              ],
+              "terminal": true,
+            },
+          ],
+        },
+      },
+    },
+    "tls": {
+      "automation": {
+        "policies": [
+          {
+            "issuers": [
+              {
+                "ca": "https://acme-v02.api.letsencrypt.org/directory",
+                "challenges": {
+                  "dns": {
+                    "provider": {
+                      "api_token": "cf-token",
+                      "name": "cloudflare",
+                    },
+                  },
+                },
+                "email": "ops@example.com",
+                "module": "acme",
+              },
+            ],
+            "subjects": [
+              "*.shop.example.com",
+              "shop.example.com",
+            ],
+          },
+          {
+            "issuers": [
+              {
+                "ca": "https://acme-v02.api.letsencrypt.org/directory",
+                "email": "ops@example.com",
+                "module": "acme",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  },
+  "logging": {
+    "logs": {
+      "access": {
+        "encoder": {
+          "format": "json",
+        },
+        "include": [
+          "http.log.access.ls-access",
+        ],
+        "writer": {
+          "output": "stdout",
+        },
+      },
+      "default": {
+        "encoder": {
+          "format": "json",
+        },
+        "exclude": [
+          "http.log.access.ls-access",
+        ],
+        "writer": {
+          "output": "stderr",
+        },
+      },
+    },
+  },
+  "storage": {
+    "address": [
+      "ls-redis:6379",
+    ],
+    "db": 2,
+    "key_prefix": "logistack/caddy",
+    "module": "redis",
+    "password": "s3cret",
+    "tls_enabled": false,
+  },
+}
+`;

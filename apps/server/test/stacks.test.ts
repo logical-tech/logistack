@@ -168,7 +168,7 @@ describe.skipIf(!hasDocker)("stacks API", () => {
 		});
 		await h.deps.db.insert(service).values([legacy("app"), legacy("cache")]);
 		const file = readFileSync(
-			new URL("../../../packages/db/drizzle/0018_stack.sql", import.meta.url),
+			new URL("../../../packages/db/drizzle/0027_stack.sql", import.meta.url),
 			"utf8",
 		);
 		const backfill = file.slice(file.indexOf("-- Backfill"));

@@ -10,6 +10,8 @@ import {
 } from "../src/deployment.ts";
 
 const events: Record<string, DeploymentEvent> = {
+	checks_passed: { type: "checks_passed" },
+	skip: { type: "skip" },
 	"start(git)": { type: "start", source: "git" },
 	"start(image)": { type: "start", source: "image" },
 	cloned: { type: "cloned" },
@@ -24,6 +26,12 @@ const events: Record<string, DeploymentEvent> = {
 
 // Every legal transition. Any (state, event) pair absent here must be rejected.
 const legal: Record<DeploymentStatus, Record<string, DeploymentStatus>> = {
+	awaiting_checks: {
+		checks_passed: "queued",
+		skip: "skipped",
+		cancel: "cancelled",
+		supersede: "superseded",
+	},
 	queued: {
 		"start(git)": "cloning",
 		"start(image)": "deploying",
@@ -55,6 +63,7 @@ const legal: Record<DeploymentStatus, Record<string, DeploymentStatus>> = {
 	failed: {},
 	cancelled: {},
 	superseded: {},
+	skipped: {},
 };
 
 describe("deployment state machine", () => {

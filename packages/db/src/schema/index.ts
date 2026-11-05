@@ -3,6 +3,7 @@ export * from "./auth.ts";
 export * from "./enums.ts";
 export * from "./hierarchy.ts";
 export * from "./integrations.ts";
+export * from "./migration.ts";
 export * from "./monitoring.ts";
 export * from "./networking.ts";
 export * from "./node-token.ts";

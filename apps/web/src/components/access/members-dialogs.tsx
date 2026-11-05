@@ -19,7 +19,11 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useCreateGrant, useInvite } from "@/lib/api/access";
+import {
+	useCreateGrant,
+	useInvite,
+	useTwoFactorSetting,
+} from "@/lib/api/access";
 import type { Invitation, Me, Scope, ScopeKind } from "@/lib/api/access-types";
 import { issuesByKey } from "@/lib/form";
 
@@ -96,6 +100,7 @@ export function InviteDialog({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const invite = useInvite();
+	const twoFactor = useTwoFactorSetting().data;
 	const [email, setEmail] = useState("");
 	const [role, setRole] = useState("developer");
 	const [errors, setErrors] = useState<Record<string, string>>({});
@@ -134,6 +139,10 @@ export function InviteDialog({
 						LogiStack doesn't send email. Share this link with{" "}
 						<span className="font-medium text-foreground">{sent.email}</span>.
 						It works once and expires in 7 days.
+						{twoFactor?.mode === "required" &&
+							(twoFactor.graceDays
+								? ` This organization requires two-factor authentication: they have ${twoFactor.graceDays} days after joining to add an authenticator app or a passkey.`
+								: " This organization requires two-factor authentication: they need an authenticator app or a passkey before they can open anything.")}
 					</>
 				}
 				footer={

@@ -39,11 +39,13 @@ import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/pro
 import { Route as AppSchedulesScheduleIdRouteImport } from './routes/_app/schedules_.$scheduleId'
 import { Route as AppSchedulesNewRouteImport } from './routes/_app/schedules_.new'
 import { Route as AppSettingsApiKeysRouteImport } from './routes/_app/settings/api-keys'
+import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
 import { Route as AppSettingsAuditLogRouteImport } from './routes/_app/settings/audit-log'
 import { Route as AppSettingsAuthenticationRouteImport } from './routes/_app/settings/authentication'
 import { Route as AppSettingsCertificatesRouteImport } from './routes/_app/settings/certificates'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
+import { Route as AppSettingsMigrateRouteImport } from './routes/_app/settings/migrate'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/ssh-keys'
 import { Route as AppSettingsUpdatesRouteImport } from './routes/_app/settings/updates'
@@ -239,6 +241,11 @@ const AppSettingsApiKeysRoute = AppSettingsApiKeysRouteImport.update({
   path: '/settings/api-keys',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsAppearanceRoute = AppSettingsAppearanceRouteImport.update({
+  id: '/settings/appearance',
+  path: '/settings/appearance',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsAuditLogRoute = AppSettingsAuditLogRouteImport.update({
   id: '/settings/audit-log',
   path: '/settings/audit-log',
@@ -263,6 +270,11 @@ const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
 const AppSettingsMembersRoute = AppSettingsMembersRouteImport.update({
   id: '/settings/members',
   path: '/settings/members',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsMigrateRoute = AppSettingsMigrateRouteImport.update({
+  id: '/settings/migrate',
+  path: '/settings/migrate',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRolesRoute = AppSettingsRolesRouteImport.update({
@@ -540,11 +552,13 @@ export interface FileRoutesByFullPath {
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/settings/authentication': typeof AppSettingsAuthenticationRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/members': typeof AppSettingsMembersRoute
+  '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
@@ -615,11 +629,13 @@ export interface FileRoutesByTo {
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/settings/authentication': typeof AppSettingsAuthenticationRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/members': typeof AppSettingsMembersRoute
+  '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
@@ -694,11 +710,13 @@ export interface FileRoutesById {
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
   '/_app/settings/api-keys': typeof AppSettingsApiKeysRoute
+  '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
   '/_app/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/_app/settings/authentication': typeof AppSettingsAuthenticationRoute
   '/_app/settings/certificates': typeof AppSettingsCertificatesRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/members': typeof AppSettingsMembersRoute
+  '/_app/settings/migrate': typeof AppSettingsMigrateRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/_app/settings/updates': typeof AppSettingsUpdatesRoute
@@ -774,11 +792,13 @@ export interface FileRouteTypes {
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
+    | '/settings/appearance'
     | '/settings/audit-log'
     | '/settings/authentication'
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/members'
+    | '/settings/migrate'
     | '/settings/roles'
     | '/settings/ssh-keys'
     | '/settings/updates'
@@ -849,11 +869,13 @@ export interface FileRouteTypes {
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
+    | '/settings/appearance'
     | '/settings/audit-log'
     | '/settings/authentication'
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/members'
+    | '/settings/migrate'
     | '/settings/roles'
     | '/settings/ssh-keys'
     | '/settings/updates'
@@ -927,11 +949,13 @@ export interface FileRouteTypes {
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
     | '/_app/settings/api-keys'
+    | '/_app/settings/appearance'
     | '/_app/settings/audit-log'
     | '/_app/settings/authentication'
     | '/_app/settings/certificates'
     | '/_app/settings/general'
     | '/_app/settings/members'
+    | '/_app/settings/migrate'
     | '/_app/settings/roles'
     | '/_app/settings/ssh-keys'
     | '/_app/settings/updates'
@@ -1197,6 +1221,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsApiKeysRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/appearance': {
+      id: '/_app/settings/appearance'
+      path: '/settings/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof AppSettingsAppearanceRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/audit-log': {
       id: '/_app/settings/audit-log'
       path: '/settings/audit-log'
@@ -1230,6 +1261,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/members'
       fullPath: '/settings/members'
       preLoaderRoute: typeof AppSettingsMembersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/migrate': {
+      id: '/_app/settings/migrate'
+      path: '/settings/migrate'
+      fullPath: '/settings/migrate'
+      preLoaderRoute: typeof AppSettingsMigrateRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/roles': {
@@ -1684,11 +1722,13 @@ interface AppRouteChildren {
   AppSchedulesScheduleIdRoute: typeof AppSchedulesScheduleIdRoute
   AppSchedulesNewRoute: typeof AppSchedulesNewRoute
   AppSettingsApiKeysRoute: typeof AppSettingsApiKeysRoute
+  AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
   AppSettingsAuditLogRoute: typeof AppSettingsAuditLogRoute
   AppSettingsAuthenticationRoute: typeof AppSettingsAuthenticationRoute
   AppSettingsCertificatesRoute: typeof AppSettingsCertificatesRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
+  AppSettingsMigrateRoute: typeof AppSettingsMigrateRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSshKeysRoute: typeof AppSettingsSshKeysRoute
   AppSettingsUpdatesRoute: typeof AppSettingsUpdatesRoute
@@ -1728,11 +1768,13 @@ const AppRouteChildren: AppRouteChildren = {
   AppSchedulesScheduleIdRoute: AppSchedulesScheduleIdRoute,
   AppSchedulesNewRoute: AppSchedulesNewRoute,
   AppSettingsApiKeysRoute: AppSettingsApiKeysRoute,
+  AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
   AppSettingsAuditLogRoute: AppSettingsAuditLogRoute,
   AppSettingsAuthenticationRoute: AppSettingsAuthenticationRoute,
   AppSettingsCertificatesRoute: AppSettingsCertificatesRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsMembersRoute: AppSettingsMembersRoute,
+  AppSettingsMigrateRoute: AppSettingsMigrateRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSshKeysRoute: AppSettingsSshKeysRoute,
   AppSettingsUpdatesRoute: AppSettingsUpdatesRoute,

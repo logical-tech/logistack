@@ -20,6 +20,12 @@ import { apiKeyFrom } from "./auth.ts";
 import type { Deps, Env } from "./env.ts";
 import { Failure } from "./errors.ts";
 import { log } from "./log.ts";
+import {
+	auditBlocked,
+	type MemberTwoFactor,
+	memberTwoFactor,
+	TWO_FACTOR_REQUIRED_MESSAGE,
+} from "./two-factor.ts";
 
 /** Whoever is making the request, already bound to one organization. */
 export type Actor = {
@@ -37,6 +43,8 @@ export type Actor = {
 	keyScopes?: Grant[];
 	/** The API key used, when the credential is one. */
 	keyId?: string;
+	/** Set for a signed-in person when the organization requires a second factor; keys and machines are exempt. */
+	twoFactor?: MemberTwoFactor;
 };
 
 export const scopeKinds = [
@@ -228,7 +236,16 @@ export async function resolveActor(
 		(await firstOrganization(db, userId));
 	if (!organizationId) return undefined;
 	const grants = await grantsFor(db, userId, userId, organizationId);
-	return grants && { kind: "user", id: userId, userId, organizationId, grants };
+	if (!grants) return undefined;
+	const twoFactor = await memberTwoFactor(db, userId, organizationId);
+	return {
+		kind: "user",
+		id: userId,
+		userId,
+		organizationId,
+		grants,
+		twoFactor,
+	};
 }
 
 /**
@@ -261,17 +278,36 @@ export async function systemActor(
 	);
 }
 
-/** Resolves the actor once per request; routes that need one call `requireActor`. */
+/**
+ * Resolves the actor once per request; routes that need one call `requireActor`. A member the
+ * two-factor requirement locks out is audited here, once per lockout.
+ */
 export const authenticate: MiddlewareHandler<Env> = async (c, next) => {
-	c.set(
-		"actor",
-		await resolveActor(c.var.deps, c.req.raw.headers, clientIp(c)),
-	);
+	const actor = await resolveActor(c.var.deps, c.req.raw.headers, clientIp(c));
+	c.set("actor", actor);
+	if (actor?.twoFactor?.kind === "blocked")
+		await auditBlocked(c, actor.twoFactor);
 	await next();
 };
 
-export function requireActor(c: { get(key: "actor"): Actor | undefined }) {
+type ActorContext = { get(key: "actor"): Actor | undefined };
+
+/** The actor even when the two-factor requirement locks them out; only `/me` reads it this way. */
+export function currentActor(c: ActorContext) {
 	const actor = c.get("actor");
 	if (!actor) throw new Failure("unauthorized", "authentication required");
+	return actor;
+}
+
+/**
+ * The actor of an organization-scoped request. Every route and permission check goes through
+ * here, so this is where the organization's two-factor requirement is enforced.
+ */
+export function requireActor(c: ActorContext) {
+	const actor = currentActor(c);
+	if (actor.twoFactor?.kind === "blocked")
+		throw new Failure("two_factor_required", TWO_FACTOR_REQUIRED_MESSAGE, {
+			deadline: actor.twoFactor.deadline.toISOString(),
+		});
 	return actor;
 }

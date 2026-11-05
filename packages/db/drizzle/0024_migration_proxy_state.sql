@@ -1,0 +1,1 @@
+ALTER TABLE "migration" ADD COLUMN "proxy_state" jsonb;

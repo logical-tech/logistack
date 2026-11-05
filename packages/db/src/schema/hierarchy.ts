@@ -188,6 +188,23 @@ export const mount = pgTable(
 	],
 );
 
+/**
+ * A Docker volume another platform created (e.g. Dokploy), mounted in place instead of copied.
+ * It carries none of our labels, so no cleanup ever lists it; this row is what marks it ours to mount.
+ * `ownerId` is what would otherwise name the volume: a volume mount's id, or a database or storage
+ * service's id for its data directory.
+ */
+export const adoptedVolume = pgTable("adopted_volume", {
+	volumeName: text("volume_name").primaryKey(),
+	ownerId: text("owner_id").notNull().unique(),
+	serviceId: text("service_id")
+		.notNull()
+		.references(() => service.id, { onDelete: "cascade" }),
+	/** e.g. `dokploy`. */
+	source: text("source").notNull(),
+	...timestamps,
+});
+
 /** HTTP basic auth the proxy puts in front of every domain of a service; bcrypt hashes only. */
 export const serviceBasicAuth = pgTable("service_basic_auth", {
 	serviceId: text("service_id")

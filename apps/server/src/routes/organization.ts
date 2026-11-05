@@ -1,19 +1,68 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { observedStates } from "@logistack/contracts";
+import {
+	OrganizationUpdate,
+	observedStates,
+	TwoFactorPolicy,
+	twoFactorAccessKinds,
+} from "@logistack/contracts";
 import type { Grant } from "@logistack/core";
 import {
+	type Db,
 	deployment,
 	environment,
+	organization,
 	project,
 	service,
 	serviceStatus,
 } from "@logistack/db";
-import { count, desc, eq, sql } from "drizzle-orm";
-import { requireActor } from "../actor.ts";
-import { Deployment, errors, json, router, security } from "../openapi.ts";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
+import { currentActor, requireActor } from "../actor.ts";
+import { mutation } from "../audit.ts";
+import {
+	body,
+	Deployment,
+	errors,
+	json,
+	router,
+	security,
+} from "../openapi.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
+import { readTwoFactorPolicy, writeTwoFactorPolicy } from "../two-factor.ts";
+
+const TwoFactorSetting = TwoFactorPolicy.extend({
+	/** When the requirement was switched on; the grace period of existing members counts from it. */
+	enabledAt: z.string().nullable(),
+}).openapi("TwoFactorSetting");
+
+const settingJson = (p: Awaited<ReturnType<typeof readTwoFactorPolicy>>) => ({
+	...p,
+	enabledAt: p.enabledAt?.toISOString() ?? null,
+});
 
 const Named = z.object({ id: z.string(), name: z.string() });
+
+const OrganizationProfile = z
+	.object({
+		id: z.string(),
+		name: z.string(),
+		slug: z.string(),
+		logo: z.string().nullable(),
+	})
+	.openapi("OrganizationProfile");
+
+async function readProfile(db: Db, id: string) {
+	const [row] = await db
+		.select({
+			id: organization.id,
+			name: organization.name,
+			slug: organization.slug,
+			logo: organization.logo,
+		})
+		.from(organization)
+		.where(eq(organization.id, id));
+	if (!row) throw new Error(`organization ${id} not found`);
+	return row;
+}
 
 const roleName = (g: Grant) =>
 	typeof g.role === "string" ? g.role : g.role.id;
@@ -42,6 +91,13 @@ export const organizationRoutes = router()
 								scope: z.object({ kind: z.string(), id: z.string() }),
 							}),
 						),
+						/** Set while the organization requires a second factor this person has not added. */
+						twoFactor: z
+							.object({
+								kind: z.enum(twoFactorAccessKinds),
+								deadline: z.string(),
+							})
+							.nullable(),
 						/** Set when the credential is a scoped API key: it may act only within these. */
 						keyScopes: z
 							.array(
@@ -58,7 +114,13 @@ export const organizationRoutes = router()
 			},
 		}),
 		(c) => {
-			const { grants, keyScopes, keyId: _, ...actor } = requireActor(c);
+			const {
+				grants,
+				keyScopes,
+				keyId: _,
+				twoFactor,
+				...actor
+			} = currentActor(c);
 			const bindings = (gs: Grant[]) =>
 				gs.map((g) => ({ role: roleName(g), scope: g.scope }));
 			return c.json(
@@ -69,9 +131,118 @@ export const organizationRoutes = router()
 						.map(roleName),
 					grants: bindings(grants),
 					keyScopes: keyScopes ? bindings(keyScopes) : null,
+					twoFactor:
+						twoFactor && twoFactor.kind !== "allow"
+							? {
+									kind: twoFactor.kind,
+									deadline: twoFactor.deadline.toISOString(),
+								}
+							: null,
 				},
 				200,
 			);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/organization",
+			tags: ["identity"],
+			security,
+			summary: "The active organization's name and logo",
+			middleware: [requirePermission("read", inOrganization)],
+			responses: { 200: json(OrganizationProfile, "Organization"), ...errors },
+		}),
+		async (c) =>
+			c.json(
+				await readProfile(c.var.deps.db, requireActor(c).organizationId),
+				200,
+			),
+	)
+	.openapi(
+		mutation(
+			"organization.update",
+			createRoute({
+				method: "patch",
+				path: "/organization",
+				tags: ["identity"],
+				security,
+				summary: "Rename the organization or change its logo",
+				description:
+					"`logo` is a PNG, WebP or JPEG data URL of at most 128 KB; `null` removes it. Members see the logo in the sidebar and as the browser tab icon.",
+				middleware: [requirePermission("admin", inOrganization)],
+				request: body(OrganizationUpdate),
+				responses: { 200: json(OrganizationProfile, "Saved"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { db } = c.var.deps;
+			const orgId = requireActor(c).organizationId;
+			const patch = c.req.valid("json");
+			const before = await readProfile(db, orgId);
+			if (Object.keys(patch).length > 0)
+				await db
+					.update(organization)
+					.set(patch)
+					.where(eq(organization.id, orgId));
+			const after = await readProfile(db, orgId);
+			// The image itself stays out of the audit log; whether it changed is enough.
+			const summary = (p: typeof before) => ({
+				name: p.name,
+				logo: p.logo ? `${p.logo.length} chars` : null,
+			});
+			c.set("auditDiff", { before: summary(before), after: summary(after) });
+			return c.json(after, 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/organization/two-factor",
+			tags: ["identity"],
+			security,
+			summary: "The organization's two-factor requirement",
+			middleware: [requirePermission("read", inOrganization)],
+			responses: { 200: json(TwoFactorSetting, "Setting"), ...errors },
+		}),
+		async (c) =>
+			c.json(
+				settingJson(
+					await readTwoFactorPolicy(
+						c.var.deps.db,
+						requireActor(c).organizationId,
+					),
+				),
+				200,
+			),
+	)
+	.openapi(
+		mutation(
+			"organization.two_factor_update",
+			createRoute({
+				method: "put",
+				path: "/organization/two-factor",
+				tags: ["identity"],
+				security,
+				summary: "Require two-factor authentication for every member",
+				description:
+					"Members without an authenticator app or a passkey are prompted to add one, and lose access once `graceDays` have passed since the requirement was switched on or since they joined, whichever is later. API keys and service accounts are exempt.",
+				middleware: [requirePermission("admin", inOrganization)],
+				request: body(TwoFactorPolicy),
+				responses: { 200: json(TwoFactorSetting, "Saved"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { before, after } = await writeTwoFactorPolicy(
+				c.var.deps.db,
+				requireActor(c).organizationId,
+				c.req.valid("json"),
+			);
+			c.set("auditDiff", {
+				before: settingJson(before),
+				after: settingJson(after),
+			});
+			return c.json(settingJson(after), 200);
 		},
 	)
 	.openapi(
@@ -127,7 +298,12 @@ export const organizationRoutes = router()
 					.innerJoin(service, eq(service.id, deployment.serviceId))
 					.innerJoin(environment, eq(environment.id, service.environmentId))
 					.innerJoin(project, eq(project.id, environment.projectId))
-					.where(eq(project.organizationId, orgId))
+					.where(
+						and(
+							eq(project.organizationId, orgId),
+							ne(deployment.status, "skipped"),
+						),
+					)
 					.orderBy(desc(deployment.createdAt))
 					.limit(10),
 			]);

@@ -3,10 +3,23 @@
 #   curl -fsSL <url>/install.sh | sudo bash -s -- [--version X] [--advertise-addr IP] [--yes] [--dry-run]
 #   sudo bash install/install.sh --local-build    (from a checkout: build the images here, pull nothing)
 #
+# Private setup (the default): until setup is done the dashboard is reachable only through an SSH
+# tunnel to 127.0.0.1:$TUNNEL_PORT, served by a plain container (Swarm cannot publish on loopback).
+# Caddy's bootstrap catch-all answers 404 instead of proxying to the api; after setup the worker
+# routes the dashboard's own domain over https. --public-setup keeps the catch-all proxy and
+# requires a one-time setup token instead. It is not persisted: a re-run without it is private.
+#
 # Ingress off (--no-ingress): Caddy is a global service constrained to node.labels.logistack.ingress
 # == true, so labelling the node logistack.ingress=pending leaves it at 0 tasks and 80/443 free for
 # the proxy being migrated away from. The label is the persisted choice: a plain re-run keeps ingress
 # off, and --enable-ingress relabels the node true (Swarm then schedules Caddy) and redeploys.
+#
+# On a Dokploy server (Swarm service `dokploy`, or /etc/dokploy) the install is --no-ingress and
+# private, Dokploy's Traefik keeps 80/443, and stack.dokploy.yml lets the api read Dokploy's database
+# and /etc/dokploy for the migration wizard. On a Coolify server (a running `coolify` container) the
+# install is likewise --no-ingress and private, Coolify's proxy keeps 80/443, Swarm starts with an
+# address pool clear of Coolify's networks, and stack.coolify.yml lets the api read Coolify's
+# database over the ls-coolify-bridge overlay, with its password and APP_KEY as Swarm secrets.
 set -euo pipefail
 
 # Empty on main: a fresh install asks GitHub for the latest release. The copy attached to a
@@ -31,10 +44,29 @@ DRY_RUN=0
 LOCAL_BUILD=0
 NO_INGRESS=0
 ENABLE_INGRESS=0
+PUBLIC_SETUP=0
 REGISTRY="ghcr.io/logical-tech"
 CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
 TUNNEL_PORT=${LOGISTACK_TUNNEL_PORT:-3000}
+MIGRATION_FILE="$CONF_DIR/migration"
+MIGRATION_ARCHIVE_DIR=/var/lib/logistack/migration
+DOKPLOY_STACK=stack.dokploy.yml
+# Made from the dokploy-postgres env when Dokploy predates its own secret.
+DOKPLOY_PG_COPY=logistack-dokploy-postgres-password
+# Dokploy encrypts env at rest with ENCRYPTION_KEY, else BETTER_AUTH_SECRET, else a fixed default.
+DOKPLOY_KEY_COPY=logistack-dokploy-key
+DOKPLOY_LEGACY_SECRET=better-auth-secret-123456789
+COOLIFY_STACK=stack.coolify.yml
+COOLIFY_ENV=/data/coolify/source/.env
+COOLIFY_DB_SECRET=logistack-coolify-db-password
+COOLIFY_KEY_SECRET=logistack-coolify-app-key
+# LogiStack's overlay on a Coolify server: coolify-db joins it for the wizard, and during the
+# migration Coolify's proxy and containers do too (the bridge, COOL-1).
+COOLIFY_BRIDGE=ls-coolify-bridge
+# Overlay address pools tried in order on a Coolify server; Coolify gives Docker 10.0.0.0/8 in /24s
+# from the bottom, which a default `swarm init` (10.0.0.0/8 too) collides with.
+SWARM_POOLS="10.248.0.0/16 10.249.0.0/16 172.29.0.0/16 192.168.248.0/21"
 
 OS_ID=""
 OS_VERSION=""
@@ -44,6 +76,15 @@ SWARM_STATE="inactive"
 PUBLIC_IP=""
 PUBLIC_URL=""
 IMAGE_TAG=""
+DOKPLOY=0
+DOKPLOY_PG_SECRET=""
+DOKPLOY_KEY_SECRET=""
+DOKPLOY_KEY_SOURCE=""
+DOKPLOY_PG_USER=""
+DOKPLOY_PG_DB=""
+COOLIFY=0
+COOLIFY_DB_USER=""
+COOLIFY_DB_NAME=""
 
 if [ -t 1 ]; then
 	BOLD=$'\033[1m' DIM=$'\033[2m' GREEN=$'\033[32m' RED=$'\033[31m' YELLOW=$'\033[33m' RESET=$'\033[0m'
@@ -75,6 +116,9 @@ Usage: install.sh [options]
   --no-ingress         Leave Caddy off and ports 80/443 to another proxy; reach the API through
                        an SSH tunnel to 127.0.0.1:$TUNNEL_PORT. Kept on re-runs until --enable-ingress
   --enable-ingress     Turn Caddy on after --no-ingress (80/443 must be free by then)
+  --public-setup       Serve the setup wizard on the public address before setup, guarded by a
+                       one-time setup token printed at the end (default: only through an SSH
+                       tunnel to 127.0.0.1:$TUNNEL_PORT)
   --help, -h           Show this help
 EOF
 }
@@ -122,6 +166,7 @@ parse_args() {
 		--local-build) LOCAL_BUILD=1 REGISTRY=localhost ;;
 		--no-ingress) NO_INGRESS=1 ;;
 		--enable-ingress) ENABLE_INGRESS=1 ;;
+		--public-setup) PUBLIC_SETUP=1 ;;
 		--help | -h) usage; exit 0 ;;
 		*) usage >&2; fail "Unknown option: $1" ;;
 		esac
@@ -200,20 +245,151 @@ nodes_labelled() {
 	docker node ls -q --filter "node.label=logistack.ingress=$1"
 }
 
+# The dokploy-postgres env, one variable per line. Holds the password on old Dokploy releases:
+# pipe it, never keep it in a variable or pass it as an argument.
+dokploy_pg_env() {
+	docker service inspect dokploy-postgres --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}'
+}
+
+# Dokploy keeps no database credentials under /etc/dokploy: the password is a Swarm secret the
+# dokploy-postgres service reads through POSTGRES_PASSWORD_FILE, or, on releases before 0.26.6,
+# a plain POSTGRES_PASSWORD in that service's env.
+dokploy_env() {
+	docker service inspect dokploy --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null || true
+}
+
+# The key Dokploy encrypts env with, for the wizard to read it: the same Swarm secret when Dokploy
+# reads it from a file, else a copy of its env value or of Dokploy's own default into our secret.
+read_dokploy_key() {
+	local var file name target
+	DOKPLOY_KEY_SOURCE=""
+	for var in ENCRYPTION_KEY BETTER_AUTH_SECRET; do
+		file=$(dokploy_env | sed -n "s/^${var}_FILE=//p" | head -n1)
+		if [ -n "$file" ]; then
+			while read -r name target; do
+				[ "${target##*/}" != "${file##*/}" ] || DOKPLOY_KEY_SECRET=$name
+			done < <(docker service inspect dokploy \
+				--format '{{range .Spec.TaskTemplate.ContainerSpec.Secrets}}{{.SecretName}} {{.File.Name}}{{println}}{{end}}')
+			[ -n "$DOKPLOY_KEY_SECRET" ] || fail "dokploy reads $var from $file, but no Swarm secret is mounted there"
+			ok "Dokploy's encryption key: $var from secret $DOKPLOY_KEY_SECRET"
+			return 0
+		fi
+		if dokploy_env | grep -q "^${var}="; then
+			DOKPLOY_KEY_SECRET=$DOKPLOY_KEY_COPY DOKPLOY_KEY_SOURCE=$var
+			ok "Dokploy's encryption key: $var from its service env, copied into secret $DOKPLOY_KEY_COPY"
+			return 0
+		fi
+	done
+	DOKPLOY_KEY_SECRET=$DOKPLOY_KEY_COPY DOKPLOY_KEY_SOURCE=legacy
+	ok "Dokploy's encryption key: its built-in default (no secret configured)"
+}
+
+copy_dokploy_key() {
+	if [ "$DOKPLOY_KEY_SOURCE" = legacy ]; then
+		printf '%s' "$DOKPLOY_LEGACY_SECRET"
+	else
+		dokploy_env | sed -n "s/^${DOKPLOY_KEY_SOURCE}=//p" | head -n1 | tr -d '\n'
+	fi | secret_create_stdin "$DOKPLOY_KEY_COPY"
+}
+
+read_dokploy_db() {
+	local file name target
+	DOKPLOY_PG_USER=$(dokploy_pg_env | sed -n 's/^POSTGRES_USER=//p' | head -n1)
+	DOKPLOY_PG_USER=${DOKPLOY_PG_USER:-postgres}
+	DOKPLOY_PG_DB=$(dokploy_pg_env | sed -n 's/^POSTGRES_DB=//p' | head -n1)
+	DOKPLOY_PG_DB=${DOKPLOY_PG_DB:-$DOKPLOY_PG_USER}
+	file=$(dokploy_pg_env | sed -n 's/^POSTGRES_PASSWORD_FILE=//p' | head -n1)
+	if [ -n "$file" ]; then
+		while read -r name target; do
+			[ "${target##*/}" != "${file##*/}" ] || DOKPLOY_PG_SECRET=$name
+		done < <(docker service inspect dokploy-postgres \
+			--format '{{range .Spec.TaskTemplate.ContainerSpec.Secrets}}{{.SecretName}} {{.File.Name}}{{println}}{{end}}')
+		[ -n "$DOKPLOY_PG_SECRET" ] || fail "dokploy-postgres reads its password from $file, but no Swarm secret is mounted there"
+	elif dokploy_pg_env | grep -q '^POSTGRES_PASSWORD='; then
+		DOKPLOY_PG_SECRET=$DOKPLOY_PG_COPY
+	else
+		fail "Could not find the password of Dokploy's database in the dokploy-postgres service"
+	fi
+	docker network inspect dokploy-network >/dev/null 2>&1 || fail "Dokploy found, but its network dokploy-network is missing"
+	ok "Dokploy database: user $DOKPLOY_PG_USER, database $DOKPLOY_PG_DB, password from secret $DOKPLOY_PG_SECRET"
+}
+
+# One value of Coolify's .env, quotes stripped; never printed.
+coolify_env() {
+	sed -n "s/^$1=//p" "$COOLIFY_ENV" | head -n1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/" | tr -d '\r\n'
+}
+
+detect_coolify() {
+	[ "$(docker container inspect -f '{{.State.Running}}' coolify-db 2>/dev/null)" = true ] ||
+		fail "Coolify found, but its database container coolify-db is not running; start Coolify and re-run"
+	[ -r "$COOLIFY_ENV" ] || fail "Coolify found, but $COOLIFY_ENV is not readable; run the installer as root"
+	[ -n "$(coolify_env DB_PASSWORD)" ] || fail "Coolify found, but $COOLIFY_ENV has no DB_PASSWORD"
+	[ -n "$(coolify_env APP_KEY)" ] || fail "Coolify found, but $COOLIFY_ENV has no APP_KEY"
+	COOLIFY=1
+	COOLIFY_DB_USER=$(coolify_env DB_USERNAME)
+	COOLIFY_DB_USER=${COOLIFY_DB_USER:-coolify}
+	COOLIFY_DB_NAME=$(coolify_env DB_DATABASE)
+	COOLIFY_DB_NAME=${COOLIFY_DB_NAME:-coolify}
+	ok "Coolify found"
+	note "LogiStack installs next to Coolify and changes nothing of it:"
+	note "  - Caddy stays off, so Coolify's proxy keeps ports 80 and 443 and your sites stay up."
+	note "  - Until setup is done the dashboard is reachable only through an SSH tunnel."
+	note "  - The api reads Coolify's database, read-only, over LogiStack's own network $COOLIFY_BRIDGE."
+	note "  - Swarm starts with an address pool clear of Coolify's networks; Coolify does not use Swarm."
+	note "After setup, the wizard imports your Coolify projects and moves each service over to LogiStack."
+	ok "Coolify database: user $COOLIFY_DB_USER, database $COOLIFY_DB_NAME; its password and APP_KEY go into Swarm secrets"
+}
+
+detect_migration_source() {
+	if [ "$DOCKER_READY" = 1 ] && [ "$(docker container inspect -f '{{.State.Running}}' coolify 2>/dev/null)" = true ]; then
+		detect_coolify
+		return 0
+	fi
+	[ ! -d /data/coolify ] || note "/data/coolify exists but Coolify is not running; installing as usual"
+	local service=0 database=0
+	if [ "$DOCKER_READY" = 1 ]; then
+		docker service inspect dokploy >/dev/null 2>&1 && service=1
+		docker service inspect dokploy-postgres >/dev/null 2>&1 && database=1
+	fi
+	[ "$service" = 1 ] || [ -d /etc/dokploy ] || return 0
+	if [ "$service" = 0 ] && [ "$database" = 0 ]; then
+		note "/etc/dokploy exists but Dokploy is not running; installing as usual"
+		return 0
+	fi
+	[ "$database" = 1 ] || fail "Dokploy found, but its database service dokploy-postgres is missing; start Dokploy and re-run"
+	DOKPLOY=1
+	ok "Dokploy found"
+	note "LogiStack installs next to Dokploy and changes nothing of it:"
+	note "  - Caddy stays off, so Dokploy's Traefik keeps ports 80 and 443 and your sites stay up."
+	note "  - Until setup is done the dashboard is reachable only through an SSH tunnel."
+	note "  - The api reads Dokploy's database and /etc/dokploy, read-only, for the migration wizard."
+	note "After setup, the wizard imports your Dokploy projects and moves each service over to LogiStack."
+	read_dokploy_db
+	read_dokploy_key
+	# Dokploy publishes its own dashboard on 3000.
+	[ -n "${LOGISTACK_TUNNEL_PORT:-}" ] || TUNNEL_PORT=3001
+}
+
 # A node labelled pending records an earlier --no-ingress; keep it unless --enable-ingress.
+# Next to Dokploy ingress starts off, unless it is already on (a re-run after cutover).
 detect_ingress_mode() {
 	[ "$DOCKER_READY" = 1 ] || return 0
 	if [ -n "$(nodes_labelled true)" ]; then
 		[ "$NO_INGRESS" = 0 ] || fail "Ingress is already on in this Swarm; --no-ingress only applies before Caddy is enabled"
-	elif [ -n "$(nodes_labelled pending)" ] && [ "$ENABLE_INGRESS" = 0 ]; then
+	elif [ "$ENABLE_INGRESS" = 0 ] && { [ -n "$(nodes_labelled pending)" ] || [ "$DOKPLOY" = 1 ] || [ "$COOLIFY" = 1 ]; }; then
 		NO_INGRESS=1
 	fi
+	[ "$NO_INGRESS" = 0 ] || [ "$PUBLIC_SETUP" = 0 ] || fail "--public-setup needs ingress: without Caddy setup is reachable only through the tunnel"
 	if [ "$NO_INGRESS" = 1 ]; then ok "Ingress off: Caddy stays at 0 tasks (--enable-ingress turns it on)"; fi
 }
 
 check_ports() {
 	if [ "$NO_INGRESS" = 1 ]; then
-		ok "Ports 80 and 443 left to the existing proxy"
+		if [ "$DOKPLOY" = 1 ]; then
+			ok "Ports 80 and 443 left to Dokploy's Traefik"
+		elif [ "$COOLIFY" = 1 ]; then
+			ok "Ports 80 and 443 left to Coolify's proxy"
+		else ok "Ports 80 and 443 left to the existing proxy"; fi
 		return
 	fi
 	if [ "$DOCKER_READY" = 1 ] && [ -n "$(nodes_labelled true)" ] &&
@@ -263,6 +439,36 @@ check_networks() {
 		done
 	done <<<"$listing"
 	ok "No network overlaps ls-control ($CONTROL_SUBNET)"
+	[ "$COOLIFY" = 1 ] && [ "$SWARM_STATE" = active ] || return 0
+	# An overlay on a subnet a local bridge already routes breaks containers on both: the bridge.
+	local scoped local_subnets swarm_subnets a b
+	scoped=$(docker network ls -q | xargs docker network inspect --format '{{.Scope}} {{range .IPAM.Config}}{{.Subnet}} {{end}}')
+	local_subnets=$(awk '$1 == "local" { $1 = ""; print }' <<<"$scoped")
+	swarm_subnets=$(awk '$1 == "swarm" { $1 = ""; print }' <<<"$scoped")
+	for a in $swarm_subnets; do
+		[[ $a =~ ^[0-9.]+/[0-9]+$ ]] || continue
+		for b in $local_subnets; do
+			[[ $b =~ ^[0-9.]+/[0-9]+$ ]] || continue
+			! cidr_overlap "$a" "$b" ||
+				fail "This Swarm's overlay $a overlaps the local network $b next to Coolify; the bridge would break. Re-create the Swarm with --default-addr-pool outside Coolify's networks"
+		done
+	done
+	ok "No Swarm overlay overlaps Coolify's networks"
+}
+
+# The first of SWARM_POOLS that overlaps no Docker network and no host route.
+free_swarm_pool() {
+	local taken pool t clash
+	taken="$(docker network ls -q | xargs docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}') $(ip -4 route 2>/dev/null | awk '{ print $1 }')"
+	for pool in $SWARM_POOLS; do
+		clash=0
+		for t in $taken; do
+			[[ $t =~ ^[0-9.]+/[0-9]+$ ]] || continue
+			if cidr_overlap "$pool" "$t"; then clash=1; break; fi
+		done
+		[ "$clash" = 1 ] || { printf '%s' "$pool"; return 0; }
+	done
+	return 1
 }
 
 check_docker() {
@@ -406,7 +612,14 @@ ensure_swarm() {
 		ok "Swarm active, this node is a manager"
 		;;
 	inactive)
-		act "Initialise Swarm on $ADVERTISE_ADDR" docker swarm init --advertise-addr "$ADVERTISE_ADDR"
+		if [ "$COOLIFY" = 1 ]; then
+			local pool
+			pool=$(free_swarm_pool) || fail "No overlay address pool is free of this server's networks (tried $SWARM_POOLS)"
+			act "Initialise Swarm on $ADVERTISE_ADDR with address pool $pool (clear of Coolify's networks)" \
+				docker swarm init --advertise-addr "$ADVERTISE_ADDR" --default-addr-pool "$pool"
+		else
+			act "Initialise Swarm on $ADVERTISE_ADDR" docker swarm init --advertise-addr "$ADVERTISE_ADDR"
+		fi
 		[ "$DRY_RUN" = 1 ] || SWARM_STATE=active
 		;;
 	locked) fail "Swarm is locked; run 'docker swarm unlock' first" ;;
@@ -455,7 +668,69 @@ credential_put() {
 }
 
 secret_create() {
-	printf '%s' "$2" | docker secret create --label logistack.managed=true --label logistack.kind=platform-secret "$1" - >/dev/null
+	printf '%s' "$2" | secret_create_stdin "$1"
+}
+
+secret_create_stdin() {
+	docker secret create --label logistack.managed=true --label logistack.kind=platform-secret "$1" - >/dev/null
+}
+
+copy_dokploy_password() {
+	dokploy_pg_env | sed -n 's/^POSTGRES_PASSWORD=//p' | head -n1 | tr -d '\n' | secret_create_stdin "$DOKPLOY_PG_COPY"
+}
+
+ensure_dokploy_secret() {
+	[ "$DOKPLOY" = 1 ] || return 0
+	if [ "$DOKPLOY_KEY_SECRET" = "$DOKPLOY_KEY_COPY" ]; then
+		if [ "$DRY_RUN" = 0 ] && docker secret inspect "$DOKPLOY_KEY_COPY" >/dev/null 2>&1; then
+			ok "Secret $DOKPLOY_KEY_COPY exists, kept"
+		else
+			act "Copy Dokploy's encryption key into secret $DOKPLOY_KEY_COPY" copy_dokploy_key
+		fi
+	fi
+	[ "$DOKPLOY_PG_SECRET" = "$DOKPLOY_PG_COPY" ] || return 0
+	if [ "$DRY_RUN" = 0 ] && docker secret inspect "$DOKPLOY_PG_COPY" >/dev/null 2>&1; then
+		ok "Secret $DOKPLOY_PG_COPY exists, kept"
+	else
+		act "Copy Dokploy's database password into secret $DOKPLOY_PG_COPY" copy_dokploy_password
+	fi
+}
+
+copy_coolify_value() {
+	coolify_env "$1" | secret_create_stdin "$2"
+}
+
+ensure_coolify_secrets() {
+	[ "$COOLIFY" = 1 ] || return 0
+	local pair
+	for pair in "DB_PASSWORD:$COOLIFY_DB_SECRET" "APP_KEY:$COOLIFY_KEY_SECRET"; do
+		if [ "$DRY_RUN" = 0 ] && docker secret inspect "${pair#*:}" >/dev/null 2>&1; then
+			ok "Secret ${pair#*:} exists, kept"
+		else
+			act "Copy Coolify's ${pair%%:*} into secret ${pair#*:}" copy_coolify_value "${pair%%:*}" "${pair#*:}"
+		fi
+	done
+}
+
+create_coolify_bridge() {
+	docker network create --driver overlay --attachable \
+		--label logistack.managed=true --label logistack.kind=migration-bridge --label logistack.resource=coolify \
+		"$COOLIFY_BRIDGE" >/dev/null
+}
+
+# The api reads coolify-db over the bridge; Coolify's upgrade recreates coolify-db, so re-runs reattach it.
+ensure_coolify_bridge() {
+	[ "$COOLIFY" = 1 ] || return 0
+	if [ "$DRY_RUN" = 0 ] && docker network inspect "$COOLIFY_BRIDGE" >/dev/null 2>&1; then
+		ok "Network $COOLIFY_BRIDGE exists"
+	else
+		act "Create the overlay $COOLIFY_BRIDGE" create_coolify_bridge
+	fi
+	if [ "$DRY_RUN" = 0 ] && docker container inspect coolify-db --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | grep -qw "$COOLIFY_BRIDGE"; then
+		ok "coolify-db is on $COOLIFY_BRIDGE"
+	else
+		act "Connect coolify-db to $COOLIFY_BRIDGE (read-only access for the wizard)" docker network connect "$COOLIFY_BRIDGE" coolify-db
+	fi
 }
 
 random_hex() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
@@ -465,7 +740,7 @@ ensure_secrets() {
 	local entry name key format value
 	for entry in master-key:LOGISTACK_MASTER_KEY:base64 postgres-password:POSTGRES_PASSWORD:hex \
 		better-auth-secret:BETTER_AUTH_SECRET:hex redis-password:REDIS_PASSWORD:hex \
-		agent-token:LOGISTACK_AGENT_TOKEN:hex; do
+		agent-token:LOGISTACK_AGENT_TOKEN:hex setup-token:LOGISTACK_SETUP_TOKEN:hex; do
 		IFS=: read -r name key format <<<"$entry"
 		name="logistack-$name"
 		value=$(credential_get "$key")
@@ -484,29 +759,45 @@ ensure_secrets() {
 	done
 }
 
+# stack_source <file>: next to this script in a checkout, else from the release.
 stack_source() {
 	local here
 	if [ -f "${BASH_SOURCE[0]:-}" ]; then
 		here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-		if [ -f "$here/stack.yml" ]; then
-			printf '%s' "$here/stack.yml"
+		if [ -f "$here/$1" ]; then
+			printf '%s' "$here/$1"
 			return
 		fi
 	fi
-	printf '%s' "$STACK_URL_BASE/v$VERSION/install/stack.yml"
+	printf '%s' "$STACK_URL_BASE/v$VERSION/install/$1"
+}
+
+copy_stack_file() {
+	local source
+	source=$(stack_source "$1")
+	if [ -f "$source" ]; then
+		cp "$source" "$CONF_DIR/$1.new"
+	else
+		http_get "$source" >"$CONF_DIR/$1.new"
+	fi
+	mv "$CONF_DIR/$1.new" "$CONF_DIR/$1"
 }
 
 write_config() {
-	local source
-	source=$(stack_source)
 	install -d -m 0700 "$CONF_DIR"
-	if [ -f "$source" ]; then
-		cp "$source" "$CONF_DIR/stack.yml.new"
-	else
-		http_get "$source" >"$CONF_DIR/stack.yml.new"
-	fi
-	mv "$CONF_DIR/stack.yml.new" "$CONF_DIR/stack.yml"
+	copy_stack_file stack.yml
 	printf '%s\n' "$VERSION" >"$CONF_DIR/version"
+	if [ "$COOLIFY" = 1 ]; then
+		copy_stack_file "$COOLIFY_STACK"
+		printf 'migration_source=coolify\n' >"$MIGRATION_FILE"
+		install -d -m 0700 "$MIGRATION_ARCHIVE_DIR"
+		return 0
+	fi
+	[ "$DOKPLOY" = 1 ] || return 0
+	copy_stack_file "$DOKPLOY_STACK"
+	printf 'migration_source=dokploy\n' >"$MIGRATION_FILE"
+	# Where the wizard archives Dokploy before removing it; a Swarm bind mount needs it to exist.
+	install -d -m 0700 "$MIGRATION_ARCHIVE_DIR"
 }
 
 firewall_advice() {
@@ -585,18 +876,30 @@ deploy() {
 	[ "$LOCAL_BUILD" = 0 ] || flags=(--resolve-image never)
 	# After setup Caddy serves the dashboard over https, so browsers send an https Origin;
 	# BETTER_AUTH_URL keeps the http bootstrap URL and better-auth trusts both.
+	local public=false token_file="" tunnel_origin=""
+	if [ "$PUBLIC_SETUP" = 1 ]; then public=true token_file=/run/secrets/setup_token; fi
+	if tunnel_wanted; then tunnel_origin="http://localhost:$TUNNEL_PORT"; fi
+	local files=(-c "$CONF_DIR/stack.yml")
+	[ "$DOKPLOY" = 0 ] || files+=(-c "$CONF_DIR/$DOKPLOY_STACK")
+	[ "$COOLIFY" = 0 ] || files+=(-c "$CONF_DIR/$COOLIFY_STACK")
 	act "Deploy stack $STACK_NAME $IMAGE_TAG" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" \
 		LOGISTACK_REGISTRY="$REGISTRY" LOGISTACK_PUBLIC_URL="$PUBLIC_URL" LOGISTACK_WEB_ORIGIN="https://${PUBLIC_URL#http://}" \
-		docker stack deploy "${flags[@]}" --detach=true -c "$CONF_DIR/stack.yml" "$STACK_NAME"
+		LOGISTACK_PUBLIC_SETUP="$public" LOGISTACK_SETUP_TOKEN_FILE="$token_file" LOGISTACK_TUNNEL_ORIGIN="$tunnel_origin" \
+		LOGISTACK_DOKPLOY_PG_SECRET="$DOKPLOY_PG_SECRET" LOGISTACK_DOKPLOY_PG_USER="$DOKPLOY_PG_USER" \
+		LOGISTACK_DOKPLOY_PG_DB="$DOKPLOY_PG_DB" LOGISTACK_DOKPLOY_KEY_SECRET="${DOKPLOY_KEY_SECRET:-}" \
+		LOGISTACK_COOLIFY_DB_USER="$COOLIFY_DB_USER" LOGISTACK_COOLIFY_DB_NAME="$COOLIFY_DB_NAME" docker stack deploy "${flags[@]}" --detach=true "${files[@]}" "$STACK_NAME"
 }
 
-# Without Caddy, a container on ls-control forwards 127.0.0.1:$TUNNEL_PORT on the host to the API.
-# It reuses the Caddy image, so no extra image is pulled; with ingress on, remove_tunnel drops it.
+# The SSH tunnel's target: without Caddy, or unless setup is public. Loopback only, never public.
+tunnel_wanted() { [ "$NO_INGRESS" = 1 ] || [ "$PUBLIC_SETUP" = 0 ]; }
+
+# A container on ls-control forwards 127.0.0.1:$TUNNEL_PORT on the host to the API. It reuses the
+# Caddy image, so no extra image is pulled; with --public-setup, remove_tunnel drops it.
 ensure_tunnel() {
-	[ "$NO_INGRESS" = 1 ] || return 0
+	tunnel_wanted || return 0
 	local image="$REGISTRY/logistack-caddy:$IMAGE_TAG" current
-	current=$(docker inspect -f '{{.Config.Image}} {{.State.Running}}' "$TUNNEL_NAME" 2>/dev/null || true)
-	if [ "$current" = "$image true" ]; then
+	current=$(docker inspect -f '{{.Config.Image}} {{.State.Running}} {{.Config.Cmd}}' "$TUNNEL_NAME" 2>/dev/null || true)
+	if [ "$current" = "$image true [reverse-proxy --from :$TUNNEL_PORT --to logistack-api:3000]" ]; then
 		ok "API tunnel on 127.0.0.1:$TUNNEL_PORT"
 		return 0
 	fi
@@ -609,9 +912,9 @@ ensure_tunnel() {
 		reverse-proxy --from ":$TUNNEL_PORT" --to logistack-api:3000
 }
 
-# Runs only after wait_healthy saw Caddy answer, so a failed --enable-ingress keeps the way in.
+# Runs only after wait_healthy saw Caddy answer, so a failed --public-setup keeps the way in.
 remove_tunnel() {
-	[ "$NO_INGRESS" = 0 ] && docker inspect "$TUNNEL_NAME" >/dev/null 2>&1 || return 0
+	! tunnel_wanted && docker inspect "$TUNNEL_NAME" >/dev/null 2>&1 || return 0
 	act "Remove the API tunnel $TUNNEL_NAME" docker rm -f "$TUNNEL_NAME"
 }
 
@@ -653,12 +956,9 @@ wait_healthy() {
 				pending+=("$name")
 			fi
 		done < <(docker stack services "$STACK_NAME" --format '{{.Name}} {{.Replicas}}' | sort)
-		if [ ${#pending[@]} -eq 0 ] && [ "$NO_INGRESS" = 1 ] && tunnel_ready; then
-			ok "API healthy through the tunnel on 127.0.0.1:$TUNNEL_PORT"
-			return 0
-		fi
-		if [ ${#pending[@]} -eq 0 ] && [ "$NO_INGRESS" = 0 ] && ingress_ready; then
-			ok "API healthy, Caddy answering on port 80"
+		if [ ${#pending[@]} -eq 0 ] && { ! tunnel_wanted || tunnel_ready; } && { [ "$NO_INGRESS" = 1 ] || ingress_ready; }; then
+			if tunnel_wanted; then ok "API healthy through the tunnel on 127.0.0.1:$TUNNEL_PORT"; else ok "API healthy through Caddy"; fi
+			[ "$NO_INGRESS" = 1 ] || ok "Caddy answering on port 80"
 			return 0
 		fi
 		if [ "$SECONDS" -ge "$deadline" ]; then
@@ -691,6 +991,7 @@ main() {
 	check_arch
 	check_resources
 	check_docker
+	detect_migration_source
 	detect_ingress_mode
 	check_ports
 	check_networks
@@ -704,10 +1005,13 @@ main() {
 	ensure_docker
 	step "Swarm"
 	ensure_swarm
+	ensure_coolify_bridge
 	step "Secrets"
 	ensure_secrets
+	ensure_dokploy_secret
+	ensure_coolify_secrets
 	step "Configuration"
-	act "Write $CONF_DIR/stack.yml and version $VERSION" write_config
+	act "Write $CONF_DIR/stack.yml and version $VERSION$([ "$DOKPLOY" = 0 ] || printf ', migration_source=dokploy')$([ "$COOLIFY" = 0 ] || printf ', migration_source=coolify')" write_config
 	firewall_advice
 	if [ "$LOCAL_BUILD" = 1 ]; then
 		step "Building images from the checkout"
@@ -724,12 +1028,26 @@ main() {
 		return
 	fi
 	printf '\n%sLogiStack %s is running.%s\n' "$BOLD" "$VERSION" "$RESET"
-	if [ "$NO_INGRESS" = 1 ]; then
-		printf '  Ingress is off. From your machine: %sssh -L %s:127.0.0.1:%s root@%s%s\n' "$BOLD" "$TUNNEL_PORT" "$TUNNEL_PORT" "$PUBLIC_IP" "$RESET"
-		printf '  then open %s%s%s to finish the guided setup.\n' "$BOLD" "$PUBLIC_URL" "$RESET"
-		note "When 80/443 are free, run: install.sh --enable-ingress"
+	if [ "$PUBLIC_SETUP" = 1 ]; then
+		local token
+		token=$(credential_get LOGISTACK_SETUP_TOKEN)
+		printf '  Open %s%s/setup#token=%s%s to finish the guided setup in your browser.\n' "$BOLD" "$PUBLIC_URL" "$token" "$RESET"
+		printf '  Setup token: %s%s%s\n' "$BOLD" "${token:-(missing from $CREDENTIALS_FILE)}" "$RESET"
+		note "Until setup is done, anyone holding this token can claim the server; it stops working after."
 	else
-		printf '  Open %s%s%s to finish the guided setup in your browser.\n' "$BOLD" "$PUBLIC_URL" "$RESET"
+		printf '  Until setup is done the dashboard is reachable only on 127.0.0.1:%s. From your machine: %sssh -L %s:127.0.0.1:%s root@%s%s\n' "$TUNNEL_PORT" "$BOLD" "$TUNNEL_PORT" "$TUNNEL_PORT" "$PUBLIC_IP" "$RESET"
+		printf '  then open %shttp://localhost:%s%s to finish the guided setup.\n' "$BOLD" "$TUNNEL_PORT" "$RESET"
+		if [ "$NO_INGRESS" = 1 ]; then
+			if [ "$DOKPLOY" = 1 ]; then
+				note "Dokploy keeps serving your sites until the migration wizard moves each one over."
+			elif [ "$COOLIFY" = 1 ]; then
+				note "Coolify keeps serving your sites until the migration wizard moves each one over."
+			else
+				note "Ingress is off. When 80/443 are free, run: install.sh --enable-ingress"
+			fi
+		else
+			note "After setup the dashboard is served over https on the domain you choose there."
+		fi
 	fi
 	note "Back up $CREDENTIALS_FILE: it holds the master key that encrypts your secrets."
 }

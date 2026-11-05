@@ -29,6 +29,7 @@ import {
 	type Passkey,
 	type SessionRow,
 } from "@/lib/account";
+import { meQuery } from "@/lib/api/access";
 import { relativeTime } from "@/lib/format";
 
 const passkeysKey = ["account", "passkeys"];
@@ -74,7 +75,12 @@ export function PasskeysSection() {
 	});
 	const [adding, setAdding] = useState(false);
 	const [removing, setRemoving] = useState<Passkey | null>(null);
-	const refresh = () => qc.invalidateQueries({ queryKey: passkeysKey });
+	// A passkey on its own satisfies an organization's two-factor requirement.
+	const refresh = () =>
+		Promise.all([
+			qc.invalidateQueries({ queryKey: passkeysKey }),
+			qc.invalidateQueries({ queryKey: meQuery.queryKey }),
+		]);
 
 	return (
 		<Panel

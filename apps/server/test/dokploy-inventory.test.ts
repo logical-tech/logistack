@@ -1,0 +1,1093 @@
+import { describe, expect, test } from "bun:test";
+import {
+	buildInventory,
+	type InventoryItem,
+	serviceEnv,
+} from "../src/migration/dokploy/inventory.ts";
+import type { OrgItem } from "../src/migration/dokploy/org.ts";
+import type {
+	DokployBackup,
+	DokployDestination,
+	DokployNotification,
+	DokployNotificationTarget,
+	DokploySnapshot,
+} from "../src/migration/dokploy/snapshot.ts";
+import {
+	app,
+	compose,
+	db,
+	github,
+	snapshot,
+} from "./fixtures/dokploy-snapshot.ts";
+
+const only = (s: DokploySnapshot): InventoryItem => {
+	const [item, ...rest] = buildInventory(s).items;
+	if (!item || rest.length) throw new Error("expected one item");
+	return item;
+};
+
+describe("Dokploy env", () => {
+	test("shared references resolve; the result is what the container saw", () => {
+		const notes: string[] = [];
+		const env = serviceEnv(
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: Dokploy's own reference syntax
+			"API_URL=https://${{project.API_HOST}}/v1\nTIER=${{environment.TIER}}\nPLAIN=1\nVAULTED=${{vault.x}}\nMISSING=${{project.NOPE}}",
+			{ project: "API_HOST=api.shop.test", environment: "TIER=prod" },
+			notes,
+		);
+		expect(env).toEqual([
+			{ key: "API_URL", value: "https://api.shop.test/v1", isSecret: true },
+			{ key: "TIER", value: "prod", isSecret: true },
+			{ key: "PLAIN", value: "1", isSecret: false },
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: Dokploy's own reference syntax
+			{ key: "MISSING", value: "${{project.NOPE}}", isSecret: false },
+		]);
+		expect(notes).toEqual([
+			"env VAULTED reads a Dokploy vault, skipped",
+			"env MISSING references undefined project.NOPE",
+		]);
+	});
+});
+
+describe("Dokploy applications", () => {
+	test("an image app with ports, domain, volume, file, bind, basic auth: full", () => {
+		const item = only(
+			snapshot({
+				applications: [
+					app({
+						applicationId: "web",
+						// biome-ignore lint/suspicious/noTemplateCurlyInString: Dokploy's own reference syntax
+						env: "SECRET_KEY=fake-app-secret\nHOST=${{project.API_HOST}}",
+						command: "nginx -g daemon  off;",
+						memoryLimit: "268435456",
+						cpuLimit: "500000000",
+						replicas: 2,
+						placementSwarm: { Constraints: ["node.role==manager"] },
+						healthCheckSwarm: {
+							Test: ["CMD-SHELL", "curl -f http://localhost/"],
+						},
+					}),
+				],
+				ports: [
+					{
+						applicationId: "web",
+						publishedPort: 8080,
+						targetPort: 80,
+						protocol: "tcp",
+						publishMode: "host",
+					},
+				],
+				domains: [
+					{
+						domainId: "d1",
+						host: "shop.example.com",
+						https: true,
+						port: 80,
+						path: "/",
+						internalPath: "/",
+						stripPath: false,
+						serviceName: null,
+						domainType: "application",
+						certificateType: "letsencrypt",
+						applicationId: "web",
+						composeId: null,
+					},
+				],
+				mounts: [
+					{
+						mountId: "m1",
+						type: "volume",
+						hostPath: null,
+						volumeName: "web-uploads",
+						filePath: null,
+						content: null,
+						mountPath: "/uploads/",
+						ownerId: "web",
+					},
+					{
+						mountId: "m2",
+						type: "file",
+						hostPath: null,
+						volumeName: null,
+						filePath: "nginx.conf",
+						content: "events {}",
+						mountPath: "/etc/nginx",
+						ownerId: "web",
+					},
+					{
+						mountId: "m3",
+						type: "bind",
+						hostPath: "/srv/static",
+						volumeName: null,
+						filePath: null,
+						content: null,
+						mountPath: "/srv",
+						ownerId: "web",
+					},
+				],
+				security: [
+					{ applicationId: "web", username: "admin", password: "fake-basic" },
+				],
+			}),
+		);
+		expect(item).toMatchObject({
+			kind: "application",
+			project: "Shop",
+			environment: "production",
+			status: "full",
+			notes: [],
+		});
+		const [svc] = item.services;
+		expect(svc).toEqual({
+			name: "web",
+			slug: "web-abc123",
+			bridge: { aliases: ["web-abc123"], routes: false },
+			dependsOn: [],
+			importedFrom: "dokploy:web-abc123",
+			spec: {
+				kind: "application",
+				source: { type: "image", image: "nginx:1.27" },
+				build: { type: "image" },
+				ports: [{ target: 80, published: 8080, protocol: "tcp", mode: "host" }],
+				replicas: 2,
+				resources: { cpu: 0.5, memoryMb: 256 },
+				placement: ["node.role==manager"],
+				healthcheck: {
+					type: "command",
+					command: ["sh", "-c", "curl -f http://localhost/"],
+				},
+				command: ["nginx", "-g", "daemon", "off;"],
+				mounts: [{ kind: "bind", hostPath: "/srv/static", target: "/srv" }],
+			},
+			mounts: [
+				{ kind: "volume", name: "web-uploads", target: "/uploads" },
+				{
+					kind: "config",
+					target: "/etc/nginx/nginx.conf",
+					content: "events {}",
+				},
+			],
+			adoptedVolumes: [
+				{ target: "/uploads", volume: "web-uploads", source: "dokploy" },
+			],
+			env: [
+				{ key: "SECRET_KEY", value: "fake-app-secret", isSecret: true },
+				{ key: "HOST", value: "api.shop.test", isSecret: true },
+			],
+			domains: [
+				{
+					hostname: "shop.example.com",
+					port: 80,
+					pathPrefix: null,
+					https: true,
+					cert: "auto",
+				},
+			],
+			basicAuth: [{ username: "admin", password: "fake-basic" }],
+			running: true,
+			backups: [],
+		});
+	});
+
+	test("a GitHub Dockerfile app keeps its provider; Nixpacks becomes Railpack", () => {
+		const s = snapshot({
+			applications: [
+				app({
+					applicationId: "api",
+					sourceType: "github",
+					buildType: "dockerfile",
+					owner: "acme",
+					repository: "shop",
+					branch: "main",
+					buildPath: "/apps/api",
+					githubId: "gh1",
+					dockerfile: "apps/api/Dockerfile",
+					dockerBuildStage: "runtime",
+					buildArgs: "NODE_ENV=production",
+					applicationStatus: "idle",
+				}),
+				app({
+					applicationId: "site",
+					sourceType: "git",
+					customGitUrl: "https://git.example.com/acme/site.git",
+					customGitBranch: "main",
+					customGitBuildPath: "/",
+				}),
+			],
+			...github,
+		});
+		const [api, site] = buildInventory(s).items;
+		expect(api?.status).toBe("full");
+		expect(api?.services[0]).toMatchObject({
+			spec: {
+				source: {
+					type: "git",
+					repository: "acme/shop",
+					branch: "main",
+					path: "apps/api",
+				},
+				build: {
+					type: "dockerfile",
+					dockerfilePath: "apps/api/Dockerfile",
+					context: ".",
+					target: "runtime",
+					buildArgs: { NODE_ENV: "production" },
+				},
+			},
+			gitProvider: { type: "github", sourceId: "gh1" },
+			running: false,
+		});
+		expect(site).toMatchObject({
+			status: "partial",
+			notes: ["built with Railpack instead of nixpacks"],
+		});
+		expect(site?.services[0]?.spec).toMatchObject({
+			source: {
+				repository: "https://git.example.com/acme/site.git",
+				path: "/",
+			},
+			build: { type: "railpack" },
+		});
+		expect(site?.services[0]?.gitProvider).toBeUndefined();
+	});
+
+	test("what does not carry over is named, and a drop or remote app is unsupported", () => {
+		const s = snapshot({
+			applications: [
+				app({
+					applicationId: "legacy",
+					username: "bot",
+					registryUrl: "registry.example.com",
+					isPreviewDeploymentsActive: true,
+					modeSwarm: { Global: {} },
+					labelsSwarm: { a: "b" },
+				}),
+				app({ applicationId: "zip", sourceType: "drop" }),
+				app({ applicationId: "far", serverId: "srv1" }),
+			],
+			redirects: [
+				{
+					applicationId: "legacy",
+					regex: "^/old",
+					replacement: "/new",
+					permanent: true,
+				},
+			],
+			domains: [
+				{
+					domainId: "d1",
+					host: "legacy.example.com",
+					https: true,
+					port: 3000,
+					path: "/app",
+					internalPath: "/internal",
+					stripPath: true,
+					serviceName: null,
+					domainType: "application",
+					certificateType: "custom",
+					applicationId: "legacy",
+					composeId: null,
+				},
+			],
+		});
+		const [legacy, zip, far] = buildInventory(s).items;
+		expect(legacy?.status).toBe("partial");
+		expect(legacy?.notes).toEqual([
+			"private registry credentials must be added in LogiStack",
+			"preview deployments are not carried over",
+			"global mode becomes one replica",
+			"custom Swarm labels not carried over",
+			"domain legacy.example.com/app: Dokploy stripped the path prefix, LogiStack forwards it",
+			"domain legacy.example.com: internal path /internal is not supported",
+			"domain legacy.example.com: custom certificate resolver becomes Let's Encrypt",
+			"1 redirect rule(s) are not carried over",
+		]);
+		expect(legacy?.services[0]?.domains[0]?.pathPrefix).toBe("/app");
+		expect(zip).toMatchObject({ status: "unsupported", services: [] });
+		expect(far).toMatchObject({
+			status: "unsupported",
+			notes: ["runs on a remote Dokploy server"],
+		});
+	});
+});
+
+describe("Dokploy databases", () => {
+	const dataMount = (
+		ownerId: string,
+		volumeName: string,
+		mountPath: string,
+	) => ({
+		mountId: `m-${ownerId}`,
+		type: "volume" as const,
+		hostPath: null,
+		volumeName,
+		filePath: null,
+		content: null,
+		mountPath,
+		ownerId,
+	});
+
+	test("an official image adopts its data volume and keeps Dokploy's credentials", () => {
+		const item = only(
+			snapshot({
+				databases: [
+					db({
+						id: "pg",
+						engine: "postgres",
+						dockerImage: "postgres:16-alpine",
+						databaseUser: "shop",
+						databasePassword: "fake-pg-secret",
+						databaseName: "shop",
+						env: "POSTGRES_PASSWORD=ignored\nTZ=Europe/Rome",
+					}),
+				],
+				mounts: [dataMount("pg", "pg-def456-data", "/var/lib/postgresql/data")],
+			}),
+		);
+		expect(item.status).toBe("full");
+		expect(item.services[0]).toEqual({
+			name: "pg",
+			slug: "pg-def456",
+			bridge: { aliases: ["pg-def456"], routes: false },
+			dependsOn: [],
+			importedFrom: "dokploy:pg-def456",
+			spec: {
+				kind: "database",
+				engine: "postgres",
+				version: "16-alpine",
+				credentialsRef: "dokploy",
+				resources: {},
+			},
+			mounts: [],
+			adoptedVolumes: [
+				{
+					target: "/var/lib/postgresql/data",
+					volume: "pg-def456-data",
+					source: "dokploy",
+				},
+			],
+			env: [
+				{ key: "POSTGRES_USER", value: "shop", isSecret: false },
+				{ key: "POSTGRES_PASSWORD", value: "fake-pg-secret", isSecret: true },
+				{ key: "POSTGRES_DB", value: "shop", isSecret: false },
+				{ key: "TZ", value: "Europe/Rome", isSecret: false },
+			],
+			domains: [],
+			basicAuth: [],
+			running: true,
+			backups: [],
+		});
+	});
+
+	test("Postgres 18 adopts Dokploy's volume as its PGDATA", () => {
+		const item = only(
+			snapshot({
+				databases: [
+					db({ id: "new", engine: "postgres", dockerImage: "postgres:18" }),
+				],
+				mounts: [dataMount("new", "new-data", "/var/lib/postgresql/18/docker")],
+			}),
+		);
+		expect(item.status).toBe("full");
+		expect(item.services[0]).toMatchObject({
+			adoptedVolumes: [
+				{
+					target: "/var/lib/postgresql",
+					volume: "new-data",
+					source: "dokploy",
+				},
+			],
+			env: [{ key: "PGDATA", value: "/var/lib/postgresql", isSecret: false }],
+		});
+	});
+
+	test("a custom image or a missing data volume is unsupported", () => {
+		const s = snapshot({
+			databases: [
+				db({
+					id: "vec",
+					engine: "postgres",
+					dockerImage: "pgvector/pgvector:pg16",
+				}),
+				db({ id: "nodata", engine: "redis", dockerImage: "redis:7" }),
+				db({
+					id: "exposed",
+					engine: "redis",
+					dockerImage: "redis:7",
+					databasePassword: "fake-redis-secret",
+					externalPort: 6379,
+				}),
+			],
+			mounts: [dataMount("exposed", "exposed-data", "/data")],
+		});
+		const [vec, nodata, exposed] = buildInventory(s).items;
+		expect(vec?.notes).toEqual([
+			"custom image pgvector/pgvector:pg16; LogiStack runs the official postgres image",
+		]);
+		expect(nodata?.notes).toEqual([
+			"no volume mounted at /data; the data would not carry over",
+		]);
+		expect(exposed).toMatchObject({
+			status: "partial",
+			notes: ["external port 6379 is not published"],
+		});
+		expect(exposed?.services[0]?.env).toEqual([
+			{ key: "REDIS_PASSWORD", value: "fake-redis-secret", isSecret: true },
+		]);
+	});
+});
+
+describe("Dokploy compose", () => {
+	test("a raw single-service compose maps through the compose mapper", () => {
+		const item = only(
+			snapshot({
+				composes: [
+					compose({
+						composeId: "wiki",
+						env: "DB_PASS=fake-wiki-secret",
+						composeFile: `services:
+  wiki:
+    image: ghcr.io/requarks/wiki:2
+    environment:
+      DB_PASS: \${DB_PASS}
+    volumes:
+      - data:/wiki/data
+volumes:
+  data: {}
+`,
+					}),
+				],
+				domains: [
+					{
+						domainId: "d1",
+						host: "wiki.example.com",
+						https: true,
+						port: 3000,
+						path: "/",
+						internalPath: "/",
+						stripPath: false,
+						serviceName: "wiki",
+						domainType: "compose",
+						certificateType: "letsencrypt",
+						applicationId: null,
+						composeId: "wiki",
+					},
+				],
+			}),
+		);
+		expect(item.status).toBe("full");
+		// The cutover finds it by its stack and compose labels; Traefik routes it by labels.
+		expect(item.source).toEqual({
+			stack: item.appName,
+			containerLabels: [`com.docker.compose.project=${item.appName}`],
+			routedByLabels: true,
+		});
+		expect(item.services[0]?.bridge).toEqual({
+			aliases: [item.services[0]?.slug ?? ""],
+			routes: true,
+		});
+		expect(item.services[0]).toMatchObject({
+			name: "wiki",
+			importedFrom: "dokploy:wiki-ghi789/wiki",
+			adoptedVolumes: [
+				{ target: "/wiki/data", volume: "wiki-ghi789_data", source: "dokploy" },
+			],
+			env: [{ key: "DB_PASS", value: "fake-wiki-secret", isSecret: true }],
+			domains: [
+				expect.objectContaining({ hostname: "wiki.example.com", port: 3000 }),
+			],
+		});
+	});
+
+	test("a multi-service compose becomes one service per entry, dependencies first", () => {
+		const item = only(
+			snapshot({
+				composes: [
+					compose({
+						composeId: "blog",
+						sourceType: "github",
+						env: "DB_PASSWORD=fake-blog-secret",
+					}),
+				],
+				composeFiles: {
+					blog: `services:
+  web:
+    image: ghost:5
+    depends_on: [db]
+    environment:
+      database__connection__host: db
+      database__connection__password: \${DB_PASSWORD}
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: \${DB_PASSWORD}
+    volumes: [ "mysql:/var/lib/mysql" ]
+volumes:
+  mysql: {}
+`,
+				},
+				domains: [
+					{
+						domainId: "d1",
+						host: "blog.example.com",
+						https: true,
+						port: 2368,
+						path: "/",
+						internalPath: "/",
+						stripPath: false,
+						serviceName: "web",
+						domainType: "compose",
+						certificateType: "letsencrypt",
+						applicationId: null,
+						composeId: "blog",
+					},
+					{
+						domainId: "d2",
+						host: "gone.example.com",
+						https: true,
+						port: 80,
+						path: "/",
+						internalPath: "/",
+						stripPath: false,
+						serviceName: "removed",
+						domainType: "compose",
+						certificateType: "letsencrypt",
+						applicationId: null,
+						composeId: "blog",
+					},
+				],
+			}),
+		);
+		expect(item.status).toBe("partial");
+		expect(item.notes).toEqual([
+			"domain gone.example.com names no service of the file, skipped",
+		]);
+		expect(item.services.map((s) => [s.slug, s.dependsOn])).toEqual([
+			["db", []],
+			["web", ["db"]],
+		]);
+		const [db, web] = item.services;
+		expect(db?.adoptedVolumes).toEqual([
+			{
+				target: "/var/lib/mysql",
+				volume: "blog-ghi789_mysql",
+				source: "dokploy",
+			},
+		]);
+		expect(web?.domains.map((d) => d.hostname)).toEqual(["blog.example.com"]);
+		expect(web?.env).toContainEqual({
+			key: "database__connection__password",
+			value: "fake-blog-secret",
+			isSecret: true,
+		});
+	});
+
+	test("a git compose without its file on disk, or a bad service name, is unsupported", () => {
+		const s = snapshot({
+			composes: [
+				compose({ composeId: "nofile", sourceType: "github" }),
+				compose({
+					composeId: "underscore",
+					composeFile: "services:\n  my_app: { image: x }\n",
+				}),
+			],
+		});
+		const [nofile, underscore] = buildInventory(s).items;
+		expect(nofile?.notes).toEqual(["github compose file not found on disk"]);
+		expect(underscore).toMatchObject({
+			status: "unsupported",
+			notes: [
+				"service name my_app is not a DNS label, so siblings could not reach it",
+			],
+		});
+	});
+});
+
+describe("across items", () => {
+	test("a hostname taken twice in one environment refuses the later item", () => {
+		const s = snapshot({
+			composes: [
+				compose({
+					composeId: "a",
+					composeFile: "services:\n  db: { image: x }\n",
+				}),
+				compose({
+					composeId: "b",
+					composeFile: "services:\n  db: { image: y }\n",
+				}),
+			],
+		});
+		const [a, b] = buildInventory(s).items;
+		expect(a?.status).toBe("full");
+		expect(b).toMatchObject({
+			status: "unsupported",
+			notes: ["hostname db is already used in this environment by a"],
+		});
+	});
+
+	test("an env value reaching a service of another environment is reported", () => {
+		const s = snapshot({
+			environments: [
+				{ environmentId: "e1", projectId: "p1", name: "production", env: null },
+				{ environmentId: "e2", projectId: "p1", name: "staging", env: null },
+			],
+			databases: [
+				db({
+					id: "pg",
+					engine: "postgres",
+					dockerImage: "postgres:16",
+					environmentId: "e2",
+				}),
+			],
+			mounts: [
+				{
+					mountId: "m",
+					type: "volume",
+					hostPath: null,
+					volumeName: "pg-def456-data",
+					filePath: null,
+					content: null,
+					mountPath: "/var/lib/postgresql/data",
+					ownerId: "pg",
+				},
+			],
+			applications: [
+				app({
+					applicationId: "web",
+					env: "DATABASE_URL=postgres://u:p@pg-def456:5432/app\nOTHER=xpg-def456",
+				}),
+			],
+		});
+		const [, web] = buildInventory(s).items;
+		expect(web).toMatchObject({
+			status: "partial",
+			notes: [
+				"env DATABASE_URL reaches pg in another environment; LogiStack environments are isolated",
+			],
+		});
+	});
+});
+
+test("the inventory never carries a secret into its notes", () => {
+	const s = snapshot({
+		applications: [
+			app({
+				applicationId: "a",
+				env: "TOKEN=fake-token-1\nBAD-KEY=fake-token-2",
+			}),
+		],
+		databases: [
+			db({
+				id: "d",
+				engine: "postgres",
+				dockerImage: "postgres:15",
+				databasePassword: "fake-token-3",
+			}),
+		],
+	});
+	const inventory = buildInventory({
+		...s,
+		...github,
+		registries: [
+			{
+				registryId: "r",
+				registryName: "r",
+				imagePrefix: null,
+				username: "u",
+				password: "fake-token-4",
+				registryUrl: "bad url",
+			},
+		],
+		sshKeys: [{ sshKeyId: "k", name: "k", privateKey: "fake-token-5" }],
+	});
+	const notes = JSON.stringify(
+		[...inventory.items, ...inventory.org].map((i) => i.notes),
+	);
+	for (const secret of [
+		"fake-token-1",
+		"fake-token-2",
+		"fake-token-3",
+		"fake-token-4",
+		"fake-token-5",
+		"fake-gh-key",
+		"fake-gh-hook",
+	])
+		expect(notes).not.toContain(secret);
+});
+
+describe("organization resources", () => {
+	const target = (
+		o: Partial<DokployNotificationTarget> &
+			Pick<DokployNotificationTarget, "type" | "targetId">,
+	): DokployNotificationTarget => ({
+		webhookUrl: null,
+		channel: null,
+		username: null,
+		botToken: null,
+		chatId: null,
+		messageThreadId: null,
+		smtpServer: null,
+		smtpPort: null,
+		password: null,
+		fromAddress: null,
+		toAddress: null,
+		apiKey: null,
+		serverUrl: null,
+		appToken: null,
+		topic: null,
+		accessToken: null,
+		endpoint: null,
+		userKey: null,
+		apiToken: null,
+		...o,
+	});
+	const notification = (
+		o: Partial<DokployNotification> &
+			Pick<DokployNotification, "notificationId" | "notificationType">,
+	): DokployNotification => ({
+		name: o.notificationId,
+		targetId: o.notificationId,
+		appDeploy: false,
+		appBuildError: false,
+		databaseBackup: false,
+		volumeBackup: false,
+		dokployRestart: false,
+		dokployBackup: false,
+		dockerCleanup: false,
+		serverThreshold: false,
+		...o,
+	});
+	const destination = (
+		o: Partial<DokployDestination> & { destinationId: string },
+	): DokployDestination => ({
+		name: o.destinationId,
+		provider: "Cloudflare",
+		accessKey: "AKIAFAKE",
+		secretAccessKey: "fake-s3-secret",
+		bucket: "backups",
+		region: "auto",
+		endpoint: "https://acc.r2.cloudflarestorage.com",
+		additionalFlags: null,
+		...o,
+	});
+	const byId = (org: OrgItem[], id: string) =>
+		org.find((o) => o.sourceId === id);
+
+	test("registries keep their host and namespace", () => {
+		const reg = (
+			registryId: string,
+			registryUrl: string,
+			imagePrefix = "",
+		) => ({
+			registryId,
+			registryName: registryId,
+			imagePrefix,
+			username: "Acme",
+			password: "fake-reg-secret",
+			registryUrl,
+		});
+		const { org } = buildInventory(
+			snapshot({
+				registries: [
+					reg("hub", ""),
+					reg("ghcr", "https://ghcr.io/", "acme"),
+					reg("own", "registry.example.com:5000"),
+				],
+			}),
+		);
+		expect(org.map((o) => [o.status, o.draft?.input])).toEqual([
+			[
+				"full",
+				{
+					kind: "dockerhub",
+					url: "docker.io/acme",
+					username: "Acme",
+					password: "fake-reg-secret",
+				},
+			],
+			[
+				"full",
+				{
+					kind: "ghcr",
+					url: "ghcr.io/acme",
+					username: "Acme",
+					password: "fake-reg-secret",
+				},
+			],
+			[
+				"full",
+				{
+					kind: "generic",
+					url: "registry.example.com:5000",
+					username: "Acme",
+					password: "fake-reg-secret",
+				},
+			],
+		]);
+	});
+
+	test("S3 destinations: an endpoint gains its scheme, rclone flags are reported", () => {
+		const { org } = buildInventory(
+			snapshot({
+				destinations: [
+					destination({
+						destinationId: "aws",
+						provider: "AWS",
+						endpoint: "s3.eu-west-1.amazonaws.com",
+						region: "eu-west-1",
+						additionalFlags: ["--s3-acl=private"],
+					}),
+					destination({ destinationId: "bad", bucket: "Not_A_Bucket" }),
+				],
+			}),
+		);
+		expect(byId(org, "aws")).toMatchObject({
+			status: "partial",
+			notes: ["rclone flags --s3-acl=private are not carried over"],
+			draft: {
+				kind: "s3Destination",
+				input: {
+					name: "aws",
+					endpoint: "https://s3.eu-west-1.amazonaws.com",
+					region: "eu-west-1",
+					bucket: "backups",
+					forcePathStyle: false,
+				},
+			},
+		});
+		expect(byId(org, "bad")?.status).toBe("unsupported");
+	});
+
+	test("notification channels map their settings and the events LogiStack has", () => {
+		const { org } = buildInventory(
+			snapshot({
+				notifications: [
+					notification({
+						notificationId: "slack",
+						notificationType: "slack",
+						appDeploy: true,
+						appBuildError: true,
+						databaseBackup: true,
+						dockerCleanup: true,
+					}),
+					notification({
+						notificationId: "mail",
+						notificationType: "email",
+						serverThreshold: true,
+					}),
+					notification({
+						notificationId: "hook",
+						notificationType: "custom",
+						appDeploy: true,
+					}),
+				],
+				notificationTargets: [
+					target({
+						type: "slack",
+						targetId: "slack",
+						webhookUrl: "https://hooks.slack.com/services/fake",
+					}),
+					target({
+						type: "email",
+						targetId: "mail",
+						smtpServer: "smtp.example.com",
+						smtpPort: 465,
+						username: "ops",
+						password: "fake-smtp-secret",
+						fromAddress: "ops@example.com",
+						toAddress: ["team@example.com"],
+					}),
+					target({
+						type: "custom",
+						targetId: "hook",
+						endpoint: "https://example.com/hook",
+					}),
+				],
+			}),
+		);
+		expect(byId(org, "slack")).toMatchObject({
+			status: "partial",
+			notes: ["LogiStack sends no event for Docker cleanup"],
+			draft: {
+				input: {
+					kind: "slack",
+					config: { webhookUrl: "https://hooks.slack.com/services/fake" },
+				},
+				events: [
+					"deployment.succeeded",
+					"deployment.failed",
+					"backup.succeeded",
+					"backup.failed",
+				],
+			},
+		});
+		expect(byId(org, "mail")).toMatchObject({
+			status: "full",
+			draft: {
+				input: {
+					kind: "email",
+					config: {
+						transport: "smtp",
+						host: "smtp.example.com",
+						port: 465,
+						secure: true,
+						to: ["team@example.com"],
+					},
+				},
+				events: ["metric.threshold"],
+			},
+		});
+		expect(byId(org, "hook")?.status).toBe("unsupported");
+	});
+
+	test("SSH keys need their private half", () => {
+		const { org } = buildInventory(
+			snapshot({
+				sshKeys: [
+					{ sshKeyId: "k1", name: "deploy", privateKey: "fake-ssh-private" },
+					{ sshKeyId: "k2", name: "public only", privateKey: "" },
+				],
+			}),
+		);
+		expect(org.map((o) => o.status)).toEqual(["full", "unsupported"]);
+	});
+
+	test("a GitHub App carries over; OAuth providers must be reconnected", () => {
+		const s = snapshot({
+			...github,
+			gitProviders: [
+				...(github.gitProviders ?? []),
+				{
+					type: "gitlab",
+					id: "gl1",
+					gitProviderId: "gp2",
+					githubAppId: null,
+					githubInstallationId: null,
+					githubPrivateKey: null,
+					githubWebhookSecret: null,
+					url: "https://gitlab.com",
+				},
+			],
+			gitProviderNames: [
+				...(github.gitProviderNames ?? []),
+				{ gitProviderId: "gp2", name: "Acme GitLab" },
+			],
+			applications: [
+				app({
+					applicationId: "web",
+					sourceType: "gitlab",
+					buildType: "dockerfile",
+					gitlabPathNamespace: "acme/web",
+					gitlabBranch: "main",
+					gitlabId: "gl1",
+				}),
+			],
+		});
+		const { items, org } = buildInventory(s);
+		expect(byId(org, "gh1")).toMatchObject({
+			name: "Acme GitHub",
+			status: "full",
+			draft: {
+				input: {
+					kind: "github",
+					config: { appId: "123", installationId: "456" },
+				},
+			},
+		});
+		expect(byId(org, "gl1")?.status).toBe("unsupported");
+		expect(items[0]?.notes).toEqual([
+			"git provider Acme GitLab must be reconnected in LogiStack",
+		]);
+	});
+
+	test("database backups follow their destination", () => {
+		const backup = (
+			backupId: string,
+			destinationId: string,
+			o: Partial<DokployBackup> = {},
+		): DokployBackup => ({
+			backupId,
+			schedule: "0 3 * * *",
+			enabled: true,
+			database: "shop",
+			prefix: "/",
+			destinationId,
+			keepLatestCount: null,
+			backupType: "database",
+			ownerId: "pg",
+			...o,
+		});
+		const s = snapshot({
+			databases: [
+				db({ id: "pg", engine: "postgres", dockerImage: "postgres:16" }),
+			],
+			composes: [
+				compose({
+					composeId: "c",
+					composeFile: "services:\n  db: { image: x }\n",
+				}),
+			],
+			mounts: [
+				{
+					mountId: "m",
+					type: "volume",
+					hostPath: null,
+					volumeName: "pg-def456-data",
+					filePath: null,
+					content: null,
+					mountPath: "/var/lib/postgresql/data",
+					ownerId: "pg",
+				},
+			],
+			destinations: [
+				destination({ destinationId: "r2", name: "R2" }),
+				destination({ destinationId: "bad", name: "Bad", bucket: "X" }),
+			],
+			backups: [
+				backup("b1", "r2", { keepLatestCount: 5, enabled: false }),
+				backup("b2", "r2"),
+				backup("b3", "bad"),
+				backup("b4", "r2", { schedule: "@daily" }),
+				backup("b5", "r2", { ownerId: "c", backupType: "compose" }),
+			],
+		});
+		const [pg, c] = buildInventory(s).items;
+		expect(pg?.services[0]?.backups).toEqual([
+			{
+				destination: "r2",
+				cron: "0 3 * * *",
+				retention: { count: 5 },
+				enabled: false,
+			},
+			{ destination: "r2", cron: "0 3 * * *", retention: {}, enabled: true },
+		]);
+		expect(pg?.notes).toEqual([
+			'backup schedule "@daily" is not a 5-field cron, skipped',
+			"backup to Bad is not carried over",
+		]);
+		expect(c?.notes).toEqual([
+			"1 backup schedule(s) of databases inside the compose file are not carried over",
+		]);
+	});
+});
+
+test("an env Dokploy encrypted with a key LogiStack lacks is reported, never echoed", () => {
+	const notes: string[] = [];
+	expect(
+		serviceEnv(
+			"enc:v1:c2VjcmV0LWNpcGhlcnRleHQ=",
+			{ project: null, environment: null },
+			notes,
+		),
+	).toEqual([]);
+	expect(notes).toEqual([
+		"env is encrypted by Dokploy with a key LogiStack does not have; set it here by hand",
+	]);
+	const more: string[] = [];
+	serviceEnv(
+		`${"Ab+/".repeat(20)}=y`,
+		{ project: null, environment: null },
+		more,
+	);
+	expect(more).toEqual(["an env line is not a valid variable, skipped"]);
+});

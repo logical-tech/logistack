@@ -100,3 +100,26 @@ export function buildTar(
 	}
 	return out;
 }
+
+/**
+ * The content of the first regular file in a tar, as the engine's archive endpoint returns one
+ * file. Undefined when there is none (the path was a directory).
+ */
+export function firstTarFile(tar: Uint8Array): Uint8Array | undefined {
+	for (let at = 0; at + BLOCK <= tar.length; ) {
+		const head = tar.subarray(at, at + BLOCK);
+		if (head.every((b) => b === 0)) return undefined;
+		const size = Number.parseInt(
+			new TextDecoder()
+				.decode(head.subarray(124, 136))
+				.replace(/\0.*$/, "")
+				.trim() || "0",
+			8,
+		);
+		const type = String.fromCharCode(head[156] ?? 0);
+		const start = at + BLOCK;
+		if (type === "0" || type === "\0") return tar.slice(start, start + size);
+		at = start + Math.ceil(size / BLOCK) * BLOCK;
+	}
+	return undefined;
+}

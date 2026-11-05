@@ -38,6 +38,11 @@ export type WizardStep<V extends WizardValues> = {
 	 * it every answer counts, so filling in a later step would undo the pass.
 	 */
 	testKeys?: (keyof V & string)[];
+	/**
+	 * A gate computed from state the step does not own (work running on the server): `true`
+	 * lets Continue through, a string says what is still missing.
+	 */
+	ready?: (values: V) => true | string;
 	/** Hide the step for the current answers (e.g. DNS checks for generated domains). */
 	when?: (values: V) => boolean;
 	render: (w: WizardApi<V>) => ReactNode;
@@ -132,6 +137,7 @@ export function Wizard<V extends WizardValues>({
 	const isComplete = useCallback(
 		(s: WizardStep<V>) => {
 			if (Object.keys(stepErrors(s, values)).length) return false;
+			if (s.ready && s.ready(values) !== true) return false;
 			if (!s.test) return true;
 			const t = tests[s.id];
 			return t?.phase === "passed" && t.signature === signatureOf(values, s);
@@ -285,7 +291,14 @@ export function Wizard<V extends WizardValues>({
 		runTest,
 	};
 
-	const blockedByTest = Boolean(current.test) && testState.phase !== "passed";
+	const notReady = current.ready?.(values);
+	const blockedBy =
+		typeof notReady === "string"
+			? notReady
+			: current.test && testState.phase !== "passed"
+				? "Run the test to continue"
+				: undefined;
+	const blockedByTest = blockedBy !== undefined;
 
 	return (
 		<div
@@ -344,9 +357,9 @@ export function Wizard<V extends WizardValues>({
 						<Kbd className="ml-1 hidden sm:inline-flex">⌥←</Kbd>
 					</Button>
 					<div className="flex items-center gap-3">
-						{blockedByTest && (
+						{blockedBy && (
 							<span className="hidden text-xs text-muted-foreground sm:inline">
-								Run the test to continue
+								{blockedBy}
 							</span>
 						)}
 						<Button

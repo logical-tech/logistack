@@ -128,11 +128,13 @@ export function ServiceTerminal({
 		);
 		const ro = new ResizeObserver(() => fit.fit());
 		ro.observe(host);
-		// The theme follows the app's light/dark switch.
+		// The theme follows the app's light/dark switch and its colour theme.
 		const mo = new MutationObserver(() => {
 			term.options.theme = theme();
 		});
-		mo.observe(document.documentElement, { attributeFilter: ["class"] });
+		mo.observe(document.documentElement, {
+			attributeFilter: ["class", "data-theme"],
+		});
 
 		api.serviceOps
 			.exec(serviceId, {

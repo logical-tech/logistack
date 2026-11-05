@@ -5,12 +5,14 @@ import type {
 	AuditFilters,
 	Invitation,
 	Member,
+	OrganizationProfile,
 	PermissionAction,
 	Role,
 	RoleGrant,
 	Scope,
 	ServiceAccount,
 	SshKey,
+	TwoFactorSetting,
 } from "../access-types";
 import { ApiError } from "../adapter";
 
@@ -74,6 +76,7 @@ const state = {
 			email,
 			role,
 			twoFactorEnabled,
+			passkey: userId === "usr_ana",
 			createdAt: ago(days * 1440),
 		}),
 	),
@@ -139,6 +142,18 @@ const state = {
 		},
 	] as SshKey[],
 	allowPrivateHosts: false,
+	twoFactor: {
+		mode: "off",
+		graceDays: 7,
+		trustIdpMfa: false,
+		enabledAt: null,
+	} as TwoFactorSetting,
+	organization: {
+		id: "org_logical",
+		name: "Logical",
+		slug: "logical",
+		logo: null,
+	} as OrganizationProfile,
 	audit: [] as AuditEntry[],
 };
 
@@ -431,6 +446,7 @@ export const mockAccess: AccessAdapter = {
 			roles: ["owner"],
 			grants: [{ role: "owner", scope: { kind: "organization", id: ORG } }],
 			keyScopes: null,
+			twoFactor: null,
 		}),
 	members: {
 		list: () => delay(state.members),
@@ -617,10 +633,30 @@ export const mockAccess: AccessAdapter = {
 			await delay(null);
 		},
 	},
+	twoFactor: {
+		get: () => delay({ ...state.twoFactor }),
+		set: async (policy) => {
+			state.twoFactor = {
+				...policy,
+				enabledAt:
+					policy.mode === "off"
+						? null
+						: (state.twoFactor.enabledAt ?? new Date().toISOString()),
+			};
+			return mockAccess.twoFactor.get();
+		},
+	},
+	organization: {
+		get: () => delay({ ...state.organization }),
+		update: async (patch) => {
+			state.organization = { ...state.organization, ...patch };
+			return mockAccess.organization.get();
+		},
+	},
 	instance: {
 		get: () =>
 			delay({
-				organizationName: "Logical",
+				organizationName: state.organization.name,
 				publicUrl: "https://ls.logical.it",
 				letsencryptEmail: "ops@logical.it",
 				generatedDomainBase: "sslip",

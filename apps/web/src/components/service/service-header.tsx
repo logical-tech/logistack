@@ -1,14 +1,21 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Layers, Play, Rocket, RotateCw, Square } from "lucide-react";
+import { FileDiff, Layers, Play, Rocket, RotateCw, Square } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AnimatedNumber } from "@/components/animated-number";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+	changeCount,
+	PendingChangesDialog,
+} from "@/components/service/pending-changes";
 import { ServiceGlyph } from "@/components/service/service-icon";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import {
 	type DeploymentRow,
+	pendingDiffQuery,
 	type ServiceOverview,
 	useServiceMutation,
 } from "@/lib/api/service-ops";
@@ -36,7 +43,7 @@ function convergence(o: ServiceOverview) {
 const errorText = (e: unknown) =>
 	e instanceof Error ? e.message : "Something went wrong.";
 
-type Confirm = "restart" | "stop" | null;
+type Confirm = "restart" | "stop" | "review" | null;
 
 export function ServiceHeader({
 	service: o,
@@ -57,6 +64,17 @@ export function ServiceHeader({
 	const restart = useServiceMutation(o.id, () => api.serviceOps.restart(o.id));
 	const stop = useServiceMutation(o.id, () => api.serviceOps.stop(o.id));
 	const start = useServiceMutation(o.id, () => api.serviceOps.start(o.id));
+	const { data: diff } = useQuery(pendingDiffQuery(o.id));
+	const pending = diff?.baseline ? diff.changes.length : 0;
+	const runDeploy = () =>
+		deploy.mutate(undefined, {
+			onSuccess: (d) => {
+				setConfirm(null);
+				openLog(d);
+			},
+			onError: (e) =>
+				toast.error("Couldn't deploy", { description: errorText(e) }),
+		});
 	const stopped = o.desiredState === "stopped";
 	const note = convergence(o);
 	const replicas =
@@ -125,21 +143,41 @@ export function ServiceHeader({
 					<RotateCw data-icon="inline-start" />
 					Restart
 				</Button>
+				{pending > 0 && (
+					<Button variant="outline" onClick={() => setConfirm("review")}>
+						<FileDiff data-icon="inline-start" />
+						Review changes
+					</Button>
+				)}
 				<Button
 					disabled={deploy.isPending}
-					onClick={() =>
-						deploy.mutate(undefined, {
-							onSuccess: openLog,
-							onError: (e) =>
-								toast.error("Couldn't deploy", { description: errorText(e) }),
-						})
+					onClick={runDeploy}
+					aria-label={
+						pending > 0 ? `Deploy, ${changeCount(pending)}` : undefined
 					}
 				>
 					<Rocket data-icon="inline-start" />
 					Deploy
+					{pending > 0 && (
+						<span
+							aria-hidden
+							className="-mr-1 ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-foreground/15 px-1.5 text-xs"
+						>
+							<AnimatedNumber value={pending} />
+						</span>
+					)}
 				</Button>
 			</div>
 
+			{diff?.baseline && (
+				<PendingChangesDialog
+					diff={diff}
+					open={confirm === "review"}
+					onOpenChange={(open) => !open && setConfirm(null)}
+					onDeploy={runDeploy}
+					deploying={deploy.isPending}
+				/>
+			)}
 			<ConfirmDialog
 				open={confirm === "restart"}
 				onOpenChange={(open) => !open && setConfirm(null)}

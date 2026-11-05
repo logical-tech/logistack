@@ -3,10 +3,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ApplicationSpec } from "@logistack/contracts";
 import { encrypt } from "@logistack/core";
 import {
+	adoptedVolume,
 	deployment,
 	domain,
 	environment,
 	envVar,
+	mount,
 	organization,
 	project,
 	service,
@@ -158,6 +160,18 @@ describe.skipIf(!enabled)("worker against the real Swarm", () => {
 		);
 		const res = await fetch(`http://127.0.0.1:${port}/`);
 		expect(await res.text()).toBe("v=1\n");
+		const env = svc?.Spec.TaskTemplate.ContainerSpec.Env ?? [];
+		expect(env).toEqual(
+			expect.arrayContaining([
+				`LOGISTACK_DEPLOYMENT_ID=${firstDeployment}`,
+				"LOGISTACK_PROJECT=P",
+				"LOGISTACK_ENVIRONMENT=Prod",
+				"LOGISTACK_SERVICE=web",
+				"LOGISTACK_URL=https://web.test",
+				"LOGISTACK_FQDN=web.test",
+			]),
+		);
+		expect(env.filter((e) => /^LOGISTACK_(COMMIT|BRANCH)/.test(e))).toEqual([]);
 	}, 120_000);
 
 	test("redeploy with new env rolls start-first with zero failed requests", async () => {
@@ -274,7 +288,185 @@ describe.skipIf(!enabled)("worker against the real Swarm", () => {
 		const log = await Bun.file(d.logPath as string).text();
 		expect(log).toContain("==> building");
 		expect(log).toContain("==> healthy");
+		const env =
+			(await inspectService(ctx(), svcName(ctx(), appId)))?.Spec.TaskTemplate
+				.ContainerSpec.Env ?? [];
+		expect(env).toEqual(
+			expect.arrayContaining([
+				`LOGISTACK_COMMIT_SHA=${d.commitSha}`,
+				"LOGISTACK_COMMIT_MESSAGE=fixture app",
+				"LOGISTACK_BRANCH=main",
+			]),
+		);
+		// The Dockerfile declares this ARG, so the build saw the cloned commit.
+		expect(
+			sh(
+				"docker",
+				"run",
+				"--rm",
+				"--name",
+				`${PREFIX}commit`,
+				"--label",
+				"logistack.test=worker",
+				d.imageRef as string,
+				"cat",
+				"/www/commit",
+			),
+		).toBe(d.commitSha as string);
 	}, 320_000);
+
+	test("an adopted volume is mounted as it is and survives its service", async () => {
+		// Stands in for a volume Dokploy created: our test label, none of LogiStack's own.
+		const volume = `${PREFIX}adopt-data`;
+		sh(
+			"docker",
+			"volume",
+			"create",
+			"--label",
+			"logistack.test=worker",
+			volume,
+		);
+		sh(
+			"docker",
+			"run",
+			"--rm",
+			"--label",
+			"logistack.test=worker",
+			"-v",
+			`${volume}:/data`,
+			"busybox:1.37",
+			"sh",
+			"-c",
+			"echo kept-from-dokploy > /data/index.html",
+		);
+		const adoptPort = port + 1;
+		const id = await addService("adopted", {
+			...web,
+			ports: [{ target: 8080, published: adoptPort, protocol: "tcp" }],
+			command: ["httpd", "-f", "-p", "8080", "-h", "/data"],
+		});
+		const [m] = await db()
+			.insert(mount)
+			.values({
+				serviceId: id,
+				kind: "volume",
+				target: "/data",
+				volumeName: "data",
+			})
+			.returning();
+		await db()
+			.insert(adoptedVolume)
+			.values({
+				volumeName: volume,
+				ownerId: m?.id as string,
+				serviceId: id,
+				source: "dokploy",
+			});
+		const d = await waitForDeployment(db(), await queue(id));
+		expect(d.status).toBe("healthy");
+		expect(await (await fetch(`http://127.0.0.1:${adoptPort}/`)).text()).toBe(
+			"kept-from-dokploy\n",
+		);
+		const svc = await inspectService(ctx(), svcName(ctx(), id));
+		expect(svc?.Spec.TaskTemplate.ContainerSpec.Mounts).toEqual([
+			{ Type: "volume", Source: volume, Target: "/data" },
+		]);
+
+		await db().delete(service).where(eq(service.id, id));
+		const removed = await sweepOrphans(
+			ctx(),
+			Date.now() + ctx().cfg.LS_ORPHAN_GRACE_MS + 1,
+		);
+		expect(removed).not.toContain(`volume:${volume}`);
+		await inspectService(ctx(), svcName(ctx(), id)).then((s) =>
+			s ? ctx().docker.services.remove(s.ID) : undefined,
+		);
+		expect(sh("docker", "volume", "inspect", "-f", "{{.Name}}", volume)).toBe(
+			volume,
+		);
+	}, 120_000);
+
+	test("a missing adopted volume fails the deployment instead of mounting an empty one", async () => {
+		const id = await addService("adopted-missing", web);
+		await db()
+			.insert(adoptedVolume)
+			.values({
+				volumeName: `${PREFIX}adopt-missing`,
+				ownerId: `mnt_${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`,
+				serviceId: id,
+				source: "dokploy",
+			});
+		const d = await waitForDeployment(db(), await queue(id));
+		expect(d.status).toBe("failed");
+		expect(
+			sh(
+				"docker",
+				"volume",
+				"ls",
+				"-q",
+				"--filter",
+				`name=${PREFIX}adopt-missing`,
+			),
+		).toBe("");
+		await db().delete(service).where(eq(service.id, id));
+	}, 60_000);
+
+	test("Postgres 18 starts and keeps its data on the managed volume across a redeploy", async () => {
+		sh("docker", "pull", "-q", "postgres:18-alpine");
+		const [row] = await db()
+			.insert(service)
+			.values({
+				environmentId: envId,
+				name: "pg18",
+				slug: "pg18",
+				kind: "database",
+				spec: {
+					kind: "database",
+					engine: "postgres",
+					version: "18-alpine",
+					credentialsRef: "test",
+					resources: {},
+				},
+			})
+			.returning();
+		const id = row?.id as string;
+		await setEnv(id, "POSTGRES_PASSWORD", "test-pg18");
+		const psql = (query: string) => {
+			const task = sh(
+				"docker",
+				"ps",
+				"-q",
+				"--filter",
+				`label=com.docker.swarm.service.name=${svcName(ctx(), id)}`,
+			).split("\n")[0] as string;
+			return sh(
+				"docker",
+				"exec",
+				task,
+				"psql",
+				"-U",
+				"postgres",
+				"-tAc",
+				query,
+			);
+		};
+
+		expect((await waitForDeployment(db(), await queue(id))).status).toBe(
+			"healthy",
+		);
+		psql("create table kept (v text); insert into kept values ('survives')");
+		expect((await waitForDeployment(db(), await queue(id))).status).toBe(
+			"healthy",
+		);
+		expect(psql("select v from kept")).toBe("survives");
+		expect(psql("show data_directory")).toBe("/var/lib/postgresql/18/docker");
+		const svc = await inspectService(ctx(), svcName(ctx(), id));
+		expect(
+			svc?.Spec.TaskTemplate.ContainerSpec.Mounts?.map((m) => m.Target),
+		).toEqual(["/var/lib/postgresql"]);
+		await db().delete(service).where(eq(service.id, id));
+		await ctx().docker.services.remove(svcName(ctx(), id));
+	}, 300_000);
 
 	test("orphaned objects are removed only after the grace period", async () => {
 		const name = svcName(ctx(), webId);

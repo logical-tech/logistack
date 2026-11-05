@@ -8,11 +8,32 @@
 #   SMOKE_NO_INGRESS=1 bash install/smoke.sh   first installs --no-ingress, then --enable-ingress
 #   SMOKE_UPDATE=1 bash install/smoke.sh       installs 0.0.1, then updates to locally built 0.0.2
 #                                              through POST /api/instance/update (ls-test-rel-dind)
+#   SMOKE_PUBLIC_SETUP=1 bash install/smoke.sh installs --public-setup: setup through Caddy, with the
+#                                              one-time token (ls-test-pubsetup-dind)
+#   SMOKE_DOKPLOY=1 bash install/smoke.sh      installs next to a fake Dokploy (and a stopped Coolify's
+#                                              /data/coolify): detection, ingress off, the api reads
+#                                              Dokploy (ls-test-mig5-dind)
+#   SMOKE_COOLIFY=1 bash install/smoke.sh      installs next to a fake Coolify on Coolify's own Docker
+#                                              address pool: Swarm on a clear pool, the bridge, the
+#                                              api reads Coolify (ls-test-cool4-dind)
 set -euo pipefail
 
 UPDATE=${SMOKE_UPDATE:-0}
-if [ "$UPDATE" = 1 ]; then
+PUBLIC_SETUP=${SMOKE_PUBLIC_SETUP:-0}
+DOKPLOY=${SMOKE_DOKPLOY:-0}
+COOLIFY=${SMOKE_COOLIFY:-0}
+DIND_ARGS=()
+if [ "$COOLIFY" = 1 ]; then
+	NAME=${SMOKE_NAME:-ls-test-cool4-dind} LABEL=${SMOKE_LABEL:-cool4}
+	# What Coolify's installer writes into daemon.json; the comma is dockerd's syntax.
+	# shellcheck disable=SC2054
+	DIND_ARGS=(--default-address-pool base=10.0.0.0/8,size=24)
+elif [ "$DOKPLOY" = 1 ]; then
+	NAME=${SMOKE_NAME:-ls-test-mig5-dind} LABEL=${SMOKE_LABEL:-mig5}
+elif [ "$UPDATE" = 1 ]; then
 	NAME=${SMOKE_NAME:-ls-test-rel-dind} LABEL=${SMOKE_LABEL:-rel}
+elif [ "$PUBLIC_SETUP" = 1 ]; then
+	NAME=${SMOKE_NAME:-ls-test-pubsetup-dind} LABEL=${SMOKE_LABEL:-pubsetup}
 else
 	NAME=${SMOKE_NAME:-ls-test-pkg-dind} LABEL=${SMOKE_LABEL:-pkg}
 fi
@@ -21,13 +42,13 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 if [ "${1:-}" != --inside ]; then
 	docker rm -f -v "$NAME" >/dev/null 2>&1 || true
-	docker run -d --privileged --name "$NAME" --label "logistack.test=$LABEL" -v "$ROOT:/src:ro" "$DIND_IMAGE" >/dev/null
+	docker run -d --privileged --name "$NAME" --label "logistack.test=$LABEL" -v "$ROOT:/src:ro" "$DIND_IMAGE" ${DIND_ARGS[@]+"${DIND_ARGS[@]}"} >/dev/null
 	for _ in $(seq 1 60); do docker exec "$NAME" docker info >/dev/null 2>&1 && break; sleep 1; done
 	docker exec "$NAME" apk add --no-cache -q bash curl jq
 	rc=0
 	# The updater takes images from localhost/: the same path the UI uses, with a local image source.
 	docker exec -e LOGISTACK_WAIT_TIMEOUT="${LOGISTACK_WAIT_TIMEOUT:-600}" -e SMOKE_NO_INGRESS="${SMOKE_NO_INGRESS:-0}" \
-		-e SMOKE_UPDATE="$UPDATE" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
+		-e SMOKE_UPDATE="$UPDATE" -e SMOKE_PUBLIC_SETUP="$PUBLIC_SETUP" -e SMOKE_DOKPLOY="$DOKPLOY" -e SMOKE_COOLIFY="$COOLIFY" -e LOGISTACK_UPDATE_REGISTRY=localhost "$NAME" bash /src/install/smoke.sh --inside || rc=$?
 	[ "${KEEP:-0}" = 1 ] || docker rm -f -v "$NAME" >/dev/null
 	exit "$rc"
 fi
@@ -48,10 +69,13 @@ die() {
 	exit 1
 }
 
-# Before setup requests go through Caddy's bootstrap catch-all on :80. Setup makes the worker push
-# the real config, which routes only the dashboard host and redirects it to https; without a
-# certificate here, later requests go straight to the api from a client on ls-control.
-API=http://127.0.0.1
+# Before setup requests go through the loopback tunnel on :3000, or with --public-setup through
+# Caddy's bootstrap catch-all on :80. Setup makes the worker push the real config, which routes
+# only the dashboard host and redirects it to https; without a certificate here, later requests go
+# straight to the api from a client on ls-control.
+API=http://127.0.0.1:3000
+FLAGS=()
+if [ "$PUBLIC_SETUP" = 1 ]; then API=http://127.0.0.1 FLAGS=(--public-setup); fi
 CURL=(curl)
 ORIGIN=""
 # req METHOD PATH [JSON]: sets $code and $body. Not for $(...): those would be lost in the subshell.
@@ -77,6 +101,161 @@ install() {
 }
 
 ip=$(hostname -i | awk '{ print $1 }')
+
+# A stand-in for Dokploy, shaped as Dokploy's own install leaves it: Swarm services `dokploy`
+# (publishing 3000) and `dokploy-postgres` (password in a Swarm secret) on dokploy-network,
+# Traefik holding 80/443, /etc/dokploy. The database carries the columns the reader needs and
+# one project. Plus /data/coolify with no Coolify running, which must only be noted.
+if [ "$DOKPLOY" = 1 ]; then
+	pw="p@ss:w/rd%$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+	docker swarm init --advertise-addr "$ip" >/dev/null
+	docker network create -d overlay --attachable dokploy-network >/dev/null
+	printf '%s' "$pw" | docker secret create dokploy_postgres_password - >/dev/null
+	docker service create -d -q --name dokploy-postgres --network dokploy-network \
+		--secret source=dokploy_postgres_password,target=/run/secrets/postgres_password \
+		-e POSTGRES_USER=dokploy -e POSTGRES_DB=dokploy -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password \
+		postgres:17 >/dev/null
+	docker service create -d -q --name dokploy --network dokploy-network --publish published=3000,target=3000 \
+		alpine:3.22 sleep infinity >/dev/null
+	docker run -d -q --name dokploy-traefik -p 80:80 -p 443:443 alpine:3.22 sleep infinity >/dev/null
+	mkdir -p /etc/dokploy/compose /data/coolify
+	for _ in $(seq 1 90); do
+		pg=$(docker ps -q --filter label=com.docker.swarm.service.name=dokploy-postgres | head -n1)
+		[ -n "$pg" ] && docker exec "$pg" pg_isready -U dokploy -d dokploy >/dev/null 2>&1 && break
+		sleep 2
+	done
+	sleep 3 # the image's init restarts the server once after pg_isready first answers
+	pass "fake Dokploy: dokploy, dokploy-postgres (secret), dokploy-traefik on 80/443, /data/coolify"
+
+	install /tmp/install.out || die "install.sh next to Dokploy" "installer failed"
+	grep -E 'Coolify|Dokploy|dokploy|Ingress off|Ports 80|tunnel|migration' /tmp/install.out
+	grep -q '/data/coolify exists but Coolify is not running' /tmp/install.out &&
+		pass "a stopped Coolify's /data/coolify: noted, Dokploy detection carried on" || fail "Coolify detection" "no notice"
+	grep -q 'Dokploy found' /tmp/install.out && grep -q "Ports 80 and 443 left to Dokploy's Traefik" /tmp/install.out &&
+		grep -q 'password from secret dokploy_postgres_password' /tmp/install.out &&
+		pass "Dokploy detected: plan explained, 80/443 left to Traefik, password from its secret" ||
+		fail "Dokploy detection" "see /tmp/install.out"
+	[ "$(cat /etc/logistack/migration)" = migration_source=dokploy ] &&
+		pass "/etc/logistack/migration: migration_source=dokploy" || fail "migration_source" "$(cat /etc/logistack/migration 2>&1)"
+	caddy=$(docker service ls --filter name=logistack_caddy --format '{{.Replicas}}')
+	tunnel=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3001/api/health || true)
+	[ "$caddy" = 0/0 ] && [ "$tunnel" = 200 ] && [ -n "$(docker node ls -q --filter node.label=logistack.ingress=pending)" ] &&
+		pass "ingress off: Caddy 0/0, API through the tunnel on 127.0.0.1:3001 (3000 is Dokploy's)" ||
+		fail "ingress off next to Dokploy" "caddy $caddy, tunnel :3001 $tunnel"
+	leaks=$(grep -lF -- "$pw" /tmp/install.out /var/log/logistack-install.log /etc/logistack/* 2>/dev/null || true)
+	leaks+=$(docker service inspect logistack_logistack-api | grep -cF -- "$pw" || true)
+	[ "$leaks" = 0 ] && pass "Dokploy's password is in no output, log, config file or api service spec" ||
+		fail "password leak" "found in: $leaks"
+
+	# Dokploy's real schema needs the migrations in a Dokploy checkout; the reader's own column
+	# list is enough here. Written from a throwaway container, never from the api.
+	url="postgres://dokploy:$(jq -rn --arg p "$pw" '$p | @uri')@dokploy-postgres:5432/dokploy"
+	docker run --rm --network dokploy-network -e URL="$url" --entrypoint bun localhost/logistack:build -e '
+		const { minimalSchema } = await import("/app/apps/server/test/dokploy-schema.ts");
+		await minimalSchema(process.env.URL);
+		const sql = new Bun.SQL(process.env.URL, { max: 1 });
+		await sql`insert into project ("projectId", name, env) values (${"p1"}, ${"Fake Dokploy project"}, ${""})`;
+		await sql.close();' >/tmp/seed 2>&1 || die "seed fake Dokploy schema" "$(tail -n 3 /tmp/seed)"
+	read_dokploy='const { loadConfig } = await import("/app/apps/server/src/config.ts");
+const { dokploySource } = await import("/app/apps/server/src/migration/dokploy/source.ts");
+const { readDokploy } = await import("/app/apps/server/src/migration/dokploy/read.ts");
+const source = dokploySource(loadConfig());
+if (!source) throw new Error("no Dokploy source in the api config");
+const snapshot = await readDokploy(source.url, { composeRoot: source.composeRoot });
+console.log(snapshot.projects.map((p) => p.name).join(","));'
+	api=$(container_of logistack-api)
+	projects=$(docker exec "$api" /app/install/entrypoint.sh bun -e "$read_dokploy" 2>&1 | tail -n1)
+	mount=$(docker inspect "$api" --format '{{range .Mounts}}{{if eq .Destination "/etc/dokploy"}}{{.Source}} {{.RW}}{{end}}{{end}}')
+	[ "$projects" = "Fake Dokploy project" ] && [ "$mount" = "/etc/dokploy false" ] &&
+		pass "api: readDokploy(dokploySource(config)) lists 'Fake Dokploy project'; /etc/dokploy mounted ro" ||
+		fail "api reads Dokploy" "projects '$projects', mount '$mount'"
+
+	before=$(task_ids)
+	install /tmp/reinstall.out || die "install.sh re-run next to Dokploy" "installer failed"
+	[ "$before" = "$(task_ids)" ] && pass "install.sh re-run next to Dokploy: restarts no task" ||
+		fail "re-run next to Dokploy" "tasks changed"
+	traefik=$(docker inspect -f '{{.State.Running}}' dokploy-traefik)
+	dokploy=$(docker service ls --filter name=dokploy --format '{{.Name}} {{.Replicas}}' | sort | tr '\n' ' ')
+	[ "$traefik" = true ] && [ "$dokploy" = "dokploy 1/1 dokploy-postgres 1/1 " ] &&
+		pass "Dokploy untouched: traefik running, $dokploy" || fail "Dokploy untouched" "traefik $traefik, $dokploy"
+	exit "$FAILED"
+fi
+# A stand-in for Coolify, shaped as Coolify's own install leaves it: plain containers `coolify`,
+# `coolify-db` (Postgres, password in /data/coolify/source/.env) and `coolify-proxy` holding 80/443,
+# on the local bridge `coolify` that Coolify's address pool (10.0.0.0/8 in /24s) numbers. No Swarm.
+if [ "$COOLIFY" = 1 ]; then
+	pw="p@ss:w/rd%$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+	key="base64:$(head -c 32 /dev/urandom | base64)"
+	mkdir -p /data/coolify/source
+	printf 'APP_ID=x\nAPP_KEY=%s\nDB_USERNAME=coolify\nDB_PASSWORD=%s\nREDIS_PASSWORD=r\n' "$key" "$pw" >/data/coolify/source/.env
+	chmod 600 /data/coolify/source/.env
+	docker network create --attachable coolify >/dev/null
+	docker run -d -q --name coolify-db --network coolify -e POSTGRES_USER=coolify -e POSTGRES_DB=coolify \
+		-e POSTGRES_PASSWORD="$pw" postgres:15-alpine >/dev/null
+	docker run -d -q --name coolify --network coolify --restart always alpine:3.22 sleep infinity >/dev/null
+	docker run -d -q --name coolify-proxy --network coolify -p 80:80 -p 443:443 alpine:3.22 sleep infinity >/dev/null
+	for _ in $(seq 1 90); do
+		docker exec coolify-db pg_isready -U coolify -d coolify >/dev/null 2>&1 && break
+		sleep 2
+	done
+	sleep 3
+	bridge_subnet=$(docker network inspect coolify -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+	pass "fake Coolify: coolify, coolify-db, coolify-proxy on 80/443, network coolify $bridge_subnet"
+
+	install /tmp/install.out || die "install.sh next to Coolify" "installer failed"
+	grep -E 'Coolify|coolify|Swarm|Ingress off|Ports 80|tunnel|migration' /tmp/install.out
+	grep -q 'Coolify found' /tmp/install.out && grep -q "Ports 80 and 443 left to Coolify's proxy" /tmp/install.out &&
+		pass "Coolify detected: plan explained, 80/443 left to its proxy" || fail "Coolify detection" "see /tmp/install.out"
+	[ "$(cat /etc/logistack/migration)" = migration_source=coolify ] &&
+		pass "/etc/logistack/migration: migration_source=coolify" || fail "migration_source" "$(cat /etc/logistack/migration 2>&1)"
+	ingress=$(docker network inspect ingress -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+	overlay=$(docker network inspect ls-coolify-bridge -f '{{.Driver}} {{.Attachable}} {{range .IPAM.Config}}{{.Subnet}}{{end}}')
+	[[ $ingress == 10.248.* ]] && [[ $overlay == "overlay true 10.248."* ]] && [[ $bridge_subnet == 10.0.* ]] &&
+		pass "Swarm on 10.248.0.0/16: ingress $ingress, bridge ${overlay##* }, clear of coolify $bridge_subnet" ||
+		fail "Swarm address pool" "ingress $ingress, bridge $overlay, coolify $bridge_subnet"
+	nets=$(docker inspect coolify-db -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}')
+	[ "$nets" = "coolify ls-coolify-bridge " ] && pass "coolify-db on coolify and ls-coolify-bridge" || fail "coolify-db networks" "$nets"
+	caddy=$(docker service ls --filter name=logistack_caddy --format '{{.Replicas}}')
+	tunnel=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health || true)
+	[ "$caddy" = 0/0 ] && [ "$tunnel" = 200 ] &&
+		pass "ingress off: Caddy 0/0, API through the tunnel on 127.0.0.1:3000" || fail "ingress off next to Coolify" "caddy $caddy, tunnel $tunnel"
+	leaks=$(grep -lF -e "$pw" -e "$key" /tmp/install.out /var/log/logistack-install.log /etc/logistack/* 2>/dev/null || true)
+	leaks+=$(docker service inspect logistack_logistack-api | grep -cF -e "$pw" -e "$key" || true)
+	[ "$leaks" = 0 ] && pass "Coolify's password and APP_KEY are in no output, log, config file or api service spec" ||
+		fail "secret leak" "found in: $leaks"
+
+	# Coolify's real schema comes from its own image (COOL-8); the reader's columns are enough here.
+	url="postgres://coolify:$(jq -rn --arg p "$pw" '$p | @uri')@coolify-db:5432/coolify"
+	docker run --rm --network ls-coolify-bridge -e URL="$url" --entrypoint bun localhost/logistack:build -e '
+		const { minimalCoolifySchema } = await import("/app/apps/server/test/coolify-schema.ts");
+		await minimalCoolifySchema(process.env.URL);
+		const sql = new Bun.SQL(process.env.URL, { max: 1 });
+		await sql`insert into teams (id, name) values (0, ${"Root Team"})`;
+		await sql`insert into projects (id, uuid, name, team_id) values (1, ${"p1"}, ${"Fake Coolify project"}, 0)`;
+		await sql.close();' >/tmp/seed 2>&1 || die "seed fake Coolify schema" "$(tail -n 3 /tmp/seed)"
+	read_coolify='const { loadConfig } = await import("/app/apps/server/src/config.ts");
+const { coolifySource } = await import("/app/apps/server/src/migration/coolify/source.ts");
+const { readCoolify } = await import("/app/apps/server/src/migration/coolify/read.ts");
+const source = coolifySource(loadConfig());
+if (!source) throw new Error("no Coolify source in the api config");
+const snapshot = await readCoolify(source.url, { appKey: source.appKey });
+console.log(snapshot.projects.map((p) => p.name).join(","));'
+	api=$(container_of logistack-api)
+	projects=$(docker exec "$api" /app/install/entrypoint.sh bun -e "$read_coolify" 2>&1 | tail -n1)
+	[ "$projects" = "Fake Coolify project" ] &&
+		pass "api: readCoolify(coolifySource(config)) over ls-coolify-bridge lists 'Fake Coolify project'" ||
+		fail "api reads Coolify" "projects '$projects'"
+
+	before=$(task_ids)
+	install /tmp/reinstall.out || die "install.sh re-run next to Coolify" "installer failed"
+	[ "$before" = "$(task_ids)" ] && pass "install.sh re-run next to Coolify: restarts no task" ||
+		fail "re-run next to Coolify" "tasks changed: $(docker stack ps logistack --format '{{.Name}} {{.DesiredState}} {{.CurrentState}} {{.Error}}' | head -n 20 | tr '\n' ';')"
+	running=$(docker ps --format '{{.Names}}' --filter name=coolify | sort | tr '\n' ' ')
+	policy=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' coolify)
+	[ "$running" = "coolify coolify-db coolify-proxy " ] && [ "$policy" = always ] &&
+		pass "Coolify untouched: $running running, coolify restart policy $policy" || fail "Coolify untouched" "$running $policy"
+	exit "$FAILED"
+fi
 if [ "${SMOKE_NO_INGRESS:-0}" = 1 ]; then
 	install /tmp/no-ingress.out --no-ingress || die "install.sh --no-ingress" "installer failed"
 	caddy=$(docker service ls --filter name=logistack_caddy --format '{{.Replicas}}')
@@ -85,14 +264,13 @@ if [ "${SMOKE_NO_INGRESS:-0}" = 1 ]; then
 		pass "install.sh --no-ingress: Caddy 0/0, API via tunnel, :80 free" ||
 		fail "install.sh --no-ingress" "caddy $caddy, tunnel /api/health $tunnel"
 	install /tmp/install.out --enable-ingress || die "install.sh --enable-ingress" "installer failed"
-	! docker inspect logistack-api-tunnel >/dev/null 2>&1 &&
-		[ -n "$(docker node ls -q --filter node.label=logistack.ingress=true)" ] &&
-		pass "install.sh --enable-ingress: node labelled, tunnel removed" ||
-		fail "install.sh --enable-ingress" "tunnel left or node not labelled"
+	[ -n "$(docker node ls -q --filter node.label=logistack.ingress=true)" ] &&
+		pass "install.sh --enable-ingress: node labelled" ||
+		fail "install.sh --enable-ingress" "node not labelled"
 else
 	version_a=()
 	if [ "${SMOKE_UPDATE:-0}" = 1 ]; then version_a=(--version 0.0.1); fi
-	install /tmp/install.out "${version_a[@]}" || die "install.sh --local-build" "installer failed"
+	install /tmp/install.out "${version_a[@]}" "${FLAGS[@]}" || die "install.sh --local-build ${FLAGS[*]}" "installer failed"
 fi
 pass "install.sh --local-build: all services n/n, ingress answering"
 grep -E 'Build|Tagged|Deploy|✓ (logistack|postgres|redis|caddy|ls-)|API healthy' /tmp/install.out
@@ -102,17 +280,39 @@ for image in logistack logistack-worker logistack-agent logistack-caddy; do
 done
 last=$SECONDS
 
+# A container on the host's bridge stands in for the internet: it reaches the server's address only.
+docker rm -f ls-test-pkg-outside >/dev/null 2>&1 || true
+docker run -d --name ls-test-pkg-outside --label logistack.test=pkg alpine:3.22 sleep 3600 >/dev/null
+docker exec ls-test-pkg-outside apk add --no-cache -q curl
+outside() { docker exec ls-test-pkg-outside curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" || true; }
+raw=$(outside "http://$ip:3000/api/health")
+caddy=$(outside "http://$ip/api/setup/status")
+loopback=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health || true)
+if [ "$PUBLIC_SETUP" = 1 ]; then
+	[ "$raw" = 000 ] && [ "$caddy" = 200 ] && [ "$loopback" = 000 ] && ! docker inspect logistack-api-tunnel >/dev/null 2>&1 &&
+		pass "--public-setup: setup public through Caddy, no tunnel, :3000 closed" ||
+		fail "--public-setup exposure" "$ip:3000 $raw, $ip:80 $caddy, loopback:3000 $loopback"
+else
+	[ "$raw" = 000 ] && [ "$caddy" = 404 ] && [ "$loopback" = 200 ] &&
+		pass "private setup: $ip:3000 closed, $ip:80 404, 127.0.0.1:3000 200" ||
+		fail "private setup exposure" "$ip:3000 $raw, $ip:80 $caddy, loopback:3000 $loopback"
+fi
+docker rm -f ls-test-pkg-outside >/dev/null
+last=$SECONDS
+
 PUBLIC_URL=$(docker service inspect logistack_logistack-api --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}' |
 	jq -r '.[] | select(startswith("BETTER_AUTH_URL=")) | sub("^BETTER_AUTH_URL="; "")')
 HOST=${PUBLIC_URL#http://}
 ORIGIN=$PUBLIC_URL
 
 req GET /api/health
-[ "$code" = 200 ] && pass "GET /api/health through Caddy :80 -> 200" || fail "GET /api/health" "HTTP $code"
+[ "$code" = 200 ] && pass "GET $API/api/health -> 200" || fail "GET /api/health" "HTTP $code"
 
 req GET /api/setup/status
 [ "$code" = 200 ] && [ "$(jq -r .setupCompleted <<<"$body")" = false ] &&
-	pass "GET /api/setup/status -> setupCompleted=false" || fail "GET /api/setup/status" "HTTP $code $body"
+	[ "$(jq -r .setupTokenRequired <<<"$body")" = "$([ "$PUBLIC_SETUP" = 1 ] && echo true || echo false)" ] &&
+	pass "GET /api/setup/status -> setupCompleted=false, setupTokenRequired=$(jq -r .setupTokenRequired <<<"$body")" ||
+	fail "GET /api/setup/status" "HTTP $code $body"
 
 email=owner@smoke.test
 password=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
@@ -123,8 +323,17 @@ setup=$(jq -n --arg e "$email" --arg p "$password" --arg u "$PUBLIC_URL" '{
 	organization: { name: "Smoke" },
 	instance: { publicUrl: $u, generatedDomainBase: "sslip", letsencryptEmail: "ops@smoke.test", localRegistryEnabled: false }
 }')
+if [ "$PUBLIC_SETUP" = 1 ]; then
+	req POST /api/setup "$setup"
+	[ "$code" = 401 ] && pass "POST /api/setup without the setup token -> 401" || die "setup without token" "HTTP $code $body"
+	CURL=(curl -H "x-setup-token: $(sed -n 's/^LOGISTACK_SETUP_TOKEN=//p' /etc/logistack/credentials)")
+fi
 req POST /api/setup "$setup"
 [[ $code == 2* ]] && pass "POST /api/setup (sslip quick start) -> $code" || die "POST /api/setup" "HTTP $code $body"
+if [ "$PUBLIC_SETUP" = 1 ]; then
+	req POST /api/setup "$setup"
+	[ "$code" = 409 ] && pass "POST /api/setup again with the token -> 409, token retired" || fail "token retired" "HTTP $code $body"
+fi
 
 docker rm -f ls-test-pkg-client >/dev/null 2>&1 || true
 docker run -d --name ls-test-pkg-client --label logistack.test=pkg --network ls-control alpine:3.22 sleep 3600 >/dev/null
@@ -251,7 +460,7 @@ hash_after=$(token_hash)
 	fail "agent restart" "reconnected=$reconnected token hash $hash_before -> $hash_after"
 
 before=$(task_ids)
-install /tmp/reinstall.out || die "install.sh re-run after setup" "installer failed"
+install /tmp/reinstall.out "${FLAGS[@]}" || die "install.sh re-run after setup" "installer failed"
 after=$(task_ids)
 [ "$before" = "$after" ] && pass "install.sh re-run after setup: passes, restarts no task" ||
 	fail "install.sh re-run is a no-op" "tasks changed: $before -> $after"

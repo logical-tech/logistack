@@ -6,6 +6,7 @@ import type {
 	DesiredState,
 	Healthcheck as HealthcheckSpec,
 	MountKind,
+	ServiceSpec as ServiceSpecInput,
 	StorageSpec,
 } from "@logistack/contracts";
 import {
@@ -18,8 +19,13 @@ import {
 	type SecretReference,
 	type ServiceSpec,
 } from "@logistack/docker";
+import {
+	type DeploymentContext,
+	deploymentContextEnv,
+} from "./deployment-context.ts";
 import { dockerName } from "./ids.ts";
 import { LIBSQL_ENV, LIBSQL_HEALTH } from "./libsql.ts";
+import type { RouterFlavor } from "./migration.ts";
 import { storageEngineDefs } from "./storage.ts";
 
 export type CompileMount = {
@@ -47,16 +53,31 @@ export type CompileServiceInput = {
 	image?: string;
 	/** Resolved and decrypted runtime env. */
 	env: Record<string, string>;
+	/** Injected as `LOGISTACK_*` env on top of `env`, with `deploymentId`. */
+	context: Omit<DeploymentContext, "deploymentId">;
 	mounts: CompileMount[];
+	/** Volumes another platform created, by owner id (volume mount id, or service id for a data dir); mounted as they are. */
+	adoptedVolumes?: Record<string, string>;
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
 	/** `db`: the shared network the api reaches databases on for the explorer; absent leaves them off it. */
+	/**
+	 * `bridge`: the network of the platform a service was migrated from (`dokploy-network`), joined
+	 * under the slug, so that platform's proxy and services still reach it until they are gone.
+	 */
 	networks: {
 		environment: string;
 		ingress: string;
 		storage?: string;
 		db?: string;
+		bridge?: string;
 	};
+	/** Labels for the old platform's proxy while bridged (`bridgeRouterLabels`); service-level. */
+	bridgeLabels?: Record<string, string>;
+	/** The same, on the task containers: Coolify's Traefik reads containers, not Swarm services. */
+	bridgeContainerLabels?: Record<string, string>;
+	/** Names the service answers to on `networks.bridge`; the slug when absent. */
+	bridgeAliases?: string[];
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
@@ -151,6 +172,29 @@ export const databaseImage = (engine: DatabaseEngine, version: string) =>
 
 const sha256 = (data: string) =>
 	new Bun.CryptoHasher("sha256").update(data).digest("hex").slice(0, 12);
+
+/** A Postgres version's major number; a tag without one (`latest`, `alpine`) is today's, 18 or later. */
+export const postgresMajor = (version: string) =>
+	Number.parseInt(version, 10) || Number.POSITIVE_INFINITY;
+
+/**
+ * Postgres 18+ keeps PGDATA in `/var/lib/postgresql/<major>/docker` and refuses to start with a
+ * mount at the old `/var/lib/postgresql/data`, so the volume goes on the parent directory.
+ */
+export function databaseDataDir(
+	db: Pick<DatabaseSpec, "engine" | "version">,
+): string {
+	return db.engine === "postgres" && postgresMajor(db.version) >= 18
+		? "/var/lib/postgresql"
+		: engines[db.engine].dataDir;
+}
+
+/** Where a database or storage service keeps its data; an adopted volume can take that place. */
+export function dataDirOf(spec: ServiceSpecInput): string | undefined {
+	if (spec.kind === "database") return databaseDataDir(spec);
+	if (spec.kind === "storage") return storageEngineDefs[spec.engine].dataDir;
+	return undefined;
+}
 
 const prefixOf = (input: CompileServiceInput) => input.scope?.namePrefix ?? "";
 
@@ -262,15 +306,21 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			`service ${service.id}: slug ${service.slug} is not a DNS label`,
 		);
 
+	// An adopted volume keeps its own name and gets no labels: Docker cannot relabel an existing volume.
+	const volume = (ownerId: string, Target: string): Mount => {
+		const adopted = input.adoptedVolumes?.[ownerId];
+		return adopted
+			? { Type: "volume", Source: adopted, Target }
+			: {
+					Type: "volume",
+					Source: `${prefix}${dockerName("vol", ownerId)}`,
+					Target,
+					VolumeOptions: { Labels: labelsFor(input, ownerId, "volume") },
+				};
+	};
 	const volumeMounts: Mount[] = input.mounts
 		.filter((m) => m.kind === "volume")
-		.map((m) => ({
-			Type: "volume",
-			Source: `${prefix}${dockerName("vol", m.id)}`,
-			Target: m.target,
-			ReadOnly: m.readOnly,
-			VolumeOptions: { Labels: labelsFor(input, m.id, "volume") },
-		}));
+		.map((m) => ({ ...volume(m.id, m.target), ReadOnly: m.readOnly }));
 	const engine = db ? engines[db.engine] : undefined;
 	if (db && engine) {
 		const missing = engine.required.filter((k) => !input.env[k]);
@@ -278,12 +328,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			throw new Error(
 				`service ${service.id}: ${db.engine} needs env ${missing.join(", ")}`,
 			);
-		volumeMounts.push({
-			Type: "volume",
-			Source: `${prefix}${dockerName("vol", service.id)}`,
-			Target: engine.dataDir,
-			VolumeOptions: { Labels: labelsFor(input, service.id, "volume") },
-		});
+		volumeMounts.push(volume(service.id, databaseDataDir(db)));
 	}
 	if (store) {
 		const missing = store.required.filter((k) => !input.env[k]);
@@ -295,12 +340,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			throw new Error(
 				`service ${service.id}: storage needs the storage network`,
 			);
-		volumeMounts.push({
-			Type: "volume",
-			Source: `${prefix}${dockerName("vol", service.id)}`,
-			Target: store.dataDir,
-			VolumeOptions: { Labels: labelsFor(input, service.id, "volume") },
-		});
+		volumeMounts.push(volume(service.id, store.dataDir));
 	}
 
 	const bindMounts: Mount[] = (app?.mounts ?? []).map((m) => ({
@@ -351,13 +391,21 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	const resources = spec.resources;
 	const replicas =
 		service.desiredState === "stopped" ? 0 : isDb ? 1 : (app?.replicas ?? 1);
-	const env = Object.entries({ ...input.env, ...store?.env(input.env) })
+	const env = Object.entries({
+		...input.env,
+		...store?.env(input.env),
+		...deploymentContextEnv({
+			...input.context,
+			deploymentId: input.deploymentId,
+		}),
+	})
 		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 		.map(([k, v]) => `${k}=${v}`);
 
 	return {
 		Name: `${prefix}${dockerName("svc", service.id)}`,
 		Labels: {
+			...input.bridgeLabels,
 			...labelsFor(input, service.id, kind),
 			"logistack.environment": service.environmentId,
 			...deploymentLabel,
@@ -365,7 +413,11 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 		TaskTemplate: {
 			ContainerSpec: {
 				Image: image,
-				Labels: { ...labelsFor(input, service.id, kind), ...deploymentLabel },
+				Labels: {
+					...input.bridgeContainerLabels,
+					...labelsFor(input, service.id, kind),
+					...deploymentLabel,
+				},
 				...(engine?.args
 					? { Command: engine.args }
 					: (app?.command ?? store?.args)
@@ -419,6 +471,14 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					? [{ Target: input.networks.storage }]
 					: []),
 				...(isDb && input.networks.db ? [{ Target: input.networks.db }] : []),
+				...(input.networks.bridge
+					? [
+							{
+								Target: input.networks.bridge,
+								Aliases: input.bridgeAliases ?? [service.slug],
+							},
+						]
+					: []),
 			],
 		},
 		Mode: { Replicated: { Replicas: replicas } },
@@ -445,4 +505,57 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			})),
 		},
 	};
+}
+
+/**
+ * Routers for the old platform's Traefik to this service, while it is bridged onto that
+ * platform's network. Dokploy routes compose domains by labels, not by DNS name, and Coolify routes
+ * every domain that way, so until the proxy switch a moved service keeps its domains only through
+ * these. `traefik-swarm` (Dokploy) puts them on the Swarm service and names entrypoints
+ * `web`/`websecure`; `traefik-docker` (Coolify) puts them on the containers, `http`/`https`.
+ */
+export function bridgeRouterLabels(
+	serviceId: string,
+	network: string,
+	domains: {
+		hostname: string;
+		port: number;
+		pathPrefix: string | null;
+		https: boolean;
+	}[],
+	flavor: RouterFlavor = "traefik-swarm",
+): Record<string, string> {
+	if (!domains.length) return {};
+	const swarm = flavor === "traefik-swarm";
+	const labels: Record<string, string> = {
+		"traefik.enable": "true",
+		[swarm ? "traefik.swarm.network" : "traefik.docker.network"]: network,
+	};
+	domains.forEach((d, i) => {
+		const r = `ls-${serviceId.replaceAll("_", "-")}-${i}`;
+		const path =
+			d.pathPrefix && d.pathPrefix !== "/"
+				? ` && PathPrefix(\`${d.pathPrefix}\`)`
+				: "";
+		labels[`traefik.http.routers.${r}.rule`] = `Host(\`${d.hostname}\`)${path}`;
+		labels[`traefik.http.routers.${r}.entrypoints`] = d.https
+			? swarm
+				? "websecure"
+				: "https"
+			: swarm
+				? "web"
+				: "http";
+		labels[`traefik.http.routers.${r}.service`] = r;
+		// Above the source's own router for the same host (Traefik ranks by rule length), so traffic
+		// moves the moment the old proxy sees this one, before the source stops: no gap at cutover.
+		labels[`traefik.http.routers.${r}.priority`] = "100000";
+		labels[`traefik.http.services.${r}.loadbalancer.server.port`] = String(
+			d.port,
+		);
+		if (d.https) {
+			labels[`traefik.http.routers.${r}.tls`] = "true";
+			labels[`traefik.http.routers.${r}.tls.certresolver`] = "letsencrypt";
+		}
+	});
+	return labels;
 }

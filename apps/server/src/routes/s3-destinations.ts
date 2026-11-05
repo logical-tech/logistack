@@ -35,7 +35,7 @@ export const S3DestinationView = z
 	})
 	.openapi("S3Destination");
 
-const Connection = z.object({
+export const Connection = z.object({
 	endpoint: z.url({ protocol: /^https?$/ }),
 	region: z.string().trim().min(1).default("us-east-1"),
 	bucket: z

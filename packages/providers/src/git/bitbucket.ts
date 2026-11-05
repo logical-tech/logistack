@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { defineProvider, Http, secret } from "../http.ts";
 import {
+	type CheckState,
 	type GitEvent,
 	type GitProvider,
 	type GitRepo,
 	ownerRepoPath,
 	type PrAction,
 	requireHmac,
+	summarizeChecks,
 	WebhookRejectedError,
 	withCredentials,
 } from "./types.ts";
@@ -62,6 +64,13 @@ const prPayload = z.object({
 	}),
 });
 
+const statusState: Record<string, CheckState> = {
+	SUCCESSFUL: "success",
+	INPROGRESS: "pending",
+	FAILED: "failure",
+	STOPPED: "failure",
+};
+
 const prActions: Record<string, PrAction> = {
 	"pullrequest:created": "opened",
 	"pullrequest:updated": "updated",
@@ -72,13 +81,18 @@ const prActions: Record<string, PrAction> = {
 function normalize(event: string | null, body: unknown): GitEvent | null {
 	if (event === "repo:push") {
 		const p = pushPayload.parse(body);
-		// shortcut: a push touching several branches reports only the first, enough for one-branch deploy rules.
-		const change = p.push.changes.find((c) => c.new?.type === "branch")?.new;
+		// shortcut: a push touching several refs reports only the first, enough for one-ref deploy rules.
+		const change = p.push.changes.find(
+			(c) => c.new?.type === "branch" || c.new?.type === "tag",
+		)?.new;
 		if (!change) return null;
 		return {
 			kind: "push",
 			repo: p.repository.full_name,
-			branch: change.name,
+			ref: {
+				kind: change.type === "tag" ? "tag" : "branch",
+				name: change.name,
+			},
 			commitSha: change.target.hash,
 			commitMessage: change.target.message ?? "",
 			author:
@@ -155,6 +169,22 @@ export const bitbucket = defineProvider({
 					`https://bitbucket.org/${ownerRepoPath("bitbucket", repo)}.git`,
 					"x-token-auth",
 					config.accessToken,
+				);
+			},
+			async commitChecks(repo, ref) {
+				const statuses = await all<{
+					key: string;
+					name?: string;
+					state: string;
+				}>(
+					"commitStatuses",
+					`${API}/repositories/${ownerRepoPath("bitbucket", repo)}/commit/${encodeURIComponent(ref)}/statuses?pagelen=100`,
+				);
+				return summarizeChecks(
+					statuses.map((s) => ({
+						name: s.name || s.key,
+						state: statusState[s.state] ?? "pending",
+					})),
 				);
 			},
 			async verifyWebhook(headers, rawBody) {

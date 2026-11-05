@@ -30,6 +30,7 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 	"certificate.expiring": { severity: "warning", what: "Certificate expiring" },
 	"domain.active": { severity: "success", what: "Domain active" },
 	"domain.error": { severity: "error", what: "Domain error" },
+	"migration.item_changed": { severity: "info", what: "Migration progress" },
 	"instance.update_available": {
 		severity: "info",
 		what: "LogiStack update available",

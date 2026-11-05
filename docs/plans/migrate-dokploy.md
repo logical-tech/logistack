@@ -1,0 +1,327 @@
+# Migrate from Dokploy plan
+
+A server that runs Dokploy should become a LogiStack server with one command and a wizard. When `install.sh` finds Dokploy, it installs LogiStack with ingress off. Setup then opens a migration wizard that runs these steps in order:
+
+1. Read Dokploy's database without changing it.
+2. Show what migrates fully, what migrates in part and what does not.
+3. Import everything into LogiStack without deploying it.
+4. Cut over one service at a time, with a rollback for each.
+5. Hand ports 80/443 from Traefik to Caddy with the certificates already in place.
+6. Remove Dokploy and archive its data.
+
+Coolify comes after this program, as a second source adapter for the same pipeline.
+
+Decisions (operator, 2026-11-05):
+
+- **Scope:** Dokploy first. Coolify is a later adapter.
+- **Where it runs:** detection in `install.sh`, the migration in a UI wizard (rule 8).
+- **Removal:** remove Dokploy's services, proxy and containers. Archive its DB dump and `/etc/dokploy` under `/var/lib/logistack/migration/<timestamp>/`. Deleting that archive and Dokploy's volumes needs a later explicit action.
+- **Multi-service compose:** each compose service becomes a LogiStack service in the same environment. No new "stack" type.
+
+Ground rules for this program:
+
+- **Read-only on Dokploy until cutover.** Inventory and import never write to Dokploy's DB or touch its Docker objects.
+- **Every step is idempotent and resumable.** Migration state lives in Postgres (rule 1). If the api restarts mid-migration, the migration continues from the last committed item.
+- **We touch only Dokploy's own objects, by exact name or by Dokploy's own labels.** Never a prefix that could match the user's other containers.
+- **We never copy Dokploy code.** We read its schema and on-disk layout, and write our own code.
+
+The PRs are MIG-1 to MIG-8, in that order unless the dependencies say otherwise.
+
+## What already exists
+
+- `apps/server/scripts/dokploy-compose.ts` maps one compose project to an `ApplicationSpec`. It is pure and has tests. It refuses named volumes, `build:`, custom networks and Traefik rules other than `Host()`.
+- `apps/server/scripts/import-dokploy.ts` imports through the API routes as the `system:import-dokploy` actor. It is idempotent through `service.imported_from` and pins images to what the running container uses.
+- `install.sh --no-ingress` / `--enable-ingress` keeps 80/443 with the old proxy until the switch.
+- A real migration on maddiona (2026-11-03) was done by hand with these pieces. It found two bugs:
+  - The worker's node sync reverts Swarm node labels to the DB values, which breaks `--enable-ingress`.
+  - The importer pinned the mutable tag instead of the running version. Fixed since.
+
+## Dependency graph
+
+- MIG-1 and MIG-2 start from `develop` and do not depend on each other.
+- MIG-3 needs MIG-1 and MIG-2.
+- MIG-4 needs MIG-3. MIG-5 needs nothing and can land any time.
+- MIG-6 needs MIG-3, MIG-4 and MIG-5. MIG-7 needs MIG-6.
+- MIG-8 runs last and checks the whole flow.
+
+## Adopt existing named volumes (MIG-1)
+
+Dokploy's databases and apps keep their data in named volumes that Dokploy created. Copying them doubles the disk space and lengthens downtime. LogiStack mounts the same volume instead.
+
+- [x] An `adopted_volume` table maps a volume owner to the existing Docker volume. The owner is a volume mount's id, or a database or storage service's id for its data directory. The volume name is the primary key, so two services can never adopt the same volume. Evidence: `packages/db/drizzle/0021_adopted_volume.sql`.
+- [x] `compileService` takes `adoptedVolumes` (owner id → name). It mounts an adopted volume under its own name, with no `VolumeOptions` labels, because Docker cannot relabel an existing volume. A database or storage service whose data directory is adopted uses that volume in place of `ls-vol-<id>`. Evidence: `adopted volumes` tests in `packages/core/test/compile-service.test.ts`. The snapshots are unchanged.
+- [x] `POST /environments/{id}/services` takes `adoptedVolumes: [{ target, volume, source: "dokploy" }]`:
+  - It needs admin.
+  - `target` must be a volume mount or the data directory.
+  - `logistack*` and `ls-*` names are refused.
+  - A volume that is already adopted returns 409.
+  - Evidence: `apps/server/test/adopted-volumes.test.ts` (5 tests).
+- [x] Before every deploy, the worker refuses an adopted volume that is missing or carries `logistack.managed`. Swarm would otherwise create an empty volume, which looks exactly like data loss. Evidence: worker integration test "a missing adopted volume fails the deployment".
+- [x] Volume backups and restores resolve the adopted name. Evidence: `volumeDockerName` in `apps/worker/src/backups.ts`, plus typecheck. No live backup run yet.
+- [x] Cleanup audit. No code path deletes a service's volume. The orphan sweep lists only `logistack.managed` objects and keeps every volume, and `uninstall.sh` removes only its own named volumes. An adopted volume has no labels, so the sweep never even sees it. Evidence: worker integration test "an adopted volume is mounted as it is and survives its service". It deploys on Swarm, serves the volume's existing data, deletes the service, sweeps past the grace period, and finds the volume still on disk.
+- [x] `dokploy-compose.ts` maps the top-level `volumes` to adopted volumes. A plain volume becomes `<appName>_<key>`, the name Dokploy's `-p <appName>` gives it. A `name:` or `external: true` volume keeps its own name. Driver options, undeclared volumes and read-only named volumes are refused. `import-dokploy.ts` sends them as `mounts` plus `adoptedVolumes`. Evidence: mapper tests and the importer integration test (`minecraft-p2m7rt_backups`).
+- [ ] Multi-node: the existence check reads the worker's own node only (`shortcut:` comment in `apply.ts`). Ask the pinned node's agent once migrations run on multi-node Swarms.
+- [ ] Credentials of an adopted database: the API mints new credentials, but the data in the volume still uses Dokploy's. MIG-3 must replace the env with Dokploy's credentials before the first deploy.
+
+## Read Dokploy into a migration inventory (MIG-2)
+
+This step maps Dokploy DB rows to an `Inventory` with one item per Dokploy service. Each item is `full`, `partial` or `unsupported`, with notes, and carries the LogiStack service drafts that replace it. The code is in `apps/server/src/migration/dokploy/`: `snapshot.ts` (the rows read, parsed with zod), `read.ts` and `inventory.ts` (pure). The Dokploy compose mapper moved there as `compose.ts`.
+
+### MIG-2a (done)
+
+- [x] Reader:
+  - [x] Every SELECT runs inside a READ ONLY transaction.
+  - [x] It checks each column it needs against `information_schema` first, and refuses a schema that lacks one, naming the column.
+  - [x] Evidence: `test/dokploy-read.test.ts`. With `DOKPLOY_SRC` set, the test applies Dokploy's own migrations from a checkout with `git show`, so no Dokploy code lands in this repo. Checked on v0.30.0 and v0.30.10.
+- [x] Hierarchy: the Dokploy project and environment names carry over, and each item names both.
+- [x] Env: Dokploy exposes only the service's own lines, with `${{project.X}}` / `${{environment.X}}` substituted. So each service gets its env at service scope, with references resolved. Vault references and invalid keys are skipped and named. Evidence: `serviceEnv` test.
+- [x] Applications:
+  - [x] Sources: docker image, GitHub, GitLab, Gitea, Bitbucket and custom git. A provider-backed source keeps `owner/repo` plus a `gitProvider` reference for MIG-3.
+  - [x] Builds: Dockerfile (path, context, stage, build args), Railpack and static. Nixpacks, Heroku and Paketo become Railpack, with a note.
+  - [x] Ports, replicas, resources (bytes and nano CPUs), placement constraints, healthcheck (`CMD` / `CMD-SHELL`), and the command split on spaces as Dokploy does.
+  - [x] Mounts: bind mounts, adopted volumes, and file mounts as configs.
+  - [x] Domains, including path prefixes, and basic auth users.
+  - [x] Reported but not carried over: redirects, previews, registry credentials, SSH keys, custom Swarm labels, networks, update and restart config, global mode, `stripPath` and `internalPath`. Drop sources and remote servers are `unsupported`.
+  - [x] Evidence: `test/dokploy-inventory.test.ts`.
+- [x] Databases:
+  - [x] The official image only, with its version kept.
+  - [x] The data volume found in Dokploy's `mount` rows at the engine's data directory is adopted.
+  - [x] Dokploy's credentials become the env (`POSTGRES_USER/PASSWORD/DB`...), so the adopted data opens.
+  - [x] Unsupported: custom images such as pgvector, and a missing data volume. An external port is reported. (Postgres 18+ was unsupported here; MIG-2c adds it.)
+  - [x] Evidence: inventory tests.
+- [x] Compose: a raw single-service file maps through the compose mapper, with Dokploy's domain rows. Evidence: inventory tests.
+- [x] Notes never carry a value. Evidence: test that searches the notes for fixture secrets.
+
+### MIG-2b (done)
+
+- [x] Multi-service compose: `mapComposeServices` maps every service, and one unsupported service refuses the whole file. Each compose service becomes a draft whose slug is its service name, so siblings resolve it on the environment network. `depends_on` sets the draft order (dependencies first). A cycle or an unknown name is reported. Dokploy domain rows attach to their `serviceName`. Evidence: inventory test "a multi-service compose becomes one service per entry".
+- [x] Git-sourced compose files are read from `<composeRoot>/<appName>/code/<composePath>`. A path that escapes the folder is skipped. Evidence: `readComposeFiles` test.
+- [x] Hostnames: apps and databases keep Dokploy's `appName` as their slug, because that is the hostname other services use on `dokploy-network`. A service name that is not a DNS label is refused. Evidence: inventory tests.
+- [x] Cross-item checks:
+  - [x] Two services with one hostname in one environment: the later item is refused.
+  - [x] An env value that names a service in another environment is reported, because Dokploy shares one network and LogiStack isolates environments.
+  - [x] Evidence: "across items" tests.
+
+### MIG-2c (done)
+
+Organization-level resources become `OrgItem`s in `Inventory.org` (`org.ts`, pure). Each one carries the body of the LogiStack create route it maps to, already checked against that route's schema (`RegistryInput`, the S3 `Connection`, each channel's and GitHub's `configSchema`). Evidence: "organization resources" tests in `test/dokploy-inventory.test.ts`.
+
+- [x] Registries: the host and image prefix become `host/namespace`. An empty URL or `docker.io` means Docker Hub (`docker.io/<prefix or username>`). `ghcr.io` and `registry.gitlab.com` get their own kinds.
+- [x] S3 destinations: an endpoint without a scheme gets `https://`. Path style is on for every provider except AWS, as rclone does. Other rclone flags are reported. A bucket name LogiStack refuses makes the destination `unsupported`.
+- [x] Database backups: each becomes a `BackupDraft` (cron, retention from `keepLatestCount`, enabled) on its database draft. If Dokploy has no count, retention is empty, so LogiStack keeps every backup too.
+  - A backup whose destination does not import is dropped with a note. So is a cron that is not 5 fields.
+  - Backups of databases inside a compose file are reported.
+  - Earlier Dokploy backups stay in the bucket under their old prefix. LogiStack writes new ones in its own layout.
+- [x] Notification channels: Slack, Discord, Teams, Mattermost, Telegram, email (SMTP and Resend), Gotify, ntfy and Pushover map to LogiStack channels.
+  - Dokploy's switches become one organization-wide rule: deploys, build errors, backups and the server threshold.
+  - Dokploy restarts, Dokploy backups and Docker cleanup have no LogiStack event. They are named in the notes.
+  - Custom webhooks (headers, unsigned) and Lark are `unsupported`.
+- [x] SSH keys: imported with their private key. A key without its private half is `unsupported`.
+- [x] Git providers:
+  - A GitHub App carries over with its id, private key, webhook secret and installation. Its webhook still points at Dokploy until the cutover moves it (MIG-3).
+  - GitHub Enterprise and apps that were never installed are `unsupported`.
+  - GitLab, Gitea and Bitbucket are connected through OAuth or app passwords in Dokploy, while LogiStack needs an access token. They are `unsupported`, and every application that uses one gets a note to reconnect it.
+- [x] Postgres 18+: Dokploy mounts the volume on the image's PGDATA (`/var/lib/postgresql/<major>/docker`), so the cluster sits at the volume root. The draft adopts the volume on LogiStack's data dir (`/var/lib/postgresql`) and sets `PGDATA=/var/lib/postgresql`. Evidence: an inventory test, plus a manual check on postgres:18 (2026-11-05): data written in Dokploy's layout reads back with this mount and `PGDATA`.
+- [x] Reader: the new tables are read the same way, with every column checked first. Evidence: the seeded reader test, and the upstream schema test on v0.30.0 and v0.30.10.
+- [ ] Not read: Dokploy's certificates, volume backups, schedules, SSO, API keys and remote servers. They are left for later or for the user.
+
+## Run a migration as a resumable state machine (MIG-3)
+
+### MIG-3a (done)
+
+- [x] `migration` and `migration_item` tables (`packages/db/drizzle/0022_migration.sql`):
+  - [x] `migration` holds the organization, the source, the status (`planned → importing → imported`) and the archive path.
+  - [x] `migration_item` holds the kind, the source id, the position, the status, the plan, the targets and the last error. The plan is the inventory item (drafts and notes) encrypted with the master key, because it carries passwords and keys. `targets` holds the resource id, or the service ids by slug for a compose split.
+  - [x] Item statuses: `planned → imported → cut_over`, plus `failed` (retried by the next import), `rolled_back` (cut over again later) and `skipped` (undone with `unskip` until the cutover). The transitions live in `packages/core/src/migration.ts`. Evidence: `packages/core/test/migration.test.ts`.
+- [x] `planMigration` stores an inventory: organization resources first, because services reference them, then the services in inventory order. An `unsupported` item starts `skipped`.
+- [x] Import (`apps/server/src/migration/import.ts`):
+  - [x] It creates every `planned` or `failed` item through the API routes, as the system actor `migrate-dokploy`. Nothing is deployed. A created service only runs after a healthy deployment, so the import never starts a second Postgres on a volume Dokploy is still using.
+  - [x] It runs in the api, not in the worker, because the routes live in the api and the worker does not depend on `apps/server`. `resumeImports` restarts an import that a restart interrupted.
+  - [x] Organization resources: registries, S3 destinations, SSH keys, notification channels plus their rule, and GitHub Apps. A GitHub App is stored through `POST /git-providers` with the new `github` variant, which keeps its key, webhook secret and installation.
+  - [x] Services go into the folder "Imported from Dokploy", in their Dokploy project and environment. A Dokploy environment that LogiStack does not have yet is created, as `custom` unless it is `production`, `staging` or `preview`. Each service keeps its slug, mounts and adopted volumes.
+  - [x] Env: the full service set is written with `PUT /services/{id}/env-vars`. Dokploy's values win over the credentials the API minted.
+  - [x] Also written: domains, basic auth, backup policies on the imported destination, and the git source bound to the imported provider.
+  - [x] Idempotent:
+    - A service is found by `importedFrom` and an organization resource by name or URL. Settings are written as full sets, and domains and policies only when missing.
+    - `targets` are saved after each service of an item, so a crash keeps what is done.
+  - [x] A failing item is marked `failed` with the route's error, and the import goes on with the next one.
+  - [x] Evidence: `apps/server/test/migration-import.test.ts` runs against Postgres and the real routes. It checks:
+    - Every resource is created, with Dokploy's slugs and credentials, the backup policy, the git binding and the notification rule.
+    - An item the API refuses is marked `failed` with the reason.
+    - After resetting every item to `planned`, as if the api had died before marking them, a second run creates nothing twice.
+- [ ] Routes to start a migration and run the import, for the wizard. They come with MIG-5 and MIG-6, once the api can reach Dokploy's database.
+- [ ] Shortcut: one api process runs an import at a time (an in-process guard). Take a row lease once the api runs replicas.
+
+### MIG-3b (done): cutover
+
+- [x] Cutover and rollback of one item run as a worker job on the `migration` queue, one at a time (`apps/worker/src/migration.ts`). The api enqueues them once the wizard's routes exist.
+- [x] The source is found by exact name or by Dokploy's own labels:
+  - the Swarm service named after the `appName`;
+  - a stack's services, by `com.docker.stack.namespace`;
+  - a compose project's containers, by `com.docker.compose.project`.
+- [x] Before anything stops, the item's `source_state` saves the replicas of each source service and the ids of its running containers. It is never overwritten, so a rollback after a crash, or after a second cutover, restores what originally ran.
+- [x] Order:
+  - A service with adopted volumes stops the source first and waits until no task runs, so two processes never write one volume.
+  - A stateless service deploys first and stops the source after, so it is never down.
+  - A service Dokploy had stopped is imported stopped and not deployed.
+  - Dokploy's services are scaled to 0 and its containers stopped. Nothing is removed.
+- [x] Bridge: a service imported from Dokploy joins `dokploy-network` (`LS_DOKPLOY_NETWORK`) under its slug, which is Dokploy's `appName`. Until MIG-4 and MIG-7, Dokploy's Traefik and the services still on Dokploy reach it by its old name. Checked on Swarm (2026-11-05): with both running, requests split between them. Once Dokploy's service is at 0 replicas, Docker DNS answers only with the LogiStack service.
+- [x] Deploy: the job queues a deployment and waits for it to be healthy. Anything else rolls the item back:
+  - It stops the LogiStack service (desired state `stopped` first, so the reconciler leaves it down) and restores Dokploy's replicas and containers.
+  - The item is `rolled_back` with the cause.
+  - If the rollback itself fails, the item stays where it was and its error names both failures.
+- [x] Evidence: `apps/worker/test/cutover.integration.test.ts` (`WORKER_IT=1`) uses a fake Dokploy (`ls-test-mig-*`) on the real Swarm. It covers:
+  - A stateless app takes over Dokploy's name on its network, then hands it back.
+  - A deployment that never gets healthy rolls back on its own.
+  - A compose with a volume has its container stopped before LogiStack starts, and started again on rollback.
+- [ ] Shortcut: a global-mode or job-mode Dokploy service is refused. Dokploy creates replicated services only.
+
+### MIG-3c (done): GitHub webhook and progress
+
+- [x] GitHub App:
+  - Cutting over an imported GitHub provider points the app's webhook at `<publicUrl>/api/webhooks/git/<providerId>` with `PATCH /app/hook/config`, as the app (JWT), keeping its secret (`pointGitHubAppHook` in `packages/providers`).
+  - If GitHub refuses, the item is still `cut_over`, because the provider works and only pushes keep going to Dokploy. Its `last_error` says to reconnect the provider.
+  - Evidence: `moving a GitHub App's webhook` tests in `packages/providers/test/git.test.ts`, run against a mocked GitHub API. Not checked against the real GitHub.
+- [x] Progress: every status change publishes `migration.item_changed` on `ls:events`, from the api's import and from the worker's cutover and rollback. Its resource is `migration:<id>`, and its payload names the item, the new status and the error.
+  - The WebSocket accepts a `migration:<id>` subscription from members of the migration's organization.
+  - Evidence:
+    - `apps/server/test/migration-import.test.ts` subscribes and sees one event per item the import moved.
+    - The cutover integration test sees `cut_over` then `rolled_back`.
+
+## Hand 80/443 from Traefik to Caddy (MIG-4)
+
+- [x] Read Dokploy's Traefik `acme.json` (`/etc/dokploy/traefik/dynamic/acme.json`). Import each certificate that is still valid for a migrated hostname into Caddy's storage, so Caddy serves it from the first second and renews it later. Evidence: unit test on a fixture `acme.json`, plus a live check that Caddy serves the imported certificate's serial. Done (2026-11-05): `planAcmeImport` in `apps/worker/src/acme-import.ts` is pure. It takes the migrated hostnames and imports a certificate only when it is valid now, its key matches and its one name is that hostname. certmagic renews by a certificate's first name, so wildcard and multi-name certificates are skipped with a reason, and Caddy issues those itself. `storeInCaddy` writes the `.key`, `.json` and `.crt` files under Let's Encrypt's issuer key in the Redis storage, in the module's envelope and directory index. It never overwrites a certificate Caddy already has. Evidence: `apps/worker/test/acme-import.test.ts` (5 tests, self-signed fixture). `apps/worker/test/acme-import.integration.test.ts` runs the repo's Caddy image with Redis storage and Let's Encrypt blocked, and checks that Caddy serves the imported serial without obtaining a certificate. Nothing calls the import yet: the switch job or the wizard will.
+- [x] Fix the node-sync bug: the ingress label must be written to the DB first, so the worker does not revert it. Evidence: regression test. Already fixed on 2026-11-03 by `429a572`, which takes a different approach than writing to the DB first. `logistack.ingress` and `logistack.data` are system labels: Swarm owns them and the DB mirrors them (`nodeLabels` in `packages/core/src/node-labels.ts`). So `install.sh --enable-ingress` relabelling the node is never reverted, and install.sh needs no DB access. Evidence: `apps/worker/test/node-labels.integration.test.ts` ("an installer label changed out of band survives a sync pass") and `packages/core/test/node-labels.test.ts`, re-run 2026-11-05: 4 pass.
+- [x] The switch is one worker job on the `migration` queue (`{ migrationId, action: "switch_proxy" }`, `apps/worker/src/proxy-switch.ts`):
+  - [x] Before anything changes, it saves on the migration (`proxy_state`) what Traefik is: a container with its restart policy, or a service with its replicas. It also saves which nodes are labelled `logistack.ingress=pending`.
+  - [x] It imports Traefik's still-valid certificates for the migrated hostnames (the domains of `cut_over` items). It reads `acme.json` through the Docker API's archive endpoint from Traefik's own container: the daemon reads it as root, so mode 600 and the api running as `bun` do not matter. A read failure is recorded and the switch goes on, and Caddy then issues the certificates itself.
+  - [x] It stops `dokploy-traefik`, matched by exact name, as a container or a service. A container also gets restart policy `no`, or the next reboot would bring it back onto 80/443.
+  - [x] It labels the waiting nodes `logistack.ingress=true` and waits until Caddy runs a task on each.
+  - [x] It probes every migrated hostname over HTTPS and records the results. A failed probe does not undo the switch: DNS or a certificate still being issued is not Caddy being down.
+  - [x] If Caddy does not run within `LS_PROXY_SWITCH_TIMEOUT_MS` (90 s), the nodes go back to `pending` and Traefik starts again with its saved restart policy. The result is `fell_back`.
+  - [x] Evidence: `apps/worker/test/proxy-switch.integration.test.ts` (`WORKER_IT=1`) runs on the real Swarm. A fake Traefik container (`--restart always`) and a fake global Caddy compete for one host port, behind a test-only ingress label.
+    - Switched: Traefik exited with policy `no`, Caddy took the port, the probe reached Caddy, the certificate is in Caddy's Redis storage, and a second run is a no-op.
+    - Fell back: a Caddy that exits leaves the label `pending`, and Traefik runs again with policy `always`, answering on the port.
+  - [ ] The measured downtime of a real switch comes in MIG-8.
+  - [ ] Shortcut: a Traefik container is looked for on the worker's own daemon only, which is where Dokploy runs it on a single-node server.
+
+## Detect Dokploy in install.sh (MIG-5)
+
+- [x] Detect Dokploy from the Swarm service `dokploy` or the directory `/etc/dokploy`, and Coolify from the container `coolify` or `/data/coolify`. Coolify detection only prints "Coolify migration is not supported yet" for now. Evidence: `SMOKE_DOKPLOY=1 bash install/smoke.sh` (`ls-test-mig5-dind`, fake `dokploy`/`dokploy-postgres` services, `dokploy-traefik` on 80/443, a `coolify` container), 2026-11-05: `PASS Coolify detected: reported as not supported, install carried on`, `PASS Dokploy detected: plan explained, 80/443 left to Traefik, password from its secret`. `/etc/dokploy` with neither service running is a normal install.
+- [x] When Dokploy is found, `install.sh` explains the plan, then installs with `--no-ingress` and the private setup. It allows ports 80/443 held by Dokploy's Traefik, and it writes `migration_source=dokploy` to `/etc/logistack`. Evidence: same run, `PASS /etc/logistack/migration: migration_source=dokploy`, `PASS ingress off: Caddy 0/0, API through the tunnel on 127.0.0.1:3001 (3000 is Dokploy's)`, `PASS install.sh re-run next to Dokploy: restarts no task`, `PASS Dokploy untouched`. Dokploy publishes 3000, so the tunnel defaults to 3001 there.
+- [x] Mount `/etc/dokploy` read-only into the api so the wizard can read compose files and `acme.json`. Connect to Dokploy's Postgres over its overlay network, using the credentials Dokploy keeps on disk. Never print them. Evidence: same run, `PASS api: readDokploy(dokploySource(config)) lists 'Fake Dokploy project'; /etc/dokploy mounted ro`, `PASS Dokploy's password is in no output, log, config file or api service spec`. Finding: Dokploy keeps no credentials under `/etc/dokploy`. Since 0.26.6 the password is a Swarm secret mounted into `dokploy-postgres` (`POSTGRES_PASSWORD_FILE`); `install/stack.dokploy.yml` mounts that same secret into the api. Before 0.26.6 it is a plain `POSTGRES_PASSWORD` in that service's env, which the installer pipes into the secret `logistack-dokploy-postgres-password`. Call sites use `dokploySource(loadConfig())` from `apps/server/src/migration/dokploy/source.ts`. Not verified: the pre-0.26.6 env path (no smoke case), and reading `acme.json`, which Dokploy keeps at mode 600 for root while the api runs as `bun`. Since resolved: the MIG-4 switch reads it through the Docker API from Traefik's container. The smoke database has only the reader's columns, not Dokploy's real schema.
+- [x] `docs/INSTALL.md` has a "Migrating from Dokploy" section. Evidence: the doc.
+
+## Migration wizard in the UI (MIG-6)
+
+### MIG-6a (done): the wizard's API
+
+- [x] `apps/server/src/routes/migrations.ts`, admin only, scoped to the actor's organization:
+  - `GET /migrations/source`: what install.sh found (`dokploy` or null) and the latest migration, so the wizard can resume.
+  - `POST /migrations`: reads Dokploy read-only through `dokploySource` (MIG-5) and plans the inventory. It answers 409 when there is no Dokploy.
+  - `GET /migrations/{id}`: the items with their status, support level, notes, services (slug, kind, engine, domains, running, stateful), targets and last error, plus the proxy switch (status, certificates, probes). Nothing from the plan's values is ever returned.
+  - `POST /migrations/{id}/import`: runs in the background.
+  - `POST /migration-items/{id}/cutover` and `/rollback`: queue the worker job, one per item at a time. A status the state machine refuses answers 409 before reaching the queue.
+  - `POST /migration-items/{id}/skip` and `/unskip`: an unsupported item cannot be unskipped.
+  - `POST /migrations/{id}/proxy-switch`: queues the MIG-4 switch.
+  - Progress: `migration.item_changed` on the `migration:<id>` WebSocket channel (MIG-3c).
+- [x] Evidence: `apps/server/test/migration-routes.test.ts` (4 tests). It covers:
+  - the source, and the 409 without Dokploy;
+  - a view that carries no secret;
+  - skip and unskip;
+  - a cutover refused before the import, then queued after it.
+
+### MIG-6b (done): the wizard
+
+The wizard lives at Settings → Migrate (`apps/web/src/routes/_app/settings/migrate.tsx`). It is built on the shared `Wizard`, extended with `ready`: a gate computed from server state that blocks Continue and says what is missing. Its API module is `src/lib/api/migrations.ts`, with a mock for `VITE_API_MOCK=1`. Progress arrives through `subscribeEvents` on `migration:<id>`, with polling only while something moves.
+
+- [x] Home shows admins a "Dokploy runs on this server" panel until traffic is switched, linking to Start or Continue migration. A panel, not a redirect, so Home stays usable. Settings → Migrate is in the nav and the command palette.
+- [x] Signature: the header carries the migration as a signal strip, one cell per Dokploy item in cutover order. A cell is grey while it waits, blue while it moves and green on LogiStack. Items staying on Dokploy are faded.
+- [x] Step 1, Review what moves: "Read Dokploy" plans the migration, then lists the organization resources first and then each project and environment. Every item shows its support level, notes on demand and a switch to leave it on Dokploy. Unsupported items cannot be switched on.
+- [x] Step 2, Import: one button imports every planned item and retries only the failed ones. Rows go live as events land. A failed row shows the route's error and "Leave on Dokploy".
+- [x] Step 3, Move services:
+  - "Move N services in order" queues them all, databases first; the worker runs one at a time.
+  - Each row says whether it pauses (adopted volumes), has no downtime, or moves without starting because it was stopped on Dokploy, and has Move, Move back, Try again and Leave on Dokploy.
+  - The settings (registries, S3, notifications, SSH keys) are listed apart, with nothing to switch.
+- [x] Step 4, Switch traffic: a confirmation that says Traefik comes back on its own after 90 s. After the switch it lists the certificates imported or issued fresh (with the reason), every domain's probe, and then "Move webhook" for each GitHub App.
+- [x] Step 5, Done: what runs on LogiStack, what stays on Dokploy with its notes, and a note that removing Dokploy comes with MIG-7.
+- [x] Evidence (2026-11-05, mock API, in-app browser):
+  - The full flow was run at 1440 px in dark and light.
+  - Step 3 was checked at 390 px, where the rows stack the name over the status and action.
+  - The impeccable detector found nothing.
+  - Typecheck, Biome, `bun test src` (87) and `vite build` pass.
+- [ ] Not verified: a keyboard-only run of the whole flow, a recorded video, and the wizard against a real api with a real Dokploy. That last one comes in MIG-8.
+
+## Decommission Dokploy (MIG-7)
+
+### MIG-7a (done): archive and remove
+
+A `decommission` job on the `migration` queue (`apps/worker/src/decommission.ts`), started by `POST /migrations/{id}/decommission` and by "Remove Dokploy" at the end of the wizard. The user types `dokploy` to confirm.
+
+- [x] Gate: every item is `cut_over` or `skipped`, and traffic is switched (`decommissionBlocker` in `packages/core`). The api answers 409 with the reason, the wizard shows it beside a disabled button, and the worker checks again. Evidence: core unit test, route test, integration test.
+- [x] Archive under `/var/lib/logistack/migration/<stamp>/`, mode 0700, files 0600:
+  - `dokploy.dump` (`pg_dump -Fc`), `etc-dokploy.tar.gz` and `inventory.json`. The inventory holds the items' kind, source id, name, status and targets, no plan values.
+  - It runs as a one-shot Swarm job on this node with Dokploy's own Postgres image, so `pg_dump` matches the server.
+  - The job reads the password the way `dokploy-postgres` does: the same Swarm secret, or its env before 0.26.6 (copied into the job's env, never argv, while the job lives). The inventory travels as a Swarm config.
+  - The job verifies the dump (`pg_restore -l`) and the tarball (`tar -t`) before anything is removed. A failed archive leaves Dokploy untouched. An archive is made once, so a retry keeps the first one.
+  - `install.sh` creates the directory next to Dokploy, because a Swarm bind mount needs it to exist.
+  - Evidence: `apps/worker/test/decommission.integration.test.ts` (`WORKER_IT=1`). It runs a fake `dokploy-postgres` with its password in a Swarm secret, and the dump restores into a scratch Postgres with the data in it.
+- [x] Detach: the migrated services' Swarm specs drop `dokploy-network`. After decommission, `desiredInput` no longer adds the bridge, even if the network is left. Evidence: integration test.
+- [x] Remove:
+  - Dokploy's own services (`dokploy`, `dokploy-postgres`, `dokploy-redis`, by exact name).
+  - Traefik, as a container or a service.
+  - The sources the cutovers stopped, by the names and container ids saved in each item's `source_state`.
+  - Items left on Dokploy and every volume stay.
+  - `dokploy-network` is removed only if nothing uses it. Otherwise it is listed as kept with the reason: on a real server LogiStack's api is attached to it until `install.sh` runs again without Dokploy.
+  - Evidence: integration test. Removed: postgres, core, the migrated source and Traefik. Kept: the skipped item's service and the network it still uses.
+- [x] Report: `migration.decommission` holds the archive path and files, what was removed, what was kept and why, and the result. The migration becomes `decommissioned`. The wizard shows the report.
+
+### MIG-7b (next): purge
+
+- [ ] A later "Purge archive and old volumes" action, confirmed by typing the server name. It deletes the archive and the volumes of Dokploy's own services. It never deletes adopted volumes (the `adopted_volume` table). Evidence: test.
+
+## Prove it end to end (MIG-8)
+
+### MIG-8a (done): DinD with a real Dokploy
+
+`bash install/smoke-migrate.sh` (`ls-test-mig8-dind`, `KEEP=1` to inspect) runs everything inside a throwaway docker:dind:
+- Dokploy v0.30.10, installed the way its installer does, then seeded through its own API by a throwaway admin. The seed holds:
+  - an nginx app with a domain and a `DATABASE_URL`;
+  - a Postgres 18 (Dokploy's default image) with a row of data and an S3 backup;
+  - a 3-service compose with a domain.
+- `install.sh --local-build` next to Dokploy, setup, and the whole wizard driven through LogiStack's API.
+- The images the run needs are loaded from the host's cache, because Docker Hub caps anonymous pulls per address.
+
+Evidence: a full green run (2026-11-05, run 5 of the session):
+- Dokploy's encrypted env was read.
+- All 4 items were full, imported and cut over, and every domain kept answering through Dokploy's Traefik after each cutover.
+- Row 42 was on LogiStack's Postgres 18 over the adopted volume.
+- The switch measured 7.2 s of HTTP gap. Every domain answered through Caddy.
+- Dokploy was archived and removed, and the data, the domains and the volume stayed.
+
+The run found and fixed four real problems:
+- [x] Dokploy 0.29+ encrypts env at rest (`enc:v1:`, AES-256-GCM, key HMAC-SHA256 of ENCRYPTION_KEY or BETTER_AUTH_SECRET, else its built-in default).
+  - The reader decrypts with that key (`apps/server/src/migration/dokploy/decrypt.ts`). `install.sh` hands it to the api as the secret `DOKPLOY_KEY_FILE`: Dokploy's own Swarm secret, or a copy of its env value or default.
+  - A value no key opens is noted, never echoed. Before this fix an invalid env line could put ciphertext into a note.
+  - Evidence: unit test on the format, and the DinD run.
+- [x] Compose domains went dark between their cutover and the switch.
+  - Dokploy routes composes by labels, and stopping its containers drops the routers at once.
+  - Bridged compose services now carry routers for Dokploy's Traefik swarm provider (`bridgeRouterLabels` in `packages/core`).
+  - The cutover keeps the source running for `LS_BRIDGE_SETTLE_MS` (20 s), because that provider polls Swarm every 15 s.
+  - Evidence: core test, and the DinD run (blog answered through Traefik after its cutover).
+- [x] The switch gap was 13.2 s: ~1.5 s with nothing listening, then ~11.5 s of 404 until the periodic proxy sync.
+  - The switch now pushes Caddy's config right away (`syncProxy` reports instances and failures): measured 7.2 s.
+  - It then pushes as soon as Caddy's task is starting, instead of waiting for Swarm to report it running, which took ~5 s in the logs (`firstSync`). Not measured end to end yet: Docker Hub rate-limited the reruns.
+- [x] Waits in the checks: Caddy's first routes and the bridge detach each take a few seconds.
+- [ ] Rerun `install/smoke-migrate.sh` once Docker Hub's anonymous quota resets, to measure the gap with `firstSync`. Dokploy pulls on every deploy, so it needs ~6 fresh pulls even with the preload.
+
+### MIG-8b: a real server
+
+- [ ] Live run on a fresh VPS with real Dokploy and real domains. Record the HTTP downtime per service and for the proxy switch. Evidence: probe log with timestamps. Waiting for a test server (not maddiona).
+
+## Risks
+
+- **Dokploy schema drift.** We read its DB directly. Mitigation: pin the tested versions, refuse unknown ones, and keep a fixture per supported version.
+- **Compose split semantics.** Shared anonymous volumes, `network_mode: service:x` and `links` do not map. They stay `unsupported` and are listed.
+- **Adopted volumes break rule 4** (labels on everything we create). We did not create these volumes, and the `adopted_volume` table is the replacement guard. Cleanup code must check it. This is the riskiest invariant in the program.
+- **Let's Encrypt rate limits.** They only matter if certificate import fails. The import exists so that the switch does not trigger N new issuances at once.

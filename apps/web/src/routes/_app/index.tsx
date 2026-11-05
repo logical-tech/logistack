@@ -17,6 +17,7 @@ import { SignalStrip } from "@/components/signal-strip";
 import { NodeStatusLabel, ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { foldersQuery } from "@/lib/api/folders";
+import { migrationSourceQuery, migrationsApi } from "@/lib/api/migrations";
 import { nodesQuery } from "@/lib/api/monitoring";
 import { overviewQuery } from "@/lib/api/overview";
 import { projectsQuery } from "@/lib/api/projects";
@@ -425,6 +426,38 @@ function NodesPanel() {
 	);
 }
 
+/** Shown to admins while a Dokploy or Coolify next to this server has not handed over its traffic. */
+function MigrationCallout() {
+	const source = useQuery({ ...migrationSourceQuery, retry: false });
+	const id = source.data?.migrationId;
+	const mig = useQuery({
+		queryKey: ["migrations", id ?? ""],
+		queryFn: () => migrationsApi.get(id as string),
+		enabled: Boolean(id),
+	});
+	const from = source.data?.source;
+	if (!from) return null;
+	if (mig.data?.proxy.status === "switched") return null;
+	const label = from === "coolify" ? "Coolify" : "Dokploy";
+	return (
+		<section className="t-reveal mb-6 flex flex-col gap-4 rounded-xl bg-card px-5 py-4 shadow-card ring-1 ring-border sm:flex-row sm:items-center">
+			<div className="min-w-0 flex-1">
+				<h2 className="text-sm font-semibold">{label} runs on this server</h2>
+				<p className="mt-0.5 text-sm text-muted-foreground text-pretty">
+					{id
+						? `Your migration is in progress. ${label} keeps serving until you switch traffic.`
+						: `Move its projects, databases and domains here, one service at a time. ${label} keeps serving until you switch traffic.`}
+				</p>
+			</div>
+			<Button asChild variant={id ? "outline" : "default"}>
+				<Link to="/settings/migrate">
+					{id ? "Continue migration" : "Start migration"}
+				</Link>
+			</Button>
+		</section>
+	);
+}
+
 function Home() {
 	const { data } = useQuery(overviewQuery);
 	const { data: projects } = useQuery(projectsQuery);
@@ -442,6 +475,7 @@ function Home() {
 					</Button>
 				}
 			/>
+			<MigrationCallout />
 			<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
 				<div className="grid min-w-0 content-start gap-6">
 					<ServicesPanel data={data} />

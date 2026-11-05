@@ -2,6 +2,8 @@ import {
 	BACKUP_QUEUE,
 	type BackupJob,
 	type EventEnvelope,
+	MIGRATION_QUEUE,
+	type MigrationJob,
 	SCHEDULE_QUEUE,
 	type ScheduleJob,
 } from "@logistack/contracts";
@@ -15,17 +17,22 @@ import { ensureStackDbNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { createBus, log, setLogLevel } from "./bus.ts";
 import { checkCertificates } from "./certs.ts";
+import { CHECKS_POLL_MS, pollChecks } from "./checks.ts";
 import { loadCleanup, runCleanup } from "./cleanup.ts";
 import { reportCommitStatus } from "./commit-status.ts";
 import { type Config, loadConfig } from "./config.ts";
+import { unfreeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
-import { abortAll, cancelRunning, processService } from "./deploy.ts";
+import { decommission } from "./decommission.ts";
+import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { checkForUpdate } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
+import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
 import { listenForSyncRequests, syncProxy } from "./proxy.ts";
+import { switchProxy } from "./proxy-switch.ts";
 import {
 	createQueues,
 	enqueueDeploy,
@@ -153,6 +160,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "retention") await pruneImages(ctx);
 				else if (job.name === "update-check") await checkForUpdate(ctx);
 				else if (job.name === "cleanup") await runCleanup(ctx);
+				else if (job.name === "checks") await pollChecks(ctx);
 				else await sweepOrphans(ctx);
 			},
 			{
@@ -174,6 +182,20 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			},
 			{ connection, concurrency: cfg.LS_RUN_CONCURRENCY },
 		),
+		// One cutover at a time: the wizard moves services in order, databases first.
+		new Worker<MigrationJob>(
+			MIGRATION_QUEUE,
+			async (job) => {
+				const d = job.data;
+				if (d.action === "switch_proxy") await switchProxy(ctx, d.migrationId);
+				else if (d.action === "decommission")
+					await decommission(ctx, d.migrationId);
+				else if (d.action === "unfreeze") await unfreeze(ctx, d.migrationId);
+				else if (d.action === "cutover") await cutOver(ctx, d.itemId);
+				else await rollBack(ctx, d.itemId);
+			},
+			{ connection, concurrency: 1 },
+		),
 	];
 	for (const w of workers) w.on("failed", failed(w.name));
 
@@ -184,6 +206,12 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		await ctx.db.select().from(schedule),
 	);
 	await syncCleanupScheduler(ctx.queues, await loadCleanup(ctx.db));
+	// Not tied to the reconcile interval: a deployment awaiting checks must always be able to move on.
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"checks-every",
+		{ every: CHECKS_POLL_MS },
+		{ name: "checks" },
+	);
 
 	if (cfg.LS_RECONCILE_INTERVAL_MS > 0) {
 		const every = cfg.LS_RECONCILE_INTERVAL_MS;
@@ -235,14 +263,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 	const stranded = await ctx.db
 		.selectDistinct({ serviceId: deployment.serviceId })
 		.from(deployment)
-		.where(
-			notInArray(deployment.status, [
-				"healthy",
-				"failed",
-				"cancelled",
-				"superseded",
-			]),
-		);
+		.where(notInArray(deployment.status, terminal));
 	for (const s of stranded) await enqueueDeploy(ctx.queues, s.serviceId);
 	await enqueueProxySync(ctx.queues, "boot");
 	await ensureStackDbNetwork(ctx).catch((e) =>

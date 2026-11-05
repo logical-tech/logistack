@@ -62,7 +62,7 @@ const Credentials = z.object({
 	password: z.string().min(1).optional(),
 });
 
-const RegistryInput = Credentials.extend({
+export const RegistryInput = Credentials.extend({
 	kind: ExternalKind,
 	url: Url,
 	isDefault: z.boolean().default(false),

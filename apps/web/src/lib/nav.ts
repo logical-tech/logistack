@@ -1,5 +1,6 @@
 import {
 	Activity,
+	ArrowRightLeft,
 	Bell,
 	Boxes,
 	Cable,
@@ -17,6 +18,7 @@ import {
 	LockKeyhole,
 	type LucideIcon,
 	Network,
+	Palette,
 	Settings2,
 	ShieldCheck,
 	TerminalSquare,
@@ -216,6 +218,14 @@ export const NAV: NavGroup[] = [
 				},
 			},
 			{
+				to: "/settings/appearance",
+				title: "Appearance",
+				icon: Palette,
+				description:
+					"Light, dark or system, and a colour theme: LogiStack Default, editor classics or one of the shadcn presets.",
+				keywords: ["theme", "dark", "light", "colors", "catppuccin"],
+			},
+			{
 				to: "/settings/members",
 				title: "Members",
 				icon: Users,
@@ -232,13 +242,22 @@ export const NAV: NavGroup[] = [
 				title: "Authentication",
 				icon: LockKeyhole,
 				description:
-					"Single sign-on through your identity provider, over OIDC or SAML.",
+					"Two-factor requirement, and single sign-on through your identity provider over OIDC or SAML.",
 				empty: {
 					title: "No identity provider yet",
 					body: "Connect Okta, Entra ID, Google Workspace, Keycloak or any OIDC or SAML provider. People from your email domain join with the role you choose.",
 					action: "Add OIDC provider",
 				},
-				keywords: ["sso", "oidc", "saml", "okta", "login"],
+				keywords: [
+					"sso",
+					"oidc",
+					"saml",
+					"okta",
+					"login",
+					"2fa",
+					"mfa",
+					"two-factor",
+				],
 			},
 			{
 				to: "/settings/roles",
@@ -303,6 +322,14 @@ export const NAV: NavGroup[] = [
 					action: "Check now",
 				},
 				keywords: ["upgrade", "version", "release"],
+			},
+			{
+				to: "/settings/migrate",
+				title: "Migrate",
+				icon: ArrowRightLeft,
+				description:
+					"Move projects, databases, domains and settings over from Dokploy or Coolify, one service at a time.",
+				keywords: ["dokploy", "import", "migration", "coolify"],
 			},
 			{
 				to: "/settings/audit-log",

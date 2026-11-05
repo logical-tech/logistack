@@ -1,8 +1,9 @@
 import { createRoute, z } from "@hono/zod-openapi";
+import { BasicAuthUserInput } from "@logistack/contracts";
 import { serviceBasicAuth } from "@logistack/db";
 import { eq } from "drizzle-orm";
 import { mutation } from "../audit.ts";
-import { Failure } from "../errors.ts";
+import { hashUsers } from "../basic-auth.ts";
 import { log } from "../log.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { requestProxySync } from "../redis.ts";
@@ -14,19 +15,7 @@ const BasicAuthView = z
 
 const BasicAuthInput = z.object({
 	/** Empty turns protection off. A listed user without a password keeps the one it has. */
-	users: z
-		.array(
-			z.object({
-				username: z
-					.string()
-					.trim()
-					.min(1)
-					.max(64)
-					.regex(/^[^:\s]+$/, "no colons or spaces"),
-				password: z.string().min(8).max(128).optional(),
-			}),
-		)
-		.max(20),
+	users: z.array(BasicAuthUserInput).max(20),
 });
 
 export const serviceAuth = router()
@@ -63,7 +52,7 @@ export const serviceAuth = router()
 				summary:
 					"Set or clear basic auth in front of every domain of the service",
 				description:
-					"The proxy checks the credentials before the request reaches the service; no redeploy is needed.",
+					"The proxy checks the credentials before the request reaches the service; no redeploy is needed. Applies to domains added later too. A domain's own basic_auth rule (PUT /domains/{id}/access) adds its users to these.",
 				middleware: [requirePermission("write", byParam("service"))],
 				request: { params: IdParam, ...body(BasicAuthInput) },
 				responses: { 200: json(BasicAuthView, "Saved"), ...errors },
@@ -74,28 +63,11 @@ export const serviceAuth = router()
 			const { users } = c.req.valid("json");
 			const { db, config } = c.var.deps;
 			c.set("auditResourceId", id);
-			if (new Set(users.map((u) => u.username)).size !== users.length)
-				throw new Failure("bad_request", "usernames must be unique");
 			const [row] = await db
 				.select()
 				.from(serviceBasicAuth)
 				.where(eq(serviceBasicAuth.serviceId, id));
-			const hashed = await Promise.all(
-				users.map(async (u) => {
-					if (u.password)
-						return {
-							username: u.username,
-							hash: await Bun.password.hash(u.password, {
-								algorithm: "bcrypt",
-								cost: 10,
-							}),
-						};
-					const kept = row?.users.find((x) => x.username === u.username);
-					if (!kept)
-						throw new Failure("bad_request", `${u.username} needs a password`);
-					return kept;
-				}),
-			);
+			const hashed = await hashUsers(users, row?.users ?? []);
 			if (hashed.length === 0)
 				await db
 					.delete(serviceBasicAuth)

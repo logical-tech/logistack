@@ -5,6 +5,7 @@ import {
 	EnvVarInput,
 	EventEnvelope,
 	ServiceSpec,
+	TemplateApplication,
 } from "../src/index.ts";
 
 const app = {
@@ -233,4 +234,18 @@ test("ApiError shape", () => {
 	expect(
 		ApiError.safeParse({ code: "not_found", message: "flat" }).success,
 	).toBe(false);
+});
+
+test("a template cannot set a LOGISTACK_ variable", () => {
+	const parse = (env: Record<string, string>) =>
+		TemplateApplication.safeParse({
+			name: "web",
+			kind: "application",
+			image: "nginx:1.27",
+			env,
+		});
+	expect(parse({ PORT: "80" }).success).toBe(true);
+	const r = parse({ LOGISTACK_URL: "x" });
+	expect(r.success).toBe(false);
+	expect(r.error?.issues[0]?.message).toContain("reserved");
 });
