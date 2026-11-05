@@ -154,7 +154,7 @@ const replicasOf = (s: Service): number | undefined => {
 };
 
 /** Sets a Swarm service's replicas, retrying on a stale version. */
-async function scale(ctx: Ctx, name: string, replicas: number) {
+export async function scale(ctx: Ctx, name: string, replicas: number) {
 	for (let attempt = 0; ; attempt++) {
 		const svc = await inspectService(ctx, name);
 		if (!svc) return;
@@ -178,7 +178,7 @@ async function scale(ctx: Ctx, name: string, replicas: number) {
 }
 
 /** Until no task of the service runs, or `STOP_WAIT_MS` passes. */
-async function waitStopped(ctx: Ctx, name: string) {
+export async function waitStopped(ctx: Ctx, name: string) {
 	const deadline = Date.now() + STOP_WAIT_MS;
 	while (Date.now() < deadline) {
 		const tasks = await ctx.docker.tasks.list({ service: [name] });
@@ -201,7 +201,7 @@ async function waitStopped(ctx: Ctx, name: string) {
 }
 
 /** 304: the container already is in the state asked for. */
-const unlessAlready = (e: unknown) => {
+export const unlessAlready = (e: unknown) => {
 	if (!(e instanceof DockerError && e.status === 304)) throw e;
 };
 

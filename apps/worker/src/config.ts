@@ -30,6 +30,16 @@ const ConfigSchema = z.object({
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
 	LS_DB_NETWORK: z.string().default("ls-db"),
+	/** The node label Caddy's placement waits on (`install.sh` writes `pending`, then `true`). */
+	LS_INGRESS_LABEL: z.string().default("logistack.ingress"),
+	/** Dokploy's Traefik, a container or a service by this exact name; the proxy switch stops it. */
+	LS_DOKPLOY_TRAEFIK: z.string().default("dokploy-traefik"),
+	/** How long the proxy switch waits for Caddy before it starts Traefik again. */
+	LS_PROXY_SWITCH_TIMEOUT_MS: z.coerce
+		.number()
+		.int()
+		.positive()
+		.default(90_000),
 	/** Dokploy's shared network: services migrated from it join it until it is gone (MIG-7). */
 	LS_DOKPLOY_NETWORK: z.string().default("dokploy-network"),
 	/** Swarm service name of the Caddy ingress (stack `logistack`, service `caddy`). */

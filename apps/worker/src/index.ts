@@ -30,6 +30,7 @@ import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
 import { listenForSyncRequests, syncProxy } from "./proxy.ts";
+import { switchProxy } from "./proxy-switch.ts";
 import {
 	createQueues,
 	enqueueDeploy,
@@ -183,8 +184,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		new Worker<MigrationJob>(
 			MIGRATION_QUEUE,
 			async (job) => {
-				if (job.data.action === "cutover") await cutOver(ctx, job.data.itemId);
-				else await rollBack(ctx, job.data.itemId);
+				const d = job.data;
+				if (d.action === "switch_proxy") await switchProxy(ctx, d.migrationId);
+				else if (d.action === "cutover") await cutOver(ctx, d.itemId);
+				else await rollBack(ctx, d.itemId);
 			},
 			{ connection, concurrency: 1 },
 		),

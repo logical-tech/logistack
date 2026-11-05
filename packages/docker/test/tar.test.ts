@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildTar, safeRelativePath } from "../src/tar.ts";
+import { buildTar, firstTarFile, safeRelativePath } from "../src/tar.ts";
 
 test("safeRelativePath normalizes and refuses escapes", () => {
 	expect(safeRelativePath("a//b/./c.html")).toBe("a/b/c.html");
@@ -58,4 +58,11 @@ test("buildTar output extracts with tar, long paths and parents included", () =>
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test("firstTarFile reads back the first file, past directories", () => {
+	const data = new TextEncoder().encode('{"acme":1}');
+	const tar = buildTar([{ path: "dynamic/acme.json", data }]);
+	expect(new TextDecoder().decode(firstTarFile(tar))).toBe('{"acme":1}');
+	expect(firstTarFile(new Uint8Array(1024))).toBeUndefined();
 });

@@ -23,6 +23,29 @@ export type MigrationSourceState = {
 	containers: string[];
 };
 
+/**
+ * The proxy switch (MIG-4): what Traefik was, which nodes were waiting for ingress, and how it went.
+ * Saved before anything changes, so the fallback restores it after a crash too.
+ */
+export type ProxySwitchState = {
+	traefik?:
+		| { kind: "container"; id: string; restartPolicy: string; running: boolean }
+		| { kind: "service"; name: string; replicas: number };
+	nodes?: string[];
+	certificates?: {
+		imported: string[];
+		skipped: { hostname: string; reason: string }[];
+		error?: string;
+	};
+	result?:
+		| {
+				status: "switched";
+				at: string;
+				probes: { hostname: string; ok: boolean; detail: string }[];
+		  }
+		| { status: "fell_back"; at: string; error: string };
+};
+
 /** A migration from another platform into one organization; its items carry the work. */
 export const migration = pgTable("migration", {
 	id: id("mig"),
@@ -31,6 +54,7 @@ export const migration = pgTable("migration", {
 		.references(() => organization.id, { onDelete: "cascade" }),
 	source: migrationSource("source").notNull(),
 	status: migrationStatus("status").notNull().default("planned"),
+	proxyState: jsonb("proxy_state").$type<ProxySwitchState>(),
 	/** Where the source's data was archived on decommission (MIG-7). */
 	archivePath: text("archive_path"),
 	...timestamps,
