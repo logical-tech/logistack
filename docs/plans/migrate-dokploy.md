@@ -214,6 +214,25 @@ Organization-level resources become `OrgItem`s in `Inventory.org` (`org.ts`, pur
 
 ## Migration wizard in the UI (MIG-6)
 
+### MIG-6a (done): the wizard's API
+
+- [x] `apps/server/src/routes/migrations.ts`, admin only, scoped to the actor's organization:
+  - `GET /migrations/source`: what install.sh found (`dokploy` or null) and the latest migration, so the wizard can resume.
+  - `POST /migrations`: reads Dokploy read-only through `dokploySource` (MIG-5) and plans the inventory. It answers 409 when there is no Dokploy.
+  - `GET /migrations/{id}`: the items with their status, support level, notes, services (slug, kind, engine, domains, running, stateful), targets and last error, plus the proxy switch (status, certificates, probes). Nothing from the plan's values is ever returned.
+  - `POST /migrations/{id}/import`: runs in the background.
+  - `POST /migration-items/{id}/cutover` and `/rollback`: queue the worker job, one per item at a time. A status the state machine refuses answers 409 before reaching the queue.
+  - `POST /migration-items/{id}/skip` and `/unskip`: an unsupported item cannot be unskipped.
+  - `POST /migrations/{id}/proxy-switch`: queues the MIG-4 switch.
+  - Progress: `migration.item_changed` on the `migration:<id>` WebSocket channel (MIG-3c).
+- [x] Evidence: `apps/server/test/migration-routes.test.ts` (4 tests). It covers:
+  - the source, and the 409 without Dokploy;
+  - a view that carries no secret;
+  - skip and unskip;
+  - a cutover refused before the import, then queued after it.
+
+### MIG-6b: the wizard
+
 Load the UI skills listed in CLAUDE.md before starting.
 
 - [ ] After admin setup, when `migration_source` is set, the dashboard opens the wizard. It can also be reached from Settings → Migrate. Evidence: screenshot.

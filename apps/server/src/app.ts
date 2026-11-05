@@ -32,6 +32,7 @@ import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
 import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
+import { migrations } from "./routes/migrations.ts";
 import { networkMapRoutes } from "./routes/network-map.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
@@ -163,6 +164,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", files)
 		.route("/api", storage)
 		.route("/api", databases)
+		.route("/api", migrations)
 		.route("/", realtime)
 		.route("/", terminal);
 
