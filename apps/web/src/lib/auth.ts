@@ -23,7 +23,12 @@ export const authClient = createAuthClient({
 });
 
 export type SessionUser = { id: string; name: string; email: string };
-export type Org = { id: string; name: string; slug: string };
+export type Org = {
+	id: string;
+	name: string;
+	slug: string;
+	logo: string | null;
+};
 
 /** Outcome of a sign-in attempt, so screens branch on one value. */
 export type SignInResult =
@@ -139,7 +144,12 @@ const httpAuth: AuthPort = {
 	},
 	async listOrganizations() {
 		const { data } = await authClient.organization.list();
-		return (data ?? []).map(({ id, name, slug }) => ({ id, name, slug }));
+		return (data ?? []).map(({ id, name, slug, logo }) => ({
+			id,
+			name,
+			slug,
+			logo: logo ?? null,
+		}));
 	},
 	async setActiveOrganization(id) {
 		await authClient.organization.setActive({ organizationId: id });
@@ -154,8 +164,8 @@ const mockUser: SessionUser = {
 	email: "simone@logical.it",
 };
 const mockOrgs: Org[] = [
-	{ id: "org_logical", name: "Logical", slug: "logical" },
-	{ id: "org_acme", name: "Acme Retail", slug: "acme-retail" },
+	{ id: "org_logical", name: "Logical", slug: "logical", logo: null },
+	{ id: "org_acme", name: "Acme Retail", slug: "acme-retail", logo: null },
 ];
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const readMock = () => {

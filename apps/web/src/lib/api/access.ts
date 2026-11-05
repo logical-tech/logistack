@@ -42,6 +42,10 @@ export const sshKeysQuery = queryOptions({
 	queryKey: ["access", "ssh-keys"],
 	queryFn: () => a.sshKeys.list(),
 });
+export const organizationQuery = queryOptions({
+	queryKey: ["access", "organization"],
+	queryFn: () => a.organization.get(),
+});
 export const twoFactorSettingQuery = queryOptions({
 	queryKey: ["access", "two-factor"],
 	queryFn: () => a.twoFactor.get(),
@@ -65,6 +69,7 @@ export const useApiKeys = () => useQuery(apiKeysQuery);
 export const useServiceAccounts = () => useQuery(serviceAccountsQuery);
 export const useSshKeys = () => useQuery(sshKeysQuery);
 export const useInstanceSettings = () => useQuery(instanceSettingsQuery);
+export const useOrganization = () => useQuery(organizationQuery);
 export const useTwoFactorSetting = () => useQuery(twoFactorSettingQuery);
 
 /** A mutation that refreshes every access view (members, roles, grants, keys) on success. */
@@ -115,6 +120,20 @@ export function useSetTwoFactorPolicy() {
 				qc.invalidateQueries({ queryKey: ["access"] }),
 				qc.invalidateQueries({ queryKey: ["audit"] }),
 				qc.invalidateQueries({ queryKey: meQuery.queryKey }),
+			]),
+	});
+}
+
+/** The org switcher lists organizations through better-auth, so its list refreshes too. */
+export function useUpdateOrganization() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: a.organization.update,
+		onSuccess: () =>
+			Promise.all([
+				qc.invalidateQueries({ queryKey: ["access"] }),
+				qc.invalidateQueries({ queryKey: ["audit"] }),
+				qc.invalidateQueries({ queryKey: ["organizations"] }),
 			]),
 	});
 }
