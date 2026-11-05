@@ -61,8 +61,10 @@ export function createTransport(
 		opts: RequestOptions = {},
 	): Promise<Response> {
 		const headers: Record<string, string> = { ...opts.headers };
-		let body: string | undefined;
-		if (opts.body !== undefined) {
+		let body: string | Uint8Array | undefined;
+		// Bytes go as they are (a tar for the archive endpoint); anything else is JSON.
+		if (opts.body instanceof Uint8Array) body = opts.body;
+		else if (opts.body !== undefined) {
 			headers["content-type"] = "application/json";
 			body = JSON.stringify(opts.body);
 		}

@@ -361,6 +361,16 @@ export interface ContainerSummary {
 	Labels: Labels;
 }
 
+/** `X-Docker-Container-Path-Stat`; `mode` is a Go `fs.FileMode` (type bits high, permissions low). */
+export interface PathStat {
+	name: string;
+	size: number;
+	mode: number;
+	/** RFC 3339. */
+	mtime: string;
+	linkTarget: string;
+}
+
 export interface ContainerInspect {
 	Id: string;
 	Name: string;

@@ -123,3 +123,119 @@ export function firstTarFile(tar: Uint8Array): Uint8Array | undefined {
 	}
 	return undefined;
 }
+
+export type TarHeader = {
+	name: string;
+	type: "file" | "dir" | "symlink" | "hardlink" | "other";
+	size: number;
+	/** Permission bits. */
+	mode: number;
+	/** Unix seconds. */
+	mtime: number;
+	linkname: string;
+};
+export type TarEvent = { header: TarHeader } | { data: Uint8Array };
+
+const TYPES: Record<string, TarHeader["type"]> = {
+	"0": "file",
+	"\0": "file",
+	"7": "file",
+	"1": "hardlink",
+	"2": "symlink",
+	"5": "dir",
+};
+
+const dec = new TextDecoder();
+const field = (h: Uint8Array, at: number, len: number) => {
+	const b = h.subarray(at, at + len);
+	const nul = b.indexOf(0);
+	return dec.decode(nul === -1 ? b : b.subarray(0, nul));
+};
+const octalField = (h: Uint8Array, at: number, len: number) =>
+	Number.parseInt(field(h, at, len).trim() || "0", 8);
+
+/** `<len> <key>=<value>\n` records; `len` counts bytes, so this walks bytes, not characters. */
+function paxRecords(b: Uint8Array): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (let at = 0; at < b.length; ) {
+		const sp = b.indexOf(0x20, at);
+		const len = sp === -1 ? 0 : Number(dec.decode(b.subarray(at, sp)));
+		if (!len) break;
+		const rec = dec.decode(b.subarray(sp + 1, at + len - 1));
+		const eq = rec.indexOf("=");
+		if (eq > 0) out[rec.slice(0, eq)] = rec.slice(eq + 1);
+		at += len;
+	}
+	return out;
+}
+
+/**
+ * Streams a tar as each entry's header followed by its content in chunks, without buffering a
+ * whole file. PAX `path`/`linkpath`/`size`/`mtime` and GNU long names apply to the next header.
+ */
+export async function* readTar(
+	source: AsyncIterable<Uint8Array>,
+): AsyncGenerator<TarEvent> {
+	const it = source[Symbol.asyncIterator]();
+	let buf = new Uint8Array(0);
+	const pull = async () => {
+		const r = await it.next();
+		if (r.done) return false;
+		buf = buf.length ? Buffer.concat([buf, r.value]) : r.value;
+		return true;
+	};
+	const take = async (n: number) => {
+		while (buf.length < n)
+			if (!(await pull())) throw new Error("tar ended mid-entry");
+		const out = buf.subarray(0, n);
+		buf = buf.subarray(n);
+		return out;
+	};
+	let pax: Record<string, string> = {};
+	let longName: string | undefined;
+	let longLink: string | undefined;
+	try {
+		for (;;) {
+			while (buf.length < BLOCK) if (!(await pull())) return;
+			const h = await take(BLOCK);
+			if (h.every((b) => b === 0)) return;
+			const flag = String.fromCharCode(h[156] ?? 0);
+			const size = pax.size ? Number(pax.size) : octalField(h, 124, 12);
+			const pad = (BLOCK - (size % BLOCK)) % BLOCK;
+			if (flag === "x" || flag === "g" || flag === "L" || flag === "K") {
+				const body = await take(size + pad);
+				if (flag === "x") pax = paxRecords(body.subarray(0, size));
+				else if (flag === "L") longName = field(body, 0, size);
+				else if (flag === "K") longLink = field(body, 0, size);
+				continue;
+			}
+			const prefix = field(h, 345, 155);
+			const short = field(h, 0, 100);
+			yield {
+				header: {
+					name: pax.path ?? longName ?? (prefix ? `${prefix}/${short}` : short),
+					type: TYPES[flag] ?? "other",
+					size,
+					mode: octalField(h, 100, 8) & 0o7777,
+					mtime: pax.mtime
+						? Math.floor(Number(pax.mtime))
+						: octalField(h, 136, 12),
+					linkname: pax.linkpath ?? longLink ?? field(h, 157, 100),
+				},
+			};
+			pax = {};
+			longName = longLink = undefined;
+			for (let left = size; left > 0; ) {
+				if (!buf.length && !(await pull()))
+					throw new Error("tar ended mid-entry");
+				const data = buf.subarray(0, Math.min(left, buf.length));
+				buf = buf.subarray(data.length);
+				left -= data.length;
+				yield { data };
+			}
+			await take(pad);
+		}
+	} finally {
+		await it.return?.();
+	}
+}
