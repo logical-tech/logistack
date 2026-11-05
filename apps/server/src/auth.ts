@@ -48,7 +48,13 @@ async function readOrigins(config: Config, db: Db) {
 		.where(eq(instanceSettings.id, "singleton"));
 	return {
 		publicUrl: row?.publicUrl ?? null,
-		trusted: [config.WEB_ORIGIN, ...(row ? settingsOrigins(row) : [])],
+		trusted: [
+			config.WEB_ORIGIN,
+			...(config.LOGISTACK_TUNNEL_ORIGIN
+				? [config.LOGISTACK_TUNNEL_ORIGIN]
+				: []),
+			...(row ? settingsOrigins(row) : []),
+		],
 	};
 }
 

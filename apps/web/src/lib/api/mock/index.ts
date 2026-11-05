@@ -85,6 +85,7 @@ export const mockAdapter: ApiAdapter = {
 				{
 					setupCompleted: db.setupCompleted,
 					hasUsers: db.setupCompleted,
+					setupTokenRequired: false,
 					publicIp: db.publicIp,
 					authProviders: { github: true, google: false },
 				},

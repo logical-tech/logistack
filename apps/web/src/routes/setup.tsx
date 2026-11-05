@@ -9,7 +9,7 @@ import {
 	ShieldCheck,
 	Zap,
 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Wordmark } from "@/components/brand";
@@ -63,6 +63,8 @@ export const Route = createFileRoute("/setup")({
 type DnsChoice = DnsKind | "manual";
 
 type SetupValues = {
+	/** install.sh --public-setup prints it; never persisted. */
+	setupToken: string;
 	ownerName: string;
 	ownerEmail: string;
 	ownerPassword: string;
@@ -78,6 +80,7 @@ type SetupValues = {
 };
 
 const DEFAULTS: SetupValues = {
+	setupToken: "",
 	ownerName: "",
 	ownerEmail: "",
 	ownerPassword: "",
@@ -313,6 +316,7 @@ function DomainStep({
 function buildSteps(
 	ip: string,
 	schemas: Record<string, unknown> | undefined,
+	tokenRequired: boolean,
 ): WizardStep<SetupValues>[] {
 	const credentialSchema = (v: SetupValues) =>
 		v.domainBase === "custom" && v.dnsProvider !== "manual"
@@ -325,14 +329,40 @@ function buildSteps(
 			description:
 				"The owner can do everything, including adding people and changing these settings later.",
 			schema: z.object({
+				setupToken: tokenRequired
+					? z
+							.string()
+							.trim()
+							.min(1, "Enter the setup token install.sh printed.")
+					: z.string(),
 				ownerName: z.string().trim().min(1, "Enter your name."),
 				ownerEmail: z.email("Enter a valid email address."),
 				ownerPassword: z.string().min(12, "Use at least 12 characters."),
 			}),
 			render: (w) => (
 				<div className="grid max-w-md gap-4">
+					{tokenRequired && (
+						<Field
+							id="wz-setupToken"
+							label="Setup token"
+							error={w.error("setupToken")}
+							hint="This server accepts setup from the internet, so it asks for the token install.sh printed."
+						>
+							<Input
+								{...w.bind("setupToken")}
+								className="font-mono"
+								autoComplete="off"
+								spellCheck={false}
+								autoFocus
+							/>
+						</Field>
+					)}
 					<Field id="wz-ownerName" label="Name" error={w.error("ownerName")}>
-						<Input {...w.bind("ownerName")} autoComplete="name" autoFocus />
+						<Input
+							{...w.bind("ownerName")}
+							autoComplete="name"
+							autoFocus={!tokenRequired}
+						/>
 					</Field>
 					<Field id="wz-ownerEmail" label="Email" error={w.error("ownerEmail")}>
 						<Input
@@ -422,11 +452,14 @@ function buildSteps(
 				if (s && v.dnsProvider !== "manual") {
 					const base = domainBase(v, ip);
 					try {
-						const { zone } = await api.networking.dns.setupCheck({
-							kind: v.dnsProvider,
-							credentials: toConfig(s, v.dnsCredentials),
-							base,
-						});
+						const { zone } = await api.networking.dns.setupCheck(
+							{
+								kind: v.dnsProvider,
+								credentials: toConfig(s, v.dnsCredentials),
+								base,
+							},
+							v.setupToken.trim(),
+						);
 						return {
 							ok: true,
 							message: `${DNS_KINDS[v.dnsProvider].label} manages ${zone.name}`,
@@ -441,7 +474,7 @@ function buildSteps(
 					}
 				}
 				const probe = `ls-check.${domainBase(v, ip)}`;
-				const r = await checkDns(probe);
+				const r = await checkDns(probe, v.setupToken.trim());
 				return r.ok
 					? {
 							ok: true,
@@ -652,7 +685,17 @@ function SetupPage() {
 	const complete = useCompleteSetup();
 	const ip = status?.publicIp ?? "0.0.0.0";
 	const { data: schemas } = useQuery(schemasQuery);
-	const steps = useMemo(() => buildSteps(ip, schemas?.dns), [ip, schemas]);
+	const tokenRequired = status?.setupTokenRequired ?? false;
+	const steps = useMemo(
+		() => buildSteps(ip, schemas?.dns, tokenRequired),
+		[ip, schemas, tokenRequired],
+	);
+	// install.sh prints the setup URL with `#token=`: a fragment never reaches a server or its logs.
+	const [defaults] = useState(() => ({
+		...DEFAULTS,
+		setupToken:
+			new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "",
+	}));
 
 	const onStepChange = useCallback(
 		(id: string, { replace }: { replace: boolean }) =>
@@ -679,38 +722,41 @@ function SetupPage() {
 				<Wizard
 					id="setup"
 					steps={steps}
-					defaultValues={DEFAULTS}
-					secretKeys={["ownerPassword", "dnsCredentials"]}
+					defaultValues={defaults}
+					secretKeys={["setupToken", "ownerPassword", "dnsCredentials"]}
 					step={step}
 					onStepChange={onStepChange}
 					finishLabel="Finish setup"
 					onComplete={async (v) => {
 						await complete.mutateAsync({
-							owner: {
-								name: v.ownerName,
-								email: v.ownerEmail,
-								password: v.ownerPassword,
-							},
-							organization: { name: v.orgName.trim() },
-							instance: {
-								publicUrl: publicUrl(v, ip),
-								generatedDomainBase: v.domainBase,
-								customWildcard:
-									v.domainBase === "custom"
-										? `*.${domainBase(v, ip)}`
-										: undefined,
-								letsencryptEmail: v.leEmail,
-								localRegistryEnabled: v.registry,
-								dnsProvider:
-									v.domainBase === "custom" && v.dnsProvider !== "manual"
-										? {
-												kind: v.dnsProvider,
-												credentials: toConfig(
-													schemas?.dns[v.dnsProvider] as ConfigSchema,
-													v.dnsCredentials,
-												),
-											}
-										: undefined,
+							setupToken: v.setupToken.trim(),
+							input: {
+								owner: {
+									name: v.ownerName,
+									email: v.ownerEmail,
+									password: v.ownerPassword,
+								},
+								organization: { name: v.orgName.trim() },
+								instance: {
+									publicUrl: publicUrl(v, ip),
+									generatedDomainBase: v.domainBase,
+									customWildcard:
+										v.domainBase === "custom"
+											? `*.${domainBase(v, ip)}`
+											: undefined,
+									letsencryptEmail: v.leEmail,
+									localRegistryEnabled: v.registry,
+									dnsProvider:
+										v.domainBase === "custom" && v.dnsProvider !== "manual"
+											? {
+													kind: v.dnsProvider,
+													credentials: toConfig(
+														schemas?.dns[v.dnsProvider] as ConfigSchema,
+														v.dnsCredentials,
+													),
+												}
+											: undefined,
+								},
 							},
 						});
 						// Setup creates the owner but no session; sign in as them.

@@ -29,6 +29,7 @@ describe.skipIf(!hasDocker)("first-run setup", () => {
 		expect((await h.call("GET", "/api/setup/status")).json).toEqual({
 			setupCompleted: false,
 			hasUsers: false,
+			setupTokenRequired: false,
 			publicIp: "203.0.113.7",
 			authProviders: { github: false, google: false },
 		});
@@ -54,6 +55,7 @@ describe.skipIf(!hasDocker)("first-run setup", () => {
 		expect((await h.call("GET", "/api/setup/status")).json).toEqual({
 			setupCompleted: true,
 			hasUsers: true,
+			setupTokenRequired: false,
 			publicIp: "203.0.113.7",
 			authProviders: { github: false, google: false },
 		});

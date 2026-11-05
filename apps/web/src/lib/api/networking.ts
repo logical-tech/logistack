@@ -10,7 +10,7 @@ import {
 import type { InferRequestType, InferResponseType } from "hono/client";
 import type { StatusCode } from "hono/utils/http-status";
 import { api } from ".";
-import { client } from "./client";
+import { client, setupHeader } from "./client";
 import { done, ok } from "./http";
 
 type Api = typeof client.api;
@@ -87,7 +87,10 @@ export type NetworkingApi = {
 			serviceId: string,
 			input: Omit<RecordInput, "proxied" | "dnsProviderId">,
 		): Promise<Propagation>;
-		setupCheck(input: SetupDnsCheck): Promise<{ zone: DnsZone }>;
+		setupCheck(
+			input: SetupDnsCheck,
+			setupToken: string,
+		): Promise<{ zone: DnsZone }>;
 	};
 	domains: {
 		list(): Promise<DomainListItem[]>;
@@ -179,7 +182,13 @@ export const networkingHttp: NetworkingApi = {
 					json,
 				}),
 			),
-		setupCheck: (json) => ok(a().setup["dns-provider-check"].$post({ json })),
+		setupCheck: (json, setupToken) =>
+			ok(
+				a().setup["dns-provider-check"].$post({
+					json,
+					header: setupHeader(setupToken),
+				}),
+			),
 	},
 	domains: {
 		list: () => ok(a().domains.$get()),
