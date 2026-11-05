@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { EventEnvelope } from "@logistack/contracts";
 import { decrypt } from "@logistack/core";
 import {
 	adoptedVolume,
@@ -256,8 +257,32 @@ describe.skipIf(!hasDocker)("importing a Dokploy migration", () => {
 	});
 
 	test("the import creates everything through the routes, without deploying", async () => {
+		const events: EventEnvelope[] = [];
+		const stop = h.deps.bus.onEvent((e) => {
+			if (e.type === "migration.item_changed") events.push(e);
+		});
 		await runImport(h.deps, migrationId);
+		// Redis delivers asynchronously.
+		for (let i = 0; i < 50 && events.length < 10; i++) await Bun.sleep(50);
+		stop();
 		const all = await items();
+		// One event per item the import moved, on the migration's channel, naming its new status.
+		expect(
+			events
+				.map(
+					(e) => `${e.payload.kind}:${e.payload.sourceId}=${e.payload.status}`,
+				)
+				.sort(),
+		).toEqual(
+			Object.entries(all)
+				.filter(([, r]) => r.status !== "skipped")
+				.map(([k, r]) => `${k}=${r.status}`)
+				.sort(),
+		);
+		expect(events.every((e) => e.resource.id === migrationId)).toBe(true);
+		expect(
+			events.find((e) => e.payload.status === "failed")?.payload.error,
+		).toContain("a LogiStack volume cannot be adopted");
 		const status = Object.fromEntries(
 			Object.entries(all).map(([k, r]) => [k, r.status]),
 		);

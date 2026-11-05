@@ -176,10 +176,17 @@ Organization-level resources become `OrgItem`s in `Inventory.org` (`org.ts`, pur
   - A compose with a volume has its container stopped before LogiStack starts, and started again on rollback.
 - [ ] Shortcut: a global-mode or job-mode Dokploy service is refused. Dokploy creates replicated services only.
 
-### MIG-3c: GitHub webhook and progress
+### MIG-3c (done): GitHub webhook and progress
 
-- [ ] GitHub App: at cutover, point the app's webhook URL at LogiStack with `PATCH /app/hook/config` (app JWT). If that fails, the item is `partial` and says the user must reconnect. Evidence: unit test with a mocked GitHub API.
-- [ ] Progress events go to the existing `EVENTS_CHANNEL`/WebSocket. Evidence: test that subscribes and sees each transition.
+- [x] GitHub App:
+  - Cutting over an imported GitHub provider points the app's webhook at `<publicUrl>/api/webhooks/git/<providerId>` with `PATCH /app/hook/config`, as the app (JWT), keeping its secret (`pointGitHubAppHook` in `packages/providers`).
+  - If GitHub refuses, the item is still `cut_over`, because the provider works and only pushes keep going to Dokploy. Its `last_error` says to reconnect the provider.
+  - Evidence: `moving a GitHub App's webhook` tests in `packages/providers/test/git.test.ts`, run against a mocked GitHub API. Not checked against the real GitHub.
+- [x] Progress: every status change publishes `migration.item_changed` on `ls:events`, from the api's import and from the worker's cutover and rollback. Its resource is `migration:<id>`, and its payload names the item, the new status and the error.
+  - The WebSocket accepts a `migration:<id>` subscription from members of the migration's organization.
+  - Evidence:
+    - `apps/server/test/migration-import.test.ts` subscribes and sees one event per item the import moved.
+    - The cutover integration test sees `cut_over` then `rolled_back`.
 
 ## Hand 80/443 from Traefik to Caddy (MIG-4)
 
@@ -207,6 +214,7 @@ Load the UI skills listed in CLAUDE.md before starting.
 - [ ] Step 1, Inventory: a table grouped by project. Each item shows its status (full, partial, unsupported) and why. Items can be excluded. Evidence: screenshots, light and dark, at 1440 and 390 px.
 - [ ] Step 2, Import: shows live progress. A retry of a failed item runs that item only. Evidence: video.
 - [ ] Step 3, Cutover: services one at a time or all in sequence. Each row has a status, logs and a "Roll back" button. Databases go before the apps that use them. Evidence: video.
+- [ ] Cut over imported GitHub providers only after the proxy switch (step 4): GitHub must reach LogiStack's public URL once the webhook moves (MIG-3c).
 - [ ] Step 4, Proxy: lists the certificates imported, then a "Switch traffic" button. The domain probes show live. Evidence: video.
 - [ ] Step 5, Summary and decommission (MIG-7). Evidence: screenshot.
 - [ ] The whole wizard works from the keyboard and resumes on reload at the current step. Evidence: keyboard-only video, plus a reload partway through.

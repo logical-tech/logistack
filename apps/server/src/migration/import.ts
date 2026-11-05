@@ -32,6 +32,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { systemActor } from "../actor.ts";
 import { createApp } from "../app.ts";
 import type { Deps } from "../env.ts";
+import { envelope } from "../events.ts";
 import { log } from "../log.ts";
 import { slugify } from "../openapi.ts";
 import type {
@@ -349,9 +350,17 @@ async function importService(
 	return id;
 }
 
+/** Moves an item and tells the wizard: `migration.item_changed` on `migration:<id>`. */
 async function move(
 	deps: Deps,
-	row: { id: string; status: MigrationItemStatus },
+	organizationId: string,
+	row: {
+		id: string;
+		migrationId: string;
+		kind: string;
+		sourceId: string;
+		status: MigrationItemStatus;
+	},
 	event: MigrationItemEvent,
 	patch: { targets?: Record<string, string>; lastError?: string | null } = {},
 ) {
@@ -364,6 +373,20 @@ async function move(
 		.update(migrationItem)
 		.set({ status: next.state, ...patch })
 		.where(eq(migrationItem.id, row.id));
+	await deps.bus.publishEvent(
+		envelope(
+			"migration.item_changed",
+			organizationId,
+			{ type: "migration", id: row.migrationId },
+			{
+				itemId: row.id,
+				kind: row.kind,
+				sourceId: row.sourceId,
+				status: next.state,
+				error: patch.lastError ?? null,
+			},
+		),
+	);
 }
 
 const running = new Set<string>();
@@ -427,6 +450,7 @@ export async function runImport(deps: Deps, migrationId: string) {
 				created.set(key(row.kind, row.sourceId), targets);
 				await move(
 					deps,
+					mig.organizationId,
 					row,
 					{ type: "imported" },
 					{ targets, lastError: null },
@@ -440,6 +464,7 @@ export async function runImport(deps: Deps, migrationId: string) {
 				});
 				await move(
 					deps,
+					mig.organizationId,
 					row,
 					{ type: "import_failed" },
 					{ lastError: message },

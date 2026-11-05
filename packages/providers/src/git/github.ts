@@ -157,6 +157,39 @@ export const githubConfig = z.object({
 });
 export type GitHubConfig = z.infer<typeof githubConfig>;
 
+/**
+ * Points a GitHub App's webhook at `url`, keeping its secret, so an app another platform created
+ * delivers to LogiStack from now on. Authenticates as the app (JWT); needs no installation.
+ */
+export async function pointGitHubAppHook(
+	app: Pick<GitHubConfig, "appId" | "privateKey" | "webhookSecret">,
+	url: string,
+	deps?: Deps,
+): Promise<void> {
+	const jwt = await signGitHubAppJwt(
+		app.appId,
+		await importRsaPrivateKey(app.privateKey),
+	);
+	await new Http("github", deps).request(
+		"updateHookConfig",
+		`${API}/app/hook/config`,
+		{
+			method: "PATCH",
+			headers: {
+				...apiHeaders,
+				authorization: `Bearer ${jwt}`,
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({
+				url,
+				content_type: "json",
+				insecure_ssl: "0",
+				secret: app.webhookSecret,
+			}),
+		},
+	);
+}
+
 const statusState: Record<string, CheckState> = {
 	success: "success",
 	pending: "pending",

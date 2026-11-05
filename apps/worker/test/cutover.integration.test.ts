@@ -237,6 +237,11 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 			await Bun.sleep(500);
 		expect(probe(WEB)).toBe("dokploy");
 
+		const events: string[] = [];
+		ctx().bus.onEvent((e) => {
+			if (e.type === "migration.item_changed" && e.payload.itemId === itemId)
+				events.push(String(e.payload.status));
+		});
 		await cutOver(ctx(), itemId);
 		expect(await itemRow(itemId)).toMatchObject({
 			status: "cut_over",
@@ -248,6 +253,8 @@ describe.skipIf(!enabled)("migration cutover on the real Swarm", () => {
 
 		await rollBack(ctx(), itemId);
 		expect((await itemRow(itemId))?.status).toBe("rolled_back");
+		for (let i = 0; i < 50 && events.length < 2; i++) await Bun.sleep(50);
+		expect(events).toEqual(["cut_over", "rolled_back"]);
 		expect(replicas(WEB)).toBe(1);
 		expect(replicas(svcName(ctx(), serviceId))).toBe(0);
 		const [row] = await db()

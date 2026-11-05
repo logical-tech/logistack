@@ -11,7 +11,6 @@
  * volume. A stateless one deploys first and stops the source after, so it is never down: both
  * answer on Dokploy's network under the same name meanwhile (see the bridge in `apply.ts`).
  */
-import type { MigrationItemStatus } from "@logistack/contracts";
 import {
 	decrypt,
 	isTerminal,
@@ -20,11 +19,15 @@ import {
 } from "@logistack/core";
 import {
 	deployment,
+	gitProvider,
+	instanceSettings,
 	type MigrationSourceState,
+	migration,
 	migrationItem,
 	service,
 } from "@logistack/db";
 import { DockerError, type Service } from "@logistack/docker";
+import { githubConfig, pointGitHubAppHook } from "@logistack/providers";
 import { eq, inArray } from "drizzle-orm";
 import { inspectService } from "./apply.ts";
 import { log } from "./bus.ts";
@@ -34,7 +37,7 @@ import { enqueueDeploy } from "./queues.ts";
 
 /** The part of the stored plan (`apps/server/src/migration/import.ts`) the cutover reads. */
 type Plan =
-	| { type: "org" }
+	| { type: "org"; item: { kind: string } }
 	| {
 			type: "service";
 			item: {
@@ -48,25 +51,28 @@ type Plan =
 			};
 	  };
 
-type Item = typeof migrationItem.$inferSelect;
+type Item = typeof migrationItem.$inferSelect & { organizationId: string };
 
 const STOP_WAIT_MS = 120_000;
 
 async function load(ctx: Ctx, itemId: string) {
-	const [item] = await ctx.db
-		.select()
+	const [row] = await ctx.db
+		.select({ item: migrationItem, organizationId: migration.organizationId })
 		.from(migrationItem)
+		.innerJoin(migration, eq(migration.id, migrationItem.migrationId))
 		.where(eq(migrationItem.id, itemId));
-	if (!item) throw new Error(`migration item ${itemId} not found`);
+	if (!row) throw new Error(`migration item ${itemId} not found`);
+	const item: Item = { ...row.item, organizationId: row.organizationId };
 	const plan = JSON.parse(
 		await decrypt(ctx.masterKey, item.planEncrypted),
 	) as Plan;
 	return { item, plan };
 }
 
+/** Moves an item and tells the wizard: `migration.item_changed` on `migration:<id>`. */
 async function move(
 	ctx: Ctx,
-	item: { id: string; status: MigrationItemStatus },
+	item: Item,
 	event: MigrationItemEvent,
 	lastError: string | null,
 ) {
@@ -79,6 +85,42 @@ async function move(
 		.update(migrationItem)
 		.set({ status: next.state, lastError })
 		.where(eq(migrationItem.id, item.id));
+	await ctx.bus.publish(
+		"migration.item_changed",
+		item.organizationId,
+		{ type: "migration", id: item.migrationId },
+		{
+			itemId: item.id,
+			kind: item.kind,
+			sourceId: item.sourceId,
+			status: next.state,
+			error: lastError,
+		},
+	);
+}
+
+/**
+ * Points an imported GitHub App's webhook at this instance. Until then GitHub still delivers to
+ * Dokploy: run it once LogiStack answers on its public URL (after the proxy switch, MIG-4).
+ */
+async function moveGitHubHook(ctx: Ctx, providerId: string) {
+	const [gp] = await ctx.db
+		.select()
+		.from(gitProvider)
+		.where(eq(gitProvider.id, providerId));
+	if (gp?.kind !== "github")
+		throw new Error("the GitHub provider was not imported");
+	const [settings] = await ctx.db
+		.select({ publicUrl: instanceSettings.publicUrl })
+		.from(instanceSettings);
+	if (!settings?.publicUrl) throw new Error("the instance has no public URL");
+	const config = githubConfig.parse(
+		JSON.parse(await decrypt(ctx.masterKey, gp.configEncrypted)),
+	);
+	await pointGitHubAppHook(
+		config,
+		`${settings.publicUrl.replace(/\/+$/, "")}/api/webhooks/git/${providerId}`,
+	);
 }
 
 /** The source's Swarm services, by exact name or stack label. */
@@ -283,7 +325,17 @@ export async function cutOver(ctx: Ctx, itemId: string) {
 	const { item, plan } = await load(ctx, itemId);
 	if (item.status === "cut_over") return;
 	// Organization resources have nothing to switch; the GitHub webhook moves in MIG-3c.
-	if (plan.type === "org") return move(ctx, item, { type: "cut_over" }, null);
+	if (plan.type === "org") {
+		if (plan.item.kind !== "gitProvider")
+			return move(ctx, item, { type: "cut_over" }, null);
+		// The provider works either way; only pushes keep going to Dokploy until it is reconnected.
+		const why = await moveGitHubHook(ctx, item.targets.id ?? "").then(
+			() => null,
+			(e) =>
+				`the GitHub App's webhook still points at Dokploy (${e instanceof Error ? e.message : String(e)}); reconnect the provider in LogiStack`,
+		);
+		return move(ctx, item, { type: "cut_over" }, why);
+	}
 	const targets = targetsOf(item, plan);
 	const state = await saveSource(ctx, { ...item }, plan);
 	const fresh = { ...item, sourceState: state };

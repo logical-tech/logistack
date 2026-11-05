@@ -14,11 +14,12 @@ import {
 	instantiate,
 	ownerRepoPath,
 	ProviderError,
+	pointGitHubAppHook,
 	signGitHubAppJwt,
 	WebhookRejectedError,
 } from "../src/index.ts";
 import * as fx from "./fixtures/git.ts";
-import { mockFetch } from "./helpers.ts";
+import { type Call, json, mockFetch } from "./helpers.ts";
 
 const SECRET = "whsec_0123456789";
 // Independent HMAC (node:crypto) so the verifier is not checked against itself.
@@ -580,6 +581,40 @@ describe("generic SSH", () => {
 		expect(await g.getCloneUrl("ignored")).toBe("git@host:a/b.git");
 		expect(await rejection(g.verifyWebhook(new Headers(), "{}"))).toBe(
 			"not_configured",
+		);
+	});
+});
+
+describe("moving a GitHub App's webhook", () => {
+	const app = { appId: "42", privateKey: pkcs1Pem, webhookSecret: "kept" };
+
+	test("PATCHes the app's hook config as the app, keeping its secret", async () => {
+		const m = mockFetch(() => Response.json({}));
+		await pointGitHubAppHook(
+			app,
+			"https://ls.example.com/api/webhooks/git/git_1",
+			m,
+		);
+		const [call] = m.calls;
+		expect(call?.method).toBe("PATCH");
+		expect(call?.url).toBe("https://api.github.com/app/hook/config");
+		const jwt = call?.headers.authorization?.replace("Bearer ", "") ?? "";
+		const [, payload = ""] = jwt.split(".");
+		expect(
+			JSON.parse(Buffer.from(payload, "base64url").toString()),
+		).toMatchObject({ iss: "42" });
+		expect(json(call as Call)).toEqual({
+			url: "https://ls.example.com/api/webhooks/git/git_1",
+			content_type: "json",
+			insecure_ssl: "0",
+			secret: "kept",
+		});
+	});
+
+	test("a refusal from GitHub throws with its status", async () => {
+		const m = mockFetch(() => new Response("Bad credentials", { status: 401 }));
+		await expect(pointGitHubAppHook(app, "https://x/y", m)).rejects.toThrow(
+			"HTTP 401",
 		);
 	});
 });
