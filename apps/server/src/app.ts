@@ -19,6 +19,7 @@ import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
 import { backups } from "./routes/backups.ts";
 import { certificates } from "./routes/certificates.ts";
+import { containerFiles } from "./routes/container-files.ts";
 import { databases } from "./routes/databases.ts";
 import { dnsProviders } from "./routes/dns-providers.ts";
 import { domainAccess } from "./routes/domain-access.ts";
@@ -164,6 +165,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", schedules)
 		.route("/api", templates)
 		.route("/api", files)
+		.route("/api", containerFiles)
 		.route("/api", storage)
 		.route("/api", databases)
 		.route("/api", migrations)
