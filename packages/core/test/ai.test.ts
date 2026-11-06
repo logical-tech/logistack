@@ -3,9 +3,12 @@ import {
 	AnthropicStreamEncoder,
 	aiProvider,
 	anthropicToChat,
+	backoffSeconds,
 	chatToAnthropic,
 	chatToResponses,
+	classifyFailure,
 	costMicros,
+	dailyAllowance,
 	normalizeModelId,
 	parseModelRef,
 	priceFor,
@@ -331,4 +334,35 @@ test("SSE lines split across chunks", () => {
 	const s = new SseLines();
 	expect(s.push('data: {"a"')).toEqual([]);
 	expect(s.push(":1}\n\ndata: [DONE]\n")).toEqual(['{"a":1}', "[DONE]"]);
+});
+
+describe("upstream failures", () => {
+	test("quota errors hide behind other statuses", () => {
+		expect(classifyFailure(429, "")).toBe("quota");
+		expect(classifyFailure(400, "Rate limit reached for requests")).toBe(
+			"quota",
+		);
+		expect(classifyFailure(403, "FreeTierError: use the official client")).toBe(
+			"quota",
+		);
+		expect(classifyFailure(403, "invalid api key")).toBe("auth");
+		expect(classifyFailure(400, "messages: field required")).toBe("request");
+		expect(classifyFailure(404, "model not found")).toBe("missing");
+		expect(classifyFailure(503, "")).toBe("transient");
+	});
+
+	test("back-off doubles and caps", () => {
+		expect([1, 2, 3, 9, 20].map(backoffSeconds)).toEqual([2, 4, 8, 300, 300]);
+	});
+
+	test("daily allowance converts hours and months, skips minutes", () => {
+		expect(
+			dailyAllowance([
+				{ amount: 100, unit: "requests", per: "hour" },
+				{ amount: 1_000_000, unit: "tokens", per: "day" },
+				{ amount: 3_000_000, unit: "tokens", per: "month" },
+				{ amount: 20, unit: "requests", per: "minute" },
+			]),
+		).toEqual({ tokens: 1_100_000, requests: 2_400 });
+	});
 });

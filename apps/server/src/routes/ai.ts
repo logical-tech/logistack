@@ -5,6 +5,7 @@ import {
 	aiProviderIds,
 	aiProviders,
 	can,
+	dailyAllowance,
 	encrypt,
 	priceFor,
 } from "@logistack/core";
@@ -23,11 +24,17 @@ import { grantsFor, requireActor } from "../actor.ts";
 import { capsFor, monthSpend } from "../ai/budget.ts";
 import { priceCatalog } from "../ai/catalog.ts";
 import { AI_KEY_PREFIX, hashKey } from "../ai/gateway.ts";
-import { type ProviderKey, testKey } from "../ai/upstream.ts";
+import {
+	type LiveLimits,
+	liveKey,
+	type ProviderKey,
+	testKey,
+} from "../ai/upstream.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
+import { redisFor } from "../redis.ts";
 import {
 	actorCan,
 	inOrganization,
@@ -51,6 +58,7 @@ const ProviderDef = z
 		keyUrl: z.string().nullable(),
 		keyHint: z.string(),
 		customBaseUrl: z.boolean(),
+		keyless: z.boolean(),
 		defaultModel: z.string().nullable(),
 	})
 	.openapi("AiProvider");
@@ -174,6 +182,56 @@ const UsageView = z
 	})
 	.openapi("AiUsage");
 
+const Allowance = z.object({
+	amount: z.number(),
+	unit: z.enum(["tokens", "requests", "neurons", "usd"]),
+	per: z.enum(["minute", "hour", "day", "month"]),
+	scope: z.enum(["account", "model", "ip"]).optional(),
+});
+
+const Live = z.object({
+	model: z.string(),
+	limitRequests: z.number().optional(),
+	remainingRequests: z.number().optional(),
+	limitTokens: z.number().optional(),
+	remainingTokens: z.number().optional(),
+	resetRequests: z.string().optional(),
+	resetTokens: z.string().optional(),
+	observedAt: z.string(),
+});
+
+const CapacityView = z
+	.object({
+		providers: z.array(
+			z.object({
+				provider: z.string(),
+				name: z.string(),
+				keys: z.number(),
+				healthy: z.number(),
+				/** Published free-tier limits, per key; empty when the provider publishes none. */
+				limits: z.array(Allowance),
+				note: z.string().nullable(),
+				docsUrl: z.string().nullable(),
+				/** Per-day equivalents across healthy keys (minute limits excluded). */
+				daily: z.object({ tokens: z.number(), requests: z.number() }),
+				usedToday: z.object({ tokens: z.number(), requests: z.number() }),
+				/** What the provider's own rate-limit headers said on the last call. */
+				live: z.array(Live),
+			}),
+		),
+		totals: z.object({
+			tokensPerDay: z.number(),
+			requestsPerDay: z.number(),
+			tokensUsedToday: z.number(),
+			requestsUsedToday: z.number(),
+			/** Connected free providers that publish no daily figure. */
+			unpublished: z.number(),
+		}),
+		/** When today's counters started (00:00 UTC). */
+		since: z.string(),
+	})
+	.openapi("AiCapacity");
+
 const keyColumns = {
 	id: aiProviderKey.id,
 	provider: aiProviderKey.provider,
@@ -211,6 +269,7 @@ const defView = (d: AiProviderDef) => ({
 	keyHint: d.keyHint,
 	customBaseUrl: d.customBaseUrl ?? false,
 	defaultModel: d.defaultModel ?? null,
+	keyless: d.keyless ?? false,
 });
 
 const isAdmin = (c: Context<Env>) => {
@@ -308,7 +367,7 @@ export const ai = router()
 					z.object({
 						gatewayEnabled: z.boolean().optional(),
 						autoChain: z
-							.array(z.string().regex(/^[a-z]+\/.+$/, "provider/model"))
+							.array(z.string().regex(/^[a-z0-9-]+\/.+$/, "provider/model"))
 							.max(50)
 							.optional(),
 					}),
@@ -367,7 +426,7 @@ export const ai = router()
 			if (!def) throw new Failure("bad_request", "unknown provider");
 			if (def.customBaseUrl && !input.baseUrl)
 				throw new Failure("bad_request", "a custom server needs its base URL");
-			if (!def.customBaseUrl && !input.key)
+			if (!def.keyless && !input.key)
 				throw new Failure("bad_request", `${def.name} needs an API key`);
 			if (def.id === "cloudflare" && !/^[^:\s]+:\S+$/.test(input.key))
 				throw new Failure(
@@ -494,6 +553,112 @@ export const ai = router()
 			await ownKey(c, id);
 			await c.var.deps.db.delete(aiProviderKey).where(eq(aiProviderKey.id, id));
 			return c.body(null, 204);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/ai/capacity",
+			tags,
+			security,
+			summary:
+				"Free capacity of the connected providers and how much of it is used today",
+			description:
+				"Daily figures are the providers' published free tiers, multiplied by healthy keys (each key is assumed to be its own account). `live` is what each provider reported in its rate-limit headers on the last call.",
+			middleware: [requirePermission("ai", inOrganization)],
+			responses: { 200: json(CapacityView, "Capacity"), ...errors },
+		}),
+		async (c) => {
+			const orgId = requireActor(c).organizationId;
+			const { db, config } = c.var.deps;
+			const now = new Date();
+			const since = new Date(
+				Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+			);
+			const [keys, used] = await Promise.all([
+				db
+					.select({
+						id: aiProviderKey.id,
+						provider: aiProviderKey.provider,
+						enabled: aiProviderKey.enabled,
+						status: aiProviderKey.status,
+					})
+					.from(aiProviderKey)
+					.where(eq(aiProviderKey.organizationId, orgId)),
+				db
+					.select({
+						provider: aiUsage.provider,
+						requests: sql<string>`count(*)`,
+						tokens: sql<string>`coalesce(sum(${aiUsage.inputTokens} + ${aiUsage.outputTokens}), 0)`,
+					})
+					.from(aiUsage)
+					.where(
+						and(
+							eq(aiUsage.organizationId, orgId),
+							eq(aiUsage.tier, "free"),
+							gte(aiUsage.createdAt, since),
+						),
+					)
+					.groupBy(aiUsage.provider),
+			]);
+			const redis = redisFor(config.REDIS_URL);
+			const providers: z.infer<typeof CapacityView>["providers"] = [];
+			for (const def of aiProviders as readonly AiProviderDef[]) {
+				if (def.tier !== "free") continue;
+				const mine = keys.filter((k) => k.provider === def.id && k.enabled);
+				if (!mine.length) continue;
+				const healthy = mine.filter((k) => k.status !== "unhealthy").length;
+				const limits = def.freeQuota?.limits ?? [];
+				const per = dailyAllowance(limits);
+				// Anonymous providers count per IP: more keys add nothing.
+				const n = def.keyless ? Math.min(healthy, 1) : healthy;
+				const live: LiveLimits[] = [];
+				for (const k of mine) {
+					const hash = (await redis.hgetall(liveKey(k.id))) as Record<
+						string,
+						string
+					> | null;
+					for (const v of Object.values(hash ?? {})) {
+						try {
+							live.push(JSON.parse(v) as LiveLimits);
+						} catch {}
+					}
+				}
+				const u = used.find((r) => r.provider === def.id);
+				providers.push({
+					provider: def.id,
+					name: def.name,
+					keys: mine.length,
+					healthy,
+					limits: [...limits],
+					note: def.freeQuota?.note ?? null,
+					docsUrl: def.freeQuota?.docsUrl ?? null,
+					daily: { tokens: per.tokens * n, requests: per.requests * n },
+					usedToday: {
+						tokens: Number(u?.tokens ?? 0),
+						requests: Number(u?.requests ?? 0),
+					},
+					live,
+				});
+			}
+			const sum = (f: (p: (typeof providers)[number]) => number) =>
+				providers.reduce((t, p) => t + f(p), 0);
+			return c.json(
+				{
+					providers,
+					totals: {
+						tokensPerDay: sum((p) => p.daily.tokens),
+						requestsPerDay: sum((p) => p.daily.requests),
+						tokensUsedToday: sum((p) => p.usedToday.tokens),
+						requestsUsedToday: sum((p) => p.usedToday.requests),
+						unpublished: providers.filter(
+							(p) => p.daily.tokens === 0 && p.daily.requests === 0,
+						).length,
+					},
+					since: since.toISOString(),
+				},
+				200,
+			);
 		},
 	)
 	.openapi(

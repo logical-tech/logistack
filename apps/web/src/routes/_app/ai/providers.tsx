@@ -1,3 +1,4 @@
+import { aiProvider } from "@logistack/core/ai-providers";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -13,6 +14,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AddProviderButton, useAiSettings } from "@/components/ai/ai-page";
+import { formatAllowance, formatAllowances } from "@/components/ai/parts";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Panel, SkeletonRows } from "@/components/panel";
@@ -120,6 +122,11 @@ function KeyRow({ k, def }: { k: AiProviderKey; def?: AiProviderDef }) {
 	const remove = useRemoveProviderKey();
 	const [deleting, setDeleting] = useState(false);
 	const meta = KEY_STATUS[k.status];
+	/** The published free tier; paid providers have none to show. */
+	const allowance =
+		def?.tier === "free" && !def.customBaseUrl
+			? (aiProvider(k.provider)?.freeQuota?.limits ?? [])
+			: null;
 
 	const runTest = () =>
 		test.mutate(k.id, {
@@ -138,7 +145,7 @@ function KeyRow({ k, def }: { k: AiProviderKey; def?: AiProviderDef }) {
 	return (
 		<li
 			className={cn(
-				"grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors duration-(--duration-quick) hover:bg-muted/50 sm:grid-cols-[minmax(0,1fr)_9rem_8rem_auto]",
+				"grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors duration-(--duration-quick) hover:bg-muted/50 sm:grid-cols-[minmax(0,1fr)_9rem_10rem_auto]",
 			)}
 		>
 			<div className={cn("min-w-0", !k.enabled && "opacity-60")}>
@@ -181,9 +188,19 @@ function KeyRow({ k, def }: { k: AiProviderKey; def?: AiProviderDef }) {
 						: "Never checked"}
 				</span>
 			</div>
-			<span className="text-sm text-muted-foreground tabular max-sm:hidden">
-				{k.models.length} {k.models.length === 1 ? "model" : "models"}
-			</span>
+			<div className="min-w-0 max-sm:hidden">
+				<span className="block text-sm text-muted-foreground tabular">
+					{k.models.length} {k.models.length === 1 ? "model" : "models"}
+				</span>
+				{allowance && (
+					<span
+						className="block truncate text-xs text-muted-foreground tabular"
+						title={`Free tier: ${formatAllowances(allowance)}`}
+					>
+						{allowance[0] ? formatAllowance(allowance[0], true) : "Unpublished"}
+					</span>
+				)}
+			</div>
 			<div className="flex items-center gap-2">
 				<Switch
 					checked={k.enabled}

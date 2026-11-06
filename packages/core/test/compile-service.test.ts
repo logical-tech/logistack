@@ -380,6 +380,19 @@ describe("placement and rollout", () => {
 		expect(spec.Mode).toEqual({ Replicated: { Replicas: 0 } });
 	});
 
+	test("the autoscaler's count replaces spec.replicas, but not stopped", () => {
+		const scaled = { ...app.service, scaledReplicas: 4 };
+		expect(compileService({ ...app, service: scaled }).Mode).toEqual({
+			Replicated: { Replicas: 4 },
+		});
+		expect(
+			compileService({
+				...app,
+				service: { ...scaled, desiredState: "stopped" },
+			}).Mode,
+		).toEqual({ Replicated: { Replicas: 0 } });
+	});
+
 	test("every deployment changes the task spec", () => {
 		const a = compileService(app).TaskTemplate;
 		const b = compileService({ ...app, deploymentId: "dep_two" }).TaskTemplate;

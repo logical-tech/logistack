@@ -267,6 +267,13 @@
       "when": 1793989286025,
       "tag": "0037_ai_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793991353414,
+      "tag": "0038_service_autoscale",
+      "breakpoints": true
     }
   ]
 }

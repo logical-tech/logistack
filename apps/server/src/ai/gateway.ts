@@ -9,6 +9,7 @@ import {
 	can,
 	chatToAnthropic,
 	chatToResponses,
+	classifyFailure,
 	costMicros,
 	parseChunk,
 	parseModelRef,
@@ -41,12 +42,15 @@ import { BlockedHostError } from "../ssrf.ts";
 import { openTiers } from "./budget.ts";
 import { priceCatalog } from "./catalog.ts";
 import {
+	backOff,
 	type Candidate,
 	candidates,
 	coolDown,
 	endpointFor,
 	failureText,
 	isCooling,
+	observeLimits,
+	recovered,
 } from "./upstream.ts";
 
 export const AI_KEY_PREFIX = "lsai_";
@@ -152,9 +156,6 @@ async function caller(db: Db, headers: Headers): Promise<Caller> {
 
 type Attempt = { res: Response; cand: Candidate; fallbacks: number };
 
-/** Statuses that say "try elsewhere": rate limits, outages, a bad key, a model this provider lacks. */
-const RETRY = new Set([401, 402, 403, 404, 408, 409, 429, 500, 502, 503, 504]);
-
 /** Calls candidates in order until one answers with something other than a retryable failure. */
 async function route(
 	c: Context<Env>,
@@ -220,11 +221,22 @@ async function route(
 				body: JSON.stringify(body(cand)),
 				signal: AbortSignal.any([ctl.signal, c.req.raw.signal]),
 			}).finally(() => clearTimeout(timer));
-			if (res.ok) return { res, cand, fallbacks };
-			if (!RETRY.has(res.status)) return { res, cand, fallbacks };
+			void observeLimits(config.REDIS_URL, cand, res.headers).catch(() => {});
+			if (res.ok) {
+				void recovered(config.REDIS_URL, cand).catch(() => {});
+				return { res, cand, fallbacks };
+			}
 			const why = await failureText(res);
+			const kind = classifyFailure(res.status, why);
+			// The client's own mistake: every provider would refuse it, so say so now.
+			if (kind === "request")
+				return {
+					res: new Response(why, { status: res.status }),
+					cand,
+					fallbacks,
+				};
 			trail.push(`${label}: ${why}`);
-			if (res.status === 401 || res.status === 403) {
+			if (kind === "auth")
 				// A dead key: take it out until someone tests it again.
 				await db
 					.update(aiProviderKey)
@@ -234,18 +246,9 @@ async function route(
 						lastCheckedAt: new Date(),
 					})
 					.where(eq(aiProviderKey.id, cand.key.id));
-			} else if (res.status !== 404) {
-				const after = Number(res.headers.get("retry-after"));
-				await coolDown(
-					config.REDIS_URL,
-					cand,
-					Number.isFinite(after) && after > 0
-						? after
-						: res.status === 429
-							? 60
-							: 30,
-				);
-			}
+			else if (kind === "quota")
+				await backOff(config.REDIS_URL, cand, res.headers);
+			else if (kind === "transient") await coolDown(config.REDIS_URL, cand, 30);
 		} catch (err) {
 			if (c.req.raw.signal.aborted) throw err;
 			trail.push(
@@ -272,8 +275,16 @@ async function record(
 	usage: TokenUsage,
 	started: number,
 	ok: boolean,
+	/** Request and response sizes, for providers that report no usage: about 4 bytes a token. */
+	bytes?: { req: number; res: number },
 ) {
 	try {
+		if (bytes && usage.input === 0 && usage.output === 0)
+			usage = {
+				input: Math.ceil(bytes.req / 4),
+				output: Math.ceil(bytes.res / 4),
+				cached: 0,
+			};
 		const price = priceFor(
 			await priceCatalog(),
 			a.cand.def.catalogId,
@@ -312,23 +323,25 @@ function relay(
 	c: Context<Env>,
 	body: ReadableStream<Uint8Array>,
 	see: (data: string) => void,
-	end: () => void,
+	end: (bytes: number) => void,
 	encode?: { push(data: string): string[]; finish(): string[] },
 ) {
 	const dec = new TextDecoder();
 	const enc = new TextEncoder();
 	const lines = new SseLines();
 	let ended = false;
+	let seen = 0;
 	const once = () => {
 		if (ended) return;
 		ended = true;
-		end();
+		end(seen);
 	};
 	c.req.raw.signal.addEventListener("abort", once);
 	const out = body.pipeThrough(
 		new TransformStream<Uint8Array, Uint8Array>({
 			transform(chunk, ctl) {
 				for (const data of lines.push(dec.decode(chunk, { stream: true }))) {
+					seen += data.length;
 					see(data);
 					if (encode)
 						for (const s of encode.push(data)) ctl.enqueue(enc.encode(s));
@@ -367,12 +380,12 @@ function upstreamChat(req: ChatRequest, model: string): ChatRequest {
 	};
 }
 
-/** A non-2xx the client should see, passed on in its dialect. */
+/** A request every provider would refuse, passed on in the client's dialect. */
 async function upstreamFailure(a: Attempt): Promise<never> {
 	throw new GatewayError(
-		a.res.status === 400 ? 400 : 502,
+		400,
 		"upstream_error",
-		`${a.cand.def.name}: ${await failureText(a.res)}`,
+		`${a.cand.def.name}: ${await a.res.text()}`,
 	);
 }
 
@@ -474,6 +487,7 @@ export const gateway = new Hono<Env>()
 		const who = await caller(db, c.req.raw.headers);
 		const req = (await parse(c, ChatBody)) as unknown as ChatRequest;
 		const started = Date.now();
+		const reqBytes = JSON.stringify(req).length;
 		const a = await route(
 			c,
 			who,
@@ -484,8 +498,12 @@ export const gateway = new Hono<Env>()
 		);
 		if (!a.res.ok) return upstreamFailure(a);
 		if (!req.stream || !a.res.body) {
-			const body = (await a.res.json()) as ChatResponse;
-			await record(db, who, a, "chat", usageOf(body.usage), started, true);
+			const raw = await a.res.text();
+			const body = JSON.parse(raw) as ChatResponse;
+			await record(db, who, a, "chat", usageOf(body.usage), started, true, {
+				req: reqBytes,
+				res: raw.length,
+			});
 			return routeHeaders(c.json(body), a);
 		}
 		keepOpen(c);
@@ -498,7 +516,11 @@ export const gateway = new Hono<Env>()
 					const u = parseChunk(data)?.usage;
 					if (u) usage = usageOf(u);
 				},
-				() => void record(db, who, a, "chat", usage, started, true),
+				(res) =>
+					void record(db, who, a, "chat", usage, started, true, {
+						req: reqBytes,
+						res,
+					}),
 			),
 			a,
 		);
@@ -510,6 +532,7 @@ export const gateway = new Hono<Env>()
 		const native = (cand: Candidate) => cand.def.id === "anthropic";
 		const chat = anthropicToChat(req);
 		const started = Date.now();
+		const reqBytes = JSON.stringify(req).length;
 		const a = await route(
 			c,
 			who,
@@ -524,7 +547,8 @@ export const gateway = new Hono<Env>()
 		if (!a.res.ok) return upstreamFailure(a);
 		const isNative = native(a.cand);
 		if (!req.stream || !a.res.body) {
-			const body = (await a.res.json()) as Record<string, unknown>;
+			const raw = await a.res.text();
+			const body = JSON.parse(raw) as Record<string, unknown>;
 			if (isNative) {
 				await record(
 					db,
@@ -534,11 +558,15 @@ export const gateway = new Hono<Env>()
 					anthropicUsage((body.usage ?? {}) as object),
 					started,
 					true,
+					{ req: reqBytes, res: raw.length },
 				);
 				return routeHeaders(c.json(body), a);
 			}
 			const res = body as unknown as ChatResponse;
-			await record(db, who, a, "messages", usageOf(res.usage), started, true);
+			await record(db, who, a, "messages", usageOf(res.usage), started, true, {
+				req: reqBytes,
+				res: raw.length,
+			});
 			return routeHeaders(c.json(chatToAnthropic(res, req.model)), a);
 		}
 		keepOpen(c);
@@ -557,7 +585,11 @@ export const gateway = new Hono<Env>()
 								usage = anthropicUsage({ ...input, ...ev.usage });
 						} catch {}
 					},
-					() => void record(db, who, a, "messages", usage, started, true),
+					(res) =>
+						void record(db, who, a, "messages", usage, started, true, {
+							req: reqBytes,
+							res,
+						}),
 				),
 				a,
 			);
@@ -571,7 +603,11 @@ export const gateway = new Hono<Env>()
 					const u = parseChunk(data)?.usage;
 					if (u) usage = usageOf(u);
 				},
-				() => void record(db, who, a, "messages", usage, started, true),
+				(res) =>
+					void record(db, who, a, "messages", usage, started, true, {
+						req: reqBytes,
+						res,
+					}),
 				{
 					push: (data) => {
 						const chunk = parseChunk(data);
@@ -590,6 +626,7 @@ export const gateway = new Hono<Env>()
 		const native = (cand: Candidate) => cand.def.id === "openai";
 		const chat = responsesToChat(req);
 		const started = Date.now();
+		const reqBytes = JSON.stringify(req).length;
 		const a = await route(
 			c,
 			who,
@@ -605,7 +642,8 @@ export const gateway = new Hono<Env>()
 		if (!a.res.ok) return upstreamFailure(a);
 		const isNative = native(a.cand);
 		if (!req.stream || !a.res.body) {
-			const body = (await a.res.json()) as Record<string, unknown>;
+			const raw = await a.res.text();
+			const body = JSON.parse(raw) as Record<string, unknown>;
 			if (isNative) {
 				await record(
 					db,
@@ -615,11 +653,15 @@ export const gateway = new Hono<Env>()
 					responsesUsage((body.usage ?? {}) as object),
 					started,
 					true,
+					{ req: reqBytes, res: raw.length },
 				);
 				return routeHeaders(c.json(body), a);
 			}
 			const res = body as unknown as ChatResponse;
-			await record(db, who, a, "responses", usageOf(res.usage), started, true);
+			await record(db, who, a, "responses", usageOf(res.usage), started, true, {
+				req: reqBytes,
+				res: raw.length,
+			});
 			return routeHeaders(c.json(chatToResponses(res, req.model)), a);
 		}
 		keepOpen(c);
@@ -635,7 +677,11 @@ export const gateway = new Hono<Env>()
 							if (ev.response?.usage) usage = responsesUsage(ev.response.usage);
 						} catch {}
 					},
-					() => void record(db, who, a, "responses", usage, started, true),
+					(res) =>
+						void record(db, who, a, "responses", usage, started, true, {
+							req: reqBytes,
+							res,
+						}),
 				),
 				a,
 			);
@@ -648,7 +694,11 @@ export const gateway = new Hono<Env>()
 					const u = parseChunk(data)?.usage;
 					if (u) usage = usageOf(u);
 				},
-				() => void record(db, who, a, "responses", usage, started, true),
+				(res) =>
+					void record(db, who, a, "responses", usage, started, true, {
+						req: reqBytes,
+						res,
+					}),
 				{
 					push: (data) => {
 						const chunk = parseChunk(data);
@@ -671,6 +721,7 @@ export const gateway = new Hono<Env>()
 				"Embeddings need an explicit model; vectors from different models don't mix.",
 			);
 		const started = Date.now();
+		const reqBytes = JSON.stringify(req).length;
 		const a = await route(
 			c,
 			who,
@@ -680,7 +731,8 @@ export const gateway = new Hono<Env>()
 			60_000,
 		);
 		if (!a.res.ok) return upstreamFailure(a);
-		const body = (await a.res.json()) as { usage?: { prompt_tokens?: number } };
+		const raw = await a.res.text();
+		const body = JSON.parse(raw) as { usage?: { prompt_tokens?: number } };
 		await record(
 			db,
 			who,
@@ -689,6 +741,7 @@ export const gateway = new Hono<Env>()
 			{ input: body.usage?.prompt_tokens ?? 0, output: 0, cached: 0 },
 			started,
 			true,
+			{ req: reqBytes, res: raw.length },
 		);
 		return routeHeaders(c.json(body), a);
 	});

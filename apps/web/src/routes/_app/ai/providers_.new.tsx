@@ -1,9 +1,11 @@
+import { aiProvider } from "@logistack/core/ai-providers";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Search } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { TierBadge } from "@/components/ai/parts";
+import { formatAllowance, TierBadge } from "@/components/ai/parts";
 import { Field } from "@/components/field";
 import { Page, PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
@@ -15,6 +17,7 @@ import {
 } from "@/components/wizard/parts";
 import { Wizard, type WizardStep } from "@/components/wizard/wizard";
 import {
+	type AiProviderDef,
 	type AiProviderKey,
 	type AiProviderKeyInput,
 	aiSettingsQuery,
@@ -43,10 +46,40 @@ const BLURB: Record<string, string> = {
 	nvidia: "Hosted NIM endpoints for Llama, DeepSeek and more.",
 	huggingface: "Inference Providers through the Hugging Face router.",
 	cloudflare: "Workers AI models on Cloudflare's free daily allowance.",
+	ollama: "Ollama's hosted models with an Ollama account key.",
+	kilo: "Kilo's :free models, anonymous; no key needed.",
+	llm7: "Open models without a key; a free token raises the limits.",
+	ovh: "Open models on OVHcloud, anonymous and rate limited.",
+	siliconflow: "Qwen, DeepSeek and GLM models from SiliconFlow.",
+	routeway: "A model router; only its :free models are used.",
+	unorouter: "A model router; only its :free models are used.",
+	orcarouter: "A model router; only its free models are used.",
+	requesty: "A model router with many labs behind one key.",
+	navy: "A gateway with a free daily token allowance.",
+	xkiro: "A gateway with a free daily token allowance.",
+	anyapi: "A gateway with a free daily token allowance.",
+	sealion: "SEA-LION, tuned for Southeast Asian languages.",
+	longcat: "Meituan's LongCat models on a daily free quota.",
+	zhipu: "GLM Flash models from Z.ai; only Flash counts as free.",
+	modelscope: "Open models on ModelScope's inference API.",
+	aion: "Aion Labs' own models.",
 	custom: "Ollama, vLLM, LM Studio or any OpenAI-compatible server.",
 	openai: "GPT-5 and embeddings. Billed by OpenAI, counted as paid.",
 	anthropic: "Claude Sonnet, Haiku and Opus. Billed by Anthropic.",
+	deepseek: "DeepSeek chat and reasoner. Billed by DeepSeek.",
+	xai: "Grok models. Billed by xAI.",
+	together: "Open models at scale. Billed by Together AI.",
+	fireworks: "Open models on fast inference. Billed by Fireworks AI.",
 };
+
+/** The free tier in a few words, for the picker: "1M tokens/day", "Unpublished". */
+function allowanceBadge(id: string) {
+	const d = aiProvider(id);
+	if (d?.tier !== "free") return undefined;
+	if (d.customBaseUrl) return "Your hardware";
+	const first = d.freeQuota?.limits[0];
+	return first ? formatAllowance(first, true) : "Unpublished";
+}
 
 function AddProvider() {
 	const { step } = Route.useSearch();
@@ -71,9 +104,9 @@ function AddProvider() {
 					"Free providers carry the auto chain at no cost. Paid ones bill your account with them and count against each member's paid budget.",
 				schema: z.object({ provider: z.string().min(1, "Pick a provider.") }),
 				render: (w) => (
-					<ChoiceGroup
-						label="Provider"
-						value={w.values.provider || undefined}
+					<ProviderPicker
+						providers={providers}
+						value={w.values.provider}
 						invalid={Boolean(w.error("provider"))}
 						onChange={(id) => {
 							w.set("provider", id);
@@ -84,12 +117,6 @@ function AddProvider() {
 							)
 								w.set("label", defOf(id)?.name ?? "");
 						}}
-						choices={providers.map((p) => ({
-							value: p.id,
-							title: p.name,
-							description: BLURB[p.id] ?? "",
-							badge: p.tier === "free" ? "Free" : "Paid",
-						}))}
 					/>
 				),
 			},
@@ -102,7 +129,7 @@ function AddProvider() {
 					const d = defOf(v.provider);
 					return z.object({
 						label: z.string().trim().min(1, "Name this key.").max(64),
-						key: d?.customBaseUrl
+						key: d?.keyless
 							? z.string()
 							: d?.id === "cloudflare"
 								? z
@@ -134,6 +161,12 @@ function AddProvider() {
 										Point LogiStack at the server's OpenAI-compatible base URL,
 										for Ollama <strong>http://host:11434/v1</strong>. The key is
 										optional: leave it empty when the server has no auth.
+									</p>
+								) : d?.keyless ? (
+									<p>
+										{d.name} works without a key. Anonymous requests are rate
+										limited per IP, shared by everything behind this server's
+										address. Paste a key if you have one.
 									</p>
 								) : d?.id === "cloudflare" ? (
 									<p>
@@ -176,7 +209,7 @@ function AddProvider() {
 									label={
 										d?.id === "cloudflare" ? "Account ID and token" : "API key"
 									}
-									optional={d?.customBaseUrl}
+									optional={d?.keyless}
 									error={w.error("key")}
 								>
 									<Input
@@ -184,7 +217,7 @@ function AddProvider() {
 										type="password"
 										autoComplete="off"
 										spellCheck={false}
-										placeholder={d?.keyHint}
+										placeholder={d?.keyless ? undefined : d?.keyHint}
 										className="font-mono"
 									/>
 								</Field>
@@ -295,7 +328,12 @@ function AddProvider() {
 													},
 												]
 											: []),
-										{ label: "Secret", value: "Encrypted at rest" },
+										{
+											label: "Secret",
+											value: w.values.key.trim()
+												? "Encrypted at rest"
+												: "None, anonymous access",
+										},
 									],
 								},
 								{
@@ -380,6 +418,96 @@ function ModelList({ models }: { models: string[] }) {
 					</li>
 				)}
 			</ul>
+		</div>
+	);
+}
+
+type Def = AiProviderDef;
+
+/** 31 providers: a search box and Free / Paid groups keep the list scannable. */
+function ProviderPicker({
+	providers,
+	value,
+	invalid,
+	onChange,
+}: {
+	providers: Def[];
+	value: string;
+	invalid: boolean;
+	onChange: (id: string) => void;
+}) {
+	const [query, setQuery] = useState("");
+	const q = query.trim().toLowerCase();
+	const match = (p: Def) =>
+		!q ||
+		p.name.toLowerCase().includes(q) ||
+		p.id.includes(q) ||
+		(BLURB[p.id] ?? "").toLowerCase().includes(q);
+	const groups = (["free", "paid"] as const)
+		.map((tier) => ({
+			tier,
+			list: providers.filter((p) => p.tier === tier && match(p)),
+		}))
+		.filter((g) => g.list.length > 0);
+
+	return (
+		<div className="grid gap-5">
+			<div className="relative max-w-sm">
+				<Search
+					className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+					aria-hidden
+				/>
+				<Input
+					type="search"
+					value={query}
+					onChange={(e) => setQuery(e.target.value)}
+					// Enter continues the wizard; here it would submit a half-typed search.
+					onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+					placeholder={`Search ${providers.length} providers`}
+					aria-label="Search providers"
+					className="pl-8"
+				/>
+			</div>
+			{groups.length === 0 ? (
+				<p className="text-sm text-muted-foreground" aria-live="polite">
+					No provider matches “{query.trim()}”.
+				</p>
+			) : (
+				groups.map((g) => (
+					<section
+						key={g.tier}
+						aria-labelledby={`pick-${g.tier}`}
+						className="grid gap-2.5"
+					>
+						<h3
+							id={`pick-${g.tier}`}
+							className="flex items-baseline gap-2 text-sm font-semibold"
+						>
+							{g.tier === "free" ? "Free" : "Paid"}
+							<span className="text-xs font-normal text-muted-foreground tabular">
+								{g.list.length}
+							</span>
+							<span className="text-xs font-normal text-muted-foreground">
+								{g.tier === "free"
+									? "Published daily allowance shown on each"
+									: "Billed by the provider, counted against paid budgets"}
+							</span>
+						</h3>
+						<ChoiceGroup
+							label={g.tier === "free" ? "Free providers" : "Paid providers"}
+							value={value}
+							invalid={invalid}
+							onChange={onChange}
+							choices={g.list.map((p) => ({
+								value: p.id,
+								title: p.name,
+								description: BLURB[p.id] ?? "",
+								badge: allowanceBadge(p.id),
+							}))}
+						/>
+					</section>
+				))
+			)}
 		</div>
 	);
 }

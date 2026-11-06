@@ -35,6 +35,7 @@ export type AiCaps = AiBudget["caps"];
 export type AiUsage = InferResponseType<(typeof a.usage)["$get"], 200>;
 export type AiUsageRange = AiUsage["range"];
 export type AiFigures = AiUsage["totals"]["free"];
+export type AiCapacity = InferResponseType<(typeof a.capacity)["$get"], 200>;
 
 export const aiUsageRanges: AiUsageRange[] = ["24h", "7d", "30d", "90d", "12m"];
 
@@ -59,6 +60,7 @@ export type AiApi = {
 		set(userId: string, caps: AiCaps): Promise<void>;
 	};
 	usage(range: AiUsageRange, userId?: string): Promise<AiUsage>;
+	capacity(): Promise<AiCapacity>;
 };
 
 const http: AiApi = {
@@ -83,6 +85,7 @@ const http: AiApi = {
 			done(a.budgets[":userId"].$put({ param: { userId }, json })),
 	},
 	usage: (range, userId) => ok(a.usage.$get({ query: { range, userId } })),
+	capacity: () => ok(a.capacity.$get()),
 };
 
 export const aiApi: AiApi = isMock ? (await import("./mock/ai")).mockAi : http;
@@ -115,6 +118,11 @@ export const aiUsageQuery = (range: AiUsageRange) =>
 		placeholderData: keepPreviousData,
 	});
 
+export const aiCapacityQuery = queryOptions({
+	queryKey: ["ai", "capacity"],
+	queryFn: () => aiApi.capacity(),
+});
+
 /** A mutation that refreshes the AI views it touches. */
 function useAiMutation<A, R>(fn: (args: A) => Promise<R>, keys: string[][]) {
 	const qc = useQueryClient();
@@ -128,6 +136,7 @@ function useAiMutation<A, R>(fn: (args: A) => Promise<R>, keys: string[][]) {
 const KEYS = [
 	["ai", "provider-keys"],
 	["ai", "models"],
+	["ai", "capacity"],
 ];
 
 export const useUpdateAiSettings = () =>

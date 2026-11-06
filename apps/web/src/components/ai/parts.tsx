@@ -1,6 +1,7 @@
+import type { AiAllowance } from "@logistack/core/ai-providers";
 import type { ReactNode } from "react";
 import type { AiTier } from "@/lib/api/ai";
-import { formatUsd } from "@/lib/api/ai";
+import { formatCount, formatUsd } from "@/lib/api/ai";
 import { cn } from "@/lib/utils";
 
 /** Free models chart in the first series colour, paid in the second, everywhere on the AI pages. */
@@ -137,3 +138,24 @@ export function BudgetMeter({
 		</div>
 	);
 }
+
+/** "1,000" below ten thousand, "100K" and "1M" above, so small limits stay exact. */
+export const formatAmount = (n: number) =>
+	n >= 10_000 ? formatCount(n) : n.toLocaleString("en");
+
+const SCOPE = { account: "", model: " per model", ip: " per IP" } as const;
+
+/** "100K tokens/day per model"; `short` drops the scope. */
+export function formatAllowance(a: AiAllowance, short = false) {
+	const amount =
+		a.unit === "usd"
+			? `${formatUsd(a.amount)} credit`
+			: `${formatAmount(a.amount)} ${a.amount === 1 ? a.unit.slice(0, -1) : a.unit}`;
+	return `${amount}/${a.per}${short ? "" : SCOPE[a.scope ?? "account"]}`;
+}
+
+/** Every published limit in words, or "Unpublished". */
+export const formatAllowances = (limits: readonly AiAllowance[] = []) =>
+	limits.length
+		? limits.map((a) => formatAllowance(a)).join(" · ")
+		: "Unpublished";
