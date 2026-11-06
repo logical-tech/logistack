@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	ArchiveResult,
 	DiskUsage,
 	LiveHostSample,
 	NodeJoin,
@@ -7,6 +8,7 @@ import {
 	NodeJoinStep,
 	NodeUpdate,
 	NodeView,
+	normalizeContainerPath,
 	PruneReport,
 	PruneTarget,
 } from "@logistack/contracts";
@@ -220,6 +222,52 @@ export const nodes = router()
 					throw nodeFailure(e);
 				});
 			return c.json(usage, 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/nodes/{id}/host-dirs",
+			tags,
+			security,
+			summary: "Browse the directories on a node's host",
+			description:
+				"Admins only, like bind mounts. The directories (and symlinks to directories) under `path` on the node's own filesystem, read by its agent from a read-only view of `/` with symlinks resolved; the first 1,000 by name (`truncated`). Picks a bind mount source.",
+			middleware: [requirePermission("admin", inOrganization)],
+			request: {
+				params: IdParam,
+				query: z.object({ path: z.string().min(1).max(4096).default("/") }),
+			},
+			responses: {
+				200: json(ArchiveResult, "Directory and its subdirectories"),
+				...errors,
+			},
+		}),
+		async (c) => {
+			const { db, nodes } = c.var.deps;
+			const row = await ownNode(
+				db,
+				requireActor(c).organizationId,
+				c.req.valid("param").id,
+			);
+			let path: string;
+			try {
+				path = normalizeContainerPath(c.req.valid("query").path);
+			} catch (e) {
+				throw new Failure("bad_request", `path: ${(e as Error).message}`);
+			}
+			try {
+				const result = await nodes.archive(
+					row.swarmNodeId,
+					{ op: "host-dirs", path },
+					{ signal: c.req.raw.signal },
+				).result;
+				return c.json(result, 200);
+			} catch (e) {
+				throw e instanceof NodeRunnerError && e.code === "bad_request"
+					? new Failure("bad_request", e.message, { reason: e.code })
+					: nodeFailure(e);
+			}
 		},
 	)
 	.openapi(

@@ -117,6 +117,48 @@ describe.skipIf(!hasDocker)("monitoring api", () => {
 		await h?.close();
 	});
 
+	test("host dirs reach the node's agent with a normalized path", async () => {
+		const seen: unknown[] = [];
+		const real = h.deps.nodes.archive;
+		h.deps.nodes.archive = ((nodeId: string, req: unknown) => {
+			seen.push({ nodeId, req });
+			const listing = {
+				path: "/srv",
+				entry: {
+					name: "srv",
+					type: "dir",
+					size: 0,
+					mode: 0o755,
+					modifiedAt: 0,
+				},
+				entries: [],
+				truncated: false,
+			};
+			return { result: Promise.resolve(listing) };
+		}) as unknown as typeof real;
+		try {
+			const ok = await h.call(
+				"GET",
+				`/api/nodes/${nodes["swarm-b"]}/host-dirs?path=${encodeURIComponent("/srv//./")}`,
+				as(),
+			);
+			expect(ok.status).toBe(200);
+			expect(ok.json.path).toBe("/srv");
+			expect(seen).toEqual([
+				{ nodeId: "swarm-b", req: { op: "host-dirs", path: "/srv" } },
+			]);
+			const bad = await h.call(
+				"GET",
+				`/api/nodes/${nodes["swarm-b"]}/host-dirs?path=${encodeURIComponent("/srv/../etc")}`,
+				as(),
+			);
+			expect(bad.status).toBe(400);
+			expect(seen).toHaveLength(1);
+		} finally {
+			h.deps.nodes.archive = real;
+		}
+	});
+
 	test("cluster series average CPU and sum bytes and rates", async () => {
 		const res = await h.call("GET", "/api/metrics/hosts?range=1h", as());
 		expect(res.status).toBe(200);

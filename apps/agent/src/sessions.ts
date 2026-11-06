@@ -15,7 +15,7 @@ import {
 	type Frame,
 	LABEL_MANAGED,
 } from "@logistack/docker";
-import { ArchiveRefused, runArchive } from "./archive.ts";
+import { ArchiveRefused, listHostDirs, runArchive } from "./archive.ts";
 import { runDisk } from "./disk.ts";
 import { resolveTarget, TargetNotFoundError } from "./docker.ts";
 import { BackpressureError, type Link } from "./link.ts";
@@ -291,6 +291,12 @@ export function createSessions(
 	}
 
 	function archive(m: Extract<ServerMessage, { type: "archive.start" }>) {
+		const req = m.request;
+		if (req.op === "host-dirs")
+			return run(m.id, { close: () => {} }, async () => {
+				const result = await listHostDirs(hostRoot, req.path);
+				await link.sendStream({ type: "archive.result", id: m.id, ...result });
+			});
 		const ac = new AbortController();
 		const parts: Uint8Array[] = [];
 		let size = 0;
@@ -315,8 +321,8 @@ export function createSessions(
 		};
 		uploaded.promise.catch(() => {});
 		return run(m.id, session, async () => {
-			const containerId = await resolveTarget(docker, m.request.target);
-			const result = await runArchive(docker, containerId, m.request, {
+			const containerId = await resolveTarget(docker, req.target);
+			const result = await runArchive(docker, containerId, req, {
 				signal: ac.signal,
 				onData: async (data) => {
 					for (const c of chunks(data))

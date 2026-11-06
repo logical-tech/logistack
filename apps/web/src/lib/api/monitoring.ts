@@ -37,6 +37,13 @@ export const nodeQuery = (id: NodeId) =>
 	});
 
 /** No polling: a df walks every volume on the node. */
+export const hostDirsQuery = (id: NodeId, path: string) =>
+	queryOptions({
+		queryKey: ["nodes", id, "host-dirs", path],
+		queryFn: () => api.nodes.hostDirs(id, path),
+		retry: false,
+	});
+
 export const diskQuery = (id: NodeId) =>
 	queryOptions({
 		queryKey: ["nodes", id, "disk"],

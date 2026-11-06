@@ -619,6 +619,14 @@ export function mountAgentGateway(
 					"bad_request",
 					`the agent on node ${nodeId} is too old to browse files; update LogiStack on it`,
 				);
+			if (
+				req.op === "host-dirs" &&
+				nodes.get(nodeId)?.node.capabilities.includes("host-dirs") === false
+			)
+				throw new AgentError(
+					"bad_request",
+					`the agent on node ${nodeId} is too old to browse host folders; update LogiStack on it`,
+				);
 			const { conn, replies, id } = start(
 				nodeId,
 				{ type: "archive.start", id: crypto.randomUUID(), request: req },

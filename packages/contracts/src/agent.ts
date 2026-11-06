@@ -260,6 +260,8 @@ export type FileEntry = z.infer<typeof FileEntry>;
  * - `read`: a regular file's content as `archive.data`, cut at `limitBytes`.
  * - `write`: extracts the tar sent as `exec.stdin` frames (up to MAX_ARCHIVE_WRITE_BYTES, ended
  *   by `eof`) into the directory `path`.
+ * - `host-dirs`: the directories under `path` on the agent's own host, read from its read-only
+ *   view of `/` with symlinks resolved inside it. Picks a bind mount source; no container needed.
  */
 export const ArchiveRequest = z.discriminatedUnion("op", [
 	z.object({
@@ -278,6 +280,7 @@ export const ArchiveRequest = z.discriminatedUnion("op", [
 		target: ContainerTarget,
 		path: ContainerPath,
 	}),
+	z.object({ op: z.literal("host-dirs"), path: ContainerPath }),
 ]);
 export type ArchiveRequest = z.infer<typeof ArchiveRequest>;
 
