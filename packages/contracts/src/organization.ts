@@ -32,7 +32,7 @@ export type OrganizationUpdate = z.infer<typeof OrganizationUpdate>;
 
 /** A named size that services copy into their spec; editing it later never resizes a service. */
 export const ResourceProfile = Resources.extend({
-	name: z.string().trim().min(1).max(40),
+	name: z.string().trim().min(1, "Every profile needs a name").max(40),
 });
 export type ResourceProfile = z.infer<typeof ResourceProfile>;
 

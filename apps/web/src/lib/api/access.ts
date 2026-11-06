@@ -46,6 +46,10 @@ export const organizationQuery = queryOptions({
 	queryKey: ["access", "organization"],
 	queryFn: () => a.organization.get(),
 });
+export const resourceProfilesQuery = queryOptions({
+	queryKey: ["access", "resource-profiles"],
+	queryFn: () => a.resourceProfiles.get(),
+});
 export const twoFactorSettingQuery = queryOptions({
 	queryKey: ["access", "two-factor"],
 	queryFn: () => a.twoFactor.get(),
@@ -71,6 +75,7 @@ export const useSshKeys = () => useQuery(sshKeysQuery);
 export const useInstanceSettings = () => useQuery(instanceSettingsQuery);
 export const useOrganization = () => useQuery(organizationQuery);
 export const useTwoFactorSetting = () => useQuery(twoFactorSettingQuery);
+export const useResourceProfiles = () => useQuery(resourceProfilesQuery);
 
 /** A mutation that refreshes every access view (members, roles, grants, keys) on success. */
 function useAccessMutation<I, O>(fn: (input: I) => Promise<O>) {
@@ -137,6 +142,9 @@ export function useUpdateOrganization() {
 			]),
 	});
 }
+
+export const useSetResourceProfiles = () =>
+	useAccessMutation(a.resourceProfiles.set);
 
 export const useSetAllowPrivateHosts = () =>
 	useAccessMutation(a.instance.setAllowPrivateHosts);

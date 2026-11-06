@@ -1,3 +1,4 @@
+import type { ResourceProfiles } from "@logistack/contracts";
 import type { AccessAdapter } from "../access-adapter";
 import type {
 	ApiKey,
@@ -148,6 +149,15 @@ const state = {
 		trustIdpMfa: false,
 		enabledAt: null,
 	} as TwoFactorSetting,
+	resourceProfiles: {
+		profiles: [
+			{ name: "Nano", cpu: 0.25, memoryMb: 256 },
+			{ name: "Small", cpu: 0.5, memoryMb: 512 },
+			{ name: "Medium", cpu: 1, memoryMb: 1024 },
+			{ name: "Large", cpu: 2, memoryMb: 4096 },
+		],
+		defaultProfile: "Small",
+	} as ResourceProfiles,
 	organization: {
 		id: "org_logical",
 		name: "Logical",
@@ -644,6 +654,13 @@ export const mockAccess: AccessAdapter = {
 						: (state.twoFactor.enabledAt ?? new Date().toISOString()),
 			};
 			return mockAccess.twoFactor.get();
+		},
+	},
+	resourceProfiles: {
+		get: () => delay(structuredClone(state.resourceProfiles)),
+		set: async (next) => {
+			state.resourceProfiles = structuredClone(next);
+			return mockAccess.resourceProfiles.get();
 		},
 	},
 	organization: {

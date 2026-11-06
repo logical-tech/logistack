@@ -108,11 +108,12 @@ export const httpAdapter: ApiAdapter = {
 			extraDomains = [],
 			mounts,
 			importedFrom,
+			resourceProfile,
 		}) => {
 			const service = await ok(
 				api.environments[":id"].services.$post({
 					param: { id: environmentId },
-					json: { name, spec, mounts, importedFrom },
+					json: { name, spec, mounts, importedFrom, resourceProfile },
 				}),
 			);
 			const param = { param: { id: service.id } };

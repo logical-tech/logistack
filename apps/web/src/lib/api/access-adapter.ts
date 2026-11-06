@@ -1,3 +1,4 @@
+import type { ResourceProfiles } from "@logistack/contracts";
 import type { ClientResponse } from "hono/client";
 import type {
 	ApiKey,
@@ -72,6 +73,10 @@ export type AccessAdapter = {
 		get(): Promise<OrganizationProfile>;
 		update(input: OrganizationUpdateInput): Promise<OrganizationProfile>;
 	};
+	resourceProfiles: {
+		get(): Promise<ResourceProfiles>;
+		set(input: ResourceProfiles): Promise<ResourceProfiles>;
+	};
 	twoFactor: {
 		get(): Promise<TwoFactorSetting>;
 		set(policy: TwoFactorPolicyInput): Promise<TwoFactorSetting>;
@@ -131,6 +136,10 @@ export const httpAccess: AccessAdapter = {
 	organization: {
 		get: () => call(api.organization.$get()),
 		update: (json) => call(api.organization.$patch({ json })),
+	},
+	resourceProfiles: {
+		get: () => call(api.organization["resource-profiles"].$get()),
+		set: (json) => call(api.organization["resource-profiles"].$put({ json })),
 	},
 	twoFactor: {
 		get: () => call(api.organization["two-factor"].$get()),

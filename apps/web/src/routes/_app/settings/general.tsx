@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { OrganizationPanel } from "@/components/organization-panel";
 import { Page, PageHeader } from "@/components/page-header";
 import { Panel, SkeletonRows } from "@/components/panel";
+import { ResourceProfilesPanel } from "@/components/resource-profiles-panel";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -76,6 +77,7 @@ function General() {
 			/>
 			<div className="grid gap-8">
 				<OrganizationPanel />
+				<ResourceProfilesPanel />
 
 				<Panel id="instance" title="Instance">
 					{isPending || !s ? (

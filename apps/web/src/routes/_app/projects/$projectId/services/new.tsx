@@ -1,6 +1,7 @@
 import {
 	type BuildConfig,
 	databaseIcon,
+	type ResourceProfiles,
 	ServiceSpec as SpecSchema,
 } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
@@ -39,6 +40,12 @@ import {
 	LoadBalancerForm,
 	targetSuggestions,
 } from "@/components/service/load-balancer-form";
+import {
+	limitsLabel,
+	limitsOf,
+	ResourceProfileSelect,
+	UNLIMITED,
+} from "@/components/service/resource-profile-select";
 import {
 	STORAGE_DEFAULTS,
 	type StorageFields,
@@ -83,6 +90,7 @@ import {
 	type WizardStep,
 } from "@/components/wizard/wizard";
 import { ApiError } from "@/lib/api";
+import { useResourceProfiles } from "@/lib/api/access";
 import { instanceStatusQuery } from "@/lib/api/instance";
 import {
 	branchesQuery,
@@ -163,6 +171,8 @@ type V = StorageFields & {
 	https: boolean;
 	/** Image sources only: published ports, bind mounts, user, capabilities, restart. */
 	host: HostSettings;
+	/** A profile name or UNLIMITED; empty follows the organization default. */
+	resourceProfile: string;
 };
 
 const DEFAULTS: V = {
@@ -185,6 +195,7 @@ const DEFAULTS: V = {
 	hostname: "",
 	https: true,
 	host: { ports: [] },
+	resourceProfile: "",
 	...STORAGE_DEFAULTS,
 };
 
@@ -687,6 +698,11 @@ function buildSteps(
 									{ label: "Name", value: serviceName(v) },
 									{ label: "Environment", value: env.name },
 									...source,
+									...(v.kind === "compose"
+										? []
+										: [
+												{ label: "Resources", value: <ProfileSummary v={v} /> },
+											]),
 								],
 							},
 							...(v.kind === "database"
@@ -844,6 +860,43 @@ function NameField({ w }: { w: WizardApi<V> }) {
 	);
 }
 
+/** The profile the wizard will copy: the one picked, else the organization default. */
+function chosenProfile(v: V, rp: ResourceProfiles | undefined) {
+	const name = v.resourceProfile || rp?.defaultProfile;
+	return rp?.profiles.find((p) => p.name === name);
+}
+
+function ProfileSummary({ v }: { v: V }) {
+	const p = chosenProfile(v, useResourceProfiles().data);
+	return p ? (
+		<span>
+			{p.name}{" "}
+			<span className="text-muted-foreground tabular-nums">
+				{limitsLabel(p)}
+			</span>
+		</span>
+	) : (
+		"Unlimited"
+	);
+}
+
+function ProfileField({ w }: { w: WizardApi<V> }) {
+	const { data } = useResourceProfiles();
+	return (
+		<Field
+			id="wz-resourceProfile"
+			label="Resources"
+			hint="Limits per replica, copied from the profile. Change them later in the service settings."
+		>
+			<ResourceProfileSelect
+				id="wz-resourceProfile"
+				value={chosenProfile(w.values, data)?.name ?? UNLIMITED}
+				onChange={(name) => w.set("resourceProfile", name)}
+			/>
+		</Field>
+	);
+}
+
 function ConfigureStep({
 	w,
 	providers,
@@ -854,7 +907,12 @@ function ConfigureStep({
 	suggestions: string[];
 }) {
 	const v = w.values;
-	const name = <NameField w={w} />;
+	const name = (
+		<>
+			<NameField w={w} />
+			{v.kind !== "compose" && <ProfileField w={w} />}
+		</>
+	);
 	if (v.kind === "webserver") {
 		const def = WEBSERVERS[v.webserver];
 		return (
@@ -1377,6 +1435,7 @@ function NewService() {
 	const { data: project } = useQuery(projectQuery(projectId));
 	const { data: status } = useQuery(instanceStatusQuery);
 	const create = useCreateService();
+	const { data: resourceProfiles } = useResourceProfiles();
 	const createStack = useCreateComposeStack();
 	const providers = useQuery(gitProvidersQuery);
 
@@ -1454,10 +1513,25 @@ function NewService() {
 						});
 						return;
 					}
+					const spec = toSpec(v);
+					const profile = chosenProfile(v, resourceProfiles);
+					// With no choice to send (storage, or profiles still loading) the server applies the default.
+					const sized =
+						spec.kind === "storage" ||
+						spec.kind === "compose" ||
+						!resourceProfiles
+							? { spec }
+							: {
+									spec: {
+										...spec,
+										resources: profile ? limitsOf(profile) : {},
+									},
+									resourceProfile: profile?.name ?? null,
+								};
 					const service = await create.mutateAsync({
 						environmentId: env.id,
 						name,
-						spec: toSpec(v),
+						...sized,
 						...(v.kind === "webserver" && {
 							importedFrom: webserverMarker(v.webserver),
 							mounts: webserverMounts(v.webserver, webserverConfig(v)),

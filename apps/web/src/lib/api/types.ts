@@ -80,6 +80,8 @@ export type CreateServiceInput = {
 	mounts?: Body<Api["environments"][":id"]["services"]["$post"]>["mounts"];
 	/** Provenance marker, e.g. `webserver:nginx`. */
 	importedFrom?: string;
+	/** Profile the spec's limits came from; null opts out of the organization default. */
+	resourceProfile?: string | null;
 };
 export type DomainInput =
 	| { kind: "generated"; port: number }
