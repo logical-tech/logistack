@@ -122,11 +122,21 @@ export const httpAdapter: ApiAdapter = {
 			mounts,
 			importedFrom,
 			resourceProfile,
+			nodeId,
+			gameToken,
 		}) => {
 			const service = await ok(
 				api.environments[":id"].services.$post({
 					param: { id: environmentId },
-					json: { name, spec, mounts, importedFrom, resourceProfile },
+					json: {
+						name,
+						spec,
+						mounts,
+						importedFrom,
+						resourceProfile,
+						nodeId,
+						gameToken,
+					},
 				}),
 			);
 			const param = { param: { id: service.id } };

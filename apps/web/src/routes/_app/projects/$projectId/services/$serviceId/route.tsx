@@ -18,6 +18,7 @@ const BASE = "/projects/$projectId/services/$serviceId";
 /** Tabs are child routes; the id is the path segment after the service. */
 const TABS = [
 	{ id: "overview", label: "Overview", to: BASE },
+	{ id: "game", label: "Game", to: `${BASE}/game` },
 	{ id: "storage", label: "Storage", to: `${BASE}/storage` },
 	{ id: "database", label: "Database", to: `${BASE}/database` },
 	{ id: "files", label: "Files", to: `${BASE}/files` },
@@ -83,7 +84,10 @@ function ServiceLayout() {
 					items={TABS.filter(
 						(t) =>
 							(t.id !== "storage" || service.kind === "storage") &&
-							(t.id !== "database" || service.kind === "database"),
+							(t.id !== "database" || service.kind === "database") &&
+							(t.id !== "game" || service.kind === "game") &&
+							// Game traffic is not HTTP: Caddy domains don't reach it.
+							(t.id !== "domains" || service.kind !== "game"),
 					).map((t) => ({ id: t.id, label: t.label }))}
 				/>
 			</div>

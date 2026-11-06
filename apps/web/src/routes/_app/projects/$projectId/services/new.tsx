@@ -1,6 +1,7 @@
 import {
 	type BuildConfig,
 	databaseIcon,
+	GAMES,
 	type ResourceProfiles,
 	ServiceSpec as SpecSchema,
 } from "@logistack/contracts";
@@ -12,6 +13,7 @@ import {
 	ChevronsUpDown,
 	Container,
 	Database,
+	Gamepad2,
 	GitBranch,
 	Globe,
 	HardDrive,
@@ -27,6 +29,16 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { brandMark } from "@/components/brand-icon";
 import { Field } from "@/components/field";
+import {
+	GAME_DEFAULTS,
+	GAME_SECRET_KEYS,
+	type GameFields,
+	gameMemoryOf,
+	gamePortOf,
+	gameSettings,
+	gameSteps,
+	gameSummary,
+} from "@/components/game/wizard-steps";
 import { GIT_KIND } from "@/components/integration-kinds";
 import { Page, PageHeader } from "@/components/page-header";
 import {
@@ -95,6 +107,7 @@ import {
 } from "@/components/wizard/wizard";
 import { ApiError } from "@/lib/api";
 import { useResourceProfiles } from "@/lib/api/access";
+import { gamesApi } from "@/lib/api/games";
 import { instanceStatusQuery } from "@/lib/api/instance";
 import {
 	branchesQuery,
@@ -105,6 +118,7 @@ import {
 	reposQuery,
 	type WebhookOutcome,
 } from "@/lib/api/integrations";
+import { dnsProvidersQuery } from "@/lib/api/networking";
 import { projectQuery } from "@/lib/api/projects";
 import {
 	checkSource,
@@ -153,40 +167,42 @@ type SourceKind =
 	| "database"
 	| "compose"
 	| "storage"
+	| "game"
 	| "webserver";
 
-type V = StorageFields & {
-	kind: SourceKind;
-	name: string;
-	/** A connected Git provider, or "" for a public repository over HTTPS. */
-	providerId: string;
-	repository: string;
-	branch: string;
-	path: string;
-	/** Globs or directories, one per line; empty builds on every push. */
-	watchPaths: string;
-	build: Exclude<BuildType, "image">;
-	port: string;
-	image: string;
-	engine: DatabaseEngine;
-	version: string;
-	composeYaml: string;
-	/** A pasted compose file, or one read from a connected repository and re-synced on push. */
-	composeFrom: "paste" | "git";
-	composePath: string;
-	webserver: WebserverKind;
-	/** Load balancer form; the config is generated from it. */
-	lb: LbSettings;
-	domainMode: "generated" | "custom" | "none";
-	hostname: string;
-	https: boolean;
-	/** Image sources only: published ports, bind mounts, user, capabilities, restart. */
-	host: HostSettings;
-	/** Applications: commands run on the new image around each rollout. */
-	release: ReleaseSettings;
-	/** A profile name or UNLIMITED; empty follows the organization default. */
-	resourceProfile: string;
-};
+type V = StorageFields &
+	GameFields & {
+		kind: SourceKind;
+		name: string;
+		/** A connected Git provider, or "" for a public repository over HTTPS. */
+		providerId: string;
+		repository: string;
+		branch: string;
+		path: string;
+		/** Globs or directories, one per line; empty builds on every push. */
+		watchPaths: string;
+		build: Exclude<BuildType, "image">;
+		port: string;
+		image: string;
+		engine: DatabaseEngine;
+		version: string;
+		composeYaml: string;
+		/** A pasted compose file, or one read from a connected repository and re-synced on push. */
+		composeFrom: "paste" | "git";
+		composePath: string;
+		webserver: WebserverKind;
+		/** Load balancer form; the config is generated from it. */
+		lb: LbSettings;
+		domainMode: "generated" | "custom" | "none";
+		hostname: string;
+		https: boolean;
+		/** Image sources only: published ports, bind mounts, user, capabilities, restart. */
+		host: HostSettings;
+		/** Applications: commands run on the new image around each rollout. */
+		release: ReleaseSettings;
+		/** A profile name or UNLIMITED; empty follows the organization default. */
+		resourceProfile: string;
+	};
 
 const DEFAULTS: V = {
 	kind: "git",
@@ -213,6 +229,7 @@ const DEFAULTS: V = {
 	release: {},
 	resourceProfile: "",
 	...STORAGE_DEFAULTS,
+	...GAME_DEFAULTS,
 };
 
 const ENGINES: Record<
@@ -253,6 +270,10 @@ function serviceName(v: V) {
 		return slug(v.image.split("/").pop()?.split(":")[0] ?? "") || "app";
 	if (v.kind === "database") return v.engine;
 	if (v.kind === "storage") return "storage";
+	if (v.kind === "game")
+		return v.game === "teamspeak3"
+			? "teamspeak"
+			: (v.game.split("-")[0] ?? "game");
 	if (v.kind === "webserver")
 		return v.webserver === "haproxy" ? "lb" : v.webserver;
 	return "stack";
@@ -309,6 +330,7 @@ function buildSteps(
 	generatedBase: string,
 	providers: GitProvider[],
 	suggestions: string[],
+	dnsNames: Map<string, string>,
 ): WizardStep<V>[] {
 	const providerName = (id: string) =>
 		providers.find((p) => p.id === id)?.name ?? "the provider";
@@ -371,6 +393,13 @@ function buildSteps(
 							icon: HardDrive,
 						},
 						{
+							value: "game",
+							title: "Game server",
+							description:
+								"Minecraft, Counter-Strike 2, TeamSpeak or Mumble, with a console and DNS records.",
+							icon: Gamepad2,
+						},
+						{
 							value: "webserver",
 							title: "Web server",
 							description:
@@ -385,7 +414,7 @@ function buildSteps(
 			id: "configure",
 			title: "Configure",
 			description: `Settings for the new service in ${env.name}.`,
-			when: (v) => v.kind !== "storage",
+			when: (v) => v.kind !== "storage" && v.kind !== "game",
 			schema: (v) => {
 				const base = { name: nameSchema };
 				if (v.kind === "git") {
@@ -480,6 +509,7 @@ function buildSteps(
 			generated,
 			nameField: (w) => <NameField w={w} />,
 		}),
+		...gameSteps<V>({ nameField: (w) => <NameField w={w} /> }),
 		{
 			id: "test",
 			title: "Test the source",
@@ -558,7 +588,10 @@ function buildSteps(
 			description: "How people reach this service from the internet.",
 			// A compose stack's containers get their domains from the stack page.
 			when: (v) =>
-				v.kind !== "database" && v.kind !== "storage" && v.kind !== "compose",
+				v.kind !== "database" &&
+				v.kind !== "storage" &&
+				v.kind !== "game" &&
+				v.kind !== "compose",
 			schema: (v) =>
 				z.object({
 					hostname:
@@ -668,11 +701,29 @@ function buildSteps(
 			),
 		},
 		{
+			id: "game-review",
+			title: "Review",
+			description:
+				"Nothing is created until you confirm. The server starts right after, with fresh admin credentials.",
+			when: (v) => v.kind === "game",
+			render: (w) => (
+				<Summary
+					w={w}
+					sections={gameSummary(
+						w.values,
+						serviceName(w.values),
+						env.name,
+						(id) => dnsNames.get(id) ?? "the DNS provider",
+					)}
+				/>
+			),
+		},
+		{
 			id: "review",
 			title: "Review",
 			description:
 				"Nothing is created until you confirm. The first deployment starts right after.",
-			when: (v) => v.kind !== "storage",
+			when: (v) => v.kind !== "storage" && v.kind !== "game",
 			render: (w) => {
 				const v = w.values;
 				const source =
@@ -1582,6 +1633,13 @@ function webserverRows(v: V) {
 }
 
 function toSpec(v: V): ServiceSpec {
+	if (v.kind === "game")
+		return {
+			kind: "game",
+			settings: gameSettings(v, serviceName(v)),
+			port: gamePortOf(v),
+			resources: { memoryMb: gameMemoryOf(v) },
+		};
 	if (v.kind === "storage")
 		return { kind: "storage", engine: v.storageEngine, resources: {} };
 	if (v.kind === "database")
@@ -1669,6 +1727,11 @@ function NewService() {
 		() => providers.data?.filter((p) => p.state === "connected") ?? [],
 		[providers.data],
 	);
+	const dns = useQuery(dnsProvidersQuery);
+	const dnsNames = useMemo(
+		() => new Map((dns.data ?? []).map((p) => [p.id, p.name])),
+		[dns.data],
+	);
 	const siblings = useQuery({
 		...servicesQuery(env?.id ?? ("" as Environment["id"])),
 		enabled: Boolean(env),
@@ -1678,8 +1741,8 @@ function NewService() {
 		[siblings.data],
 	);
 	const steps = useMemo(
-		() => (env ? buildSteps(env, base, connected, suggestions) : []),
-		[env, base, connected, suggestions],
+		() => (env ? buildSteps(env, base, connected, suggestions, dnsNames) : []),
+		[env, base, connected, suggestions, dnsNames],
 	);
 
 	const onStepChange = useCallback(
@@ -1709,6 +1772,7 @@ function NewService() {
 				step={step}
 				onStepChange={onStepChange}
 				finishLabel="Create and deploy"
+				secretKeys={[...GAME_SECRET_KEYS]}
 				onComplete={async (v) => {
 					const name = serviceName(v);
 					if (v.kind === "compose") {
@@ -1763,41 +1827,76 @@ function NewService() {
 					const profile = chosenProfile(v, resourceProfiles);
 					// With no choice to send (storage, or profiles still loading) the server applies the default.
 					const sized =
-						spec.kind === "storage" ||
-						spec.kind === "compose" ||
-						!resourceProfiles
-							? { spec }
-							: {
-									spec: {
-										...spec,
-										resources: profile ? limitsOf(profile) : {},
-									},
-									resourceProfile: profile?.name ?? null,
-								};
+						spec.kind === "game"
+							? { spec, resourceProfile: null }
+							: spec.kind === "storage" ||
+									spec.kind === "compose" ||
+									!resourceProfiles
+								? { spec }
+								: {
+										spec: {
+											...spec,
+											resources: profile ? limitsOf(profile) : {},
+										},
+										resourceProfile: profile?.name ?? null,
+									};
 					const service = await create.mutateAsync({
 						environmentId: env.id,
 						name,
 						...sized,
+						...(v.kind === "game" && {
+							...(v.gameNode && { nodeId: v.gameNode }),
+							...(v.game === "cs2" && { gameToken: v.gameToken.trim() }),
+						}),
 						...(v.kind === "webserver" && {
 							importedFrom: webserverMarker(v.webserver),
 							mounts: webserverMounts(v.webserver, webserverConfig(v)),
 						}),
 						...(v.kind === "storage"
 							? storageDomains(v)
-							: {
-									domain:
-										v.kind === "database" || v.domainMode === "none"
-											? null
-											: v.domainMode === "custom"
-												? {
-														kind: "custom",
-														hostname: v.hostname.trim().toLowerCase(),
-														port: Number(v.port) || 80,
-														https: v.https,
-													}
-												: { kind: "generated", port: Number(v.port) || 80 },
-								}),
+							: v.kind === "game"
+								? { domain: null }
+								: {
+										domain:
+											v.kind === "database" || v.domainMode === "none"
+												? null
+												: v.domainMode === "custom"
+													? {
+															kind: "custom",
+															hostname: v.hostname.trim().toLowerCase(),
+															port: Number(v.port) || 80,
+															https: v.https,
+														}
+													: { kind: "generated", port: Number(v.port) || 80 },
+									}),
 					});
+					if (v.kind === "game") {
+						const hostname = v.gameHostname.trim().toLowerCase();
+						if (v.addressMode !== "none")
+							await gamesApi.endpoints
+								.create(service.id, {
+									hostname,
+									dnsProviderId:
+										v.addressMode === "dns" ? v.dnsProviderId : null,
+								})
+								.catch((e: unknown) =>
+									toast.warning(`${hostname} wasn't set up`, {
+										description: `${errorText(e)} Add it again from the Game tab.`,
+									}),
+								);
+						toast.success(`${name} is starting`, {
+							description:
+								v.game === "cs2"
+									? "SteamCMD downloads the game first, which can take a while."
+									: `${GAMES[v.game].label} reports online in the Game tab once it's up.`,
+							icon: <Gamepad2 className="size-4" />,
+						});
+						await navigate({
+							to: "/projects/$projectId/services/$serviceId/game",
+							params: { projectId, serviceId: service.id },
+						});
+						return;
+					}
 					if (v.kind === "storage") {
 						toast.success(`${name} is starting`, {
 							description:
