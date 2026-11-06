@@ -193,6 +193,7 @@ function storefrontPostgres(): ServiceBackups {
 			verifyCron: "0 5 * * 0",
 			pauseService: false,
 			encrypted: true,
+			hasEncryptedBackup: true,
 			enabled: true,
 			nextRunAt: nextRuns("0 3 * * *", "Europe/Rome", 1)[0] ?? null,
 			nextVerifyAt: nextRuns("0 5 * * 0", "Europe/Rome", 1)[0] ?? null,
@@ -212,6 +213,7 @@ function storefrontPostgres(): ServiceBackups {
 			verifyCron: null,
 			pauseService: true,
 			encrypted: false,
+			hasEncryptedBackup: false,
 			enabled: true,
 			nextRunAt: nextRuns("30 4 * * 0", "Europe/Rome", 1)[0] ?? null,
 			nextVerifyAt: null,
@@ -701,6 +703,7 @@ export const mockBackups: BackupsApi = {
 				pauseService:
 					input.target === "volume" && (input.pauseService ?? false),
 				encrypted: input.encrypt ?? false,
+				hasEncryptedBackup: false,
 				enabled,
 				nextRunAt: enabled
 					? (nextRuns(input.cron, timezone, 1)[0] ?? null)
@@ -723,15 +726,23 @@ export const mockBackups: BackupsApi = {
 				const p = svc.policies.find((x) => x.id === id);
 				if (!p) continue;
 				const { encrypt, ...fields } = patch;
-				if (encrypt === false && p.encrypted)
+				if (encrypt === false && p.encrypted && p.hasEncryptedBackup)
 					return Promise.reject(
 						new ApiError(
 							400,
-							"encryption cannot be turned off: the existing encrypted backups need their key",
+							"encryption cannot be turned off: an encrypted backup exists and needs its key",
 						),
 					);
-				const fresh = encrypt && !p.encrypted;
-				Object.assign(p, fields, fresh ? { encrypted: true } : {});
+				const fresh = !!encrypt && !p.hasEncryptedBackup;
+				Object.assign(
+					p,
+					fields,
+					fresh
+						? { encrypted: true }
+						: encrypt === false
+							? { encrypted: false }
+							: {},
+				);
 				p.nextRunAt = p.enabled
 					? (nextRuns(p.cron, p.timezone, 1)[0] ?? null)
 					: null;

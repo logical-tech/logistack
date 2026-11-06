@@ -23,7 +23,7 @@ import {
 	syncPolicySchedulers,
 } from "@logistack/worker/schedulers";
 import { generateX25519Identity } from "age-encryption";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, like } from "drizzle-orm";
 import type { Context } from "hono";
 import { type Actor, requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -84,6 +84,8 @@ export const BackupPolicyView = z
 		pauseService: z.boolean(),
 		/** Backups are age-encrypted before upload; the bucket only holds ciphertext. */
 		encrypted: z.boolean(),
+		/** A finished backup is encrypted: the key can no longer be replaced or dropped. */
+		hasEncryptedBackup: z.boolean(),
 		enabled: z.boolean(),
 		nextRunAt: z.string().nullable(),
 		nextVerifyAt: z.string().nullable(),
@@ -130,7 +132,7 @@ const PolicyFields = z.object({
 	verifyCron: Cron.nullable(),
 	pauseService: z.boolean(),
 	enabled: z.boolean(),
-	/** Turns on age encryption with a new key. It cannot be turned off: older backups need the key. */
+	/** `true` issues an age key (a new one while no encrypted backup exists); `false` drops it, also only while none exists. */
 	encrypt: z.boolean(),
 });
 
@@ -176,6 +178,7 @@ const policyView = (
 	p: PolicyRow,
 	destinationName: string,
 	lastRun: RunRow | undefined,
+	hasEncryptedBackup: boolean,
 ): z.infer<typeof BackupPolicyView> => ({
 	id: p.id,
 	serviceId: p.serviceId,
@@ -189,6 +192,7 @@ const policyView = (
 	verifyCron: p.verifyCron,
 	pauseService: p.pauseService,
 	encrypted: p.encryptionKeyEncrypted !== null,
+	hasEncryptedBackup,
 	enabled: p.enabled,
 	nextRunAt: nextRun(p.cron, p.timezone, p.enabled),
 	nextVerifyAt: nextRun(p.verifyCron, p.timezone, p.enabled),
@@ -294,6 +298,23 @@ async function lastRuns(c: Context<Env>, policyIds: string[]) {
 	return new Map(rows.map((r) => [r.policyId, r]));
 }
 
+/** Policies with at least one finished encrypted backup: for those the key is irreplaceable. */
+async function withEncryptedBackup(c: Context<Env>, policyIds: string[]) {
+	if (!policyIds.length) return new Set<string>();
+	const rows = await c.var.deps.db
+		.selectDistinct({ id: backupRun.policyId })
+		.from(backupRun)
+		.where(
+			and(
+				inArray(backupRun.policyId, policyIds),
+				eq(backupRun.kind, "backup"),
+				eq(backupRun.status, "succeeded"),
+				like(backupRun.objectKey, "%.age"),
+			),
+		);
+	return new Set(rows.map((r) => r.id));
+}
+
 async function loadPolicyView(c: Context<Env>, id: string) {
 	const { db } = c.var.deps;
 	const [row] = await db
@@ -305,7 +326,12 @@ async function loadPolicyView(c: Context<Env>, id: string) {
 		)
 		.where(eq(backupPolicy.id, id));
 	if (!row) throw notFound("backup policy");
-	return policyView(row.p, row.name, (await lastRuns(c, [id])).get(id));
+	return policyView(
+		row.p,
+		row.name,
+		(await lastRuns(c, [id])).get(id),
+		(await withEncryptedBackup(c, [id])).has(id),
+	);
 }
 
 export const backups = router()
@@ -333,8 +359,9 @@ export const backups = router()
 				.where(eq(backupPolicy.serviceId, svc.id))
 				.orderBy(asc(backupPolicy.createdAt));
 			const ids = policies.map((r) => r.p.id);
-			const [last, runs] = await Promise.all([
+			const [last, sealedBackups, runs] = await Promise.all([
 				lastRuns(c, ids),
+				withEncryptedBackup(c, ids),
 				ids.length
 					? db
 							.select()
@@ -356,7 +383,12 @@ export const backups = router()
 					},
 					volumes: await volumesOf(c, svc),
 					policies: policies.map((r) =>
-						policyView(r.p, r.name, last.get(r.p.id)),
+						policyView(
+							r.p,
+							r.name,
+							last.get(r.p.id),
+							sealedBackups.has(r.p.id),
+						),
 					),
 					runs: runs.map(runView),
 				},
@@ -441,7 +473,7 @@ export const backups = router()
 				security,
 				summary: "Change a backup policy",
 				description:
-					"`encrypt: true` on a plaintext policy creates an age key and returns it once in `encryptionKey`; later backups are encrypted, older ones stay plaintext. Encryption cannot be turned off.",
+					"`encrypt: true` on a plaintext policy creates an age key and returns it once in `encryptionKey`; later backups are encrypted, older ones stay plaintext. Until a backup has been encrypted, `encrypt: true` again issues a fresh key (use it when the first one was lost) and `encrypt: false` removes the key; after that both are refused because existing backups need the key. Answers 409 if another change to the key landed first.",
 				middleware: [requirePermission("write", viaPolicy("policy"))],
 				request: { params: IdParam, ...body(PolicyPatch) },
 				responses: { 200: json(BackupPolicyWithKey, "Updated"), ...errors },
@@ -461,23 +493,45 @@ export const backups = router()
 			if (input.verifyCron && current.target !== "database")
 				throw new Failure("bad_request", "verify restores need a database");
 			const { encrypt: wantsKey, ...fields } = input;
-			const encrypted = current.encryptionKeyEncrypted !== null;
-			if (wantsKey === false && encrypted)
+			const previous = current.encryptionKeyEncrypted;
+			const locked = (await withEncryptedBackup(c, [id])).has(id);
+			if (wantsKey === false && previous !== null && locked)
 				throw new Failure(
 					"bad_request",
-					"encryption cannot be turned off: the existing encrypted backups need their key",
+					"encryption cannot be turned off: an encrypted backup exists and needs its key",
 				);
-			const key = wantsKey && !encrypted ? await newBackupKey(c) : undefined;
-			const row = one(
-				await db
-					.update(backupPolicy)
-					.set({
-						...fields,
-						...(key ? { encryptionKeyEncrypted: key.sealed } : {}),
-					})
-					.where(eq(backupPolicy.id, id))
-					.returning(),
-			);
+			// A key nobody saved can be replaced until a backup depends on it.
+			const key =
+				wantsKey && !(previous !== null && locked)
+					? await newBackupKey(c)
+					: undefined;
+			const dropKey = wantsKey === false && previous !== null;
+			const changesKey = key !== undefined || dropKey;
+			const [row] = await db
+				.update(backupPolicy)
+				.set({
+					...fields,
+					updatedAt: new Date(),
+					...(key ? { encryptionKeyEncrypted: key.sealed } : {}),
+					...(dropKey ? { encryptionKeyEncrypted: null } : {}),
+				})
+				.where(
+					and(
+						eq(backupPolicy.id, id),
+						// Compare-and-set on the sealed key, so concurrent key changes cannot both win.
+						changesKey
+							? previous === null
+								? isNull(backupPolicy.encryptionKeyEncrypted)
+								: eq(backupPolicy.encryptionKeyEncrypted, previous)
+							: undefined,
+					),
+				)
+				.returning();
+			if (!row)
+				throw new Failure(
+					"conflict",
+					"the backup key changed in the meantime; reload and try again",
+				);
 			await syncPolicySchedulers(runQueues(c.var.deps.config.REDIS_URL), row);
 			return c.json(
 				{
