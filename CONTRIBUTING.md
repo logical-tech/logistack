@@ -41,6 +41,18 @@ bun run check
 
 A test that creates Docker objects names them `ls-test-<area>-*`, where `<area>` is your package or app, and labels them `logistack.test=<area>`. Cleanup removes objects by that exact prefix only. A filter on `label=logistack.test` or `name=ls-test-` alone matches other suites, so cleanup code must not use it.
 
+## Database migrations
+
+An update migrates before it replaces the api and the worker, so the previous release runs on the new schema while the services roll, and again if a rollback brings it back. Every migration must keep the previous release working:
+
+- Add tables, columns with a default or nullable, indexes and enum values.
+- Do not drop, rename or tighten anything the previous release reads or writes. Split such a change across two releases: the first stops using the old shape, the next removes it.
+- Old code must tolerate what it does not know, such as a new enum value in a row.
+
+`packages/db/test/migration-compat.test.ts` fails on a dropping, renaming or tightening statement. When the previous release no longer uses what the statement removes, put `-- logistack:contract <why>` on its own line in the migration.
+
+Agents talk to the server over a versioned protocol (`AGENT_PROTOCOL_VERSION`) and announce their capabilities in `hello`. The server updates first, so it must accept the previous release's agents. A new agent request needs a new capability, checked before the server sends it.
+
 ## Commits
 
 Use conventional commits, scoped by package or app: `feat(server): ...`, `fix(worker): ...`, `docs: ...`. Keep each commit to one change.
