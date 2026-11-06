@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
+	Archive,
 	Boxes,
 	FolderPlus,
 	LayoutTemplate,
@@ -32,7 +33,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { foldersQuery } from "@/lib/api/folders";
-import { projectsQuery } from "@/lib/api/projects";
+import { archivedProjectsQuery, projectsQuery } from "@/lib/api/projects";
 import type { Folder, FolderId, ProjectSummary } from "@/lib/api/types";
 
 const search = z.object({
@@ -42,6 +43,7 @@ const search = z.object({
 		.catch(undefined),
 	create: z.enum(["project", "folder", "template"]).optional().catch(undefined),
 	q: z.string().optional(),
+	archived: z.boolean().optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_app/projects/")({
@@ -92,9 +94,14 @@ function CardSkeleton() {
 }
 
 function ProjectsPage() {
-	const { folder, create, q = "" } = Route.useSearch();
+	const { folder, create, q = "", archived } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
-	const { data: projects } = useQuery(projectsQuery);
+	const { data: active } = useQuery(projectsQuery);
+	const { data: archivedProjects } = useQuery({
+		...archivedProjectsQuery,
+		enabled: !!archived,
+	});
+	const projects = archived ? archivedProjects : active;
 	const { data: folders = [] } = useQuery(foldersQuery);
 	const selected = folder as FolderId | "none" | undefined;
 
@@ -225,6 +232,17 @@ function ProjectsPage() {
 								</Button>
 							)}
 						</div>
+						<Button
+							variant="outline"
+							aria-pressed={!!archived}
+							className="aria-pressed:bg-muted aria-pressed:text-foreground"
+							onClick={() =>
+								setSearch({ archived: archived ? undefined : true }, true)
+							}
+						>
+							<Archive data-icon="inline-start" />
+							Archived
+						</Button>
 					</div>
 
 					{!visible ? (
@@ -236,14 +254,29 @@ function ProjectsPage() {
 					) : visible.length === 0 ? (
 						<EmptyState
 							icon={Boxes}
-							title={needle ? "No projects match" : "This folder is empty"}
+							title={
+								needle
+									? "No projects match"
+									: archived
+										? "No archived projects"
+										: "This folder is empty"
+							}
 							description={
 								needle
 									? `Nothing in ${folderName ?? "your projects"} matches “${q}”. Check the spelling or clear the filter.`
-									: "Create a project here, or move an existing one into this folder from its settings."
+									: archived
+										? "Archive a project from its actions menu to stop its services and keep it out of the way."
+										: "Create a project here, or move an existing one into this folder from its settings."
 							}
 						>
-							{needle ? (
+							{archived && !needle ? (
+								<Button
+									variant="outline"
+									onClick={() => setSearch({ archived: undefined })}
+								>
+									Show active projects
+								</Button>
+							) : needle ? (
 								<Button
 									variant="outline"
 									onClick={() => setSearch({ q: undefined })}

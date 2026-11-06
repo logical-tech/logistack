@@ -82,7 +82,12 @@ export const httpAdapter: ApiAdapter = {
 		create: (input) => ok(api.folders.$post({ json: input })),
 	},
 	projects: {
-		list: () => ok(api.projects.$get({ query: {} })),
+		list: ({ archived = false } = {}) =>
+			ok(
+				api.projects.$get({
+					query: archived ? { archived: "true" } : {},
+				}),
+			),
 		get: async (id) => {
 			const param = { param: { id } };
 			const [project, environments] = await Promise.all([
@@ -92,6 +97,14 @@ export const httpAdapter: ApiAdapter = {
 			return { ...project, environments };
 		},
 		create: (input) => ok(api.projects.$post({ json: input })),
+		setArchived: (id, archived) =>
+			ok(
+				archived
+					? api.projects[":id"].archive.$post({ param: { id } })
+					: api.projects[":id"].unarchive.$post({ param: { id } }),
+			),
+		updateEnvironment: (id, input) =>
+			ok(api.environments[":id"].$patch({ param: { id }, json: input })),
 		createEnvironment: (id, input) =>
 			ok(
 				api.projects[":id"].environments.$post({ param: { id }, json: input }),

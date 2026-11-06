@@ -64,6 +64,7 @@ const project = (
 	name,
 	slug: id,
 	description,
+	archivedAt: null,
 	createdAt: ago(createdDaysAgo * 1440),
 	updatedAt: ago(createdDaysAgo * 90),
 });
@@ -86,6 +87,7 @@ const environment = (
 	slug: kind,
 	kind,
 	isDefault,
+	color: null,
 	createdAt: ago(60 * 24 * 90),
 	updatedAt: ago(60 * 24 * 90),
 });

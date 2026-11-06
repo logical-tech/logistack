@@ -41,6 +41,7 @@ import type {
 	ServiceThresholdsInput,
 	SetupInput,
 	SourceCheck,
+	UpdateEnvironmentInput,
 } from "./types";
 
 /**
@@ -64,9 +65,15 @@ export type ApiAdapter = {
 		create(input: CreateFolderInput): Promise<Folder>;
 	};
 	projects: {
-		list(): Promise<ProjectSummary[]>;
+		list(opts?: { archived?: boolean }): Promise<ProjectSummary[]>;
 		get(id: ProjectId): Promise<ProjectDetail>;
 		create(input: CreateProjectInput): Promise<Project>;
+		/** Stops its services and hides it; unarchive restarts exactly those. */
+		setArchived(id: ProjectId, archived: boolean): Promise<Project>;
+		updateEnvironment(
+			id: EnvironmentId,
+			input: UpdateEnvironmentInput,
+		): Promise<Environment>;
 		createEnvironment(
 			id: ProjectId,
 			input: CreateEnvironmentInput,

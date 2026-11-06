@@ -17,6 +17,8 @@ import { stacksMock } from "./stacks";
 import { templatesMock } from "./templates";
 
 const db = createMockDb();
+/** Services archiving stopped; unarchive starts exactly these. */
+const archivedServices = new Set<string>();
 
 /** The storage mock reads services and projects from the same in-memory world. */
 export { db as mockDb };
@@ -65,7 +67,12 @@ function summarize(projectId: ProjectSummary["id"]): ProjectSummary {
 	const envIds = new Set(envs.map((e) => e.id));
 	return {
 		...project,
-		environments: envs.map(({ id, name, kind }) => ({ id, name, kind })),
+		environments: envs.map(({ id, name, kind, color }) => ({
+			id,
+			name,
+			kind,
+			color,
+		})),
 		services: db.services
 			.filter((s) => envIds.has(s.environmentId))
 			.map((s) => ({
@@ -173,7 +180,12 @@ export const mockAdapter: ApiAdapter = {
 		},
 	},
 	projects: {
-		list: () => delay(db.projects.map((p) => summarize(p.id))),
+		list: ({ archived = false } = {}) =>
+			delay(
+				db.projects
+					.filter((p) => !!p.archivedAt === archived)
+					.map((p) => summarize(p.id)),
+			),
 		get: (id) => {
 			const project = db.projects.find((p) => p.id === id);
 			if (!project)
@@ -193,6 +205,7 @@ export const mockAdapter: ApiAdapter = {
 				name,
 				slug: slugify(name),
 				description: description ?? null,
+				archivedAt: null,
 				createdAt: at,
 				updatedAt: at,
 			};
@@ -204,12 +217,44 @@ export const mockAdapter: ApiAdapter = {
 				slug: "production",
 				kind: "production",
 				isDefault: true,
+				color: null,
 				createdAt: at,
 				updatedAt: at,
 			});
 			return delay(project, 500);
 		},
-		createEnvironment: (projectId, { name, slug, kind }) => {
+		setArchived: (id, archived) => {
+			const project = db.projects.find((p) => p.id === id);
+			if (!project)
+				return Promise.reject(new ApiError(404, "Project not found"));
+			const envIds = new Set(
+				db.environments.filter((e) => e.projectId === id).map((e) => e.id),
+			);
+			for (const s of db.services.filter((s) => envIds.has(s.environmentId)))
+				if (archived && s.desiredState === "running") {
+					s.desiredState = "stopped";
+					s.status.observed = "stopped";
+					archivedServices.add(s.id);
+				} else if (!archived && archivedServices.delete(s.id)) {
+					s.desiredState = "running";
+					s.status.observed = "running";
+				}
+			project.archivedAt = archived
+				? (project.archivedAt ?? new Date().toISOString())
+				: null;
+			return delay(project, 400);
+		},
+		updateEnvironment: (id, input) => {
+			const env = db.environments.find((e) => e.id === id);
+			if (!env)
+				return Promise.reject(new ApiError(404, "Environment not found"));
+			if (input.isDefault)
+				for (const e of db.environments)
+					if (e.projectId === env.projectId) e.isDefault = false;
+			Object.assign(env, input);
+			return delay(env, 300);
+		},
+		createEnvironment: (projectId, { name, slug, kind, color }) => {
 			const at = new Date().toISOString();
 			const env = {
 				id: rid("env"),
@@ -218,6 +263,7 @@ export const mockAdapter: ApiAdapter = {
 				slug: slug ?? slugify(name),
 				kind,
 				isDefault: false,
+				color: color ?? null,
 				createdAt: at,
 				updatedAt: at,
 			};
