@@ -19,6 +19,7 @@ export * from "./organization.ts";
 export * from "./pending-diff.ts";
 export * from "./previews.ts";
 export * from "./resources.ts";
+export * from "./secrets.ts";
 export * from "./service-icon.ts";
 export * from "./service-spec.ts";
 export * from "./storage.ts";

@@ -96,6 +96,17 @@ export const envVarScopes = [
 	"service",
 ] as const;
 export const EnvVarScope = z.enum(envVarScopes);
+
+/** Where a managed secret is defined, least specific first. Services below a scope may reference it. */
+export const secretScopes = [
+	"organization",
+	"folder",
+	"project",
+	"environment",
+	"service",
+] as const;
+export const SecretScope = z.enum(secretScopes);
+export type SecretScope = z.infer<typeof SecretScope>;
 export type EnvVarScope = z.infer<typeof EnvVarScope>;
 
 export const mountKinds = ["volume", "config", "secret"] as const;

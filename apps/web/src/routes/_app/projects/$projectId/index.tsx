@@ -214,7 +214,7 @@ function ProjectDetail() {
 											params={{ projectId }}
 										>
 											<Variable />
-											Shared variables
+											Secrets & variables
 										</Link>
 									</DropdownMenuItem>
 									<DropdownMenuItem asChild>

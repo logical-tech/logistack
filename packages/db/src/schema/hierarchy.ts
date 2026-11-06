@@ -29,6 +29,7 @@ import {
 	stackSource,
 } from "./enums.ts";
 import { node } from "./runtime.ts";
+import { secret } from "./secrets.ts";
 
 // Depth <= 2 is enforced by the folder_depth trigger (see drizzle/0001_folder_depth.sql).
 export const folder = pgTable(
@@ -177,9 +178,20 @@ export const envVar = pgTable(
 		valueEncrypted: text("value_encrypted").notNull(),
 		isSecret: boolean("is_secret").notNull().default(false),
 		isBuildTime: boolean("is_build_time").notNull().default(false),
+		/**
+		 * Set on a service variable that references a managed secret; the value comes from the
+		 * secret at deploy time. `value_encrypted` then holds a v1 copy for the previous release
+		 * and for in-process readers (database, storage and game credentials).
+		 */
+		secretId: text("secret_id").references(() => secret.id, {
+			onDelete: "restrict",
+		}),
 		...timestamps,
 	},
-	(t) => [unique("env_var_key_unique").on(t.scope, t.scopeId, t.key)],
+	(t) => [
+		unique("env_var_key_unique").on(t.scope, t.scopeId, t.key),
+		index("env_var_secret_id_idx").on(t.secretId),
+	],
 );
 
 export const mount = pgTable(

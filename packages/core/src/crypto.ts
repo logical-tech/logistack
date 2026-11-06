@@ -51,3 +51,128 @@ export async function decrypt(
 	);
 	return new TextDecoder().decode(pt);
 }
+
+// --- v2: envelope encryption for managed secrets -------------------------------------
+// master key --HKDF--> KEK --wraps--> per-organization DEKs --seal--> values.
+// Every v2 ciphertext authenticates an AAD naming the row it belongs to, so a ciphertext
+// copied into another row, organization or version fails to open.
+
+const V2 = "v2";
+const encoder = new TextEncoder();
+
+/** Derives the key that wraps organization data keys. The raw master key never touches v2 data. */
+export async function deriveSecretsKek(
+	masterKeyBase64: string,
+): Promise<CryptoKey> {
+	const raw = Uint8Array.fromBase64(masterKeyBase64.trim());
+	if (raw.length !== 32)
+		throw new Error(`master key must be 32 bytes, got ${raw.length}`);
+	const ikm = await crypto.subtle.importKey("raw", raw, "HKDF", false, [
+		"deriveKey",
+	]);
+	return crypto.subtle.deriveKey(
+		{
+			name: "HKDF",
+			hash: "SHA-256",
+			salt: encoder.encode("logistack/secrets"),
+			info: encoder.encode("logistack/secrets/kek/v1"),
+		},
+		ikm,
+		{ name: "AES-GCM", length: 256 },
+		false,
+		["encrypt", "decrypt"],
+	);
+}
+
+/** Encrypts to `v2:<iv base64>:<ciphertext+tag base64>`, authenticating `aad`. */
+export async function seal(
+	key: CryptoKey,
+	aad: string,
+	plaintext: string | Uint8Array<ArrayBuffer>,
+): Promise<string> {
+	const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+	const data =
+		typeof plaintext === "string" ? encoder.encode(plaintext) : plaintext;
+	const ct = new Uint8Array(
+		await crypto.subtle.encrypt(
+			{ name: "AES-GCM", iv, additionalData: encoder.encode(aad) },
+			key,
+			data,
+		),
+	);
+	return `${V2}:${iv.toBase64()}:${ct.toBase64()}`;
+}
+
+async function openBytes(
+	key: CryptoKey,
+	aad: string,
+	payload: string,
+): Promise<Uint8Array<ArrayBuffer>> {
+	const [version, ivB64, ctB64, ...rest] = payload.split(":");
+	if (version !== V2 || !ivB64 || ctB64 === undefined || rest.length > 0)
+		throw new Error("unsupported ciphertext format");
+	const iv = Uint8Array.fromBase64(ivB64);
+	if (iv.length !== IV_BYTES) throw new Error("unsupported ciphertext format");
+	return new Uint8Array(
+		await crypto.subtle.decrypt(
+			{ name: "AES-GCM", iv, additionalData: encoder.encode(aad) },
+			key,
+			Uint8Array.fromBase64(ctB64),
+		),
+	);
+}
+
+/** Throws on a wrong key, a different `aad`, an unknown format or any tampering. */
+export async function unseal(
+	key: CryptoKey,
+	aad: string,
+	payload: string,
+): Promise<string> {
+	return new TextDecoder().decode(await openBytes(key, aad, payload));
+}
+
+export const dataKeyAad = (organizationId: string, version: number) =>
+	`secret_key:${organizationId}:${version}`;
+
+export const secretValueAad = (
+	organizationId: string,
+	secretId: string,
+	version: number,
+) => `secret_version:${organizationId}:${secretId}:${version}`;
+
+/** A fresh organization data key, wrapped by the KEK. Only the wrapped form is ever stored. */
+export async function newWrappedDataKey(
+	kek: CryptoKey,
+	organizationId: string,
+	version: number,
+): Promise<string> {
+	const raw = crypto.getRandomValues(new Uint8Array(32));
+	try {
+		return await seal(kek, dataKeyAad(organizationId, version), raw);
+	} finally {
+		raw.fill(0);
+	}
+}
+
+/** Unwraps a data key into a non-extractable AES-GCM key. */
+export async function unwrapDataKey(
+	kek: CryptoKey,
+	organizationId: string,
+	version: number,
+	wrapped: string,
+): Promise<CryptoKey> {
+	const raw = await openBytes(
+		kek,
+		dataKeyAad(organizationId, version),
+		wrapped,
+	);
+	try {
+		if (raw.length !== 32) throw new Error("data key must be 32 bytes");
+		return await crypto.subtle.importKey("raw", raw, "AES-GCM", false, [
+			"encrypt",
+			"decrypt",
+		]);
+	} finally {
+		raw.fill(0);
+	}
+}

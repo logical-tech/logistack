@@ -24,10 +24,19 @@ import {
 	environment,
 	envVar,
 	node,
+	secret,
 	service,
 	serviceStatus,
 } from "@logistack/db";
 import { compileInput, loadService } from "@logistack/worker/load";
+import {
+	createSecret,
+	type DbOrTx,
+	readSecretValue,
+	readSecretValues,
+	type SecretsCtx,
+	setSecretValue,
+} from "@logistack/worker/secrets";
 import { and, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { type Actor, requireActor } from "../actor.ts";
@@ -53,6 +62,7 @@ import {
 	refuseArchived,
 	requirePermission,
 } from "../scope.ts";
+import { availableSecrets } from "./secrets.ts";
 
 /** What the reconciler stores per running-desired task in `service_status.tasks`. */
 export const TaskView = z.object({
@@ -106,6 +116,8 @@ const ServiceVarsInput = z.object({
 				value: z.string().optional(),
 				isSecret: z.boolean(),
 				isBuildTime: z.boolean(),
+				/** Reference a managed secret on the service's chain instead of a value. */
+				secretId: z.string().optional(),
 			}),
 		)
 		.max(500)
@@ -352,7 +364,11 @@ export const serviceOps = router()
 			);
 			let after: SpecSnapshot;
 			try {
-				const sc = await loadService({ db, masterKey }, id, { gitAuth: false });
+				const sc = await loadService(
+					{ db, masterKey, secretsKek: c.var.deps.secretsKek },
+					id,
+					{ gitAuth: false },
+				);
 				if (!sc) throw notFound("service");
 				const spec = sc.service.spec;
 				const nets = before.spec.TaskTemplate.Networks ?? [];
@@ -628,8 +644,10 @@ export const serviceOps = router()
 			);
 			const out = await Promise.all(
 				rows.map(async ({ valueEncrypted, ...r }) => {
+					// Managed secret values come only from `POST /secrets/{id}/reveal`, which is audited.
 					const reveal =
-						!r.isSecret || actorCan(actor, "read:secrets", chain[r.scope][1]);
+						!r.secretId &&
+						(!r.isSecret || actorCan(actor, "read:secrets", chain[r.scope][1]));
 					return {
 						...r,
 						value: reveal
@@ -668,50 +686,101 @@ export const serviceOps = router()
 			const serviceId = c.req.valid("param").id;
 			const { variables } = c.req.valid("json");
 			rejectReservedEnvKeys(variables.map((v) => v.key));
-			const { db, masterKey } = c.var.deps;
+			const actor = requireActor(c);
+			const resource = c.get("resource") as Resource;
+			const { db, masterKey, secretsKek } = c.var.deps;
 			const scope = and(
 				eq(envVar.scope, "service"),
 				eq(envVar.scopeId, serviceId),
 			);
-			const rows = await db.transaction(async (tx) => {
-				const existing = await tx.select().from(envVar).where(scope);
-				const missing = variables.filter(
-					(v) =>
-						v.value === undefined && !existing.some((e) => e.key === v.key),
+			const refs = variables.flatMap((v) => (v.secretId ? [v.secretId] : []));
+			const available = new Map(
+				(await availableSecrets(db, actor, resource)).map((s) => [s.id, s]),
+			);
+			const outside = refs.filter((id) => !available.has(id));
+			if (outside.length)
+				throw new Failure(
+					"bad_request",
+					"a referenced secret is not defined on this service's chain, or you cannot read its scope",
+					{ secretIds: outside },
 				);
+			const rows = await db.transaction(async (tx) => {
+				const sctx = { db: tx, masterKey, secretsKek };
+				const existing = await tx.select().from(envVar).where(scope);
+				const missing = variables.filter((v) => {
+					if (v.secretId || v.value !== undefined) return false;
+					const prev = existing.find((e) => e.key === v.key);
+					// Keeping a stored value only works for the same kind of variable.
+					return !prev || prev.isSecret !== v.isSecret;
+				});
 				if (missing.length)
 					throw new Failure("bad_request", "a new variable needs a value", {
 						keys: missing.map((v) => v.key),
 					});
 				const keep = new Set(variables.map((v) => v.key));
-				const removed = existing
-					.filter((e) => !keep.has(e.key))
-					.map((e) => e.key);
+				const removed = existing.filter((e) => !keep.has(e.key));
+				// Service secrets this save may leave unreferenced; removed below if so.
+				const released = existing.flatMap((e) =>
+					e.secretId ? [{ id: e.secretId, key: e.key }] : [],
+				);
 				if (removed.length)
-					await tx
-						.delete(envVar)
-						.where(and(scope, inArray(envVar.key, removed)));
+					await tx.delete(envVar).where(
+						and(
+							scope,
+							inArray(
+								envVar.id,
+								removed.map((e) => e.id),
+							),
+						),
+					);
+				const values = await readSecretValues(sctx, refs);
 				for (const v of variables) {
-					const flags = { isSecret: v.isSecret, isBuildTime: v.isBuildTime };
-					const value =
-						v.value === undefined
-							? {}
-							: { valueEncrypted: await encrypt(masterKey, v.value) };
 					const prev = existing.find((e) => e.key === v.key);
+					let set: Partial<typeof envVar.$inferInsert>;
+					if (v.secretId) {
+						set = {
+							isSecret: true,
+							secretId: v.secretId,
+							valueEncrypted: await encrypt(
+								masterKey,
+								values.get(v.secretId)?.value ?? "",
+							),
+						};
+					} else if (v.isSecret && v.value !== undefined) {
+						// Typed text marked secret: stored as this service's own secret, then referenced.
+						const own = await serviceSecret(sctx, {
+							organizationId: actor.organizationId,
+							serviceId,
+							key: v.key,
+							value: v.value,
+							userId: actor.userId,
+						});
+						set = {
+							isSecret: true,
+							secretId: own.id,
+							valueEncrypted: await encrypt(masterKey, v.value),
+						};
+					} else if (v.value !== undefined) {
+						set = {
+							isSecret: false,
+							secretId: null,
+							valueEncrypted: await encrypt(masterKey, v.value),
+						};
+					} else set = {};
+					set.isBuildTime = v.isBuildTime;
 					if (prev)
-						await tx
-							.update(envVar)
-							.set({ ...flags, ...value })
-							.where(eq(envVar.id, prev.id));
+						await tx.update(envVar).set(set).where(eq(envVar.id, prev.id));
 					else
 						await tx.insert(envVar).values({
 							scope: "service",
 							scopeId: serviceId,
 							key: v.key,
-							...flags,
-							valueEncrypted: value.valueEncrypted as string,
+							isSecret: set.isSecret ?? false,
+							...set,
+							valueEncrypted: set.valueEncrypted as string,
 						});
 				}
+				await dropUnusedServiceSecrets(tx, serviceId, released);
 				c.set("auditDiff", {
 					added: variables
 						.filter((v) => !existing.some((e) => e.key === v.key))
@@ -719,15 +788,17 @@ export const serviceOps = router()
 					changed: variables
 						.filter(
 							(v) =>
-								v.value !== undefined && existing.some((e) => e.key === v.key),
+								(v.value !== undefined || v.secretId) &&
+								existing.some((e) => e.key === v.key),
 						)
 						.map((v) => v.key),
-					removed,
+					removed: removed.map((e) => e.key),
+					references: variables
+						.filter((v) => v.secretId)
+						.map((v) => ({ key: v.key, secretId: v.secretId })),
 				});
 				return tx.select().from(envVar).where(scope);
 			});
-			const actor = requireActor(c);
-			const resource = c.get("resource") as Resource;
 			const reveal = actorCan(actor, "read:secrets", resource);
 			const out = await Promise.all(
 				rows
@@ -735,7 +806,7 @@ export const serviceOps = router()
 					.map(async ({ valueEncrypted, ...r }) => ({
 						...r,
 						value:
-							!r.isSecret || reveal
+							!r.secretId && (!r.isSecret || reveal)
 								? await decrypt(masterKey, valueEncrypted)
 								: null,
 					})),
@@ -807,3 +878,76 @@ export const serviceOps = router()
 			return c.json({ ticket, taskId: task.id, nodeId: task.nodeId }, 201);
 		},
 	);
+
+/** The service's own secret named `key`, created or given a new version when the value differs. */
+async function serviceSecret(
+	ctx: SecretsCtx,
+	o: {
+		organizationId: string;
+		serviceId: string;
+		key: string;
+		value: string;
+		userId: string;
+	},
+) {
+	const [existing] = await ctx.db
+		.select()
+		.from(secret)
+		.where(
+			and(
+				eq(secret.scope, "service"),
+				eq(secret.scopeId, o.serviceId),
+				eq(secret.key, o.key),
+			),
+		);
+	if (!existing)
+		return createSecret(
+			ctx,
+			{
+				organizationId: o.organizationId,
+				scope: "service",
+				scopeId: o.serviceId,
+				key: o.key,
+				value: o.value,
+			},
+			o.userId,
+		);
+	if ((await readSecretValue(ctx, existing)) === o.value) return existing;
+	return setSecretValue(ctx, existing.id, o.value, o.userId);
+}
+
+/**
+ * Deletes the service secrets this save stopped using: the ones typed in its Environment tab
+ * (same scope, same key as the variable), when nothing references them any more.
+ */
+async function dropUnusedServiceSecrets(
+	db: DbOrTx,
+	serviceId: string,
+	released: { id: string; key: string }[],
+) {
+	const ids = released.map((r) => r.id);
+	if (!ids.length) return;
+	const used = new Set(
+		(
+			await db
+				.select({ id: envVar.secretId })
+				.from(envVar)
+				.where(inArray(envVar.secretId, ids))
+		).map((r) => r.id),
+	);
+	const unused = released.filter((r) => !used.has(r.id));
+	if (unused.length)
+		await db
+			.delete(secret)
+			.where(
+				and(
+					eq(secret.scope, "service"),
+					eq(secret.scopeId, serviceId),
+					or(
+						...unused.map((r) =>
+							and(eq(secret.id, r.id), eq(secret.key, r.key)),
+						),
+					),
+				),
+			);
+}

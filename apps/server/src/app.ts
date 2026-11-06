@@ -17,6 +17,7 @@ import { terminal } from "./exec-ws.ts";
 import { requestLogger } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
 import { ai } from "./routes/ai.ts";
+import { aiAgent } from "./routes/ai-agent.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
 import { autoscale } from "./routes/autoscale.ts";
@@ -49,6 +50,7 @@ import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
 import { s3Destinations } from "./routes/s3-destinations.ts";
 import { schedules } from "./routes/schedules.ts";
+import { secrets } from "./routes/secrets.ts";
 import { serviceAuth } from "./routes/service-auth.ts";
 import { serviceOps } from "./routes/service-ops.ts";
 import { services } from "./routes/services.ts";
@@ -148,6 +150,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", manifests)
 		.route("/api", previews)
 		.route("/api", envVars)
+		.route("/api", secrets)
 		.route("/api", domains)
 		.route("/api", domainAccess)
 		.route("/api", dnsProviders)
@@ -186,6 +189,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", databases)
 		.route("/api", migrations)
 		.route("/api", ai)
+		.route("/api", aiAgent)
 		.route("/", realtime)
 		.route("/", terminal);
 
