@@ -25,6 +25,7 @@ import {
 	ShieldCheck,
 	TerminalSquare,
 	Users,
+	Variable,
 	Waypoints,
 } from "lucide-react";
 
@@ -218,6 +219,14 @@ export const NAV: NavGroup[] = [
 					body: "The values you chose during setup live here: the instance URL, generated domains, the Let's Encrypt email and the local registry.",
 					action: "Edit settings",
 				},
+			},
+			{
+				to: "/settings/variables",
+				title: "Variables",
+				icon: Variable,
+				description:
+					"Environment variables every service in the organization inherits.",
+				keywords: ["env", "environment", "secrets", "dotenv", "shared"],
 			},
 			{
 				to: "/settings/appearance",

@@ -3,7 +3,7 @@ import {
 	isReservedEnvKey,
 	RESERVED_ENV_PREFIX,
 } from "@logistack/contracts";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
 	ClipboardPaste,
 	CopyPlus,
@@ -11,9 +11,10 @@ import {
 	EyeOff,
 	Lock,
 	Plus,
+	Settings2,
 	Trash2,
 } from "lucide-react";
-import { type ClipboardEvent, useMemo, useState } from "react";
+import { type ClipboardEvent, type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Panel } from "@/components/panel";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ import { api } from "@/lib/api";
 import {
 	type EffectiveEnvVar,
 	type EnvScope,
+	type ServiceVarInput,
 	useServiceMutation,
 } from "@/lib/api/service-ops";
 import type { ProjectId, ServiceId } from "@/lib/api/types";
@@ -70,7 +72,12 @@ const DOTS = "••••••••••••";
 
 let uidSeq = 0;
 const uid = () => `r${uidSeq++}`;
-const toRow = (v: EffectiveEnvVar): Row => ({
+/** What an editor starts from: one stored variable at its scope. */
+export type VarLike = Pick<
+	EffectiveEnvVar,
+	"key" | "value" | "isSecret" | "isBuildTime"
+>;
+const toRow = (v: VarLike): Row => ({
 	uid: uid(),
 	key: v.key,
 	value: v.value,
@@ -140,26 +147,47 @@ function Masked() {
 	);
 }
 
-export function EnvEditor({
-	serviceId,
-	projectId,
+/** Lets the panels after the editor see its draft: which names it defines, and add one. */
+export type Draft = {
+	keys: Set<string>;
+	add: (key: string, value: string) => void;
+};
+
+/**
+ * The editable set of variables at one scope: rows with secret and build flags, reveal,
+ * paste a .env, and a save bar. `save` receives the whole set; an entry without `value`
+ * keeps the stored one (a secret the user cannot read).
+ */
+export function VariablesEditor({
+	title,
+	id,
+	empty,
 	vars,
+	save,
+	savedHint,
+	redeploy,
+	children,
 }: {
-	serviceId: ServiceId;
-	projectId: ProjectId;
-	vars: EffectiveEnvVar[];
+	title: string;
+	id: string;
+	empty: ReactNode;
+	vars: VarLike[];
+	save: (variables: ServiceVarInput[]) => Promise<unknown>;
+	/** The toast after a plain save. */
+	savedHint: string;
+	/** Adds "Save and redeploy"; runs after the save. */
+	redeploy?: () => Promise<unknown>;
+	/** Panels rendered between the editor and its save bar. */
+	children?: (draft: Draft) => ReactNode;
 }) {
-	const navigate = useNavigate();
-	const initial = useMemo(
-		() => vars.filter((v) => v.scope === "service").map(toRow),
-		[vars],
-	);
+	const initial = useMemo(() => vars.map(toRow), [vars]);
 	const stored = useMemo(() => new Set(initial.map((r) => r.key)), [initial]);
 	const [rows, setRows] = useState<Row[]>(initial);
 	const [base, setBase] = useState(() => signature(initial));
 	const [revealed, setRevealed] = useState<Set<string>>(new Set());
 	const [pasteOpen, setPasteOpen] = useState(false);
 	const [pasteText, setPasteText] = useState("");
+	const [busy, setBusy] = useState(false);
 
 	// The server's set changed: take it, unless that would drop edits made since the last sync.
 	const incoming = signature(initial);
@@ -169,30 +197,10 @@ export function EnvEditor({
 		setBase(incoming);
 	}
 
-	const inherited = vars.filter((v) => v.scope !== "service");
 	const drafted = new Set(rows.map((r) => r.key));
-	const overridden = (v: EffectiveEnvVar) =>
-		drafted.has(v.key) ||
-		inherited.some((o) => o.key === v.key && RANK[o.scope] > RANK[v.scope]);
 	const errors = rows.map((r) => rowError(r, rows, stored));
 	const dirty = draft !== incoming;
 	const valid = errors.every((e) => e === null);
-
-	const save = useServiceMutation(serviceId, () =>
-		api.serviceOps.saveEnvVars(
-			serviceId,
-			rows.map((r) => ({
-				key: r.key,
-				isSecret: r.isSecret,
-				isBuildTime: r.isBuildTime,
-				...(r.value === null ? {} : { value: r.value }),
-			})),
-		),
-	);
-	const deploy = useServiceMutation(serviceId, () =>
-		api.serviceOps.deploy(serviceId),
-	);
-	const busy = save.isPending || deploy.isPending;
 
 	const update = (id: string, patch: Partial<Row>) =>
 		setRows((rs) => rs.map((r) => (r.uid === id ? { ...r, ...patch } : r)));
@@ -251,25 +259,28 @@ export function EnvEditor({
 		merge(text, row.value ? undefined : row.uid);
 	}
 
-	async function submit(redeploy: boolean) {
+	async function submit(andRedeploy: boolean) {
+		setBusy(true);
 		try {
-			await save.mutateAsync(undefined);
-			if (!redeploy) {
-				toast.success("Variables saved", {
-					description: "They apply from the next deployment.",
-				});
-				return;
-			}
-			const d = await deploy.mutateAsync(undefined);
-			navigate({
-				to: "/projects/$projectId/services/$serviceId/deployments",
-				params: { projectId, serviceId },
-				search: { d: d.id },
-			});
+			await save(
+				rows.map((r) => ({
+					key: r.key,
+					isSecret: r.isSecret,
+					isBuildTime: r.isBuildTime,
+					...(r.value === null ? {} : { value: r.value }),
+				})),
+			);
+			if (andRedeploy && redeploy) await redeploy();
+			else toast.success("Variables saved", { description: savedHint });
 		} catch (e) {
-			toast.error(redeploy ? "Couldn't save and redeploy" : "Couldn't save", {
-				description: e instanceof Error ? e.message : undefined,
-			});
+			toast.error(
+				andRedeploy ? "Couldn't save and redeploy" : "Couldn't save",
+				{
+					description: e instanceof Error ? e.message : undefined,
+				},
+			);
+		} finally {
+			setBusy(false);
 		}
 	}
 
@@ -286,8 +297,8 @@ export function EnvEditor({
 	return (
 		<div className="grid gap-8">
 			<Panel
-				title="Service variables"
-				id="service-vars"
+				title={title}
+				id={id}
 				actions={
 					<div className="flex gap-1">
 						<Button
@@ -306,10 +317,8 @@ export function EnvEditor({
 				}
 			>
 				{rows.length === 0 ? (
-					<p className="px-4 py-6 text-sm text-muted-foreground">
-						None yet. Add one, or paste a{" "}
-						<code className="font-mono">.env</code> file. A service variable
-						wins over the same name set higher up.
+					<p className="px-4 py-6 text-sm text-pretty text-muted-foreground">
+						{empty}
 					</p>
 				) : (
 					<ul className="divide-y">
@@ -397,114 +406,7 @@ export function EnvEditor({
 				)}
 			</Panel>
 
-			<Panel title="Inherited" id="inherited-vars">
-				{inherited.length === 0 ? (
-					<p className="px-4 py-6 text-sm text-muted-foreground">
-						Nothing is set for the organization, project or environment.
-					</p>
-				) : (
-					<ul className="divide-y">
-						{inherited.map((v) => {
-							const off = overridden(v);
-							const shown = !v.isSecret || revealed.has(v.id);
-							return (
-								<li
-									key={v.id}
-									className={cn(
-										"grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-2.5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_7rem_auto]",
-										off && "text-muted-foreground",
-									)}
-								>
-									<span
-										className={cn(
-											"truncate font-mono text-[13px]",
-											off && "line-through decoration-muted-foreground/60",
-										)}
-										title={
-											off
-												? `${v.key}: overridden by a more specific scope`
-												: v.key
-										}
-									>
-										{v.key}
-									</span>
-									<span className="col-span-2 row-start-2 flex min-w-0 items-center gap-1 font-mono text-[13px] md:col-span-1 md:row-start-auto">
-										{v.value === null ? (
-											<Masked />
-										) : (
-											<>
-												<span className={cn("truncate", off && "line-through")}>
-													{shown
-														? v.value || (
-																<span className="text-muted-foreground">
-																	empty
-																</span>
-															)
-														: DOTS}
-												</span>
-												{v.isSecret && (
-													<Button
-														variant="ghost"
-														size="icon-xs"
-														aria-label={
-															shown ? `Hide ${v.key}` : `Show ${v.key}`
-														}
-														aria-pressed={shown}
-														onClick={() => reveal(v.id)}
-													>
-														{shown ? <EyeOff /> : <Eye />}
-													</Button>
-												)}
-											</>
-										)}
-									</span>
-									<Badge
-										variant="secondary"
-										className="justify-self-end md:justify-self-start"
-									>
-										{SCOPE_LABEL[v.scope]}
-									</Badge>
-									<span className="hidden justify-end md:flex">
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											className="text-muted-foreground"
-											aria-label={`Override ${v.key} for this service`}
-											title="Override for this service"
-											disabled={drafted.has(v.key)}
-											onClick={() => add(v.key, v.value ?? "")}
-										>
-											<CopyPlus />
-										</Button>
-									</span>
-								</li>
-							);
-						})}
-					</ul>
-				)}
-			</Panel>
-
-			<Panel title="Set on every deployment" id="context-vars">
-				<p className="border-b px-4 py-3 text-sm text-pretty text-muted-foreground">
-					Read-only. Containers get these at runtime, and a Dockerfile build
-					gets the ones it declares with <code className="font-mono">ARG</code>.
-				</p>
-				<dl className="divide-y">
-					{Object.entries(deploymentContextVars).map(([key, about]) => (
-						<div
-							key={key}
-							className="grid gap-x-3 gap-y-0.5 px-4 py-2.5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-baseline"
-						>
-							<dt className="truncate font-mono text-[13px]" title={key}>
-								{key}
-							</dt>
-							<dd className="text-sm text-pretty text-muted-foreground">
-								{about}
-							</dd>
-						</div>
-					))}
-				</dl>
-			</Panel>
+			{children?.({ keys: drafted, add: (k, v) => add(k, v) })}
 
 			{dirty && (
 				<div className="t-reveal sticky bottom-4 z-20 flex flex-wrap items-center justify-end gap-2 rounded-xl bg-popover px-4 py-3 shadow-float ring-1 ring-border">
@@ -522,15 +424,17 @@ export function EnvEditor({
 						Discard
 					</Button>
 					<Button
-						variant="outline"
+						variant={redeploy ? "outline" : "default"}
 						disabled={!valid || busy}
 						onClick={() => submit(false)}
 					>
 						Save
 					</Button>
-					<Button disabled={!valid || busy} onClick={() => submit(true)}>
-						Save and redeploy
-					</Button>
+					{redeploy ? (
+						<Button disabled={!valid || busy} onClick={() => submit(true)}>
+							Save and redeploy
+						</Button>
+					) : null}
 				</div>
 			)}
 
@@ -580,5 +484,214 @@ export function EnvEditor({
 				</DialogContent>
 			</Dialog>
 		</div>
+	);
+}
+
+/** Organization, project and environment variables a service sees, and which of them it overrides. */
+function InheritedPanel({
+	vars,
+	draft,
+	projectId,
+	environmentId,
+}: {
+	vars: EffectiveEnvVar[];
+	draft: Draft;
+	projectId: ProjectId;
+	environmentId?: string;
+}) {
+	const [revealed, setRevealed] = useState<Set<string>>(new Set());
+	const reveal = (k: string) =>
+		setRevealed((s) => {
+			const next = new Set(s);
+			if (next.has(k)) next.delete(k);
+			else next.add(k);
+			return next;
+		});
+	const inherited = vars.filter((v) => v.scope !== "service");
+	const overridden = (v: EffectiveEnvVar) =>
+		draft.keys.has(v.key) ||
+		inherited.some((o) => o.key === v.key && RANK[o.scope] > RANK[v.scope]);
+	return (
+		<Panel
+			title="Inherited"
+			id="inherited-vars"
+			actions={
+				<Button variant="ghost" size="sm" asChild>
+					<Link
+						to="/projects/$projectId/variables"
+						params={{ projectId }}
+						search={{ env: environmentId }}
+					>
+						<Settings2 data-icon="inline-start" />
+						Shared variables
+					</Link>
+				</Button>
+			}
+		>
+			{inherited.length === 0 ? (
+				<p className="px-4 py-6 text-sm text-muted-foreground">
+					Nothing is set for the organization, project or environment.
+				</p>
+			) : (
+				<ul className="divide-y">
+					{inherited.map((v) => {
+						const off = overridden(v);
+						const shown = !v.isSecret || revealed.has(v.id);
+						return (
+							<li
+								key={v.id}
+								className={cn(
+									"grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-2.5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_7rem_auto]",
+									off && "text-muted-foreground",
+								)}
+							>
+								<span
+									className={cn(
+										"truncate font-mono text-[13px]",
+										off && "line-through decoration-muted-foreground/60",
+									)}
+									title={
+										off
+											? `${v.key}: overridden by a more specific scope`
+											: v.key
+									}
+								>
+									{v.key}
+								</span>
+								<span className="col-span-2 row-start-2 flex min-w-0 items-center gap-1 font-mono text-[13px] md:col-span-1 md:row-start-auto">
+									{v.value === null ? (
+										<Masked />
+									) : (
+										<>
+											<span className={cn("truncate", off && "line-through")}>
+												{shown
+													? v.value || (
+															<span className="text-muted-foreground">
+																empty
+															</span>
+														)
+													: DOTS}
+											</span>
+											{v.isSecret && (
+												<Button
+													variant="ghost"
+													size="icon-xs"
+													aria-label={shown ? `Hide ${v.key}` : `Show ${v.key}`}
+													aria-pressed={shown}
+													onClick={() => reveal(v.id)}
+												>
+													{shown ? <EyeOff /> : <Eye />}
+												</Button>
+											)}
+										</>
+									)}
+								</span>
+								<Badge
+									variant="secondary"
+									className="justify-self-end md:justify-self-start"
+								>
+									{SCOPE_LABEL[v.scope]}
+								</Badge>
+								<span className="hidden justify-end md:flex">
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										className="text-muted-foreground"
+										aria-label={`Override ${v.key} for this service`}
+										title="Override for this service"
+										disabled={draft.keys.has(v.key)}
+										onClick={() => draft.add(v.key, v.value ?? "")}
+									>
+										<CopyPlus />
+									</Button>
+								</span>
+							</li>
+						);
+					})}
+				</ul>
+			)}
+		</Panel>
+	);
+}
+
+function ContextPanel() {
+	return (
+		<Panel title="Set on every deployment" id="context-vars">
+			<p className="border-b px-4 py-3 text-sm text-pretty text-muted-foreground">
+				Read-only. Containers get these at runtime, and a Dockerfile build gets
+				the ones it declares with <code className="font-mono">ARG</code>.
+			</p>
+			<dl className="divide-y">
+				{Object.entries(deploymentContextVars).map(([key, about]) => (
+					<div
+						key={key}
+						className="grid gap-x-3 gap-y-0.5 px-4 py-2.5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-baseline"
+					>
+						<dt className="truncate font-mono text-[13px]" title={key}>
+							{key}
+						</dt>
+						<dd className="text-sm text-pretty text-muted-foreground">
+							{about}
+						</dd>
+					</div>
+				))}
+			</dl>
+		</Panel>
+	);
+}
+
+export function EnvEditor({
+	serviceId,
+	projectId,
+	environmentId,
+	vars,
+}: {
+	serviceId: ServiceId;
+	projectId: ProjectId;
+	environmentId?: string;
+	vars: EffectiveEnvVar[];
+}) {
+	const navigate = useNavigate();
+	const own = useMemo(() => vars.filter((v) => v.scope === "service"), [vars]);
+	const save = useServiceMutation(serviceId, (variables: ServiceVarInput[]) =>
+		api.serviceOps.saveEnvVars(serviceId, variables),
+	);
+	const deploy = useServiceMutation(serviceId, () =>
+		api.serviceOps.deploy(serviceId),
+	);
+	return (
+		<VariablesEditor
+			title="Service variables"
+			id="service-vars"
+			empty={
+				<>
+					None yet. Add one, or paste a <code className="font-mono">.env</code>{" "}
+					file. A service variable wins over the same name set higher up.
+				</>
+			}
+			vars={own}
+			save={save.mutateAsync}
+			savedHint="They apply from the next deployment."
+			redeploy={async () => {
+				const d = await deploy.mutateAsync(undefined);
+				await navigate({
+					to: "/projects/$projectId/services/$serviceId/deployments",
+					params: { projectId, serviceId },
+					search: { d: d.id },
+				});
+			}}
+		>
+			{(draft) => (
+				<>
+					<InheritedPanel
+						vars={vars}
+						draft={draft}
+						projectId={projectId}
+						environmentId={environmentId}
+					/>
+					<ContextPanel />
+				</>
+			)}
+		</VariablesEditor>
 	);
 }

@@ -1,6 +1,6 @@
 ---
 title: Production, staging and custom environments
-description: Create production, staging and custom environments in a LogiStack project, recolor them, set the default, and clone one into another with a manifest.
+description: Create production, staging and custom environments in a LogiStack project, duplicate one into another, recolor them and set the default.
 ---
 
 An environment is an isolated set of services, variables and domains inside a project. Services in one environment share a private network and can't reach services in another, so a staging app never talks to the production database by accident. Use environments to run the same project at different stages, such as **Production** and **Staging**, or to give a client their own copy.
@@ -41,7 +41,7 @@ Select **New environment**. In the dialog, enter a **Name** such as `Staging` an
 
 ### Add services
 
-The new environment is empty. Select **New service** to add services to it, or clone another environment as described below.
+The new environment is empty. Select **New service** to add services to it, or [duplicate an environment](#duplicate-an-environment) instead to start from a copy.
 
 </Step>
 </Steps>
@@ -51,81 +51,87 @@ The new environment is empty. Select **New service** to add services to it, or c
 Select the settings icon next to the environment tabs (labelled `<name> settings`) to open its menu:
 
 - **Open by default**: the project opens on this environment.
+- **Variables**: the variables every service in this environment inherits. See [Environment variables](./environment-variables.mdx#set-organization-project-and-environment-variables).
+- **Duplicate…**: start a new environment from this one. See below.
 - **Export manifest**: download the environment as a YAML manifest.
 - **Color**: pick one of six colors for the environment's dot, shown across the dashboard.
 
-## Clone an environment
+![The settings menu of the Production environment, with Open by default, Variables, Duplicate, Export manifest and the colors](/screens/environment-menu.webp)
 
-To copy an environment's services, stacks, variables, domains and backup policies into another, export its manifest and apply it to the target.
+## Duplicate an environment
+
+Duplicating creates a new environment in the same project with the services, Git stacks, settings and config files of another, for example **Staging** from **Production**. You need permission to change the project.
+
+| Copied | Not copied |
+|---|---|
+| Services, with their source, build, resources, health checks and config files | Domains: a hostname points at one environment |
+| Stacks deployed from Git | Volume and database data: new volumes start empty |
+| Environment and service variables, if you choose to | Backup policies |
 
 <Steps>
 <Step>
 
-### Export the source
+### Open the source environment's menu
 
-Open the source environment's menu and select **Export manifest**. You get a file like `storefront-production.logistack.yaml`.
-
-</Step>
-<Step>
-
-### Create the target
-
-Select **New environment** and create it, for example `Staging` with the kind **Staging**.
+Open the project, select the environment to copy, then select its settings icon and **Duplicate…**.
 
 </Step>
 <Step>
 
-### Edit the manifest
+### Name the copy
 
-Open the file and change what must differ in the copy:
+**Copy from** shows the source; change it if needed. Enter a **Name** such as `Staging` and pick the **Kind**. Select **Continue**.
 
-```yaml title="storefront-production.logistack.yaml (excerpt)"
-version: 1
-kind: environment
-environment:
-  name: Staging
-  slug: staging
-  kind: staging
-  variables:
-    - key: PUBLIC_URL
-      value: https://staging.shop.example.com
-  services:
-    - slug: web
-      domains:
-        - hostname: staging.shop.example.com
-          port: 3000
-          https: true
-```
-
-Change hostnames so the copy doesn't claim the production domains, and point variables like `DATABASE_URL` at the staging database.
+![The Name the copy step of the Duplicate environment wizard, copying from Production](/screens/environment-duplicate.webp)
 
 </Step>
 <Step>
 
-### Import it
+### Choose what comes over
 
-In the project header, open the actions menu and select **Import manifest…**. Drop the file, choose the new environment under **Apply to**, and select **Continue**. **Review changes** lists every resource it creates. Select **Apply changes**.
-
-![The Import manifest page of the Storefront project, with a drop zone for the manifest file](/screens/project-import.webp)
+Under **What comes over**, pick **Copy variables** or **Start without variables**. Copied secrets stay encrypted. Start without variables when the copy must not reach the source's databases or APIs. Select **Continue**.
 
 </Step>
 <Step>
 
-### Set secrets and deploy
+### Review and duplicate
 
-Secret values are never exported. Set them on the new services' **Environment** tabs, then select **Deploy** on each service. Applying a manifest creates the services but doesn't deploy them.
+Check the summary and select **Duplicate environment**. The project opens on the new environment.
+
+</Step>
+<Step>
+
+### Add domains and deploy
+
+Nothing is deployed yet. Point variables such as `DATABASE_URL` at the copy's own database, add [domains](../networking/domains.mdx), then select **Deploy** on each service.
 
 </Step>
 </Steps>
 
+Secrets are copied only if you can read them in the source environment. Otherwise the copy lists each one as a warning and you set it on the new service's **Environment** tab.
+
 <Callout type="info">
-Each environment gets its own volumes and databases. Cloning copies the configuration, not the data. To copy data, restore a backup into the new database. See [Restore](../data/restore.mdx).
+Each environment gets its own volumes and databases. Duplicating copies the configuration, not the data. To copy data, restore a backup into the new database. See [Restore](../data/restore.mdx).
 </Callout>
 
-What a manifest doesn't carry: secret values, generated domains, basic auth and domain access rules, node pins and adopted volumes. Stacks from a pasted compose file or a template come across as their individual services. See [Project manifests](../automation/project-manifests.mdx).
+### With the API
+
+`POST /api/environments/{id}/duplicate` does the same; over MCP it is the `environment_duplicate` tool. A name already taken in the project returns `409`, and a copy that fails halfway is removed, so retrying is safe.
+
+```bash title="Duplicate Production into Staging"
+curl -fsS -X POST "https://stack.example.com/api/environments/env_storefront_production/duplicate" \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{ "name": "Staging", "kind": "staging", "includeVariables": true }'
+```
+
+### Copy with changes, or into another project
+
+To change hostnames or values on the way, or to copy into another project, use a manifest: open the source environment's menu and select **Export manifest**, edit the file, then open the target project's actions menu, select **Import manifest…** and apply it to the target environment. Secret values are never exported, so set them after applying. See [Project manifests](../automation/project-manifests.mdx).
 
 ## Common problems
 
 - **A service in one environment can't reach another's database**: by design. Each environment has its own network. Put both services in the same environment.
 - **The import reports a name that matches nothing**: the manifest names a Git provider, S3 destination, DNS provider or certificate that doesn't exist in this organization. Create it, or fix the name.
-- **The copy's services don't start**: applying a manifest doesn't deploy. Select **Deploy** on each service.
+- **The copy's services don't start**: duplicating or applying a manifest doesn't deploy. Select **Deploy** on each service.
+- **"This project already has an environment with that name"**: environment names map to unique slugs within a project. Pick another name.

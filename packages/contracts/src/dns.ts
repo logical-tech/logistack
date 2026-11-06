@@ -33,6 +33,9 @@ export const dnsTtlRules: Record<
 	cloudflare: { min: 60, max: 86_400, auto: 1 },
 	route53: { min: 0, max: 2_147_483_647 },
 	hetzner: { min: 60, max: 2_147_483_647 },
+	digitalocean: { min: 30, max: 2_147_483_647 },
+	ovh: { min: 60, max: 2_147_483_647, auto: 0 },
+	porkbun: { min: 600, max: 2_147_483_647 },
 };
 
 /** The fields each type's value is made of, in presentation order. */

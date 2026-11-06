@@ -268,9 +268,33 @@ Let's Encrypt issues wildcard certificates only over DNS-01, so a wildcard needs
 
 ## Redirect one hostname to another
 
-The dashboard has no redirect setting yet. The REST API does: set `redirectTo` on a domain and the proxy answers every request with a `308` redirect to that hostname over HTTPS, keeping the path and query. Use it to send `www.example.com` to `example.com`.
+A domain can send every visitor to another hostname instead of serving the service. The proxy answers with a `308` redirect to that hostname over HTTPS and keeps the path and query. Use it to send `www.example.com` to `example.com`.
 
-Create the `www.example.com` domain on the same service first, then replace its routing:
+<Steps>
+<Step>
+
+### Start the domain wizard
+
+On the **Domains** page, select **Add domain**, or select the pencil icon (**Edit**) on an existing domain.
+
+</Step>
+<Step>
+
+### Fill in Redirect to
+
+On the **Hostname** step, enter the hostname that should redirect, for example `www.example.com`, and type the target in **Redirect to**, for example `example.com`. Leave **Redirect to** empty to serve the service as usual.
+
+</Step>
+<Step>
+
+### Finish the wizard
+
+Complete the DNS and HTTPS steps as for any domain: the redirecting hostname still needs its own DNS record and certificate. The summary shows **Redirects to** under **Route**. Select **Add domain**, or **Save domain** when editing.
+
+</Step>
+</Steps>
+
+From the REST API, set `redirectTo` on the domain:
 
 ```bash
 curl -X PUT https://logistack.example.com/api/domains/dom_xxxxxxxx \
@@ -287,8 +311,8 @@ curl -X PUT https://logistack.example.com/api/domains/dom_xxxxxxxx \
 
 A request for `http://www.example.com/shop?page=2` ends at `https://example.com/shop?page=2`. The Domains page shows `redirects to example.com` under the hostname. [Access rules](./access-control.mdx) do not apply to a redirect; protect the target domain instead.
 
-<Callout type="warn">
-`PUT /api/domains/{id}` replaces the whole routing. Saving the domain again from the dashboard wizard clears `redirectTo`. After editing a redirect domain in the wizard, send the `PUT` again.
+<Callout type="info">
+`PUT /api/domains/{id}` replaces the whole routing, so send `redirectTo` on every `PUT` that should keep the redirect. The dashboard wizard keeps it for you.
 </Callout>
 
 ## Edit or delete a domain

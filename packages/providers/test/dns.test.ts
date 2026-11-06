@@ -8,11 +8,15 @@ import {
 import {
 	caddyDnsChallenge,
 	cloudflare,
+	digitalocean,
 	findZoneForHostname,
 	Http,
 	hetzner,
 	instantiate,
+	ovh,
+	ovhSignature,
 	ProviderError,
+	porkbun,
 	route53,
 	signV4,
 	waitForPropagation,
@@ -126,6 +130,29 @@ describe("caddyDnsChallenge", () => {
 			secret_access_key: "SK",
 			region: "us-east-1",
 		});
+		expect(caddyDnsChallenge("digitalocean", { apiToken: "do" })).toEqual({
+			name: "digitalocean",
+			auth_token: "do",
+		});
+		expect(
+			caddyDnsChallenge(
+				"ovh",
+				ovh.configSchema.parse({
+					applicationKey: "AK",
+					applicationSecret: "AS",
+					consumerKey: "CK",
+				}),
+			),
+		).toEqual({
+			name: "ovh",
+			endpoint: "ovh-eu",
+			application_key: "AK",
+			application_secret: "AS",
+			consumer_key: "CK",
+		});
+		expect(
+			caddyDnsChallenge("porkbun", { apiKey: "pk", secretApiKey: "sk" }),
+		).toEqual({ name: "porkbun", api_key: "pk", api_secret_key: "sk" });
 	});
 });
 
@@ -858,5 +885,412 @@ describe("record values (contracts)", () => {
 				values: ["ok"],
 			}).map(([p]) => p),
 		).toEqual(["name", "ttl", "proxied"]);
+	});
+});
+
+const route = (c: { method: string; url: string }) =>
+	`${c.method} ${new URL(c.url).pathname}${new URL(c.url).search}`;
+
+describe("digitalocean", () => {
+	const doRecords = [
+		{ id: 1, type: "A", name: "app", data: "1.1.1.1", ttl: 300 },
+		{ id: 2, type: "A", name: "app", data: "2.2.2.2", ttl: 300 },
+		{
+			id: 3,
+			type: "MX",
+			name: "@",
+			data: "mail.example.com.",
+			priority: 10,
+			ttl: 1800,
+		},
+		{ id: 4, type: "CNAME", name: "www", data: "@", ttl: 1800 },
+		{
+			id: 5,
+			type: "CAA",
+			name: "@",
+			data: "letsencrypt.org",
+			flags: 0,
+			tag: "issue",
+			ttl: 3600,
+		},
+		{ id: 6, type: "SOA", name: "@", data: "1800", ttl: 1800 },
+	];
+
+	test("listZones follows links.pages.next", async () => {
+		const m = mockFetch((c) =>
+			new URL(c.url).searchParams.get("page") === "2"
+				? Response.json({ domains: [{ name: "two.com" }], links: {} })
+				: Response.json({
+						domains: [{ name: "One.com" }],
+						links: {
+							pages: {
+								next: "https://api.digitalocean.com/v2/domains?page=2&per_page=200",
+							},
+						},
+					}),
+		);
+		expect(await digitalocean.create({ apiToken: "t" }, m).listZones()).toEqual(
+			[
+				{ id: "one.com", name: "one.com" },
+				{ id: "two.com", name: "two.com" },
+			],
+		);
+		expect(m.calls[0]?.headers.authorization).toBe("Bearer t");
+	});
+
+	test("listRecords maps apex @, priorities and CAA, and skips SOA", async () => {
+		const m = mockFetch(() =>
+			Response.json({ domain_records: doRecords, links: {} }),
+		);
+		const recs = await digitalocean
+			.create({ apiToken: "t" }, m)
+			.listRecords("example.com");
+		expect(recs.map((r) => [r.id, r.name, r.content, r.ttl])).toEqual([
+			["app/A", "app.example.com", "1.1.1.1", 300],
+			["app/A", "app.example.com", "2.2.2.2", 300],
+			["@/MX", "example.com", "10 mail.example.com", 1800],
+			["www/CNAME", "www.example.com", "example.com", 1800],
+			["@/CAA", "example.com", '0 issue "letsencrypt.org"', 3600],
+		]);
+	});
+
+	test("updating a set rewrites in place, adds and removes the rest", async () => {
+		const m = mockFetch((c) =>
+			c.method === "GET"
+				? Response.json({ domain_records: doRecords.slice(0, 2), links: {} })
+				: new Response(null, { status: c.method === "DELETE" ? 204 : 200 }),
+		);
+		const dns = digitalocean.create({ apiToken: "t" }, m);
+		await dns.updateRecord("app/A", {
+			zoneId: "example.com",
+			name: "app.example.com",
+			type: "A",
+			ttl: 300,
+			values: ["2.2.2.2", "3.3.3.3"],
+		});
+		expect(m.calls.map(route)).toEqual([
+			"GET /v2/domains/example.com/records?name=app.example.com&type=A&per_page=200",
+			"PUT /v2/domains/example.com/records/1",
+		]);
+		expect(json(m.calls[1] ?? ({} as never))).toEqual({
+			type: "A",
+			name: "app",
+			ttl: 300,
+			data: "3.3.3.3",
+		});
+
+		m.calls.length = 0;
+		await dns.upsertRecord({
+			zoneId: "example.com",
+			name: "app.example.com",
+			type: "A",
+			content: "1.1.1.1",
+			ttl: 300,
+		});
+		expect(m.calls.map((c) => c.method)).toEqual(["GET", "DELETE"]);
+	});
+
+	test("create sends absolute MX targets with priority; refuses an existing set", async () => {
+		const m = mockFetch((c) =>
+			c.method === "GET"
+				? Response.json({ domain_records: [], links: {} })
+				: Response.json({}),
+		);
+		const dns = digitalocean.create({ apiToken: "t" }, m);
+		await dns.createRecord({
+			zoneId: "example.com",
+			name: "example.com",
+			type: "MX",
+			ttl: 3600,
+			values: ["10 mail.example.com"],
+		});
+		expect(json(m.calls[1] ?? ({} as never))).toEqual({
+			type: "MX",
+			name: "@",
+			ttl: 3600,
+			data: "mail.example.com.",
+			priority: 10,
+		});
+		const full = mockFetch(() =>
+			Response.json({ domain_records: doRecords, links: {} }),
+		);
+		await expect(
+			digitalocean.create({ apiToken: "t" }, full).createRecord({
+				zoneId: "example.com",
+				name: "app.example.com",
+				type: "A",
+				ttl: 300,
+				values: ["9.9.9.9"],
+			}),
+		).rejects.toThrow("already has A records");
+	});
+});
+
+describe("ovh", () => {
+	const creds = {
+		endpoint: "ovh-eu" as const,
+		applicationKey: "ak",
+		applicationSecret: "as",
+		consumerKey: "ck",
+	};
+
+	test("signature is $1$ + SHA-1 of AS+CK+METHOD+URL+BODY+TS", async () => {
+		const input = {
+			applicationSecret: "as",
+			consumerKey: "ck",
+			method: "POST",
+			url: "https://eu.api.ovh.com/1.0/domain/zone/example.com/record",
+			body: '{"fieldType":"A"}',
+			timestamp: 1_700_000_000,
+		};
+		const expected = new Bun.CryptoHasher("sha1")
+			.update(
+				`as+ck+POST+https://eu.api.ovh.com/1.0/domain/zone/example.com/record+{"fieldType":"A"}+1700000000`,
+			)
+			.digest("hex");
+		expect(await ovhSignature(input)).toBe(`$1$${expected}`);
+	});
+
+	test("signs every call with the server clock, lists records one by one", async () => {
+		const serverTime = Math.floor(Date.now() / 1000) + 1000;
+		const records: Record<string, object> = {
+			"1": {
+				id: 1,
+				subDomain: "",
+				fieldType: "MX",
+				target: "10 mail.example.com.",
+				ttl: 0,
+			},
+			"2": {
+				id: 2,
+				subDomain: "_acme",
+				fieldType: "TXT",
+				target: '"tok"',
+				ttl: 60,
+			},
+			"3": { id: 3, subDomain: "", fieldType: "SOA", target: "x", ttl: 0 },
+		};
+		const m = mockFetch((c) => {
+			const path = new URL(c.url).pathname;
+			if (path === "/1.0/auth/time") return Response.json(serverTime);
+			if (path.endsWith("/record")) return Response.json([1, 2, 3]);
+			return Response.json(records[path.split("/").at(-1) ?? ""]);
+		});
+		const recs = await ovh.create(creds, m).listRecords("example.com");
+		expect(recs.map((r) => [r.id, r.name, r.content, r.ttl])).toEqual([
+			["@/MX", "example.com", "10 mail.example.com", 0],
+			["_acme/TXT", "_acme.example.com", "tok", 60],
+		]);
+		expect(m.calls.filter((c) => c.url.endsWith("/auth/time"))).toHaveLength(1);
+		const signed = m.calls[1];
+		const ts = Number(signed?.headers["x-ovh-timestamp"]);
+		expect(Math.abs(ts - serverTime)).toBeLessThanOrEqual(2);
+		expect(signed?.headers["x-ovh-application"]).toBe("ak");
+		expect(signed?.headers["x-ovh-consumer"]).toBe("ck");
+		expect(signed?.headers["x-ovh-signature"]).toBe(
+			await ovhSignature({
+				applicationSecret: "as",
+				consumerKey: "ck",
+				method: "GET",
+				url: signed?.url ?? "",
+				body: "",
+				timestamp: ts,
+			}),
+		);
+	});
+
+	test("create posts each value with an absolute target, then refreshes the zone", async () => {
+		const m = mockFetch((c) => {
+			const path = new URL(c.url).pathname;
+			if (path === "/1.0/auth/time")
+				return Response.json(Math.floor(Date.now() / 1000));
+			if (c.method === "GET") return Response.json([]);
+			return Response.json(null);
+		});
+		await ovh.create(creds, m).createRecord({
+			zoneId: "example.com",
+			name: "www.example.com",
+			type: "CNAME",
+			ttl: 300,
+			values: ["app.example.com"],
+		});
+		expect(m.calls.slice(1).map(route)).toEqual([
+			"GET /1.0/domain/zone/example.com/record?fieldType=CNAME&subDomain=www",
+			"POST /1.0/domain/zone/example.com/record",
+			"POST /1.0/domain/zone/example.com/refresh",
+		]);
+		expect(json(m.calls[2] ?? ({} as never))).toEqual({
+			fieldType: "CNAME",
+			subDomain: "www",
+			target: "app.example.com.",
+			ttl: 300,
+		});
+	});
+
+	test("delete removes every record of the set; a missing set is a no-op", async () => {
+		const m = mockFetch((c) => {
+			const path = new URL(c.url).pathname;
+			if (path === "/1.0/auth/time")
+				return Response.json(Math.floor(Date.now() / 1000));
+			if (c.method === "GET" && path.endsWith("/record"))
+				return Response.json([7, 8]);
+			if (c.method === "GET")
+				return Response.json({
+					id: Number(path.split("/").at(-1)),
+					subDomain: "app",
+					fieldType: "A",
+					target: "1.1.1.1",
+					ttl: 60,
+				});
+			return Response.json(null);
+		});
+		await ovh.create(creds, m).deleteRecord("example.com", "app/A");
+		expect(m.calls.filter((c) => c.method !== "GET").map(route)).toEqual([
+			"DELETE /1.0/domain/zone/example.com/record/7",
+			"DELETE /1.0/domain/zone/example.com/record/8",
+			"POST /1.0/domain/zone/example.com/refresh",
+		]);
+
+		const empty = mockFetch((c) =>
+			c.url.endsWith("/auth/time") ? Response.json(0) : Response.json([]),
+		);
+		await ovh.create(creds, empty).deleteRecord("example.com", "gone/A");
+		expect(empty.calls.every((c) => c.method === "GET")).toBe(true);
+	});
+});
+
+describe("porkbun", () => {
+	const keys = { apiKey: "pk_1", secretApiKey: "sk_1" };
+	const pbRecords = [
+		{
+			id: "11",
+			name: "example.com",
+			type: "MX",
+			content: "mail.example.com",
+			ttl: "600",
+			prio: "10",
+		},
+		{
+			id: "12",
+			name: "_sip._tcp.example.com",
+			type: "SRV",
+			content: "5 5060 sip.example.com",
+			ttl: "600",
+			prio: "0",
+		},
+		{
+			id: "13",
+			name: "app.example.com",
+			type: "A",
+			content: "1.1.1.1",
+			ttl: "600",
+			prio: null,
+		},
+		{
+			id: "14",
+			name: "example.com",
+			type: "NS",
+			content: "curitiba.ns.porkbun.com",
+			ttl: "86400",
+			prio: null,
+		},
+	];
+
+	test("every call is a POST with the keys in the body; ERROR status throws", async () => {
+		const m = mockFetch(() =>
+			Response.json({ status: "SUCCESS", yourIp: "1.2.3.4" }),
+		);
+		await porkbun.create(keys, m).verify();
+		expect(route(m.calls[0] ?? ({} as never))).toBe("POST /api/json/v3/ping");
+		expect(json(m.calls[0] ?? ({} as never))).toEqual({
+			apikey: "pk_1",
+			secretapikey: "sk_1",
+		});
+		const bad = mockFetch(() =>
+			Response.json({ status: "ERROR", message: "Invalid API key." }),
+		);
+		await expect(porkbun.create(keys, bad).verify()).rejects.toThrow(
+			"porkbun verify: Invalid API key.",
+		);
+	});
+
+	test("listZones pages by 1000 with start", async () => {
+		const m = mockFetch((c) => {
+			const start = Number((json(c) as { start: string }).start);
+			const n = start === 0 ? 1000 : 1;
+			return Response.json({
+				status: "SUCCESS",
+				domains: Array.from({ length: n }, (_, i) => ({
+					domain: `d${start + i}.com`,
+				})),
+			});
+		});
+		const zones = await porkbun.create(keys, m).listZones();
+		expect(zones).toHaveLength(1001);
+		expect(zones[1000]).toEqual({ id: "d1000.com", name: "d1000.com" });
+	});
+
+	test("listRecords maps FQDN names and prio", async () => {
+		const m = mockFetch(() =>
+			Response.json({ status: "SUCCESS", records: pbRecords }),
+		);
+		const recs = await porkbun.create(keys, m).listRecords("example.com");
+		expect(route(m.calls[0] ?? ({} as never))).toBe(
+			"POST /api/json/v3/dns/retrieve/example.com",
+		);
+		expect(recs.map((r) => [r.id, r.content, r.ttl])).toEqual([
+			["@/MX", "10 mail.example.com", 600],
+			["_sip._tcp/SRV", "0 5 5060 sip.example.com", 600],
+			["app/A", "1.1.1.1", 600],
+			["@/NS", "curitiba.ns.porkbun.com", 86400],
+		]);
+	});
+
+	test("rename creates the new set with prio and a raised TTL, then deletes the old", async () => {
+		const m = mockFetch(() =>
+			Response.json({ status: "SUCCESS", records: pbRecords }),
+		);
+		await porkbun.create(keys, m).updateRecord("_sip._tcp/SRV", {
+			zoneId: "example.com",
+			name: "_sips._tcp.example.com",
+			type: "SRV",
+			ttl: 300,
+			values: ["1 5 5061 sip.example.com"],
+		});
+		expect(m.calls.map(route)).toEqual([
+			"POST /api/json/v3/dns/retrieve/example.com",
+			"POST /api/json/v3/dns/create/example.com",
+			"POST /api/json/v3/dns/retrieve/example.com",
+			"POST /api/json/v3/dns/delete/example.com/12",
+		]);
+		expect(json(m.calls[1] ?? ({} as never))).toEqual({
+			apikey: "pk_1",
+			secretapikey: "sk_1",
+			name: "_sips._tcp",
+			type: "SRV",
+			ttl: "600",
+			content: "5 5061 sip.example.com",
+			prio: "1",
+		});
+	});
+
+	test("upsert edits the record in place", async () => {
+		const m = mockFetch(() =>
+			Response.json({ status: "SUCCESS", records: pbRecords }),
+		);
+		await porkbun.create(keys, m).upsertRecord({
+			zoneId: "example.com",
+			name: "app.example.com",
+			type: "A",
+			content: "9.9.9.9",
+			ttl: 600,
+		});
+		expect(route(m.calls[1] ?? ({} as never))).toBe(
+			"POST /api/json/v3/dns/edit/example.com/13",
+		);
+		expect(json(m.calls[1] ?? ({} as never))).toMatchObject({
+			name: "app",
+			content: "9.9.9.9",
+		});
 	});
 });

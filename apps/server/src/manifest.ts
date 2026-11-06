@@ -348,6 +348,29 @@ export function environmentManifest(
 	return { version: 1, kind: "environment", environment: env };
 }
 
+/**
+ * What duplicating an environment creates from it: the same stacks, services, settings and
+ * config files. Domains stay out (hostnames are unique across the instance) and so do backup
+ * policies; variables only when asked. Volumes are created empty, since mounts carry no data.
+ */
+export function duplicateOf(
+	from: ManifestEnvironment,
+	to: Pick<ManifestEnvironment, "name" | "slug" | "kind" | "color">,
+	includeVariables: boolean,
+): ManifestEnvironment {
+	return {
+		...from,
+		...to,
+		variables: includeVariables ? from.variables : [],
+		services: from.services.map((s) => ({
+			...s,
+			variables: includeVariables ? s.variables : [],
+			domains: [],
+			backups: [],
+		})),
+	};
+}
+
 /** Every org resource a manifest names exists, or a 400 lists those that do not. */
 function checkRefs(refs: Refs, envs: readonly ManifestEnvironment[]) {
 	const problems = new Set<string>();

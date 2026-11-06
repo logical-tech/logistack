@@ -86,6 +86,8 @@ type V = {
 	hostname: string;
 	port: string;
 	pathPrefix: string;
+	/** Hostname to send visitors to with a permanent redirect; empty serves the service. */
+	redirectTo: string;
 	recordMode: RecordMode;
 	recordType: "A" | "AAAA" | "CNAME";
 	recordContent: string;
@@ -104,6 +106,7 @@ const DEFAULTS: V = {
 	hostname: "",
 	port: "80",
 	pathPrefix: "",
+	redirectTo: "",
 	recordMode: "manual",
 	recordType: "A",
 	recordContent: "",
@@ -622,6 +625,13 @@ function buildSteps(
 						.string()
 						.regex(/^\/[\w\-./]*$/, "Start with / and use a plain path."),
 				]),
+				redirectTo: z
+					.string()
+					.refine(
+						(h) =>
+							!h.trim() || Hostname.safeParse(h.trim().toLowerCase()).success,
+						"Use a hostname like www.example.com, without https://.",
+					),
 			}),
 			render: (w) => (
 				<div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_8rem]">
@@ -661,6 +671,22 @@ function buildSteps(
 						<Input
 							{...w.bind("pathPrefix")}
 							placeholder="/api"
+							className="font-mono"
+							spellCheck={false}
+						/>
+					</Field>
+					<Field
+						id="wz-redirectTo"
+						label="Redirect to"
+						optional
+						error={w.error("redirectTo")}
+						hint="Send visitors to another hostname instead, for example example.com → www.example.com. The path and query are kept."
+						className="sm:col-span-2"
+					>
+						<Input
+							{...w.bind("redirectTo")}
+							placeholder="www.example.com"
+							autoCapitalize="none"
 							className="font-mono"
 							spellCheck={false}
 						/>
@@ -861,6 +887,18 @@ function buildSteps(
 											</span>
 										),
 									},
+									...(v.redirectTo.trim()
+										? [
+												{
+													label: "Redirects to",
+													value: (
+														<span className="font-mono text-xs">
+															{v.redirectTo.trim().toLowerCase()}
+														</span>
+													),
+												},
+											]
+										: []),
 									{
 										label: "Service",
 										value: svc
@@ -913,6 +951,7 @@ function toBody(v: V, recordId: string | null): DomainBody {
 			hostname: host(v),
 			port: Number(v.port),
 			pathPrefix: v.pathPrefix.trim() || null,
+			redirectTo: v.redirectTo.trim().toLowerCase() || null,
 			https: false,
 			cert: "none",
 			customCertificateId: null,
@@ -932,6 +971,7 @@ function toBody(v: V, recordId: string | null): DomainBody {
 		hostname: host(v),
 		port: Number(v.port),
 		pathPrefix: v.pathPrefix.trim() || null,
+		redirectTo: v.redirectTo.trim().toLowerCase() || null,
 		https: v.tls !== "none",
 		cert: v.tls === "custom" ? "custom" : v.tls === "none" ? "none" : "auto",
 		customCertificateId: v.tls === "custom" ? v.customCertificateId : null,
@@ -997,6 +1037,7 @@ function DomainWizardPage() {
 				hostname: current.hostname,
 				port: String(current.port),
 				pathPrefix: current.pathPrefix ?? "",
+				redirectTo: current.redirectTo ?? "",
 				recordMode: current.tunnel
 					? "tunnel"
 					: current.dnsRecordId

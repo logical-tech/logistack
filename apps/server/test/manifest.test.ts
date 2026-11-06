@@ -279,11 +279,66 @@ describe.skipIf(!hasDocker)("project manifests", () => {
 		);
 	});
 
+	test("duplicating an environment copies services and secrets, not domains or backups", async () => {
+		const res = await call("POST", `/environments/${sourceEnv}/duplicate`, {
+			name: "Staging",
+			kind: "staging",
+		});
+		expect(res.status).toBe(201);
+		expect(res.json.environment).toMatchObject({
+			slug: "staging",
+			kind: "staging",
+		});
+		expect(res.json.warnings).toEqual([]);
+		const copy = (
+			await call("GET", `/environments/${res.json.environment.id}/manifest`)
+		).json.environment;
+		const source = (await call("GET", `/environments/${sourceEnv}/manifest`))
+			.json.environment;
+		expect(copy.services.map((s: { slug: string }) => s.slug)).toEqual(
+			source.services.map((s: { slug: string }) => s.slug),
+		);
+		expect(copy.variables).toEqual(source.variables);
+		for (const s of copy.services) {
+			expect(s.domains).toEqual([]);
+			expect(s.backups).toEqual([]);
+		}
+		const apiKeys = await h.deps.db
+			.select()
+			.from(envVar)
+			.where(eq(envVar.key, "API_KEY"));
+		const values = await Promise.all(
+			apiKeys.map((v) => decrypt(h.deps.masterKey, v.valueEncrypted)),
+		);
+		expect(values.filter((v) => v === SECRET).length).toBe(apiKeys.length);
+
+		const again = await call("POST", `/environments/${sourceEnv}/duplicate`, {
+			name: "Staging",
+			kind: "staging",
+		});
+		expect(again.status).toBe(409);
+	});
+
+	test("duplicating without variables leaves them out", async () => {
+		const res = await call("POST", `/environments/${sourceEnv}/duplicate`, {
+			name: "Bare",
+			kind: "custom",
+			includeVariables: false,
+		});
+		expect(res.status).toBe(201);
+		const copy = (
+			await call("GET", `/environments/${res.json.environment.id}/manifest`)
+		).json.environment;
+		expect(copy.variables).toEqual([]);
+		const web = copy.services.find((s: { slug: string }) => s.slug === "web");
+		expect(web.variables).toEqual([]);
+	});
+
 	test("MCP exposes export, plan and apply as tools", async () => {
 		const doc = await h.call("GET", "/api/openapi.json");
 		const names = toolsFrom(doc.json)
 			.filter((t) =>
-				/^\/(projects|environments)\/{id}\/(manifest|apply)$|^\/manifest\//.test(
+				/^\/(projects|environments)\/{id}\/(manifest|apply|duplicate)$|^\/manifest\//.test(
 					t.path,
 				),
 			)
@@ -291,6 +346,7 @@ describe.skipIf(!hasDocker)("project manifests", () => {
 			.sort();
 		expect(names).toEqual([
 			"environment_apply",
+			"environment_duplicate",
 			"get_environments_by_id_manifest",
 			"get_manifest_schema_json",
 			"get_projects_by_id_manifest",

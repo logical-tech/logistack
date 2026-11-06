@@ -134,6 +134,40 @@ describe("buildPlan", () => {
 		// The railpack frontend reads its plan, not Dockerfile ARGs.
 		expect(plan.args.join(" ")).not.toContain("LOGISTACK_");
 	});
+
+	test("static build: a generated Dockerfile outside the checkout, secrets mounted, no escapes", () => {
+		const plan = buildPlan({
+			...base,
+			build: { type: "static", publishDir: "dist" },
+		});
+		expect(plan.args).toContain("context=/w/builds/dep_1/apps/web");
+		expect(plan.args).toContain("dockerfile=/w/builds/dep_1.static");
+		expect(plan.args).toContain("id=NPM_TOKEN,env=NPM_TOKEN");
+		expect(plan.args).toContain("build-arg:LOGISTACK_DEPLOYMENT_ID=dep_1");
+		expect(plan.args.join(" ")).not.toContain("t0ken");
+		const file = plan.files?.["/w/builds/dep_1.static/Dockerfile"] ?? "";
+		expect(file).toContain(
+			"ARG LOGISTACK_COMMIT_SHA\nARG LOGISTACK_DEPLOYMENT_ID\nARG PUBLIC_URL\n",
+		);
+		expect(file).toContain(
+			"RUN --mount=type=secret,id=NPM_TOKEN,env=NPM_TOKEN if [ -f package.json ]",
+		);
+		expect(file).toContain("COPY --from=build /app/dist /srv");
+		expect(file).not.toContain("t0ken");
+		expect(() =>
+			buildPlan({
+				...base,
+				build: { type: "static", publishDir: "../../etc" },
+			}),
+		).toThrow(/escapes the repository/);
+		const root = buildPlan({
+			...base,
+			build: { type: "static", publishDir: "." },
+		});
+		expect(root.files?.["/w/builds/dep_1.static/Dockerfile"]).toContain(
+			"COPY --from=build /app/. /srv",
+		);
+	});
 });
 
 describe("observe", () => {

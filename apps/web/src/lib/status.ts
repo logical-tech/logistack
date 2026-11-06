@@ -97,7 +97,10 @@ export const UPDATE_STEP_STATUS: Record<
  * A migration item. `moving` is the client's own state between asking for an import or cutover
  * and the event that settles it; the server stores only settled states.
  */
-export const MIGRATION_ITEM_STATUS: Record<
+/** Labels name the platform the items come from (Dokploy or Coolify). */
+export const migrationItemStatus = (
+	source: string,
+): Record<
 	| "planned"
 	| "imported"
 	| "cut_over"
@@ -106,15 +109,15 @@ export const MIGRATION_ITEM_STATUS: Record<
 	| "skipped"
 	| "moving",
 	StatusMeta
-> = {
+> => ({
 	planned: { label: "Planned", tone: "idle" },
 	moving: { label: "In progress", tone: "info", live: true },
 	imported: { label: "Ready to move", tone: "idle" },
 	cut_over: { label: "On LogiStack", tone: "ok" },
 	failed: { label: "Failed", tone: "bad" },
-	rolled_back: { label: "Back on Dokploy", tone: "warn" },
-	skipped: { label: "Stays on Dokploy", tone: "idle" },
-};
+	rolled_back: { label: `Back on ${source}`, tone: "warn" },
+	skipped: { label: `Stays on ${source}`, tone: "idle" },
+});
 
 /** What the inventory found the item can carry over. */
 export const MIGRATION_SUPPORT: Record<

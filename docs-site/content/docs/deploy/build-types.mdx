@@ -13,11 +13,7 @@ You choose it in the **Build with** field when you create the service, and chang
 |---|---|---|
 | **Dockerfile** | **Dockerfile** | Builds your Dockerfile with BuildKit. |
 | **Railpack (no Dockerfile needed)** | **Railpack (detect)** | Detects the language and framework, and builds an image without a Dockerfile. |
-| **Static site** | **Static site** | Meant to serve a folder of built files. See the note below. |
-
-<Callout type="warn">
-The build pipeline does not run **Static site** builds yet: a deployment with this builder fails with `build type static is not supported yet`. Until it ships, build static sites with a small Dockerfile, as in the [static site example](#static-site-with-caddy).
-</Callout>
+| **Static site** | **Static site** | Runs your `build` script if there is one, then serves the publish folder with Caddy. See [Static site](#static-site). |
 
 ## How a build runs
 
@@ -98,7 +94,9 @@ EXPOSE 8080
 ENTRYPOINT ["/api"]
 ```
 
-### Static site with Caddy
+### Static site with your own Caddy image
+
+The **Static site** builder below does this for you. Write it yourself only when you need a custom Caddy configuration.
 
 ```dockerfile title="Dockerfile"
 FROM node:22-alpine AS build
@@ -125,6 +123,46 @@ For a repository like this, set **Root directory** to `/` and **Dockerfile** to 
 ```
 
 Or set **Root directory** to `/apps/web` when the app needs nothing outside its folder. Add **Watch paths** so only relevant pushes build. See [Deploy from Git](./from-git.mdx#set-the-root-directory-and-watch-paths).
+
+## Static site
+
+**Static site** builds a website that compiles to plain files (Vite, Astro, Docusaurus, Hugo output committed to the repository, a hand-written `index.html`) and serves it with Caddy. You need no Dockerfile.
+
+<Steps>
+<Step>
+
+### Choose the builder
+
+In the new service wizard, choose **Static site** in **Build with**. On an existing service, set **Builder** to **Static site** under **Settings** › **Source and build**.
+
+</Step>
+<Step>
+
+### Set the publish directory
+
+The wizard uses `dist`. To change it, open **Settings** › **Source and build** and set **Publish directory** to the folder that holds the built files, relative to the **Root directory**: `dist` for Vite, `build` for Create React App and Docusaurus, `out` for a Next.js static export, `public` for Hugo, or `.` for files at the root of the repository.
+
+</Step>
+<Step>
+
+### Set the container port to 80
+
+Caddy listens on port `80` inside the container. Set **Container port** to `80`, then select **Save** and **Deploy**.
+
+</Step>
+</Steps>
+
+What the build does:
+
+1. If the root directory has a `package.json`, it installs dependencies with the package manager your lockfile names: `pnpm-lock.yaml` uses pnpm, `yarn.lock` uses Yarn, `bun.lock` or `bun.lockb` uses Bun, `package-lock.json` uses `npm ci`, and no lockfile uses `npm install`. Node.js 22 runs the install.
+2. If `package.json` has a `build` script, it runs it.
+3. It copies the publish directory into a Caddy image. Caddy compresses responses with zstd or gzip and serves `index.html` for any path that matches no file, so the client-side routes of a single-page app work on reload.
+
+Build-time variables reach the build as environment variables: mark a variable **Build** to use it in your `build` script, for example `VITE_API_URL=https://api.example.com`. A variable that is both **Build** and **Secret** is mounted for the build step only and never stored in the image. The `LOGISTACK_*` variables, such as `LOGISTACK_COMMIT_SHA`, are available too.
+
+<Callout type="info">
+Because every unknown path returns `index.html`, a missing page shows your home page instead of a `404`. If you need real 404 pages, use your own Dockerfile as in [Static site with your own Caddy image](#static-site-with-your-own-caddy-image).
+</Callout>
 
 ## Railpack
 

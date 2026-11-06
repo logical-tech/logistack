@@ -1,5 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	EnvironmentColor,
+	EnvironmentKind,
 	Manifest,
 	ManifestChange,
 	manifestJsonSchema,
@@ -11,9 +13,31 @@ import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, one } from "../errors.ts";
-import { applyManifest, environmentManifest, snapshot } from "../manifest.ts";
-import { body, errors, IdParam, json, router, security } from "../openapi.ts";
-import { byParam, requirePermission } from "../scope.ts";
+import {
+	applyManifest,
+	duplicateOf,
+	environmentManifest,
+	snapshot,
+} from "../manifest.ts";
+import {
+	body,
+	Environment,
+	errors,
+	IdParam,
+	json,
+	Name,
+	router,
+	Slug,
+	security,
+	slugify,
+} from "../openapi.ts";
+import {
+	actorCan,
+	byParam,
+	check,
+	locate,
+	requirePermission,
+} from "../scope.ts";
 
 const tags = ["manifests"];
 
@@ -100,6 +124,23 @@ function parseManifest(input: string | Manifest): Manifest {
 		);
 	return parsed.data;
 }
+
+const DuplicateInput = z.object({
+	name: Name,
+	slug: Slug.optional(),
+	kind: EnvironmentKind,
+	color: EnvironmentColor.nullable().optional(),
+	/** Copy project-wide environment variables and every service's own. */
+	includeVariables: z.boolean().default(true),
+});
+
+const DuplicateResult = z
+	.object({
+		environment: Environment,
+		changes: z.array(ManifestChange),
+		warnings: z.array(z.string()),
+	})
+	.openapi("EnvironmentDuplicateResult");
 
 async function environmentRow(c: Context<Env>, id: string) {
 	return one(
@@ -272,5 +313,89 @@ export const manifests = router()
 				changes: out.changes.length,
 			});
 			return c.json(out, 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"environment.duplicate",
+			createRoute({
+				method: "post",
+				path: "/environments/{id}/duplicate",
+				tags,
+				security,
+				summary: "Duplicate an environment into a new one",
+				description:
+					"Creates a new environment in the same project with the source's stacks, services, settings and config files, applied like a manifest (needs `write` on the project). Domains, backup policies and volume data are not copied. With `includeVariables`, environment and service variables are copied, secrets included when the caller holds `read:secrets` on the source; otherwise each secret is a warning. Nothing is deployed. A taken slug is a 409 and a failed copy removes the new environment, so a retry is safe.",
+				middleware: [requirePermission("read", byParam("environment"))],
+				request: { params: IdParam, ...body(DuplicateInput) },
+				responses: {
+					201: json(DuplicateResult, "The new environment"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const input = c.req.valid("json");
+			const { deps } = c.var;
+			const actor = requireActor(c);
+			const source = c.get("resource");
+			const reveal = !!source && actorCan(actor, "read:secrets", source);
+			const src = await environmentRow(c, id);
+			check(
+				c,
+				"write",
+				await locate(deps.db, actor.organizationId, "project", src.projectId),
+			);
+			const { manifest } = await snapshot(
+				deps,
+				actor.organizationId,
+				src.projectId,
+				reveal,
+			);
+			const to = {
+				name: input.name,
+				slug: input.slug ?? slugify(input.name),
+				kind: input.kind,
+				color: input.color ?? undefined,
+			};
+			const copy = duplicateOf(
+				environmentManifest(manifest, src.slug).environment,
+				to,
+				input.includeVariables,
+			);
+			const row = one(
+				await deps.db
+					.insert(environment)
+					.values({ projectId: src.projectId, ...to, color: to.color ?? null })
+					.returning(),
+			);
+			c.set("auditResourceId", row.id);
+			try {
+				const out = await applyManifest(
+					deps,
+					actor,
+					{
+						type: "environment",
+						projectId: src.projectId,
+						slug: row.slug,
+						manifest: { version: 1, kind: "environment", environment: copy },
+					},
+					{ prune: false, dryRun: false },
+				);
+				c.set("auditDiff", {
+					from: id,
+					includeVariables: input.includeVariables,
+					changes: out.changes.length,
+				});
+				return c.json(
+					{ environment: row, changes: out.changes, warnings: out.warnings },
+					201,
+				);
+			} catch (e) {
+				// All or nothing: a half-built copy would make the retry a 409.
+				await deps.db.delete(environment).where(eq(environment.id, row.id));
+				throw e;
+			}
 		},
 	);

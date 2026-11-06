@@ -34,8 +34,8 @@ import {
 } from "@/lib/api/migrations";
 import { stepParam } from "@/lib/search";
 import {
-	MIGRATION_ITEM_STATUS,
 	MIGRATION_SUPPORT,
+	migrationItemStatus,
 	type StatusMeta,
 	TONE_DOT,
 } from "@/lib/status";
@@ -99,10 +99,12 @@ type Ctx = {
 	awaitJob: (job: "proxy" | "decommission") => void;
 };
 
-const statusOf = (i: MigrationItem, moving: ReadonlySet<string>): StatusMeta =>
-	moving.has(i.id)
-		? MIGRATION_ITEM_STATUS.moving
-		: MIGRATION_ITEM_STATUS[i.status];
+const statusOf = (
+	i: MigrationItem,
+	moving: ReadonlySet<string>,
+	source: string,
+): StatusMeta =>
+	migrationItemStatus(source)[moving.has(i.id) ? "moving" : i.status];
 
 const plural = (n: number, one: string, many = `${one}s`) =>
 	`${n} ${n === 1 ? one : many}`;
@@ -239,7 +241,7 @@ function MigrationStrip({
 				className="flex flex-wrap gap-[3px]"
 			>
 				{ordered.map((i) => {
-					const meta = statusOf(i, moving);
+					const meta = statusOf(i, moving, src.label);
 					return (
 						<span
 							key={i.id}
@@ -443,8 +445,8 @@ function ImportStep({ ctx }: { ctx: Ctx }) {
 							<StatusLabel
 								meta={
 									importing && (i.status === "planned" || i.status === "failed")
-										? MIGRATION_ITEM_STATUS.moving
-										: statusOf(i, moving)
+										? migrationItemStatus(ctx.src.label).moving
+										: statusOf(i, moving, ctx.src.label)
 								}
 							/>
 						}
@@ -528,7 +530,7 @@ function CutoverStep({ ctx }: { ctx: Ctx }) {
 									? "Pauses while its volumes move"
 									: "No downtime"
 						}
-						status={<StatusLabel meta={statusOf(i, moving)} />}
+						status={<StatusLabel meta={statusOf(i, moving, ctx.src.label)} />}
 						action={<CutoverAction item={i} ctx={ctx} />}
 					/>
 				))}
@@ -541,7 +543,7 @@ function CutoverStep({ ctx }: { ctx: Ctx }) {
 							key={i.id}
 							item={i}
 							detail="Already in use here: nothing to switch"
-							status={<StatusLabel meta={statusOf(i, moving)} />}
+							status={<StatusLabel meta={statusOf(i, moving, ctx.src.label)} />}
 							action={<CutoverAction item={i} ctx={ctx} />}
 						/>
 					))}
@@ -697,7 +699,7 @@ function ProxyStep({ ctx }: { ctx: Ctx }) {
 							key={i.id}
 							item={i}
 							detail="Pushes reach LogiStack once its webhook moves"
-							status={<StatusLabel meta={statusOf(i, moving)} />}
+							status={<StatusLabel meta={statusOf(i, moving, ctx.src.label)} />}
 							action={
 								i.status === "imported" && !moving.has(i.id) ? (
 									<Button
@@ -753,7 +755,7 @@ function SummaryStep({ ctx }: { ctx: Ctx }) {
 						source={ctx.src.label}
 						key={i.id}
 						item={i}
-						status={<StatusLabel meta={statusOf(i, moving)} />}
+						status={<StatusLabel meta={statusOf(i, moving, ctx.src.label)} />}
 					/>
 				))}
 			</Panel>

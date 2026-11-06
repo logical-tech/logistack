@@ -16,8 +16,10 @@ import { ssoMock } from "./sso";
 import { stacksMock } from "./stacks";
 import { templatesMock } from "./templates";
 import { usageMock } from "./usage";
+import { variablesStore } from "./variables";
 
 const db = createMockDb();
+const variables = variablesStore(db);
 /** Services archiving stopped; unarchive starts exactly these. */
 const archivedServices = new Set<string>();
 
@@ -274,6 +276,80 @@ export const mockAdapter: ApiAdapter = {
 			db.environments.push(env);
 			return delay(env, 400);
 		},
+		duplicateEnvironment: (
+			id,
+			{ name, slug, kind, color, includeVariables = true },
+		) => {
+			const source = db.environments.find((e) => e.id === id);
+			if (!source)
+				return Promise.reject(new ApiError(404, "Environment not found"));
+			const newSlug = slug ?? slugify(name);
+			if (
+				db.environments.some(
+					(e) => e.projectId === source.projectId && e.slug === newSlug,
+				)
+			)
+				return Promise.reject(
+					new ApiError(409, `An environment named ${newSlug} already exists`),
+				);
+			const at = new Date().toISOString();
+			const env = {
+				...source,
+				id: rid("env"),
+				name,
+				slug: newSlug,
+				kind,
+				isDefault: false,
+				color: color ?? null,
+				preview: null,
+				createdAt: at,
+				updatedAt: at,
+			};
+			db.environments.push(env);
+			const copies = db.services
+				.filter((s) => s.environmentId === id)
+				.map((s) => ({
+					...structuredClone(s),
+					id: `svc_${env.id.slice(4)}_${s.slug}`,
+					environmentId: env.id,
+					domains: [],
+					desiredState: s.desiredState,
+					status: {
+						...s.status,
+						observed: "stopped" as const,
+						replicasRunning: 0,
+					},
+					latestDeployment: null,
+					createdAt: at,
+					updatedAt: at,
+				}));
+			db.services.push(...copies);
+			variables.set(
+				"environment",
+				env.id,
+				includeVariables
+					? variables.get("environment", id).map((v) => ({
+							...v,
+							id: rid("env"),
+							scopeId: env.id,
+						}))
+					: [],
+			);
+			return delay(
+				{
+					environment: env,
+					changes: copies.map((s) => ({
+						op: "create" as const,
+						resource: "service" as const,
+						environment: env.slug,
+						name: s.slug,
+						changes: [],
+					})),
+					warnings: [],
+				},
+				900,
+			);
+		},
 	},
 	services: {
 		listByEnvironment: (environmentId) =>
@@ -384,8 +460,9 @@ export const mockAdapter: ApiAdapter = {
 		},
 	},
 	networking: networkingMock,
-	serviceOps: serviceOpsMock(db),
+	serviceOps: serviceOpsMock(db, variables),
 	sso: ssoMock,
 	stacks: stacksMock(db),
 	templates: templatesMock(db),
+	variables: variables.api,
 };

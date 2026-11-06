@@ -34,6 +34,27 @@ export const DNS_KINDS: Record<
 		where:
 			"Hetzner Console → your project → Security → API tokens → Read & Write.",
 	},
+	digitalocean: {
+		label: "DigitalOcean",
+		icon: brandMark("digitalocean"),
+		blurb: "Personal access token with domain read and write scopes.",
+		where:
+			"Control Panel → API → Tokens → Generate New Token → Custom Scopes → domain: read, create, update, delete.",
+	},
+	ovh: {
+		label: "OVHcloud",
+		icon: brandMark("ovh"),
+		blurb: "Application key, secret and consumer key for the DNS zone API.",
+		where:
+			"Create the keys at eu.api.ovh.com/createToken (ca.api.ovh.com or api.us.ovhcloud.com for other regions) with GET, POST, PUT and DELETE on /domain/zone/*.",
+	},
+	porkbun: {
+		label: "Porkbun",
+		icon: brandMark("porkbun"),
+		blurb: "API key and secret key, with API access turned on per domain.",
+		where:
+			"porkbun.com → Account → API Access → Create API Key, then Domain Management → each domain → Details → API Access on.",
+	},
 };
 
 export const CHANNEL_KINDS: Record<

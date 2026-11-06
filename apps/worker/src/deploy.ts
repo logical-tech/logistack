@@ -1,5 +1,5 @@
 import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	type DeploymentStatus,
 	deploymentStatuses,
@@ -432,6 +432,10 @@ async function runDeployment(
 			const auth = sc.registry?.auth;
 			const config = `${checkout}.docker`;
 			try {
+				for (const [path, content] of Object.entries(plan.files ?? {})) {
+					await mkdir(dirname(path), { recursive: true });
+					await writeFile(path, content);
+				}
 				if (plan.prepare)
 					await run([...ctx.cfg.LS_RAILPACK, ...plan.prepare], {
 						log: line,
@@ -460,6 +464,8 @@ async function runDeployment(
 			} finally {
 				await rm(checkout, { recursive: true, force: true });
 				await rm(config, { recursive: true, force: true });
+				for (const path of Object.keys(plan.files ?? {}))
+					await rm(dirname(path), { recursive: true, force: true });
 			}
 			pushedByBuild = plan.pushes;
 			platforms = targets;

@@ -61,7 +61,7 @@ const DUMP: Record<string, string> = {
 		"pg_dump in custom format, compressed. Restores with pg_restore --clean.",
 	mysql: "mysqldump with --single-transaction, so tables stay consistent.",
 	mariadb: "mariadb-dump with --single-transaction, so tables stay consistent.",
-	mongo: "mongodump --archive, gzip-compressed.",
+	mongo: "mongodump --archive, one file for every database.",
 	redis: "An RDB snapshot; restore it by copying it back into the data volume.",
 	libsql: "An SQL dump from sqld; restore by copying the data volume back.",
 };

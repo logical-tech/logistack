@@ -44,6 +44,61 @@
 				}
 			},
 			"required": ["apiToken"]
+		},
+		"digitalocean": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"apiToken": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["apiToken"]
+		},
+		"ovh": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"endpoint": {
+					"default": "ovh-eu",
+					"type": "string",
+					"enum": ["ovh-eu", "ovh-ca", "ovh-us"]
+				},
+				"applicationKey": {
+					"type": "string",
+					"minLength": 1
+				},
+				"applicationSecret": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				},
+				"consumerKey": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["applicationKey", "applicationSecret", "consumerKey"]
+		},
+		"porkbun": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type": "object",
+			"properties": {
+				"apiKey": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				},
+				"secretApiKey": {
+					"type": "string",
+					"minLength": 1,
+					"secret": true
+				}
+			},
+			"required": ["apiKey", "secretApiKey"]
 		}
 	},
 	"notify": {
