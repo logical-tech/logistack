@@ -7,7 +7,7 @@ import { CopyCommand } from "./copy-command";
 type State =
 	| { kind: "none" }
 	| { kind: "loading" }
-	| { kind: "ready"; key: string }
+	| { kind: "ready"; key: string; instance: string | null }
 	| { kind: "late" };
 
 /**
@@ -32,8 +32,12 @@ export function SponsorKey() {
 				try {
 					const res = await fetch(`${api}/v1/sessions/${id}`);
 					if (res.ok) {
-						const { key } = (await res.json()) as { key: string };
-						if (!stopped) setState({ kind: "ready", key });
+						const { key, instance } = (await res.json()) as {
+							key: string;
+							instance?: string | null;
+						};
+						if (!stopped)
+							setState({ kind: "ready", key, instance: instance ?? null });
 						return;
 					}
 				} catch {}
@@ -53,6 +57,15 @@ export function SponsorKey() {
 			{state.kind === "ready" ? (
 				<>
 					<CopyCommand command={state.key} />
+					{state.instance && (
+						<a
+							// The key rides in the fragment, which never reaches a server.
+							href={`${state.instance}/settings/sponsor#key=${state.key}`}
+							className="pressable inline-flex h-12 w-fit items-center rounded-full bg-fg px-[22px] text-[15px] font-semibold text-bg hover:bg-white"
+						>
+							Activate on {new URL(state.instance).host}
+						</a>
+					)}
 					<p className="max-w-[60ch] text-[15px] leading-relaxed text-pretty text-muted">
 						In LogiStack, open Settings, then Sponsor, and paste it. We also
 						emailed it to you. A monthly key renews itself while the sponsorship

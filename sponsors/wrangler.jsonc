@@ -11,8 +11,7 @@
 	"kv_namespaces": [
 		{ "binding": "SPONSORS", "id": "419ea30737084abca3ebd14c53172507" }
 	],
-	"send_email": [{ "name": "EMAIL" }],
-	// Secrets: SIGNING_KEY, STRIPE_WEBHOOK_SECRET (wrangler secret put).
+	// Secrets: SIGNING_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY (wrangler secret put).
 	"env": {
 		// Stripe's sandbox: `wrangler deploy --env sandbox`. Its own signing key, KV and webhook
 		// secret; only instances with LOGISTACK_SPONSOR_SANDBOX=1 trust the keys it signs.
@@ -23,12 +22,12 @@
 			],
 			"vars": {
 				"SITE_ORIGIN": "https://stack.logicaltech.it",
-				"EMAIL_FROM": "sponsors@logicaltech.it"
+				"EMAIL_FROM": "sponsors@logicaltech.it",
+				"SANDBOX": "1"
 			},
 			"kv_namespaces": [
 				{ "binding": "SPONSORS", "id": "d35a17eb189b41a18a292299770dc476" }
-			],
-			"send_email": [{ "name": "EMAIL" }]
+			]
 		}
 	}
 }

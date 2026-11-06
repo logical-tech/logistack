@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowUpRight, Heart, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Page, PageHeader } from "@/components/page-header";
@@ -120,8 +120,17 @@ function Ask() {
 
 function KeyForm({ admin, expired }: { admin: boolean; expired: boolean }) {
 	const activate = useActivateSponsor();
-	const [key, setKey] = useState("");
+	// The sponsorship email links here with `#key=lss_…`; the fragment never reaches a server.
+	const [key, setKey] = useState(() =>
+		decodeURIComponent(
+			/(?:^#|&)key=(lss_[\w.-]+)/.exec(location.hash)?.[1] ?? "",
+		),
+	);
 	const [error, setError] = useState<string | null>(null);
+	useEffect(() => {
+		if (location.hash.includes("key="))
+			history.replaceState(null, "", location.pathname + location.search);
+	}, []);
 
 	const submit = (e: React.FormEvent) => {
 		e.preventDefault();
