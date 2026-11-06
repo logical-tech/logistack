@@ -605,25 +605,6 @@ ensure_docker() {
 	[ "$DRY_RUN" = 1 ] || check_docker
 }
 
-# Ubuntu 23.10+ refuses user namespaces to unconfined programs; rootless BuildKit needs one, and
-# without this profile its rootlesskit dies with "fork/exec /proc/self/exe: permission denied".
-ROOTLESSKIT_PROFILE=/etc/apparmor.d/logistack-rootlesskit
-
-write_rootlesskit_profile() {
-	printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
-		'profile logistack-rootlesskit /usr/bin/rootlesskit flags=(unconfined) {' '  userns,' '}' >"$ROOTLESSKIT_PROFILE"
-	apparmor_parser -r "$ROOTLESSKIT_PROFILE"
-}
-
-ensure_rootless_buildkit() {
-	[ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ] || return 0
-	if [ -f "$ROOTLESSKIT_PROFILE" ]; then
-		ok "AppArmor lets rootless BuildKit create user namespaces"
-		return
-	fi
-	act "Let rootless BuildKit create user namespaces (AppArmor profile $ROOTLESSKIT_PROFILE)" write_rootlesskit_profile
-}
-
 ensure_swarm() {
 	case "$SWARM_STATE" in
 	active)
@@ -1056,7 +1037,6 @@ main() {
 
 	step "Docker"
 	ensure_docker
-	ensure_rootless_buildkit
 	step "Swarm"
 	ensure_swarm
 	ensure_coolify_bridge
