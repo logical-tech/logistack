@@ -94,8 +94,7 @@ export const previews = router()
 			for (const slug of input.services) {
 				const spec = svcs.find((s) => s.slug === slug)?.spec;
 				if (
-					!spec ||
-					spec.kind !== "application" ||
+					spec?.kind !== "application" ||
 					spec.source.type !== "git" ||
 					!spec.source.gitProviderId
 				)
