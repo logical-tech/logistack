@@ -52,6 +52,7 @@ import { storage } from "./routes/storage.ts";
 import { templates } from "./routes/templates.ts";
 import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
+import { usage } from "./routes/usage.ts";
 import { webhooks } from "./routes/webhooks.ts";
 import { realtime } from "./ws.ts";
 
@@ -145,6 +146,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", audit)
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
+		.route("/api", usage)
 		.route("/api", nodes)
 		.route("/api", networkMapRoutes)
 		.route("/api", members)
