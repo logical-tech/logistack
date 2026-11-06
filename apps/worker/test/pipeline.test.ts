@@ -65,6 +65,7 @@ function harness(o: {
 	status?: DeploymentStatus;
 	source?: "git" | "image";
 	push?: boolean;
+	release?: boolean;
 	steps?: Partial<Steps>;
 	moveRowOn?: DeploymentEvent["type"];
 }) {
@@ -84,6 +85,7 @@ function harness(o: {
 		clone: step("clone", { commitSha: "abc" }),
 		build: step("build", { imageRef: "r/o/s:dep" }),
 		push: step("push", undefined),
+		release: step("release", undefined),
 		deploy: step("deploy", { ok: true }),
 	};
 	const run = () =>
@@ -91,6 +93,7 @@ function harness(o: {
 			status: state,
 			source: o.source ?? "git",
 			push: o.push ?? false,
+			release: o.release ?? false,
 			steps,
 			signal: controller.signal,
 			advance: async (e, patch = {}) => {
@@ -219,6 +222,54 @@ describe("drive", () => {
 		expect(building.calls).toEqual([]);
 		expect(building.patches.at(-1)).toMatchObject({
 			error: "interrupted: the worker stopped during building",
+		});
+	});
+
+	test("a pre-deploy command runs after the image is ready and before the rollout", async () => {
+		const h = harness({ push: true, release: true });
+		expect(await h.run()).toBe("healthy");
+		expect(h.history).toEqual([
+			"queued",
+			"cloning",
+			"building",
+			"pushing",
+			"releasing",
+			"deploying",
+			"healthy",
+		]);
+		expect(h.calls).toEqual(["clone", "build", "push", "release", "deploy"]);
+	});
+
+	test("a failing pre-deploy fails the deployment without touching the service", async () => {
+		const h = harness({
+			source: "image",
+			release: true,
+			steps: {
+				release: async () => {
+					throw new Error("pre-deploy exited with 3");
+				},
+			},
+		});
+		expect(await h.run()).toBe("failed");
+		expect(h.calls).toEqual(["release"]);
+		expect(h.patches.at(-1)).toMatchObject({
+			error: "pre-deploy exited with 3",
+		});
+	});
+
+	test("a post-deploy failure ends healthy with the warning recorded", async () => {
+		const h = harness({
+			source: "image",
+			steps: {
+				deploy: async () => ({
+					ok: true,
+					warning: "post-deploy exited with 1",
+				}),
+			},
+		});
+		expect(await h.run()).toBe("healthy");
+		expect(h.patches.at(-1)).toMatchObject({
+			warning: "post-deploy exited with 1",
 		});
 	});
 

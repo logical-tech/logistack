@@ -3,10 +3,11 @@ import type { DeploymentStatus } from "@logistack/contracts";
 export type DeploymentEvent =
 	| { type: "checks_passed" }
 	| { type: "skip" }
-	| { type: "start"; source: "git" | "image" }
+	| { type: "start"; source: "git" | "image"; release?: boolean }
 	| { type: "cloned" }
-	| { type: "built"; push: boolean }
-	| { type: "pushed" }
+	| { type: "built"; push: boolean; release?: boolean }
+	| { type: "pushed"; release?: boolean }
+	| { type: "released" }
 	| { type: "healthy" }
 	| { type: "fail" }
 	| { type: "cancel" }
@@ -42,18 +43,23 @@ const awaitingChecks: Partial<
 	supersede: "superseded",
 };
 
+// A pre-deploy command runs on the new image first; the old version keeps serving until it succeeds.
+const rollout = (e: { release?: boolean }): DeploymentStatus =>
+	e.release ? "releasing" : "deploying";
+
 const table: Record<DeploymentStatus, Handler> = {
 	awaiting_checks: (e) => awaitingChecks[e.type],
 	queued: (e) =>
 		e.type === "start"
 			? e.source === "git"
 				? "cloning"
-				: "deploying"
+				: rollout(e)
 			: abortable[e.type],
 	cloning: (e) => (e.type === "cloned" ? "building" : abortable[e.type]),
 	building: (e) =>
-		e.type === "built" ? (e.push ? "pushing" : "deploying") : abortable[e.type],
-	pushing: (e) => (e.type === "pushed" ? "deploying" : abortable[e.type]),
+		e.type === "built" ? (e.push ? "pushing" : rollout(e)) : abortable[e.type],
+	pushing: (e) => (e.type === "pushed" ? rollout(e) : abortable[e.type]),
+	releasing: (e) => (e.type === "released" ? "deploying" : abortable[e.type]),
 	deploying: (e) =>
 		e.type === "healthy" ? "healthy" : e.type === "fail" ? "failed" : undefined,
 	healthy: () => undefined,

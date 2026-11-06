@@ -342,7 +342,7 @@ export async function upsertService(
 }
 
 export type RolloutResult =
-	| { ok: true }
+	| { ok: true; warning?: string }
 	| { ok: false; error: string; rolledBack: boolean };
 
 const runningTasks = async (ctx: Ctx, name: string): Promise<Task[]> =>

@@ -135,15 +135,23 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 			reason: null,
 			logPath: null,
 			supersededBy: null,
+			warning: null,
 			createdAt: iso(),
 			updatedAt: iso(),
 		};
 		db.deployments.push(d);
-		// The worker of the mock: deploying after a moment, healthy after a few.
-		setTimeout(() => Object.assign(d, { status: "deploying" }), 1500);
+		// The worker of the mock: deploying after a moment (releasing first with a pre-deploy), healthy after a few.
+		const spec = db.services.find((s) => s.id === serviceId)?.spec;
+		const release = spec?.kind === "application" && !!spec.preDeploy;
+		if (release)
+			setTimeout(() => Object.assign(d, { status: "releasing" }), 500);
+		setTimeout(
+			() => Object.assign(d, { status: "deploying" }),
+			release ? 4000 : 1500,
+		);
 		setTimeout(
 			() => Object.assign(d, { status: "healthy", finishedAt: iso() }),
-			6000,
+			release ? 8000 : 6000,
 		);
 		return d;
 	};
@@ -282,7 +290,9 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 			const d = db.deployments.find((x) => x.id === id);
 			if (
 				!d ||
-				!["queued", "cloning", "building", "pushing"].includes(d.status)
+				!["queued", "cloning", "building", "pushing", "releasing"].includes(
+					d.status,
+				)
 			)
 				throw new ApiError(409, "this deployment can no longer be cancelled");
 			Object.assign(d, { status: "cancelled", finishedAt: iso() });

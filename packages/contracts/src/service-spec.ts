@@ -84,6 +84,13 @@ export const Healthcheck = z.discriminatedUnion("type", [
 ]);
 export type Healthcheck = z.infer<typeof Healthcheck>;
 
+/** A one-off run of the new image around a rollout; argv, never a shell string. */
+export const ReleaseCommand = z.object({
+	command: z.array(z.string().min(1)).min(1),
+	timeoutSeconds: z.int().min(10).max(7200),
+});
+export type ReleaseCommand = z.infer<typeof ReleaseCommand>;
+
 export const PortMapping = z.object({
 	target: Port,
 	published: Port.optional(),
@@ -223,6 +230,10 @@ export const ApplicationSpec = z
 		capDrop: z.array(Capability).optional(),
 		/** Swarm restart condition; default `any`. */
 		restart: RestartCondition.optional(),
+		/** Runs before the rollout; a non-zero exit fails the deployment and keeps the old version. */
+		preDeploy: ReleaseCommand.optional(),
+		/** Runs once the new tasks are healthy; a failure only warns. */
+		postDeploy: ReleaseCommand.optional(),
 	})
 	.refine((s) => (s.source.type === "image") === (s.build.type === "image"), {
 		message:

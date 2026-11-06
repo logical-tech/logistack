@@ -170,6 +170,7 @@ function deploy(
 		reason: null,
 		logPath: null,
 		supersededBy: null,
+		warning: null,
 		createdAt: new Date(started).toISOString(),
 		updatedAt: new Date(started).toISOString(),
 	};

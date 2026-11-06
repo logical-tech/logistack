@@ -40,6 +40,7 @@ const CANCELLABLE = new Set([
 	"cloning",
 	"building",
 	"pushing",
+	"releasing",
 ]);
 
 function Duration({ d }: { d: DeploymentRow }) {
@@ -264,6 +265,11 @@ function Detail({
 			{d.error && (
 				<p className="rounded-lg bg-[color-mix(in_oklch,var(--bad)_10%,transparent)] px-3 py-2 text-sm text-bad-text">
 					{d.error}
+				</p>
+			)}
+			{d.warning && (
+				<p className="rounded-lg bg-[color-mix(in_oklch,var(--warn)_12%,transparent)] px-3 py-2 text-sm text-warn-text">
+					Deployed, but {d.warning}. The new version stays live.
 				</p>
 			)}
 			{d.reason && (

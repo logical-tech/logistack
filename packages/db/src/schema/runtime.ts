@@ -73,6 +73,8 @@ export const deployment = pgTable(
 		startedAt: tstz("started_at"),
 		finishedAt: tstz("finished_at"),
 		error: text("error"),
+		/** Why the post-deploy command failed; the deployment still succeeded. */
+		warning: text("warning"),
 		/** Why the deployment is awaiting checks, or why it was skipped (skip marker, watch paths, tag pattern, checks). */
 		reason: text("reason"),
 		logPath: text("log_path"),

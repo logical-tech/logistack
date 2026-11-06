@@ -16,6 +16,7 @@ import {
 	PortRows,
 	ProcessFields,
 } from "@/components/service/host-settings";
+import { ReleaseCommandFields } from "@/components/service/release-commands";
 import {
 	matchingProfile,
 	ResourceProfileSelect,
@@ -658,6 +659,18 @@ export function SettingsForm({
 						<HealthcheckFields
 							value={app.healthcheck}
 							onChange={(healthcheck) => patchApp({ healthcheck })}
+						/>
+					</Section>
+
+					<Section
+						title="Release commands"
+						id="release"
+						description="One-off runs of the new image around each rollout, like database migrations. One argument per line, run without a shell; write sh, -c and a script to use one."
+					>
+						<ReleaseCommandFields
+							value={app}
+							onChange={patchApp}
+							idPrefix="release-"
 						/>
 					</Section>
 
