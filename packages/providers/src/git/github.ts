@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { type Deps, defineProvider, Http, secret } from "../http.ts";
+import {
+	type Deps,
+	defineProvider,
+	Http,
+	ProviderError,
+	secret,
+} from "../http.ts";
 import { normalizeGitHubStyle } from "./github-style.ts";
 import {
 	type CheckState,
@@ -324,6 +330,33 @@ export const github = defineProvider({
 					})),
 					...runs.check_runs.map((r) => ({ name: r.name, state: runState(r) })),
 				]);
+			},
+			async commentOnPullRequest(repo, number, body, commentId) {
+				const base = `${API}/repos/${ownerRepoPath("github", repo)}/issues`;
+				const send = async (method: string, url: string) =>
+					http.json<{ id: number }>("prComment", url, {
+						method,
+						headers: {
+							...apiHeaders,
+							authorization: `Bearer ${await installationToken()}`,
+							"content-type": "application/json",
+						},
+						body: JSON.stringify({ body }),
+					});
+				if (commentId)
+					try {
+						return String(
+							(
+								await send(
+									"PATCH",
+									`${base}/comments/${encodeURIComponent(commentId)}`,
+								)
+							).id,
+						);
+					} catch (e) {
+						if (!(e instanceof ProviderError && e.status === 404)) throw e;
+					}
+				return String((await send("POST", `${base}/${number}/comments`)).id);
 			},
 			async verifyWebhook(headers, rawBody) {
 				await requireHmac(

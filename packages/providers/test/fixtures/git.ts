@@ -39,7 +39,12 @@ export const githubPullRequest = {
 		state: "open",
 		title: "Update the README with new information.",
 		user: { login: "Codertocat" },
-		head: { ref: "changes", sha: "ec26c3e57ca3a959ca5aad62de7213c562f8c821" },
+		html_url: "https://github.com/Codertocat/Hello-World/pull/2",
+		head: {
+			ref: "changes",
+			sha: "ec26c3e57ca3a959ca5aad62de7213c562f8c821",
+			repo: { full_name: "Codertocat/Hello-World" },
+		},
 		base: { ref: "master", sha: "f95f852bd8fca8fcc58a9a2d6c842781e32a215e" },
 	},
 	repository: { id: 186853002, full_name: "Codertocat/Hello-World" },
@@ -86,6 +91,9 @@ export const gitlabMergeRequest = {
 		title: "MS-Viewport",
 		source_branch: "ms-viewport",
 		target_branch: "master",
+		source_project_id: 1,
+		target_project_id: 1,
+		url: "https://gitlab.example.com/gitlabhq/gitlab-test/-/merge_requests/1",
 		oldrev: "b83d6e391c22777fca1ed3012fce84f633d7fed0",
 		last_commit: {
 			id: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
@@ -127,6 +135,7 @@ export const giteaPullRequest = {
 		head: {
 			ref: "feature/preview",
 			sha: "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
+			repo: { full_name: "gitea/webhooks" },
 		},
 		base: { ref: "main", sha: "e242ed3bffccdf271b7fbaf34ed72d089537b42f" },
 	},
@@ -166,7 +175,11 @@ export const bitbucketPullRequest = {
 		title: "Preview environments",
 		state: "OPEN",
 		author: { display_name: "Emma" },
-		source: { branch: { name: "feature/x" }, commit: { hash: "d3fe0e9a7c4b" } },
+		source: {
+			branch: { name: "feature/x" },
+			repository: { full_name: "team/repo" },
+			commit: { hash: "d3fe0e9a7c4b" },
+		},
 		destination: { branch: { name: "main" }, commit: { hash: "ce5965ddd289" } },
 	},
 };

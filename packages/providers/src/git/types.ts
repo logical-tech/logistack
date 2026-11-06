@@ -34,7 +34,15 @@ export type PullRequestEvent = {
 	commitSha: string;
 	commitMessage: string;
 	author: string;
-	pr: { number: number; action: PrAction; headBranch: string };
+	pr: {
+		number: number;
+		action: PrAction;
+		headBranch: string;
+		/** The head lives in another repository. True when the provider cannot tell: a fork is the unsafe case. */
+		fromFork: boolean;
+		/** The pull request's web page. */
+		url?: string;
+	};
 };
 
 export type GitEvent = PushEvent | PullRequestEvent;
@@ -88,6 +96,16 @@ export interface GitProvider {
 	commitChecks(repo: string, ref: string): Promise<ChecksSummary>;
 	/** A file's text at `ref` (branch, tag or SHA); `path` is relative to the repository root. */
 	readFile(repo: string, ref: string, path: string): Promise<string>;
+	/**
+	 * Edits comment `commentId` on pull request `number`, or posts a new one when there is none (or it
+	 * was deleted); returns the comment's id. GitHub only so far.
+	 */
+	commentOnPullRequest?(
+		repo: string,
+		number: number,
+		body: string,
+		commentId?: string,
+	): Promise<string>;
 }
 
 export type WebhookRejection =
