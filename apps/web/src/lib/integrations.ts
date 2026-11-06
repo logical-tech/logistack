@@ -136,7 +136,11 @@ export const EVENT_GROUPS: {
 	},
 	{
 		label: "Instance",
-		events: [{ type: "instance.update_available", label: "Update available" }],
+		events: [
+			{ type: "instance.update_available", label: "Update available" },
+			{ type: "instance.update_succeeded", label: "Update succeeded" },
+			{ type: "instance.update_failed", label: "Update failed" },
+		],
 	},
 ];
 

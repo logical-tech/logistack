@@ -35,6 +35,14 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 		severity: "info",
 		what: "LogiStack update available",
 	},
+	"instance.update_succeeded": {
+		severity: "success",
+		what: "LogiStack updated",
+	},
+	"instance.update_failed": {
+		severity: "error",
+		what: "LogiStack update failed",
+	},
 };
 
 const str = (v: unknown) =>
