@@ -34,6 +34,8 @@ export type Env = {
 	/** The Bun server when served by Bun.serve; absent under `app.request()` in tests. */
 	Bindings: {
 		requestIP?: (req: Request) => { address: string } | null;
+		/** Per-request idle timeout in seconds; 0 disables it (long AI streams). */
+		timeout?: (req: Request, seconds: number) => void;
 	};
 	Variables: {
 		deps: Deps;

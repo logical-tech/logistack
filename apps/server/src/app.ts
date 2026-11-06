@@ -9,12 +9,14 @@ import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import { type Actor, authenticate } from "./actor.ts";
+import { gateway } from "./ai/gateway.ts";
 import { assertMutationsAudited } from "./audit.ts";
 import type { Deps, Env } from "./env.ts";
 import { onError, validationHook } from "./errors.ts";
 import { terminal } from "./exec-ws.ts";
 import { requestLogger } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
+import { ai } from "./routes/ai.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
 import { backups } from "./routes/backups.ts";
@@ -181,15 +183,22 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", games)
 		.route("/api", databases)
 		.route("/api", migrations)
+		.route("/api", ai)
 		.route("/", realtime)
 		.route("/", terminal);
 
 	app.on(["GET", "POST", "DELETE"], "/mcp", mcpHandler(app));
+	// OpenAI- and Anthropic-compatible AI gateway, authenticated by its own keys.
+	app.route("/v1", gateway);
 
 	const web = deps.config.WEB_DIST_DIR;
 	if (existsSync(join(web, "index.html"))) {
 		const isApi = (p: string) =>
-			p === "/ws" || p === "/mcp" || p === "/api" || p.startsWith("/api/");
+			p === "/ws" ||
+			p === "/mcp" ||
+			p === "/api" ||
+			p.startsWith("/api/") ||
+			p.startsWith("/v1/");
 		// A file when one matches, else the app shell for client-side routes.
 		for (const handler of [
 			serveStatic({ root: web }),

@@ -34,6 +34,10 @@ export const idPrefixes = {
 	cloudflareTunnel: "cft",
 	migration: "mig",
 	migrationItem: "mgi",
+	aiProviderKey: "aik",
+	aiGatewayKey: "agk",
+	aiUsage: "aiu",
+	aiBudget: "aib",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];
