@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+	ArchiveRequest,
+	ArchiveResult,
 	DiskRequest,
 	DiskUsage,
 	ExecStart,
@@ -15,7 +17,8 @@ import {
 // replica. The caller subscribes to agentRpcReplyChannel(id), then publishes a start request on
 // agentRpcChannel(nodeId). Only the replica holding that node's socket subscribes to that channel,
 // so PUBLISH returning 0 means the node is offline. The replica streams replies, a `ping` every
-// AGENT_RPC_PING_MS, and ends with exactly one of `result`, `exit`, `end`, `disk` or `error`.
+// AGENT_RPC_PING_MS, and ends with exactly one of `result`, `exit`, `end`, `disk`, `archive` or
+// `error`. An archive read streams its content as `output` on stdout; a write takes `stdin`.
 // `stdin`, `resize` and `cancel` go to the node channel too, after the start request.
 
 export const agentRpcChannel = (nodeId: string) => `ls:agent:rpc:${nodeId}`;
@@ -41,6 +44,7 @@ export const AgentRpcRequest = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("exec"), id: Id, req: ExecStart }),
 	z.object({ type: z.literal("logs"), id: Id, req: LogsFollow }),
 	z.object({ type: z.literal("disk"), id: Id, req: DiskRequest }),
+	z.object({ type: z.literal("archive"), id: Id, req: ArchiveRequest }),
 	z.object({
 		type: z.literal("stdin"),
 		id: Id,
@@ -79,6 +83,7 @@ export const AgentRpcReply = z.discriminatedUnion("type", [
 		usage: DiskUsage,
 		report: PruneReport.nullable(),
 	}),
+	z.object({ type: z.literal("archive"), ...ArchiveResult.shape }),
 	z.object({
 		type: z.literal("error"),
 		code: z.enum(agentRpcErrorCodes),

@@ -226,7 +226,15 @@ async function main() {
 					nodeId: cfg.LOGISTACK_NODE_ID,
 					hostname: cfg.LOGISTACK_NODE_HOSTNAME,
 					version: pkg.version,
-					capabilities: ["exec", "logs", "jobs", "metrics", "events", "disk"],
+					capabilities: [
+						"exec",
+						"logs",
+						"jobs",
+						"metrics",
+						"events",
+						"disk",
+						"archive",
+					],
 					...swarm,
 				});
 				link.send({ type: "metrics", at: Date.now(), ...latest });

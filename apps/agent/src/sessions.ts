@@ -1,6 +1,7 @@
 import {
 	type AgentMessage,
 	type JobSpec,
+	MAX_ARCHIVE_WRITE_BYTES,
 	MAX_CHUNK_BYTES,
 	MAX_LINE_BYTES,
 	type RpcErrorCode,
@@ -13,6 +14,7 @@ import {
 	type Frame,
 	LABEL_MANAGED,
 } from "@logistack/docker";
+import { ArchiveRefused, runArchive } from "./archive.ts";
 import { runDisk } from "./disk.ts";
 import { resolveTarget, TargetNotFoundError } from "./docker.ts";
 import { BackpressureError, type Link } from "./link.ts";
@@ -73,6 +75,7 @@ function toRpcError(e: unknown): RpcError {
 	const message = e instanceof Error ? e.message : String(e);
 	if (e instanceof TargetNotFoundError)
 		return new RpcError("not_found", message);
+	if (e instanceof ArchiveRefused) return new RpcError("bad_request", message);
 	if (e instanceof BackpressureError)
 		return new RpcError("backpressure", message);
 	if (e instanceof DockerError)
@@ -263,6 +266,51 @@ export function createSessions(
 		});
 	}
 
+	function archive(m: Extract<ServerMessage, { type: "archive.start" }>) {
+		const ac = new AbortController();
+		const parts: Uint8Array[] = [];
+		let size = 0;
+		const uploaded = Promise.withResolvers<void>();
+		const session: Session = {
+			close() {
+				ac.abort();
+				uploaded.reject(new RpcError("cancelled", "request cancelled"));
+			},
+			stdin(data, eof) {
+				size += data.length;
+				if (size > MAX_ARCHIVE_WRITE_BYTES)
+					return uploaded.reject(
+						new RpcError(
+							"bad_request",
+							`the upload exceeds ${MAX_ARCHIVE_WRITE_BYTES} bytes`,
+						),
+					);
+				parts.push(new Uint8Array(data));
+				if (eof) uploaded.resolve();
+			},
+		};
+		uploaded.promise.catch(() => {});
+		return run(m.id, session, async () => {
+			const containerId = await resolveTarget(docker, m.request.target);
+			const result = await runArchive(docker, containerId, m.request, {
+				signal: ac.signal,
+				onData: async (data) => {
+					for (const c of chunks(data))
+						await link.sendStream({
+							type: "archive.data",
+							id: m.id,
+							data: b64(c),
+						});
+				},
+				upload: async () => {
+					await uploaded.promise;
+					return Buffer.concat(parts);
+				},
+			});
+			await link.sendStream({ type: "archive.result", id: m.id, ...result });
+		});
+	}
+
 	return {
 		handle(m: ServerMessage): void {
 			switch (m.type) {
@@ -285,6 +333,9 @@ export function createSessions(
 					return;
 				case "disk.run":
 					void disk(m);
+					return;
+				case "archive.start":
+					void archive(m);
 					return;
 				case "exec.close":
 				case "logs.stop":

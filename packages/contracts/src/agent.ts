@@ -7,7 +7,7 @@ import { NodeRole } from "./enums.ts";
 // token and presents it from then on. Every frame is one JSON text message parsed with AgentMessage or
 // ServerMessage. Requests carry an `id` chosen by the server; every reply for that request
 // carries the same `id` and the stream ends with exactly one terminal message
-// (`exec.exit`, `job.result`, `disk.result`, `rpc.error`, or `logs.end`).
+// (`exec.exit`, `job.result`, `disk.result`, `archive.result`, `rpc.error`, or `logs.end`).
 //
 // Backpressure:
 // - Output is chunked to at most MAX_CHUNK_BYTES raw bytes (base64 in `data`) and log lines are
@@ -202,6 +202,89 @@ export const DiskRequest = z.discriminatedUnion("op", [
 ]);
 export type DiskRequest = z.infer<typeof DiskRequest>;
 
+/**
+ * An absolute path inside a container in normal form ("/a/b"): `.` and empty segments dropped;
+ * `..`, control characters and relative paths throw. The engine also keeps every path, symlinks
+ * included, inside the container root.
+ */
+export function normalizeContainerPath(input: string): string {
+	if (!input.startsWith("/")) throw new Error("must be an absolute path");
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
+	if (/[\u0000-\u001f\u007f]/.test(input))
+		throw new Error("control characters are not allowed");
+	const parts = input.split("/").filter((p) => p !== "" && p !== ".");
+	if (parts.includes("..")) throw new Error(".. is not allowed");
+	const path = `/${parts.join("/")}`;
+	if (path.length > 4096) throw new Error("longer than 4096 characters");
+	return path;
+}
+
+const ContainerPath = z.string().refine((p) => {
+	try {
+		return normalizeContainerPath(p) === p;
+	} catch {
+		return false;
+	}
+}, "not a normalized absolute path");
+
+/** Children listed per directory; more sets `truncated`. Keeps the reply under MAX_FRAME_BYTES. */
+export const MAX_DIR_ENTRIES = 1000;
+/** Largest file read through the archive endpoint (view or download). */
+export const MAX_ARCHIVE_READ_BYTES = 50 * 1024 * 1024;
+/** Largest tar accepted for a write: a 50 MB file plus headers. */
+export const MAX_ARCHIVE_WRITE_BYTES = 50 * 1024 * 1024 + 64 * 1024;
+
+export const FileEntry = z.object({
+	name: z.string(),
+	type: z.enum(["file", "dir", "symlink", "other"]),
+	size: Bytes,
+	/** Permission bits. */
+	mode: z.number().int().nonnegative(),
+	/** Unix seconds. */
+	modifiedAt: z.number(),
+	linkTarget: z.string().max(256).optional(),
+});
+export type FileEntry = z.infer<typeof FileEntry>;
+
+/**
+ * A container filesystem operation through the engine's archive endpoint, run by the daemon
+ * (as root) with no process in the container. Symlinks at `path` are followed.
+ * - `stat`: the path, plus its children when it is a directory.
+ * - `read`: a regular file's content as `archive.data`, cut at `limitBytes`.
+ * - `write`: extracts the tar sent as `exec.stdin` frames (up to MAX_ARCHIVE_WRITE_BYTES, ended
+ *   by `eof`) into the directory `path`.
+ */
+export const ArchiveRequest = z.discriminatedUnion("op", [
+	z.object({
+		op: z.literal("stat"),
+		target: ContainerTarget,
+		path: ContainerPath,
+	}),
+	z.object({
+		op: z.literal("read"),
+		target: ContainerTarget,
+		path: ContainerPath,
+		limitBytes: z.number().int().positive().max(MAX_ARCHIVE_READ_BYTES),
+	}),
+	z.object({
+		op: z.literal("write"),
+		target: ContainerTarget,
+		path: ContainerPath,
+	}),
+]);
+export type ArchiveRequest = z.infer<typeof ArchiveRequest>;
+
+export const ArchiveResult = z.object({
+	/** `path` with symlinks resolved. */
+	path: z.string(),
+	entry: FileEntry,
+	/** A directory's children, directories first; null for anything else. */
+	entries: z.array(FileEntry).max(MAX_DIR_ENTRIES).nullable(),
+	/** Children past MAX_DIR_ENTRIES or the listing time budget, or content past `limitBytes`. */
+	truncated: z.boolean(),
+});
+export type ArchiveResult = z.infer<typeof ArchiveResult>;
+
 export const rpcErrorCodes = [
 	"not_found",
 	"bad_request",
@@ -262,6 +345,8 @@ export const AgentMessage = z.discriminatedUnion("type", [
 		usage: DiskUsage,
 		report: PruneReport.nullable(),
 	}),
+	z.object({ ...req("archive.data"), data: Base64 }),
+	z.object({ ...req("archive.result"), ...ArchiveResult.shape }),
 	z.object({
 		...req("rpc.error"),
 		code: RpcErrorCode,
@@ -322,6 +407,7 @@ export const ServerMessage = z.discriminatedUnion("type", [
 	z.object({ ...req("run.job"), job: JobSpec }),
 	z.object(req("job.cancel")),
 	z.object({ ...req("disk.run"), request: DiskRequest }),
+	z.object({ ...req("archive.start"), request: ArchiveRequest }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
 export type ServerMessageInput = z.input<typeof ServerMessage>;
