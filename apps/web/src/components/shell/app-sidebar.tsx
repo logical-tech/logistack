@@ -4,6 +4,7 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { LogoMark } from "@/components/brand";
 import { OrgAvatar } from "@/components/org-avatar";
+import { SponsorBadge, SponsorCard } from "@/components/shell/sponsor-card";
 import { UpdateBadge } from "@/components/shell/update-badge";
 import { StatusDot } from "@/components/status";
 import {
@@ -196,20 +197,23 @@ function FooterStatus() {
 				</Tooltip>
 			)}
 			{version && !collapsed && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span
-							// biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users reach the commit tooltip too.
-							tabIndex={0}
-							className="ml-auto truncate rounded-sm font-mono text-2xs text-muted-foreground tabular outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-						>
-							{version}
-						</span>
-					</TooltipTrigger>
-					<TooltipContent side="top" align="end">
-						{release}
-					</TooltipContent>
-				</Tooltip>
+				<div className="ml-auto flex min-w-0 items-center gap-2">
+					<SponsorBadge />
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users reach the commit tooltip too.
+								tabIndex={0}
+								className="truncate rounded-sm font-mono text-2xs text-muted-foreground tabular outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+							>
+								{version}
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="top" align="end">
+							{release}
+						</TooltipContent>
+					</Tooltip>
+				</div>
 			)}
 		</div>
 	);
@@ -262,6 +266,7 @@ export function AppSidebar() {
 			</SidebarContent>
 			<SidebarFooter>
 				<UpdateBadge />
+				<SponsorCard />
 				<FooterStatus />
 			</SidebarFooter>
 			<SidebarRail />

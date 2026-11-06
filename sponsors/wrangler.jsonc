@@ -1,0 +1,17 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "logistack-sponsors",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-11-01",
+	"routes": [{ "pattern": "sponsors.logicaltech.it", "custom_domain": true }],
+	"vars": {
+		"SITE_ORIGIN": "https://stack.logicaltech.it",
+		"EMAIL_FROM": "sponsors@logicaltech.it"
+	},
+	// Create it with `wrangler kv namespace create SPONSORS` and paste the id here.
+	"kv_namespaces": [
+		{ "binding": "SPONSORS", "id": "419ea30737084abca3ebd14c53172507" }
+	],
+	"send_email": [{ "name": "EMAIL" }]
+	// Secrets: SIGNING_KEY, STRIPE_WEBHOOK_SECRET (wrangler secret put).
+}

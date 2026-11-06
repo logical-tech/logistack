@@ -40,6 +40,8 @@ export const instanceSettings = pgTable(
 		betaUpdates: boolean("beta_updates").notNull().default(false),
 		/** The worker's last BuildKit probe and QEMU setup; null until the first. */
 		buildkit: jsonb("buildkit").$type<BuildkitState>(),
+		/** An `lss_` key signed by the sponsors Worker; verified on read, renewed by the worker. */
+		sponsorKey: text("sponsor_key"),
 		...timestamps,
 	},
 	(t) => [

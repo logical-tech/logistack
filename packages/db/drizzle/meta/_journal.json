@@ -246,6 +246,13 @@
       "when": 1793928619441,
       "tag": "0034_preview_deployments",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793959420124,
+      "tag": "0035_sponsor_key",
+      "breakpoints": true
     }
   ]
 }

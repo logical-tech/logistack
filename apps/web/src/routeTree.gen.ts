@@ -49,6 +49,7 @@ import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/g
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
 import { Route as AppSettingsMigrateRouteImport } from './routes/_app/settings/migrate'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
+import { Route as AppSettingsSponsorRouteImport } from './routes/_app/settings/sponsor'
 import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/ssh-keys'
 import { Route as AppSettingsUpdatesRouteImport } from './routes/_app/settings/updates'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
@@ -297,6 +298,11 @@ const AppSettingsMigrateRoute = AppSettingsMigrateRouteImport.update({
 const AppSettingsRolesRoute = AppSettingsRolesRouteImport.update({
   id: '/settings/roles',
   path: '/settings/roles',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsSponsorRoute = AppSettingsSponsorRouteImport.update({
+  id: '/settings/sponsor',
+  path: '/settings/sponsor',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsSshKeysRoute = AppSettingsSshKeysRouteImport.update({
@@ -609,6 +615,7 @@ export interface FileRoutesByFullPath {
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
+  '/settings/sponsor': typeof AppSettingsSponsorRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
@@ -693,6 +700,7 @@ export interface FileRoutesByTo {
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
+  '/settings/sponsor': typeof AppSettingsSponsorRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
@@ -781,6 +789,7 @@ export interface FileRoutesById {
   '/_app/settings/members': typeof AppSettingsMembersRoute
   '/_app/settings/migrate': typeof AppSettingsMigrateRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
+  '/_app/settings/sponsor': typeof AppSettingsSponsorRoute
   '/_app/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/_app/settings/updates': typeof AppSettingsUpdatesRoute
   '/_auth/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
@@ -870,6 +879,7 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/roles'
+    | '/settings/sponsor'
     | '/settings/ssh-keys'
     | '/settings/updates'
     | '/accept-invitation/$id'
@@ -954,6 +964,7 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/roles'
+    | '/settings/sponsor'
     | '/settings/ssh-keys'
     | '/settings/updates'
     | '/accept-invitation/$id'
@@ -1041,6 +1052,7 @@ export interface FileRouteTypes {
     | '/_app/settings/members'
     | '/_app/settings/migrate'
     | '/_app/settings/roles'
+    | '/_app/settings/sponsor'
     | '/_app/settings/ssh-keys'
     | '/_app/settings/updates'
     | '/_auth/accept-invitation/$id'
@@ -1378,6 +1390,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/roles'
       fullPath: '/settings/roles'
       preLoaderRoute: typeof AppSettingsRolesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/sponsor': {
+      id: '/_app/settings/sponsor'
+      path: '/settings/sponsor'
+      fullPath: '/settings/sponsor'
+      preLoaderRoute: typeof AppSettingsSponsorRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/ssh-keys': {
@@ -1877,6 +1896,7 @@ interface AppRouteChildren {
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
   AppSettingsMigrateRoute: typeof AppSettingsMigrateRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
+  AppSettingsSponsorRoute: typeof AppSettingsSponsorRoute
   AppSettingsSshKeysRoute: typeof AppSettingsSshKeysRoute
   AppSettingsUpdatesRoute: typeof AppSettingsUpdatesRoute
   AppBackupsServiceIdNewRoute: typeof AppBackupsServiceIdNewRoute
@@ -1926,6 +1946,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsMembersRoute: AppSettingsMembersRoute,
   AppSettingsMigrateRoute: AppSettingsMigrateRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
+  AppSettingsSponsorRoute: AppSettingsSponsorRoute,
   AppSettingsSshKeysRoute: AppSettingsSshKeysRoute,
   AppSettingsUpdatesRoute: AppSettingsUpdatesRoute,
   AppBackupsServiceIdNewRoute: AppBackupsServiceIdNewRoute,

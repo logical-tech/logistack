@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/sections/closing";
 import { Nav } from "@/components/sections/nav";
+import { SponsorKey } from "@/components/sponsor-key";
 import { site } from "@/content/site";
 import { manageSponsorshipLink } from "@/content/sponsor";
 
@@ -31,6 +32,7 @@ export default function Thanks() {
 					</a>{" "}
 					with the email you paid with.
 				</p>
+				<SponsorKey />
 				<div className="flex flex-wrap gap-3 pt-2">
 					<a
 						href="/"

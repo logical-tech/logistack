@@ -14,6 +14,7 @@ import {
 	GitBranch,
 	Globe,
 	HardDrive,
+	Heart,
 	House,
 	KeyRound,
 	LockKeyhole,
@@ -323,6 +324,14 @@ export const NAV: NavGroup[] = [
 					action: "Check now",
 				},
 				keywords: ["upgrade", "version", "release"],
+			},
+			{
+				to: "/settings/sponsor",
+				title: "Sponsor",
+				icon: Heart,
+				description:
+					"Sponsor LogiStack, or activate the key from your sponsorship.",
+				keywords: ["donate", "donation", "support", "badge", "key"],
 			},
 			{
 				to: "/settings/builds",
