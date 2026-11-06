@@ -294,7 +294,7 @@ const environmentSchema = z.object({
 		.max(60, "Keep it under 60 characters."),
 });
 
-const ENV_KINDS: { value: EnvironmentKind; label: string }[] = [
+export const ENV_KINDS: { value: EnvironmentKind; label: string }[] = [
 	{ value: "staging", label: "Staging" },
 	{ value: "preview", label: "Preview" },
 	{ value: "production", label: "Production" },

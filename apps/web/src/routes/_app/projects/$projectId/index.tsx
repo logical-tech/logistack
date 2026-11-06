@@ -5,6 +5,7 @@ import {
 	ArchiveRestore,
 	Boxes,
 	Check,
+	CopyPlus,
 	Download,
 	ExternalLink,
 	FileUp,
@@ -14,6 +15,7 @@ import {
 	MoreHorizontal,
 	Plus,
 	Settings2,
+	Variable,
 	Waypoints,
 } from "lucide-react";
 import { useState } from "react";
@@ -206,6 +208,15 @@ function ProjectDetail() {
 											</Link>
 										</DropdownMenuItem>
 									)}
+									<DropdownMenuItem asChild>
+										<Link
+											to="/projects/$projectId/variables"
+											params={{ projectId }}
+										>
+											<Variable />
+											Shared variables
+										</Link>
+									</DropdownMenuItem>
 									<DropdownMenuItem asChild>
 										<Link
 											to="/projects/$projectId/previews"
@@ -457,6 +468,26 @@ function EnvironmentMenu({
 				>
 					<Check className={env.isDefault ? undefined : "invisible"} />
 					Open by default
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild>
+					<Link
+						to="/projects/$projectId/variables"
+						params={{ projectId: env.projectId }}
+						search={{ env: env.id }}
+					>
+						<Variable />
+						Variables
+					</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild>
+					<Link
+						to="/projects/$projectId/duplicate"
+						params={{ projectId: env.projectId }}
+						search={{ from: env.id }}
+					>
+						<CopyPlus />
+						Duplicate…
+					</Link>
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					onSelect={() =>

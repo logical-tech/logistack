@@ -70,6 +70,13 @@ export type CreateEnvironmentInput = Body<
 	Api["projects"][":id"]["environments"]["$post"]
 >;
 export type UpdateEnvironmentInput = Body<Api["environments"][":id"]["$patch"]>;
+export type DuplicateEnvironmentInput = Body<
+	Api["environments"][":id"]["duplicate"]["$post"]
+>;
+export type DuplicateEnvironmentResult = InferResponseType<
+	Api["environments"][":id"]["duplicate"]["$post"],
+	201
+>;
 export type EnvironmentColor = NonNullable<Environment["color"]>;
 /** One wizard submit: the service, its domain, then its first deployment. */
 export type CreateServiceInput = {

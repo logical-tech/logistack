@@ -7,6 +7,7 @@ import {
 import { api } from ".";
 import type {
 	CreateEnvironmentInput,
+	DuplicateEnvironmentInput,
 	EnvironmentId,
 	ProjectId,
 	UpdateEnvironmentInput,
@@ -76,6 +77,22 @@ export function useCreateProject() {
 			Promise.all([
 				qc.invalidateQueries({ queryKey: projectsQuery.queryKey }),
 				qc.invalidateQueries({ queryKey: ["overview"] }),
+			]),
+	});
+}
+
+export function useDuplicateEnvironment(projectId: ProjectId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			id,
+			...input
+		}: DuplicateEnvironmentInput & { id: EnvironmentId }) =>
+			api.projects.duplicateEnvironment(id, input),
+		onSuccess: () =>
+			Promise.all([
+				qc.invalidateQueries({ queryKey: projectQuery(projectId).queryKey }),
+				qc.invalidateQueries({ queryKey: ["services"] }),
 			]),
 	});
 }

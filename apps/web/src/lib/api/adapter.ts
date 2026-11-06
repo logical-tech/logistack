@@ -13,6 +13,8 @@ import type {
 	CreateServiceInput,
 	DiskUsage,
 	DnsCheck,
+	DuplicateEnvironmentInput,
+	DuplicateEnvironmentResult,
 	Environment,
 	EnvironmentId,
 	Folder,
@@ -47,6 +49,7 @@ import type {
 	UpdateEnvironmentInput,
 	UsageRange,
 } from "./types";
+import type { VariablesApi } from "./variables";
 
 /**
  * The one seam between the UI and the server. `http.ts` implements it against
@@ -82,6 +85,11 @@ export type ApiAdapter = {
 			id: ProjectId,
 			input: CreateEnvironmentInput,
 		): Promise<Environment>;
+		/** A new environment with the source's services and settings; no domains, backups or data. */
+		duplicateEnvironment(
+			id: EnvironmentId,
+			input: DuplicateEnvironmentInput,
+		): Promise<DuplicateEnvironmentResult>;
 	};
 	services: {
 		listByEnvironment(environmentId: EnvironmentId): Promise<Service[]>;
@@ -133,6 +141,7 @@ export type ApiAdapter = {
 	sso: SsoApi;
 	stacks: StacksApi;
 	templates: TemplatesApi;
+	variables: VariablesApi;
 };
 
 export class ApiError extends Error {

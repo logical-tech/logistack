@@ -8,6 +8,7 @@ import type {
 } from "../service-ops";
 import type { Service } from "../types";
 import type { MockDb } from "./fixtures";
+import type { VariablesStore } from "./variables";
 
 const delay = <T>(value: T, ms = 180 + Math.random() * 260): Promise<T> =>
 	new Promise((resolve) =>
@@ -102,7 +103,10 @@ const MOCK_CHANGES: PendingDiff["changes"] = [
 	},
 ];
 
-export function serviceOpsMock(db: MockDb): ServiceOpsApi {
+export function serviceOpsMock(
+	db: MockDb,
+	shared: VariablesStore,
+): ServiceOpsApi {
 	const find = (id: string) => {
 		const service = db.services.find((s) => s.id === id);
 		if (!service) throw new ApiError(404, "Service not found");
@@ -155,39 +159,52 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 		);
 		return d;
 	};
+	/** Service-scope variables; the scopes above come from the shared store. */
 	const vars = new Map<string, EffectiveEnvVar[]>();
-	const varsOf = (s: Service): EffectiveEnvVar[] => {
+	const own = (s: Service): EffectiveEnvVar[] => {
 		const existing = vars.get(s.id);
 		if (existing) return existing;
-		const v = (
-			scope: EffectiveEnvVar["scope"],
-			key: string,
-			value: string | null,
-			isSecret = false,
-			overridden = false,
-		): EffectiveEnvVar => ({
+		const v = (key: string, value: string, isSecret = false) => ({
 			id: rid("env"),
-			scope,
-			scopeId: scope === "service" ? s.id : `${scope}_mock`,
+			scope: "service" as const,
+			scopeId: s.id,
 			key,
 			value,
 			isSecret,
-			isBuildTime: key.startsWith("NEXT_PUBLIC_"),
-			overridden,
+			isBuildTime: false,
+			overridden: false,
 			createdAt: iso(86_400_000 * 20),
 			updatedAt: iso(86_400_000 * 2),
 		});
 		const list = [
-			v("organization", "LOG_LEVEL", "info", false, true),
-			v("environment", "LOG_LEVEL", "warn"),
-			v("project", "NEXT_PUBLIC_SHOP_NAME", "Storefront"),
-			v("environment", "DATABASE_URL", null, true),
-			v("service", "PORT", "3000"),
-			v("service", "SESSION_SECRET", "s3cr3t-session-value", true),
-			v("organization", "SENTRY_DSN", "https://abc@sentry.logical.it/4"),
-		].sort((a, b) => a.key.localeCompare(b.key));
+			v("PORT", "3000"),
+			v("SESSION_SECRET", "s3cr3t-session-value", true),
+		];
 		vars.set(s.id, list);
 		return list;
+	};
+	const rank = ["organization", "project", "environment", "service"];
+	const varsOf = (s: Service): EffectiveEnvVar[] => {
+		const env = db.environments.find((e) => e.id === s.environmentId);
+		const all = [
+			...shared.get("organization", "org_logical"),
+			...shared.get("project", env?.projectId ?? ""),
+			...shared.get("environment", s.environmentId),
+			...own(s),
+		];
+		return all
+			.map((v) => ({
+				...v,
+				overridden: all.some(
+					(o) =>
+						o.key === v.key && rank.indexOf(o.scope) > rank.indexOf(v.scope),
+				),
+			}))
+			.sort(
+				(a, b) =>
+					a.key.localeCompare(b.key) ||
+					rank.indexOf(a.scope) - rank.indexOf(b.scope),
+			);
 	};
 
 	return {
@@ -301,31 +318,24 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 		envVars: async (id) => delay(varsOf(find(id))),
 		saveEnvVars: async (id, variables) => {
 			const s = find(id);
-			const inherited = varsOf(s).filter((v) => v.scope !== "service");
-			const previous = varsOf(s).filter((v) => v.scope === "service");
-			const next = variables.map((input) => ({
-				...(previous.find((p) => p.key === input.key) ?? {
-					id: rid("env"),
-					scope: "service" as const,
-					scopeId: s.id,
-					createdAt: iso(),
-					value: null,
-				}),
-				...input,
-				value:
-					input.value ??
-					previous.find((p) => p.key === input.key)?.value ??
-					null,
-				overridden: false,
-				updatedAt: iso(),
-			}));
-			const keys = new Set(next.map((v) => v.key));
+			const previous = own(s);
 			vars.set(
 				id,
-				[
-					...inherited.map((v) => ({ ...v, overridden: keys.has(v.key) })),
-					...next,
-				].sort((a, b) => a.key.localeCompare(b.key)),
+				variables.map((input) => ({
+					...(previous.find((p) => p.key === input.key) ?? {
+						id: rid("env"),
+						scope: "service" as const,
+						scopeId: s.id,
+						createdAt: iso(),
+						overridden: false,
+					}),
+					...input,
+					value:
+						input.value ??
+						previous.find((p) => p.key === input.key)?.value ??
+						null,
+					updatedAt: iso(),
+				})),
 			);
 			return delay(undefined);
 		},
