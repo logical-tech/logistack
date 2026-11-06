@@ -79,6 +79,24 @@ describe("buildPlan", () => {
 		).toThrow(/escapes the repository/);
 	});
 
+	test("an app path written from the repository root ('/', '/api') stays inside the checkout", () => {
+		for (const [appPath, dir] of [
+			["/", "/w/builds/dep_1"],
+			["/apps/web", "/w/builds/dep_1/apps/web"],
+		] as const) {
+			const plan = buildPlan({
+				...base,
+				appPath,
+				build: {
+					type: "dockerfile",
+					dockerfilePath: "Dockerfile",
+					context: ".",
+				},
+			});
+			expect(plan.args.join(" ")).toContain(`context=${dir} `);
+		}
+	});
+
 	test("railpack prepares a plan, then builds it with the railpack frontend", () => {
 		const plan = buildPlan({
 			...base,

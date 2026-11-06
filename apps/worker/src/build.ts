@@ -207,7 +207,8 @@ export async function clone(
 
 /** Resolves a user path inside the checkout; `..` escapes are rejected. */
 function inside(root: string, p: string): string {
-	const abs = resolve(root, p);
+	// The UI writes repository paths from the root ("/", "/api"); they are relative to the checkout.
+	const abs = resolve(root, p.replace(/^\/+/, ""));
 	const rel = relative(root, abs);
 	if (rel.startsWith("..") || resolve(root, rel) !== abs)
 		throw new Error(`path ${p} escapes the repository`);
