@@ -50,6 +50,8 @@ export const backupPolicy = pgTable("backup_policy", {
 	verifyCron: text("verify_cron"),
 	/** Volume backups only: scale the service to zero while the volume is read. */
 	pauseService: boolean("pause_service").notNull().default(false),
+	/** An age X25519 identity (`AGE-SECRET-KEY-1…`) sealed with the master key; null = plaintext backups. */
+	encryptionKeyEncrypted: text("encryption_key_encrypted"),
 	enabled: boolean("enabled").notNull().default(true),
 	...timestamps,
 });

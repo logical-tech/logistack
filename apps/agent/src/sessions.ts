@@ -1,4 +1,5 @@
 import {
+	ACK_STALL_MS,
 	type AgentMessage,
 	type JobSpec,
 	MAX_ARCHIVE_WRITE_BYTES,
@@ -32,6 +33,7 @@ interface Session {
 	close(): void;
 	stdin?(data: Uint8Array, eof: boolean): void;
 	resize?(rows: number, cols: number): void;
+	ack?(bytes: number): void;
 }
 
 const b64 = (data: Uint8Array) => Buffer.from(data).toString("base64");
@@ -190,12 +192,31 @@ export function createSessions(
 	function runJob(id: string, job: JobSpec) {
 		const ac = new AbortController();
 		let cancelled = false;
+		let sent = 0;
+		let acked = 0;
+		/** Waits while the consumer is a full window behind; no-op without `ackWindowBytes`. */
+		async function credit() {
+			const window = job.ackWindowBytes;
+			if (!window) return;
+			const deadline = Date.now() + ACK_STALL_MS;
+			while (sent - acked >= window && !ac.signal.aborted) {
+				if (Date.now() > deadline)
+					throw new RpcError(
+						"backpressure",
+						`the consumer acknowledged nothing for ${ACK_STALL_MS} ms`,
+					);
+				await Bun.sleep(20);
+			}
+		}
 		return run(
 			id,
 			{
 				close: () => {
 					cancelled = true;
 					ac.abort();
+				},
+				ack: (n) => {
+					acked = Math.max(acked, n);
 				},
 			},
 			async () => {
@@ -227,13 +248,16 @@ export function createSessions(
 						const room = job.outputLimitBytes - bytes;
 						bytes += f.data.length;
 						if (room <= 0) continue;
-						for (const c of chunks(f.data.subarray(0, room)))
+						for (const c of chunks(f.data.subarray(0, room))) {
 							await link.sendStream({
 								type: "job.output",
 								id,
 								stream: outStream(f),
 								data: b64(c),
 							});
+							sent += c.length;
+							await credit();
+						}
 					}
 					if (ac.signal.aborted)
 						// shortcut: for `exec` jobs the engine has no exec kill, so the process may outlive the stream; add a pkill exec when a real job needs it.
@@ -336,6 +360,9 @@ export function createSessions(
 					return;
 				case "archive.start":
 					void archive(m);
+					return;
+				case "job.ack":
+					sessions.get(m.id)?.ack?.(m.bytes);
 					return;
 				case "exec.close":
 				case "logs.stop":

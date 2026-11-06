@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { DatabaseBackup, HardDrive, Plus } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { BackupKeyReveal } from "@/components/backups/backup-key";
 import { CronField } from "@/components/backups/cron-field";
 import { retentionText } from "@/components/backups/service-backups";
 import { Field } from "@/components/field";
@@ -19,6 +20,7 @@ import {
 	type WizardStep,
 } from "@/components/wizard/wizard";
 import {
+	type PolicyWithKey,
 	type ServiceBackups,
 	s3DestinationsQuery,
 	serviceBackupsQuery,
@@ -51,6 +53,7 @@ type V = {
 	verify: boolean;
 	verifyCron: string;
 	pauseService: boolean;
+	encrypt: boolean;
 };
 
 const DUMP: Record<string, string> = {
@@ -342,6 +345,30 @@ function buildSteps(data: ServiceBackups): WizardStep<V>[] {
 			),
 		},
 		{
+			id: "encrypt",
+			title: "Encryption",
+			description:
+				"The bucket's owner, and anyone holding its credentials, can read plain backups. Encrypted ones are unreadable without the key.",
+			render: (w) => (
+				<div className="grid gap-3">
+					<ToggleRow
+						id="wz-encrypt"
+						title="Encrypt before upload"
+						body="Each backup is encrypted with age on this server, so the bucket only ever holds ciphertext. Restores decrypt on their own."
+						checked={w.values.encrypt}
+						onChange={(c) => w.set("encrypt", c)}
+					/>
+					{w.values.encrypt && (
+						<p className="t-reveal px-1 text-sm text-pretty text-muted-foreground">
+							LogiStack creates a key and shows it once, after setup. Keep it
+							outside this server: without it, nobody can read these backups if
+							the server is lost. Encryption cannot be turned off later.
+						</p>
+					)}
+				</div>
+			),
+		},
+		{
 			id: "review",
 			title: "Review",
 			description:
@@ -364,6 +391,18 @@ function buildSteps(data: ServiceBackups): WizardStep<V>[] {
 									{
 										label: "Destination",
 										value: <DestinationName id={v.s3DestinationId} />,
+									},
+								],
+							},
+							{
+								stepId: "encrypt",
+								title: "Encryption",
+								rows: [
+									{
+										label: "Before upload",
+										value: v.encrypt
+											? "Encrypted with age, key shown once"
+											: "Off",
 									},
 								],
 							},
@@ -435,6 +474,7 @@ function NewPolicy() {
 	const { data } = useQuery(serviceBackupsQuery(serviceId));
 	const { data: destinations } = useQuery(s3DestinationsQuery);
 	const create = useCreatePolicy();
+	const [created, setCreated] = useState<PolicyWithKey | null>(null);
 	const onStepChange = useCallback(
 		(id: string, { replace }: { replace: boolean }) =>
 			navigate({ search: { step: id }, replace }),
@@ -442,6 +482,36 @@ function NewPolicy() {
 	);
 	const steps = useMemo(() => (data ? buildSteps(data) : []), [data]);
 	if (!data) return null;
+
+	if (created?.encryptionKey)
+		return (
+			<Page className="max-w-2xl">
+				<PageHeader
+					title="Save the backup key"
+					description={
+						<>
+							Backups of{" "}
+							<span className="text-foreground">{data.service.name}</span> are
+							on and encrypted. Store the key somewhere safe before you leave
+							this page.
+						</>
+					}
+				/>
+				<div className="t-reveal">
+					<BackupKeyReveal
+						policy={created}
+						encryptionKey={created.encryptionKey}
+					/>
+				</div>
+				<div className="mt-8 flex justify-end border-t pt-5">
+					<Button asChild size="lg">
+						<Link to="/backups/$serviceId" params={{ serviceId }}>
+							I've saved the key
+						</Link>
+					</Button>
+				</div>
+			</Page>
+		);
 
 	const covered = new Set(
 		data.policies.map((p) =>
@@ -475,13 +545,14 @@ function NewPolicy() {
 					verify: data.service.kind === "database",
 					verifyCron: "0 5 * * 0",
 					pauseService: false,
+					encrypt: true,
 				}}
 				step={step}
 				onStepChange={onStepChange}
 				finishLabel="Start backing up"
 				onComplete={async (v) => {
 					const t = target(v);
-					await create.mutateAsync({
+					const policy = await create.mutateAsync({
 						serviceId,
 						...t,
 						s3DestinationId: v.s3DestinationId,
@@ -495,7 +566,9 @@ function NewPolicy() {
 							t.target === "database" && v.verify ? v.verifyCron.trim() : null,
 						pauseService: t.target === "volume" && v.pauseService,
 						enabled: true,
+						encrypt: v.encrypt,
 					});
+					if (policy.encryptionKey) return setCreated(policy);
 					toast.success(`Backups of ${data.service.name} are on`, {
 						description: describeCron(v.cron) ?? v.cron,
 					});

@@ -332,9 +332,10 @@ export async function createNodeRunner(
 
 	return {
 		runJob(nodeId, job, run = {}) {
-			return open<OutputChunk, JobResult>(
+			const id = crypto.randomUUID();
+			const { iterator, control } = open<OutputChunk, JobResult>(
 				nodeId,
-				{ type: "job", id: crypto.randomUUID(), job },
+				{ type: "job", id, job },
 				(m) =>
 					m.type === "output"
 						? { item: { stream: m.stream, data: decode(m.data) } }
@@ -349,7 +350,24 @@ export async function createNodeRunner(
 								}
 							: undefined,
 				{ timeoutMs: (job.timeoutSec + 60) * 1000, ...run },
-			).iterator;
+			);
+			const window = job.ackWindowBytes;
+			if (!window) return iterator;
+			// Acks what the caller has read, so the agent never runs more than a window ahead of it.
+			let read = 0;
+			let acked = 0;
+			const next = iterator.next.bind(iterator);
+			iterator.next = async () => {
+				const r = await next();
+				if (r.done) return r;
+				read += r.value.data.byteLength;
+				if (read - acked >= window / 4) {
+					acked = read;
+					void control({ type: "ack", id, bytes: read }).catch(() => {});
+				}
+				return r;
+			};
+			return iterator;
 		},
 
 		disk(nodeId, req, run = {}) {

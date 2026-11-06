@@ -190,12 +190,16 @@ describe.skipIf(!enabled)("backups, restores and schedules end to end", () => {
 			},
 		});
 		expect(svc.status).toBe(201);
-		await db.insert(envVar).values({
-			scope: "service",
-			scopeId: svc.json.id,
-			key: "POSTGRES_PASSWORD",
-			valueEncrypted: await encrypt(ctx0().masterKey, "s3cret-pg"),
-		});
+		await db
+			.insert(envVar)
+			.values({
+				scope: "service",
+				scopeId: svc.json.id,
+				key: "POSTGRES_PASSWORD",
+				valueEncrypted: await encrypt(ctx0().masterKey, "s3cret-pg"),
+			})
+			// Database services now get a generated password at creation.
+			.onConflictDoNothing();
 		return svc.json.id as string;
 	}
 
@@ -619,6 +623,78 @@ describe.skipIf(!enabled)("backups, restores and schedules end to end", () => {
 		for await (const c of read) out += new TextDecoder().decode(c.data);
 		expect(out.trim()).toBe("17");
 	}, 300_000);
+
+	test("an encrypted policy uploads only age ciphertext and restores it transparently", async () => {
+		const p = await call(
+			"POST",
+			`/api/services/${pgServiceId}/backup-policies`,
+			{
+				target: "database",
+				s3DestinationId: destinationId,
+				cron: "0 1 * * *",
+				encrypt: true,
+			},
+		);
+		expect(p.status).toBe(201);
+		const identity: string = p.json.encryptionKey;
+		expect(identity).toStartWith("AGE-SECRET-KEY-1");
+		const run = await runPolicy(p.json.id);
+		expect(run).toMatchObject({ status: "succeeded", error: null });
+		expect(run.objectKey).toEndWith(".dump.age");
+		const bytes = await s3().file(`${PREFIX}run/${run.objectKey}`).bytes();
+		expect(bytes.byteLength).toBe(run.sizeBytes);
+		expect(run.checksum).toBe(
+			`sha256:${new Bun.CryptoHasher("sha256").update(bytes).digest("hex")}`,
+		);
+		const text = new TextDecoder().decode(bytes);
+		expect(text).toStartWith("age-encryption.org/v1\n-> X25519 ");
+		expect(text).not.toContain("PGDMP");
+
+		// The documented disaster path: the age CLI and the key, no LogiStack.
+		const cli = Bun.spawnSync(
+			[
+				"docker",
+				"run",
+				"--rm",
+				"-i",
+				"--name",
+				`${PREFIX}age`,
+				"--label",
+				"logistack.test=backup",
+				"-e",
+				"KEY",
+				"alpine:3.22",
+				"sh",
+				"-c",
+				'apk add -q --no-cache age && printf "%s\\n" "$KEY" > /tmp/key.txt && age -d -i /tmp/key.txt',
+			],
+			{ stdin: bytes, env: { ...process.env, KEY: identity } },
+		);
+		expect(cli.stderr.toString()).toBe("");
+		expect(cli.exitCode).toBe(0);
+		expect(new TextDecoder().decode(cli.stdout.subarray(0, 5))).toBe("PGDMP");
+		expect(cli.stdout.byteLength).toBeGreaterThan(10_000);
+
+		const verified = await runPolicy(p.json.id, "verify");
+		expect(verified).toMatchObject({
+			status: "succeeded",
+			detail: "1 table restored",
+			sourceRunId: run.id,
+		});
+		const r = await call("POST", `/api/backup-runs/${run.id}/restore`, {
+			target: { kind: "new", name: "orders-sealed" },
+			confirm: "orders-sealed",
+		});
+		expect(r.status).toBe(202);
+		const done = await settle(r.json.run.id, "backup-runs", 300_000);
+		expect(done).toMatchObject({ status: "succeeded", kind: "restore" });
+		expect(
+			await psql(
+				r.json.targetServiceId,
+				"select count(*), sum(total) from orders",
+			),
+		).toBe("2500|4689375.0");
+	}, 420_000);
 
 	async function schedule(body: Record<string, unknown>) {
 		const r = await call("POST", "/api/schedules", {

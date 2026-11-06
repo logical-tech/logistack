@@ -234,6 +234,7 @@ async function main() {
 						"events",
 						"disk",
 						"archive",
+						"job-ack",
 					],
 					...swarm,
 				});

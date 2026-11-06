@@ -19,7 +19,7 @@ import {
 // so PUBLISH returning 0 means the node is offline. The replica streams replies, a `ping` every
 // AGENT_RPC_PING_MS, and ends with exactly one of `result`, `exit`, `end`, `disk`, `archive` or
 // `error`. An archive read streams its content as `output` on stdout; a write takes `stdin`.
-// `stdin`, `resize` and `cancel` go to the node channel too, after the start request.
+// `stdin`, `resize`, `ack` and `cancel` go to the node channel too, after the start request.
 
 export const agentRpcChannel = (nodeId: string) => `ls:agent:rpc:${nodeId}`;
 export const agentRpcReplyChannel = (requestId: string) =>
@@ -58,6 +58,12 @@ export const AgentRpcRequest = z.discriminatedUnion("type", [
 		cols: z.number().int().positive(),
 	}),
 	z.object({ type: z.literal("cancel"), id: Id }),
+	/** A job's `job.ack`: output bytes the caller has read. */
+	z.object({
+		type: z.literal("ack"),
+		id: Id,
+		bytes: z.number().int().nonnegative(),
+	}),
 ]);
 export type AgentRpcRequest = z.input<typeof AgentRpcRequest>;
 

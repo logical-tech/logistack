@@ -337,6 +337,38 @@ describe.skipIf(!hasDocker || !process.env.BRIDGE_IT)(
 			expect(await jobContainers(name)).toHaveLength(0);
 		}, 30_000);
 
+		test("a job with an ack window waits for its reader instead of piling output up", async () => {
+			const size = 4 * 1024 * 1024;
+			const job = (name: string, ackWindowBytes?: number) =>
+				runner.runJob(nodeId, {
+					kind: "container",
+					image: IMAGE,
+					containerName: name,
+					script: `head -c ${size} /dev/zero\n`,
+					labels: TEST_LABELS,
+					timeoutSec: 60,
+					outputLimitBytes: 2 * size,
+					ackWindowBytes,
+				});
+			const finishes = (p: Promise<unknown>) =>
+				Promise.race([
+					p.then(
+						() => true,
+						() => true,
+					),
+					Bun.sleep(6_000).then(() => false),
+				]);
+			const free = job(`${PREFIX}-free`);
+			expect(await finishes(free.result)).toBe(true);
+			for await (const _ of free);
+			const held = job(`${PREFIX}-held`, 256 * 1024);
+			expect(await finishes(held.result)).toBe(false);
+			let read = 0;
+			for await (const c of held) read += c.data.byteLength;
+			expect(read).toBe(size);
+			expect(await held.result).toMatchObject({ exitCode: 0, bytes: size });
+		}, 40_000);
+
 		// Usage only: a prune here would delete the dev machine's unused images.
 		test("disk usage from the worker: the agent answers with its engine's breakdown", async () => {
 			const { usage, report } = await runner.disk(nodeId, { op: "usage" });

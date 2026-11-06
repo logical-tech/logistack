@@ -18,6 +18,7 @@
 		"@logistack/docker": "workspace:*",
 		"@logistack/providers": "workspace:*",
 		"@logistack/proxy": "workspace:*",
+		"age-encryption": "0.3.1",
 		"bullmq": "6.5.4",
 		"drizzle-orm": "0.45.4",
 		"ioredis": "5.11.1",
