@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { backupSchedulerId } from "@logistack/contracts";
 import {
 	auditLog,
+	backupPolicy,
 	backupRun,
 	deployment,
 	envVar,
@@ -243,11 +244,63 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 			body: { verifyCron: null },
 		});
 		expect(off.status).toBe(200);
+		// Fields the patch left out keep their values.
+		expect(off.json).toMatchObject({
+			timezone: "Europe/Rome",
+			retention: { count: 7, days: 30 },
+			encrypted: false,
+			encryptionKey: null,
+		});
 		expect(
 			await queues().backup.getJobScheduler(
 				backupSchedulerId(policyId, "verify"),
 			),
 		).toBeUndefined();
+	});
+
+	test("encryption: the key comes back once, sealed at rest, and cannot be turned off", async () => {
+		const p = await h.call("POST", `/api/services/${dbId}/backup-policies`, {
+			...as("developer"),
+			body: {
+				target: "database",
+				s3DestinationId: destinationId,
+				cron: "0 4 * * *",
+				encrypt: true,
+			},
+		});
+		expect(p.status).toBe(201);
+		expect(p.json.encrypted).toBe(true);
+		expect(p.json.encryptionKey).toMatch(/^AGE-SECRET-KEY-1[0-9A-Z]{58}$/);
+		const [row] = await h.deps.db
+			.select({ sealed: backupPolicy.encryptionKeyEncrypted })
+			.from(backupPolicy)
+			.where(eq(backupPolicy.id, p.json.id));
+		expect(row?.sealed).toBeString();
+		expect(row?.sealed).not.toContain(p.json.encryptionKey);
+		const listed = (
+			await h.call("GET", `/api/services/${dbId}/backups`, as("owner"))
+		).json.policies.find((x: { id: string }) => x.id === p.json.id);
+		expect(listed).toMatchObject({ encrypted: true });
+		expect(JSON.stringify(listed)).not.toContain("AGE-SECRET-KEY");
+
+		const again = await h.call("PATCH", `/api/backup-policies/${p.json.id}`, {
+			...as("owner"),
+			body: { encrypt: true, cron: "0 6 * * *" },
+		});
+		expect(again.json).toMatchObject({ encrypted: true, encryptionKey: null });
+		const off = await h.call("PATCH", `/api/backup-policies/${p.json.id}`, {
+			...as("owner"),
+			body: { encrypt: false },
+		});
+		expect(off.status).toBe(400);
+
+		const on = await h.call("PATCH", `/api/backup-policies/${policyId}`, {
+			...as("owner"),
+			body: { encrypt: true },
+		});
+		expect(on.json.encryptionKey).toMatch(/^AGE-SECRET-KEY-1/);
+		expect(on.json.encryptionKey).not.toBe(p.json.encryptionKey);
+		await h.call("DELETE", `/api/backup-policies/${p.json.id}`, as("owner"));
 	});
 
 	test("a destination in use cannot be deleted", async () => {
