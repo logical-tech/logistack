@@ -5,6 +5,7 @@ import type {
 	DatabaseEngine,
 	DatabaseSpec,
 	DesiredState,
+	GameSpec,
 	Healthcheck as HealthcheckSpec,
 	MountKind,
 	ServiceSpec as ServiceSpecInput,
@@ -25,6 +26,12 @@ import {
 	type DeploymentContext,
 	deploymentContextEnv,
 } from "./deployment-context.ts";
+import {
+	gameDefs,
+	gamePlatforms,
+	gameRequiredEnv,
+	gameSpecPorts,
+} from "./game.ts";
 import { dockerName } from "./ids.ts";
 import { LIBSQL_ENV, LIBSQL_HEALTH } from "./libsql.ts";
 import type { RouterFlavor } from "./migration.ts";
@@ -47,7 +54,7 @@ export type CompileServiceInput = {
 		/** DNS alias on the environment network; validated by the API. */
 		slug: string;
 		desiredState: DesiredState;
-		spec: ApplicationSpec | DatabaseSpec | StorageSpec;
+		spec: ApplicationSpec | DatabaseSpec | StorageSpec | GameSpec;
 	};
 	/** Rolls the tasks even when nothing else changed, so every deployment is a real update. */
 	deploymentId: string;
@@ -65,6 +72,7 @@ export type CompileServiceInput = {
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
 	/** `db`: the shared network the api reaches databases on for the explorer; absent leaves them off it. */
+	/** `game`: the shared network the api dials game admin ports (RCON, ServerQuery) on; absent leaves them off it. */
 	/**
 	 * `bridge`: the network of the platform a service was migrated from (`dokploy-network`), joined
 	 * under the slug, so that platform's proxy and services still reach it until they are gone.
@@ -74,6 +82,7 @@ export type CompileServiceInput = {
 		ingress: string;
 		storage?: string;
 		db?: string;
+		game?: string;
 		bridge?: string;
 	};
 	/** Labels for the old platform's proxy while bridged (`bridgeRouterLabels`); service-level. */
@@ -199,6 +208,7 @@ export function databaseDataDir(
 export function dataDirOf(spec: ServiceSpecInput): string | undefined {
 	if (spec.kind === "database") return databaseDataDir(spec);
 	if (spec.kind === "storage") return storageEngineDefs[spec.engine].dataDir;
+	if (spec.kind === "game") return gameDefs[spec.settings.game].dataDir;
 	return undefined;
 }
 
@@ -304,6 +314,8 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	const app = spec.kind === "application" ? spec : undefined;
 	const store =
 		spec.kind === "storage" ? storageEngineDefs[spec.engine] : undefined;
+	const game = spec.kind === "game" ? spec : undefined;
+	const gdef = game ? gameDefs[game.settings.game] : undefined;
 	const isDb = db !== undefined;
 	const kind: ManagedKind = isDb ? "db" : "service";
 	// The slug is the service's DNS name on the environment network; siblings resolve it.
@@ -353,6 +365,14 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			);
 		volumeMounts.push(volume(service.id, store.dataDir));
 	}
+	if (game && gdef) {
+		const missing = gameRequiredEnv(game.settings).filter((k) => !input.env[k]);
+		if (missing.length)
+			throw new Error(
+				`service ${service.id}: ${game.settings.game} needs env ${missing.join(", ")}`,
+			);
+		volumeMounts.push(volume(service.id, gdef.dataDir));
+	}
 
 	const bindMounts: Mount[] = (app?.mounts ?? []).map((m) => ({
 		Type: "bind",
@@ -379,7 +399,11 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 		);
 
 	const image =
-		db && engine ? engine.image(db.version) : (store?.image ?? input.image);
+		db && engine
+			? engine.image(db.version)
+			: (store?.image ??
+				(game && gdef ? gdef.image(game.settings) : undefined) ??
+				input.image);
 	if (!image) throw new Error(`service ${service.id}: no image to deploy`);
 
 	const hasIngress = !isDb && input.domains.length > 0;
@@ -387,15 +411,22 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 		? engine.healthcheck
 		: store
 			? store.healthcheck
-			: healthcheckTest(
-					app?.healthcheck,
-					hasIngress
-						? (app?.ports[0]?.target ?? input.domains[0]?.port)
-						: undefined,
-				);
+			: game && gdef
+				? gdef.healthcheck(game.port)
+				: healthcheckTest(
+						app?.healthcheck,
+						hasIngress
+							? (app?.ports[0]?.target ?? input.domains[0]?.port)
+							: undefined,
+					);
 
 	const deploymentLabel = { "logistack.deployment": input.deploymentId };
-	const published = (app?.ports ?? []).filter((p) => p.published);
+	const platforms = input.platforms?.length
+		? input.platforms
+		: game && gamePlatforms(game.settings.game);
+	const published = (app?.ports ?? (game ? gameSpecPorts(game) : [])).filter(
+		(p) => p.published,
+	);
 	// A host port is held by the old task until it stops, so a start-first update would never schedule.
 	const holdsHostPort = published.some((p) => (p.mode ?? "host") === "host");
 	const order = stateful || holdsHostPort ? "stop-first" : "start-first";
@@ -405,6 +436,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	const env = Object.entries({
 		...input.env,
 		...store?.env(input.env),
+		...(game && gdef ? gdef.env(game, input.env) : {}),
 		...deploymentContextEnv({
 			...input.context,
 			deploymentId: input.deploymentId,
@@ -444,12 +476,14 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				Mounts: [...volumeMounts, ...bindMounts],
 				Configs: configs,
 				Secrets: secrets,
-				StopGracePeriod: s(app?.drainTimeout ?? 10),
+				StopGracePeriod: s(app?.drainTimeout ?? gdef?.stopGrace ?? 10),
 				...(test
 					? {
 							Healthcheck: {
 								Test: test,
-								...healthTimings(isDb || store ? 30 : 15),
+								...healthTimings(
+									gdef?.startPeriod ?? (isDb || store ? 30 : 15),
+								),
 							},
 						}
 					: {}),
@@ -475,9 +509,9 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					...(stateful ? [`node.id==${input.pinNodeId}`] : []),
 				],
 				// The Engine API resolves no manifest, so Swarm only filters by platform when told.
-				...(input.platforms?.length
+				...(platforms?.length
 					? {
-							Platforms: input.platforms.map((p) => ({
+							Platforms: platforms.map((p) => ({
 								OS: "linux",
 								Architecture: p.slice("linux/".length),
 							})),
@@ -491,6 +525,9 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					? [{ Target: input.networks.storage }]
 					: []),
 				...(isDb && input.networks.db ? [{ Target: input.networks.db }] : []),
+				...(game && input.networks.game
+					? [{ Target: input.networks.game }]
+					: []),
 				...(input.networks.bridge
 					? [
 							{

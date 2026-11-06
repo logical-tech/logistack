@@ -28,6 +28,7 @@ export const serviceKinds = [
 	"database",
 	"compose",
 	"storage",
+	"game",
 ] as const;
 export const ServiceKind = z.enum(serviceKinds);
 /** Where a stack's services came from: a catalog template, a pasted compose file, or a compose file in git. */

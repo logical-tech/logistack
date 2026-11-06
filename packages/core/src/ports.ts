@@ -1,4 +1,9 @@
-import type { PortMapping } from "@logistack/contracts";
+import {
+	type GameKind,
+	gamePorts,
+	type PortMapping,
+	primaryPort,
+} from "@logistack/contracts";
 
 /** A service's published ports and the node it is pinned to (null: Swarm may place it anywhere). */
 export type PortHolder = {
@@ -66,3 +71,23 @@ export const ingressPortHolder: PortHolder = {
 		{ target: 443, published: 443, protocol: "udp" },
 	],
 };
+
+/**
+ * The first primary port from the game's default upward whose derived ports (`gamePorts`) no
+ * holder publishes on `nodeId`; null when the range runs out.
+ */
+export function suggestGamePort(
+	settings: { game: GameKind; geyser?: boolean },
+	nodeId: string | null,
+	holders: PortHolder[],
+	serviceId = "",
+): number | null {
+	const start = primaryPort(settings.game);
+	for (let port = start; port < start + 1000; port++) {
+		const ports = gamePorts(settings, port);
+		if (ports.some((p) => p.published > 65535)) return null;
+		const candidate = { id: serviceId, nodeId, ports };
+		if (!publishedPortConflicts(candidate, holders).length) return port;
+	}
+	return null;
+}

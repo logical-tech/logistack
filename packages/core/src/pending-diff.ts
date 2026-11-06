@@ -31,6 +31,7 @@ export function comparableInput(
 			ingress: "ingress",
 			...(input.networks.storage ? { storage: "storage" } : {}),
 			...(input.networks.db ? { db: "db" } : {}),
+			...(input.networks.game ? { game: "game" } : {}),
 		},
 		fileIds: {},
 	};

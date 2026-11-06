@@ -1,0 +1,661 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`compileService for game servers minecraft-java 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "tcp",
+        "PublishMode": "host",
+        "PublishedPort": 25566,
+        "TargetPort": 25565,
+      },
+      {
+        "Protocol": "udp",
+        "PublishMode": "host",
+        "PublishedPort": 19133,
+        "TargetPort": 19132,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_game000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-game000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "CREATE_CONSOLE_IN_PIPE=true",
+        "DIFFICULTY=normal",
+        "ENABLE_RCON=true",
+        "ENABLE_WHITELIST=TRUE",
+        "EULA=TRUE",
+        "GAME_ADMIN_PASSWORD=GAME_ADMIN_PASSWORD-value",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=prod",
+        "LOGISTACK_PROJECT=Fun",
+        "LOGISTACK_SERVICE=Game",
+        "MAX_PLAYERS=20",
+        "MEMORY=3072M",
+        "MODE=survival",
+        "MODRINTH_PROJECTS=geyser,floodgate",
+        "MOTD=Hello",
+        "ONLINE_MODE=TRUE",
+        "PVP=TRUE",
+        "RCON_PASSWORD=GAME_ADMIN_PASSWORD-value",
+        "RCON_PORT=25575",
+        "TYPE=PAPER",
+        "VERSION=1.21.4",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 600000000000,
+        "Test": [
+          "CMD",
+          "mc-health",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "itzg/minecraft-server:java25@sha256:4f855c470f6bea196971e6031311130b23d8976258ad5db7e024d568fbda79f1",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_game000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-game000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_game000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 60000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "game",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-game-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 4294967296,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`compileService for game servers minecraft-bedrock 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "udp",
+        "PublishMode": "host",
+        "PublishedPort": 19132,
+        "TargetPort": 19132,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_game000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-game000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "ALLOW_CHEATS=false",
+        "ALLOW_LIST=false",
+        "DIFFICULTY=easy",
+        "EULA=TRUE",
+        "GAMEMODE=survival",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=prod",
+        "LOGISTACK_PROJECT=Fun",
+        "LOGISTACK_SERVICE=Game",
+        "MAX_PLAYERS=10",
+        "ONLINE_MODE=true",
+        "SERVER_NAME=Bedrock",
+        "SERVER_PORT=19132",
+        "VERSION=LATEST",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 300000000000,
+        "Test": [
+          "CMD-SHELL",
+          "grep -sqE ':4ABC [0-9A-F]{8,32}:0000 07' /proc/net/udp /proc/net/udp6",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "itzg/minecraft-bedrock-server@sha256:8563b123e985fe664f2c3f2310105aac9ba8fb22882902c9051b8914114a0749",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_game000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-game000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_game000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 30000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "game",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-game-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 4294967296,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`compileService for game servers cs2 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "udp",
+        "PublishMode": "host",
+        "PublishedPort": 27016,
+        "TargetPort": 27016,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_game000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-game000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "CS2_ADDITIONAL_ARGS=+host_workshop_collection 123",
+        "CS2_GAMEMODE=1",
+        "CS2_GAMETYPE=0",
+        "CS2_MAPGROUP=mg_active",
+        "CS2_MAXPLAYERS=10",
+        "CS2_PORT=27016",
+        "CS2_PW=GAME_JOIN_PASSWORD-value",
+        "CS2_RCONPW=GAME_ADMIN_PASSWORD-value",
+        "CS2_SERVERNAME=Frag",
+        "CS2_STARTMAP=de_dust2",
+        "GAME_ADMIN_PASSWORD=GAME_ADMIN_PASSWORD-value",
+        "GAME_JOIN_PASSWORD=GAME_JOIN_PASSWORD-value",
+        "GAME_STEAM_TOKEN=GAME_STEAM_TOKEN-value",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=prod",
+        "LOGISTACK_PROJECT=Fun",
+        "LOGISTACK_SERVICE=Game",
+        "SRCDS_TOKEN=GAME_STEAM_TOKEN-value",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 3600000000000,
+        "Test": [
+          "CMD-SHELL",
+          "grep -sqE ':6988 [0-9A-F]{8,32}:0000 0A' /proc/net/tcp /proc/net/tcp6",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "joedwards32/cs2@sha256:b902f6f434204b0c8749a1dcc6e6242159a90fd71411f6e61431a1d687ca496d",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_game000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-game000000000000000000000",
+          "Target": "/home/steam/cs2-dedicated",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_game000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 15000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "game",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-game-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+      "Platforms": [
+        {
+          "Architecture": "amd64",
+          "OS": "linux",
+        },
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 4294967296,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`compileService for game servers teamspeak3 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "udp",
+        "PublishMode": "host",
+        "PublishedPort": 9987,
+        "TargetPort": 9987,
+      },
+      {
+        "Protocol": "tcp",
+        "PublishMode": "host",
+        "PublishedPort": 30033,
+        "TargetPort": 30033,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_game000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-game000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "GAME_ADMIN_PASSWORD=GAME_ADMIN_PASSWORD-value",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=prod",
+        "LOGISTACK_PROJECT=Fun",
+        "LOGISTACK_SERVICE=Game",
+        "TS3SERVER_LICENSE=accept",
+        "TS3SERVER_QUERY_PROTOCOLS=raw",
+        "TS3SERVER_SERVERADMIN_PASSWORD=GAME_ADMIN_PASSWORD-value",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 60000000000,
+        "Test": [
+          "CMD-SHELL",
+          "grep -sqE ':2703 [0-9A-F]{8,32}:0000 07' /proc/net/udp /proc/net/udp6",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "teamspeak:3.13.7@sha256:4d3fa1c0db9a5a4ac69a2d07d6f0478539e464b15e7186c243a9f194bc1141fa",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_game000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-game000000000000000000000",
+          "Target": "/var/ts3server",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_game000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "game",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-game-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+      "Platforms": [
+        {
+          "Architecture": "amd64",
+          "OS": "linux",
+        },
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 4294967296,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;
+
+exports[`compileService for game servers mumble 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "tcp",
+        "PublishMode": "host",
+        "PublishedPort": 64738,
+        "TargetPort": 64738,
+      },
+      {
+        "Protocol": "udp",
+        "PublishMode": "host",
+        "PublishedPort": 64738,
+        "TargetPort": 64738,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_game000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-svc-game000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [],
+      "Env": [
+        "GAME_ADMIN_PASSWORD=GAME_ADMIN_PASSWORD-value",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=prod",
+        "LOGISTACK_PROJECT=Fun",
+        "LOGISTACK_SERVICE=Game",
+        "MUMBLE_CONFIG_REGISTERNAME=Voice",
+        "MUMBLE_CONFIG_USERS=50",
+        "MUMBLE_CONFIG_WELCOMETEXT=Hi",
+        "MUMBLE_SUPERUSER_PASSWORD=GAME_ADMIN_PASSWORD-value",
+      ],
+      "Healthcheck": {
+        "Interval": 5000000000,
+        "Retries": 3,
+        "StartInterval": 1000000000,
+        "StartPeriod": 60000000000,
+        "Test": [
+          "CMD-SHELL",
+          "grep -sqE ':FCE2 [0-9A-F]{8,32}:0000 0A' /proc/net/tcp /proc/net/tcp6",
+        ],
+        "Timeout": 3000000000,
+      },
+      "Image": "mumblevoip/mumble-server:v1.5.915@sha256:018ad3515932e513d8fdc970df918373a2664c4da32b09a89a4aaee28eb7507a",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_game000000000000000000000",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-vol-game000000000000000000000",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "volume",
+              "logistack.managed": "true",
+              "logistack.org": "org_acme",
+              "logistack.resource": "svc_game000000000000000000000",
+            },
+          },
+        },
+      ],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "game",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-game-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-abc",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 4294967296,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;

@@ -30,6 +30,7 @@ export const idPrefixes = {
 	serviceThreshold: "sth",
 	instanceUpdate: "upd",
 	storageAccessKey: "sak",
+	gameEndpoint: "gep",
 	cloudflareTunnel: "cft",
 	migration: "mig",
 	migrationItem: "mgi",

@@ -7,6 +7,7 @@ export * from "./dns.ts";
 export * from "./enums.ts";
 export * from "./errors.ts";
 export * from "./events.ts";
+export * from "./game.ts";
 export * from "./git-trigger.ts";
 export * from "./logs.ts";
 export * from "./manifest.ts";

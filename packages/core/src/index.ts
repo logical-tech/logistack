@@ -8,6 +8,7 @@ export * from "./deployment.ts";
 export * from "./deployment-context.ts";
 export * from "./env.ts";
 export * from "./folders.ts";
+export * from "./game.ts";
 export * from "./git-trigger.ts";
 export * from "./ids.ts";
 export * from "./libsql.ts";
