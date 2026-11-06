@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Resources } from "./service-spec.ts";
 
 /** Decoded size cap for an organization logo; the web resizes to 256×256 WebP well under it. */
 export const ORG_LOGO_MAX_BYTES = 128 * 1024;
@@ -28,3 +29,30 @@ export const OrganizationUpdate = z
 	})
 	.partial();
 export type OrganizationUpdate = z.infer<typeof OrganizationUpdate>;
+
+/** A named size that services copy into their spec; editing it later never resizes a service. */
+export const ResourceProfile = Resources.extend({
+	name: z.string().trim().min(1).max(40),
+});
+export type ResourceProfile = z.infer<typeof ResourceProfile>;
+
+export const ResourceProfiles = z
+	.object({
+		profiles: z.array(ResourceProfile).max(50),
+		/** Profile copied into new services that set no limits; null for none. */
+		defaultProfile: z.string().nullable(),
+	})
+	.refine(
+		(s) => new Set(s.profiles.map((p) => p.name)).size === s.profiles.length,
+		{ message: "profile names must be unique", path: ["profiles"] },
+	)
+	.refine(
+		(s) =>
+			s.defaultProfile === null ||
+			s.profiles.some((p) => p.name === s.defaultProfile),
+		{
+			message: "the default must be one of the profiles",
+			path: ["defaultProfile"],
+		},
+	);
+export type ResourceProfiles = z.infer<typeof ResourceProfiles>;
