@@ -1,4 +1,8 @@
-import type { UpdateState, UpdateSteps } from "@logistack/contracts";
+import type {
+	BuildkitState,
+	UpdateState,
+	UpdateSteps,
+} from "@logistack/contracts";
 import { sql } from "drizzle-orm";
 import {
 	boolean,
@@ -34,6 +38,8 @@ export const instanceSettings = pgTable(
 		autoCheckUpdates: boolean("auto_check_updates").notNull().default(true),
 		/** Updates follow `staging` builds (GitHub prereleases), not only stable releases. */
 		betaUpdates: boolean("beta_updates").notNull().default(false),
+		/** The worker's last BuildKit probe and QEMU setup; null until the first. */
+		buildkit: jsonb("buildkit").$type<BuildkitState>(),
 		...timestamps,
 	},
 	(t) => [

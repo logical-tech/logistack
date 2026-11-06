@@ -191,6 +191,8 @@ export interface Placement {
 	Constraints?: string[];
 	Preferences?: { Spread: { SpreadDescriptor: string } }[];
 	MaxReplicas?: number;
+	/** Image platforms; Swarm maps `amd64`/`arm64` to node `x86_64`/`aarch64`. */
+	Platforms?: { Architecture: string; OS: string }[];
 }
 
 export interface RestartPolicy {

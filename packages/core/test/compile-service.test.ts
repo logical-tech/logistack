@@ -118,6 +118,15 @@ describe("snapshots", () => {
 	test("stateless application", () => {
 		expect(compileService(app)).toMatchSnapshot();
 	});
+	test("single-architecture image: placement keeps it on that architecture", () => {
+		expect(
+			compileService({ ...app, platforms: ["linux/amd64"] }).TaskTemplate
+				.Placement,
+		).toMatchSnapshot();
+		expect(
+			compileService(app).TaskTemplate.Placement?.Platforms,
+		).toBeUndefined();
+	});
 	test("stateful application with domain, config and secret", () => {
 		expect(compileService(stateful)).toMatchSnapshot();
 	});

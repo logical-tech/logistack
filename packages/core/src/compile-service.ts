@@ -1,5 +1,6 @@
 import type {
 	ApplicationSpec,
+	BuildPlatform,
 	Capability,
 	DatabaseEngine,
 	DatabaseSpec,
@@ -80,6 +81,8 @@ export type CompileServiceInput = {
 	bridgeAliases?: string[];
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
+	/** Platforms the image was built for; tasks only land on nodes of these architectures. */
+	platforms?: BuildPlatform[];
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
 	fileIds: Record<string, string>;
 	/** Test isolation: a prefix for every derived name and extra labels on every object. */
@@ -463,6 +466,15 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					...(app?.placement ?? []),
 					...(stateful ? [`node.id==${input.pinNodeId}`] : []),
 				],
+				// The Engine API resolves no manifest, so Swarm only filters by platform when told.
+				...(input.platforms?.length
+					? {
+							Platforms: input.platforms.map((p) => ({
+								OS: "linux",
+								Architecture: p.slice("linux/".length),
+							})),
+						}
+					: {}),
 			},
 			Networks: [
 				{ Target: input.networks.environment, Aliases: [service.slug] },

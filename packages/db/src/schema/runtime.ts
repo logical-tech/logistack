@@ -1,4 +1,4 @@
-import type { NodeDesired } from "@logistack/contracts";
+import type { BuildPlatform, NodeDesired } from "@logistack/contracts";
 import {
 	type AnyPgColumn,
 	index,
@@ -23,6 +23,8 @@ export type NodeFacts = {
 	memoryBytes?: number;
 	engineVersion?: string;
 	leader?: boolean;
+	/** As the engine reports it: `x86_64`, `aarch64`. */
+	architecture?: string;
 };
 
 export const node = pgTable("node", {
@@ -60,6 +62,8 @@ export const deployment = pgTable(
 		/** The tag to clone for a tag or release trigger; null clones the source branch. */
 		gitRef: text("git_ref"),
 		imageRef: text("image_ref"),
+		/** Platforms the image was built for (`linux/amd64`, ...); null when unknown (image sources, older builds). */
+		platforms: text("platforms").array().$type<BuildPlatform[]>(),
 		/** Encrypted `SpecSnapshot` JSON of what the deploy applied; the pending diff's baseline. */
 		specSnapshotEncrypted: text("spec_snapshot_encrypted"),
 		startedAt: tstz("started_at"),

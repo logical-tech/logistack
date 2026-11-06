@@ -1,6 +1,7 @@
 export * from "./access.ts";
 export * from "./agent.ts";
 export * from "./agent-rpc.ts";
+export * from "./build-platforms.ts";
 export * from "./database.ts";
 export * from "./dns.ts";
 export * from "./enums.ts";
