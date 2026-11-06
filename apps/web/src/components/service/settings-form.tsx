@@ -652,14 +652,33 @@ export function SettingsForm({
 			{app && (
 				<>
 					<Section
-						title="Healthcheck"
+						title="Healthcheck and drain"
 						id="healthcheck"
-						description="A new replica takes traffic, and a rollout continues, only once this passes."
+						description="A new replica takes traffic, and a rollout continues, only once the check passes. A replica being replaced gets the drain timeout after SIGTERM to finish its requests."
 					>
 						<HealthcheckFields
 							value={app.healthcheck}
 							onChange={(healthcheck) => patchApp({ healthcheck })}
 						/>
+						<Field
+							id="drain"
+							label="Drain timeout"
+							hint="Seconds; 10 when empty."
+							optional
+						>
+							<Input
+								id="drain"
+								type="number"
+								min={0}
+								max={3600}
+								placeholder="10"
+								className="max-w-32"
+								value={app.drainTimeout ?? ""}
+								onChange={(e) =>
+									patchApp({ drainTimeout: num(e.target.value) })
+								}
+							/>
+						</Field>
 					</Section>
 
 					<Section

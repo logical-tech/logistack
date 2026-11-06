@@ -234,6 +234,8 @@ export const ApplicationSpec = z
 		preDeploy: ReleaseCommand.optional(),
 		/** Runs once the new tasks are healthy; a failure only warns. */
 		postDeploy: ReleaseCommand.optional(),
+		/** Seconds a replica gets after SIGTERM to finish in-flight requests before it is killed; default 10. */
+		drainTimeout: z.int().min(0).max(3600).optional(),
 	})
 	.refine((s) => (s.source.type === "image") === (s.build.type === "image"), {
 		message:
