@@ -12,13 +12,25 @@ const pkcs8 = Buffer.from(
 ).toString("base64url");
 
 function fakeEnv(failSends: number) {
-	const kv = new Map<string, string>();
+	const store = new Map<string, { value: string; metadata: unknown }>();
+	const kv = { get: (k: string) => store.get(k)?.value };
 	const sent: string[] = [];
 	const env = {
 		SPONSORS: {
-			get: async (k: string) => kv.get(k) ?? null,
-			put: async (k: string, v: string) => void kv.set(k, v),
-			delete: async (k: string) => void kv.delete(k),
+			get: async (k: string) => store.get(k)?.value ?? null,
+			getWithMetadata: async (k: string) => ({
+				value: store.get(k)?.value ?? null,
+				metadata: store.get(k)?.metadata ?? null,
+			}),
+			put: async (k: string, value: string, o?: { metadata?: unknown }) =>
+				void store.set(k, { value, metadata: o?.metadata ?? null }),
+			delete: async (k: string) => void store.delete(k),
+			list: async ({ prefix }: { prefix: string }) => ({
+				keys: [...store]
+					.filter(([k]) => k.startsWith(prefix))
+					.map(([name, e]) => ({ name, metadata: e.metadata })),
+				list_complete: true,
+			}),
 		},
 		RESEND_API_KEY: "re_test",
 		SIGNING_KEY: pkcs8,
@@ -81,4 +93,58 @@ test("a failed email makes Stripe retry, and the retry mails the same key once",
 
 	expect((await deliver(env, checkout)).status).toBe(200);
 	expect(sent).toHaveLength(1);
+});
+
+const get = (env: Env, path: string) =>
+	worker.fetch(
+		new Request(`https://w.test${path}`),
+		env,
+		{} as ExecutionContext,
+	);
+
+test("a name and website from the payment page reach the email and the public list, until cancelled", async () => {
+	const { env, sent } = fakeEnv(0);
+	const fields = [
+		{ key: "sponsorname", text: { value: "  Ada <b>Lovelace</b> " } },
+		{ key: "website", text: { value: "ada.dev/?utm=x" } },
+		{ key: "instance", text: { value: "https://paas.ada.dev/projects" } },
+	];
+	const session = {
+		...checkout.data.object,
+		id: "cs_test_2",
+		mode: "subscription",
+		subscription: "sub_2",
+		custom_fields: fields,
+	};
+	await deliver(env, {
+		type: "checkout.session.completed",
+		data: { object: session },
+	});
+
+	expect(sent[0]).toContain("Thank you, Ada bLovelace/b.");
+	expect(sent[0]).toContain("https://paas.ada.dev/settings/sponsor#key=lss_");
+	const wall = await (await get(env, "/v1/sponsors")).json();
+	expect(wall).toEqual({
+		sponsors: [
+			{ name: "Ada bLovelace/b", website: "https://ada.dev", kind: "monthly" },
+		],
+	});
+	const s = await (await get(env, "/v1/sessions/cs_test_2")).json();
+	expect(s.instance).toBe("https://paas.ada.dev");
+
+	await deliver(env, {
+		type: "customer.subscription.deleted",
+		data: { object: { id: "sub_2" } },
+	});
+	expect(await (await get(env, "/v1/sponsors")).json()).toEqual({
+		sponsors: [],
+	});
+});
+
+test("a sponsor who leaves the fields empty stays off the public list", async () => {
+	const { env } = fakeEnv(0);
+	await deliver(env, checkout);
+	expect(await (await get(env, "/v1/sponsors")).json()).toEqual({
+		sponsors: [],
+	});
 });

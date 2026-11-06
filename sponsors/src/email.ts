@@ -26,7 +26,14 @@ export type KeyEmail = {
 	/** Unix seconds: when this key stops working. */
 	exp: number;
 	sandbox?: boolean;
+	/** From the payment page, already cleaned; still escaped here since the sponsor typed it. */
+	name?: string | null;
+	/** The sponsor's LogiStack origin: the email links straight to its Settings > Sponsor. */
+	instance?: string | null;
 };
+
+const esc = (s: string) =>
+	s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 const date = (s: number) =>
 	new Date(s * 1000).toLocaleDateString("en-GB", {
@@ -45,7 +52,7 @@ function pill(href: string, label: string, primary: boolean) {
 	const style = primary
 		? `background:${C.fg};color:${C.bg};`
 		: `background:${C.tile};color:${C.fg};`;
-	return `<a href="${href}" style="${style}display:inline-block;padding:12px 22px;border-radius:999px;font-family:${SANS};font-size:15px;font-weight:600;line-height:20px;text-decoration:none">${label}</a>`;
+	return `<a href="${href}" style="${style}display:inline-block;margin:0 0 8px 0;padding:12px 22px;border-radius:999px;font-family:${SANS};font-size:15px;font-weight:600;line-height:20px;text-decoration:none">${label}</a>`;
 }
 
 export function renderKeyEmail(e: KeyEmail) {
@@ -54,13 +61,25 @@ export function renderKeyEmail(e: KeyEmail) {
 		? `Your instance renews this key by itself every month while the sponsorship is active. If it can't reach us, the key keeps working until ${until}.`
 		: `The key is valid until ${until}.`;
 	const subject = `${e.sandbox ? "[Sandbox] " : ""}Your LogiStack sponsor key`;
+	const heading = e.name
+		? `Thank you, ${esc(e.name)}.`
+		: "Thank you for sponsoring LogiStack.";
+	// The key travels in the fragment, which browsers never send to a server or log.
+	const activate = e.instance
+		? `${e.instance}/settings/sponsor#key=${e.key}`
+		: null;
+	const host = e.instance ? new URL(e.instance).host : null;
+	const wallNote = e.name
+		? `<p style="margin:16px 0 0 0;font-family:${SANS};font-size:15px;line-height:24px;color:${C.muted}">Your name is on the <a href="${SITE}/#sponsor" style="color:${C.fg};text-decoration:underline">sponsors list</a> for as long as the sponsorship lasts.</p>`
+		: "";
 
 	const text = [
-		"Thank you for sponsoring LogiStack.",
+		e.name ? `Thank you, ${e.name}.` : "Thank you for sponsoring LogiStack.",
 		"",
 		"Your sponsor key:",
 		e.key,
 		"",
+		activate ? `Activate it on ${host}: ${activate}\n` : "",
 		"1. In LogiStack, open Settings, then Sponsor.",
 		"2. Paste the key and choose Activate.",
 		"",
@@ -107,7 +126,7 @@ ${sandboxChip}
 </td></tr>
 
 <tr><td class="px" style="padding:0 32px">
-<h1 class="h1" style="margin:0 0 20px 0;font-family:${SANS};font-size:44px;line-height:46px;font-weight:500;letter-spacing:-0.04em;color:${C.fg}">Thank you for sponsoring LogiStack.</h1>
+<h1 class="h1" style="margin:0 0 20px 0;font-family:${SANS};font-size:44px;line-height:46px;font-weight:500;letter-spacing:-0.04em;color:${C.fg}">${heading}</h1>
 ${p("Your payment went through. It pays for the hours behind releases, security fixes and the template catalog. Here is the key that turns on sponsor mode in your instance.")}
 </td></tr>
 
@@ -124,10 +143,17 @@ ${step(1, 'In LogiStack, open <b style="font-weight:600">Settings</b>, then <b s
 ${step(2, 'Paste the key and choose <b style="font-weight:600">Activate</b>.')}
 </table>
 ${p(renewal, C.muted, "margin-top:10px;font-size:15px;line-height:24px")}
+${wallNote}
 </td></tr>
 
 <tr><td class="px" style="padding:32px 32px 0 32px">
-${e.monthly ? `${pill(PORTAL, "Manage sponsorship", true)}&nbsp;&nbsp;${pill(SITE, "Visit the site", false)}` : pill(SITE, "Visit the site", true)}
+${[
+	activate && host ? pill(activate, `Activate on ${esc(host)}`, true) : "",
+	e.monthly ? pill(PORTAL, "Manage sponsorship", !activate) : "",
+	pill(SITE, "Visit the site", !activate && !e.monthly),
+]
+	.filter(Boolean)
+	.join("&nbsp;&nbsp;")}
 </td></tr>
 
 <tr><td class="px" style="padding:56px 32px 0 32px">

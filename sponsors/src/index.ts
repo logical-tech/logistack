@@ -6,6 +6,7 @@ import {
 	type SponsorClaims,
 	signSponsorKey,
 } from "./key.ts";
+import { type Profile, readProfile } from "./profile.ts";
 import {
 	type CheckoutSession,
 	type Invoice,
@@ -42,6 +43,37 @@ function cors(env: Env, res: Response): Response {
 	return res;
 }
 
+/** One entry of the public sponsors list, kept in the KV key's metadata so a list reads it. */
+type WallEntry = {
+	name: string;
+	website: string | null;
+	kind: "monthly" | "once";
+	/** Unix seconds of the first payment. */
+	since: number;
+};
+
+/** Shown while the sponsorship lasts: monthly until cancelled (renewals extend it), once for a year. */
+async function putWall(env: Env, id: string, entry: WallEntry, ttl: number) {
+	await env.SPONSORS.put(`wall:${id}`, "", {
+		expirationTtl: ttl,
+		metadata: entry,
+	});
+}
+
+async function listWall(env: Env): Promise<WallEntry[]> {
+	const out: WallEntry[] = [];
+	let cursor: string | undefined;
+	do {
+		const page = await env.SPONSORS.list<WallEntry>({
+			prefix: "wall:",
+			cursor,
+		});
+		for (const k of page.keys) if (k.metadata) out.push(k.metadata);
+		cursor = page.list_complete ? undefined : page.cursor;
+	} while (cursor);
+	return out.sort((a, b) => a.since - b.since);
+}
+
 async function issue(
 	env: Env,
 	c: Omit<SponsorClaims, "v" | "iat" | "exp">,
@@ -57,10 +89,13 @@ async function sendKey(
 	to: string,
 	key: string,
 	monthly: boolean,
+	profile: Profile,
 ) {
 	const email = renderKeyEmail({
 		key,
 		monthly,
+		name: profile.name,
+		instance: profile.instance,
 		exp: readClaims(key)?.exp ?? now(),
 		sandbox: env.SANDBOX === "1",
 	});
@@ -88,6 +123,7 @@ async function onCheckout(env: Env, s: CheckoutSession) {
 	if (s.payment_status !== "paid" && s.payment_status !== "no_payment_required")
 		return;
 	const monthly = s.mode === "subscription" && !!s.subscription;
+	const profile = readProfile(s.custom_fields);
 	// Stripe retries webhooks: the first delivery issues the key, retries reuse it.
 	let key = await env.SPONSORS.get(`session:${s.id}`);
 	if (!key) {
@@ -101,19 +137,33 @@ async function onCheckout(env: Env, s: CheckoutSession) {
 			},
 			monthly ? MONTHLY_TTL : ONCE_TTL,
 		);
+		// The instance URL rides along so /thanks/ can offer an "activate" button.
 		await env.SPONSORS.put(`session:${s.id}`, key, {
 			expirationTtl: SESSION_TTL,
+			metadata: { instance: profile.instance },
 		});
 		if (monthly)
 			await env.SPONSORS.put(`sub:${s.subscription}`, key, {
 				expirationTtl: SUB_TTL,
 			});
+		if (profile.name)
+			await putWall(
+				env,
+				monthly ? (s.subscription as string) : s.id,
+				{
+					name: profile.name,
+					website: profile.website,
+					kind: monthly ? "monthly" : "once",
+					since: now(),
+				},
+				monthly ? SUB_TTL : ONCE_TTL,
+			);
 	}
 	// Marked only after a send succeeds: a failed send throws, the webhook answers 500, and
 	// Stripe's retry sends the same key again.
 	const email = s.customer_details?.email;
 	if (!email || (await env.SPONSORS.get(`emailed:${s.id}`))) return;
-	await sendKey(env, s.id, email, key, monthly);
+	await sendKey(env, s.id, email, key, monthly, profile);
 	await env.SPONSORS.put(`emailed:${s.id}`, "1", {
 		expirationTtl: SESSION_TTL,
 	});
@@ -134,6 +184,8 @@ async function onInvoicePaid(env: Env, i: Invoice) {
 		MONTHLY_TTL,
 	);
 	await env.SPONSORS.put(`sub:${sub}`, key, { expirationTtl: SUB_TTL });
+	const wall = await env.SPONSORS.getWithMetadata<WallEntry>(`wall:${sub}`);
+	if (wall.metadata) await putWall(env, sub, wall.metadata, SUB_TTL);
 }
 
 async function webhook(req: Request, env: Env): Promise<Response> {
@@ -153,10 +205,11 @@ async function webhook(req: Request, env: Env): Promise<Response> {
 		else if (event.type === "invoice.paid")
 			await onInvoicePaid(env, event.data.object as Invoice);
 		// A cancelled subscription gets no new keys; the last one runs out on its own.
-		else if (event.type === "customer.subscription.deleted")
-			await env.SPONSORS.delete(
-				`sub:${(event.data.object as { id: string }).id}`,
-			);
+		else if (event.type === "customer.subscription.deleted") {
+			const id = (event.data.object as { id: string }).id;
+			await env.SPONSORS.delete(`sub:${id}`);
+			await env.SPONSORS.delete(`wall:${id}`);
+		}
 	} catch (e) {
 		// A non-2xx makes Stripe retry the event for up to three days.
 		console.error(`${event.type} failed`, e);
@@ -190,14 +243,27 @@ export default {
 			return refresh(req, env);
 		const session = /^\/v1\/sessions\/(cs_[A-Za-z0-9_]+)$/.exec(url.pathname);
 		if (req.method === "GET" && session) {
-			const key = await env.SPONSORS.get(`session:${session[1]}`);
+			const { value: key, metadata } = await env.SPONSORS.getWithMetadata<{
+				instance: string | null;
+			}>(`session:${session[1]}`);
 			return cors(
 				env,
 				key
-					? Response.json({ key })
+					? Response.json({ key, instance: metadata?.instance ?? null })
 					: // The webhook can land a second after the redirect: the page retries.
 						Response.json({ key: null }, { status: 404 }),
 			);
+		}
+		if (req.method === "GET" && url.pathname === "/v1/sponsors") {
+			const res = Response.json({
+				sponsors: (await listWall(env)).map(({ name, website, kind }) => ({
+					name,
+					website,
+					kind,
+				})),
+			});
+			res.headers.set("Cache-Control", "public, max-age=300");
+			return cors(env, res);
 		}
 		if (req.method === "GET" && url.pathname === "/")
 			return new Response("LogiStack sponsors");
