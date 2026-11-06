@@ -9,6 +9,7 @@ Private repo `logical-tech/logistack` (SSH host `github-logical`). Never copy co
 - `apps/server` Hono API (REST + OpenAPI + WebSocket + MCP), serves `apps/web/dist`.
 - `apps/worker` BullMQ processors, reconciler, scheduler.
 - `apps/agent` per-node agent (Swarm global service), dials the server over WebSocket.
+- `site/` marketing site and `docs-site/` public docs (Fumadocs, served at `/docs` by its own Dokploy app; style rules in `docs-site/WRITING.md`, screenshots from the web mock via `bun run screenshots`). Both are static Next exports behind Caddy, outside the Bun workspaces.
 - `apps/web` Vite + React 19 + TanStack Router/Query/Table + shadcn/ui + Tailwind v4.
 - `packages/db` Drizzle schema + migrations (Postgres). `packages/contracts` zod schemas shared by API, web, agent. `packages/core` pure domain logic (state machines, permissions, spec compilers). `packages/docker` typed Docker Engine API client. `packages/proxy` Caddy JSON compiler + admin client. `packages/providers` DNS / git / notification / S3 adapters.
 

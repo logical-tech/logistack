@@ -1,0 +1,35 @@
+{
+	"name": "@logistack/docs-site",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "next dev --port 4322",
+		"build": "next build",
+		"start": "bun scripts/serve.ts",
+		"typecheck": "next typegen && tsc --noEmit",
+		"screenshots": "bun scripts/screenshots.ts"
+	},
+	"dependencies": {
+		"fumadocs-core": "16.18.1",
+		"fumadocs-mdx": "15.5.0",
+		"fumadocs-ui": "npm:@fumadocs/base-ui@16.18.1",
+		"lucide-react": "^1.61.0",
+		"next": "16.4.5",
+		"react": "19.3.0",
+		"react-dom": "19.3.0"
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "^4.3.3",
+		"@types/bun": "^1.4.4",
+		"@types/mdx": "^2.0.14",
+		"@types/node": "^24",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"playwright": "^1.58.0",
+		"postcss": "^8.5.31",
+		"sharp": "0.35.5",
+		"tailwindcss": "^4.3.3",
+		"typescript": "^5"
+	},
+	"packageManager": "bun@1.4.0"
+}

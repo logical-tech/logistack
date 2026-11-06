@@ -1,0 +1,115 @@
+---
+title: Create a managed database
+description: Create PostgreSQL, MySQL, MariaDB, MongoDB, Redis or libSQL databases on LogiStack with generated credentials, internal hostnames and connection strings.
+---
+
+A managed database is a service that runs an official database image with generated credentials, a persistent volume and built-in backups. Apps in the same environment reach it by its service name. Use one whenever an app needs PostgreSQL, MySQL, MariaDB, MongoDB, Redis or libSQL, instead of running the database image yourself.
+
+## Engines and versions
+
+| Engine | Versions | Port | Image |
+|---|---|---|---|
+| **PostgreSQL** | 17, 16, 15 | 5432 | `postgres:<version>` |
+| **MySQL** | 8.4, 8.0 | 3306 | `mysql:<version>` |
+| **MariaDB** | 11.8, 11.4, 10.11 | 3306 | `mariadb:<version>` |
+| **MongoDB** | 8.0, 7.0 | 27017 | `mongo:<version>` |
+| **Redis** | 8.2, 7.4 | 6379 | `redis:<version>` |
+| **libSQL** | 0.24.33 | 8080 | `ghcr.io/tursodatabase/libsql-server:v<version>` |
+
+## Create a database
+
+<Steps>
+<Step>
+
+### Start a new service
+
+Open the project and environment, select **New service**, choose **Database** and select **Continue**.
+
+</Step>
+<Step>
+
+### Pick the engine and version
+
+On **Configure**, choose the **Engine**. Each card shows its port and versions. Then pick the **Version**; the newest is selected.
+
+</Step>
+<Step>
+
+### Name it
+
+Set **Service name** (optional). It defaults to the engine, such as `postgres`. The name is also the database's hostname on the environment network, so pick something your apps will use, like `orders-db`.
+
+Choose a **Resources** profile to cap its CPU and memory.
+
+</Step>
+<Step>
+
+### Review and create
+
+Check the summary and select **Create and deploy**. Credentials are generated and stored encrypted. A database has no public domain step: it is reachable only inside the environment.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+The service header shows **Running** and the engine and version, like `postgres 17.6`. The **Database** tab opens a browser for tables, rows, SQL and roles.
+
+![The Database tab of a PostgreSQL service, with the schema tree on the left and the customers table's rows on the right](/screens/database-postgres.webp)
+
+See [Database editor](../data/database-editor.mdx) for what you can do there.
+
+## Credentials
+
+The generated credentials are secret variables on the database service. Open the service, select **Environment**, and reveal them with the eye icon (you need permission to read secrets).
+
+| Engine | User | Password variable |
+|---|---|---|
+| PostgreSQL | `postgres` | `POSTGRES_PASSWORD` |
+| MySQL | `root` | `MYSQL_ROOT_PASSWORD` |
+| MariaDB | `root` | `MARIADB_ROOT_PASSWORD` |
+| MongoDB | `MONGO_INITDB_ROOT_USERNAME` (`root`) | `MONGO_INITDB_ROOT_PASSWORD` |
+| Redis | none | `REDIS_PASSWORD` |
+| libSQL | none | `LIBSQL_AUTH_TOKEN` (a full-access token) |
+
+For PostgreSQL, MySQL, MariaDB and MongoDB, you can create a dedicated user with only the rights an app needs from the **Roles** view of the **Database** tab, rather than using the root account.
+
+## Connect from another service
+
+Services in the same environment share a private network. The database's hostname is its service name. With a database called `postgres`, these connection strings work from any app in the same environment:
+
+```bash title="Connection strings"
+# PostgreSQL
+postgres://postgres:<POSTGRES_PASSWORD>@postgres:5432/postgres
+
+# MySQL (service named mysql)
+mysql://root:<MYSQL_ROOT_PASSWORD>@mysql:3306/app
+
+# MariaDB (service named mariadb)
+mysql://root:<MARIADB_ROOT_PASSWORD>@mariadb:3306/app
+
+# MongoDB (service named mongo)
+mongodb://root:<MONGO_INITDB_ROOT_PASSWORD>@mongo:27017/?authSource=admin
+
+# Redis (service named redis)
+redis://:<REDIS_PASSWORD>@redis:6379
+
+# libSQL (service named libsql); pass LIBSQL_AUTH_TOKEN as authToken
+http://libsql:8080
+```
+
+Put the full string on the app as a secret variable, for example `DATABASE_URL`. Add it at the environment level when several services share it. See [Environment variables](./environment-variables.mdx).
+
+<Callout type="info">
+Generated passwords use URL-safe characters (letters, digits, `-` and `_`), so they go into a connection string without escaping.
+</Callout>
+
+## Backups
+
+Each database service has a **Backups** tab. Add a schedule that dumps the database to an S3 destination. See [Backups](../data/backups.mdx) and [Restore](../data/restore.mdx).
+
+## Common problems
+
+- **`could not translate host name`**: the app and the database are in different environments, or the hostname doesn't match the service name. Each environment has its own network.
+- **Authentication failed after changing the password variable**: the database image reads the password only when it initializes an empty volume. Change the password inside the database (from the **Roles** view, or the **Terminal** tab), then update the variable.
+- **The database restarts on deploy**: a service with a volume updates stop-first, because two copies can't share its data, and it stays pinned to the node that holds the volume. Expect a short gap during a redeploy.

@@ -1,0 +1,270 @@
+---
+title: Troubleshooting
+description: "Fix common LogiStack problems: setup wizard unreachable, ports 80 and 443 busy, Let's Encrypt rate limits, failed builds, unhealthy services, node joins."
+---
+
+This page lists the failures people actually hit with LogiStack, each as symptom, cause and fix. Most error messages below are quoted exactly as LogiStack prints them, so you can search this page for the text you see. For anything not listed, start with the service's **Deployments** and **Logs** tabs, then the installer log at `/var/log/logistack-install.log`.
+
+## Installation and setup
+
+<Accordions>
+<Accordion title="The setup wizard does not load on the server's IP or sslip.io address">
+
+**Symptom.** After installing, `http://203.0.113.7` or `http://203-0-113-7.sslip.io` answers 404 or nothing at all.
+
+**Cause.** This is on purpose. Bots scan new servers for unclaimed setup pages within minutes, so until setup is done the dashboard is private. Caddy answers every request with 404, and the api is published only on `127.0.0.1:3000` of the server.
+
+**Fix.** Open an SSH tunnel from your machine and finish setup through it:
+
+```sh
+ssh -L 3000:127.0.0.1:3000 root@203.0.113.7
+# then open http://localhost:3000
+```
+
+- If port 3000 is busy on your machine, use another local port: `ssh -L 3300:127.0.0.1:3000 ...` and open `http://localhost:3300`.
+- Next to Dokploy, the tunnel listens on `3001`: `ssh -L 3001:127.0.0.1:3001 ...`.
+- If the server set `LOGISTACK_TUNNEL_PORT`, use that port on both sides.
+- To use the public address instead, re-run the installer with `--public-setup` and open the `setup#token=` link it prints.
+
+</Accordion>
+<Accordion title="The setup wizard answers 401 with --public-setup">
+
+**Symptom.** The wizard loads, but saving fails with 401.
+
+**Cause.** The setup routes require the one-time setup token, and the browser opened the wizard without it.
+
+**Fix.** Open the full link the installer printed, of the form `http://203-0-113-7.sslip.io/setup#token=<token>`. The token is also in the SSH login banner and in `/etc/logistack/credentials` as `LOGISTACK_SETUP_TOKEN`. Once an owner exists, the token stops working and setup answers 409.
+
+</Accordion>
+<Accordion title="Ports in use: 80/tcp 443/tcp. Stop the web server holding them and re-run.">
+
+**Symptom.** The installer stops at the port check with this message.
+
+**Cause.** Another web server (nginx, Apache, Traefik, another panel) listens on port 80 or 443. LogiStack's Caddy must own both.
+
+**Fix.** Find what holds the ports and stop it:
+
+```sh
+sudo ss -ltnup 'sport = :80 or sport = :443'
+sudo systemctl disable --now nginx   # or apache2, or the container that holds them
+```
+
+Then re-run the installer. If you need the other proxy to keep serving for now, install with `--no-ingress`: Caddy stays off, and you reach LogiStack through the SSH tunnel. Run the installer with `--enable-ingress` once the ports are free. Next to Dokploy and Coolify the installer does this on its own.
+
+</Accordion>
+<Accordion title="Could not detect this server's address; pass --advertise-addr <ip>">
+
+**Symptom.** The installer stops at the address check.
+
+**Cause.** The server has no default IPv4 route the installer can read, or only a loopback address.
+
+**Fix.** Pass the address other servers should reach this one on: `--advertise-addr 10.0.0.5`. On a server behind NAT, use its private address; the installer looks up the public address separately for the generated domains.
+
+</Accordion>
+<Accordion title="The dashboard's domain stopped working">
+
+**Symptom.** The dashboard URL fails with a DNS, certificate or proxy error, so you cannot sign in to fix it.
+
+**Cause.** The DNS record moved, the certificate failed, or Caddy's configuration is broken.
+
+**Fix.** Re-run the installer on the server with no options. It recreates the loopback tunnel without restarting anything else. Then reach the dashboard through `ssh -L 3000:127.0.0.1:3000` and fix the DNS record or certificate.
+
+</Accordion>
+</Accordions>
+
+## Domains and HTTPS
+
+<Accordions>
+<Accordion title="too many certificates already issued for sslip.io (or nip.io)">
+
+**Symptom.** A generated domain such as `api-x2m4q8.203-0-113-7.sslip.io` stays on an error status, and the message mentions too many certificates or a rate limit.
+
+**Cause.** Let's Encrypt allows 50 new certificates per registered domain per week. sslip.io and nip.io are not on the Public Suffix List, so every user of those services worldwide shares one budget of 50 certificates a week. It runs out often, and nothing on your server can change that.
+
+**Fix.** Do not rely on generated domains for HTTPS:
+
+- Use your own domain for anything real. See [Domains](../networking/domains.mdx).
+- For generated hostnames, set up a per-server wildcard such as `*.srv1.example.com` with a DNS provider. One wildcard certificate, issued with DNS-01, covers every generated subdomain. See [Wildcard DNS](../networking/wildcard-dns.mdx).
+- Generated domains still work over plain HTTP while you test.
+
+</Accordion>
+<Accordion title="A custom domain stays pending or shows a certificate error">
+
+**Symptom.** You added `shop.example.com`, but its status stays pending or turns to error, and the browser shows a certificate warning.
+
+**Cause.** Usually DNS. Let's Encrypt validates over HTTP on port 80, so the hostname must already resolve to the server that runs Caddy, from the public internet. Common causes: the record is not created yet or not propagated, it points at the old server, an `AAAA` record points somewhere else (Let's Encrypt prefers IPv6), or port 80 is closed in the provider's firewall.
+
+**Fix.** Check what the world sees:
+
+```sh
+dig +short A shop.example.com
+dig +short AAAA shop.example.com
+curl -sI http://shop.example.com/ | head -n1
+```
+
+The `A` record must return the server's public IP, and an `AAAA` record must either point at the same server or not exist. Fix the record and wait for its TTL to pass. Caddy retries the certificate on its own. With a connected [DNS provider](../networking/dns-providers.mdx), LogiStack can create the record for you and issue certificates over DNS-01, which works even before port 80 is reachable.
+
+</Accordion>
+</Accordions>
+
+## Builds and deployments
+
+<Accordions>
+<Accordion title="a multi-node swarm needs a registry: configure one before building">
+
+**Cause.** With more than one node, an image built on one node must be pushed to a registry so the others can pull it.
+
+**Fix.** Turn on the local registry or add an external one, then deploy again. See [Registries](../deploy/registries.mdx). The same fix applies to `a multi-platform build pushes a manifest list: configure a registry first`.
+
+</Accordion>
+<Accordion title="BuildKit cannot build linux/arm64: set up cross-architecture emulation in Settings > Builds">
+
+**Cause.** The service builds for an architecture the build node does not have, for example arm64 nodes in a swarm whose builder runs on amd64.
+
+**Fix.** An admin opens **Settings > Builds** and selects **Set up emulation**, or limit the service to its native architecture. See [Build platforms](../deploy/build-platforms.mdx).
+
+![The Builds settings page listing each architecture as native, emulated or not buildable](/screens/settings-builds.webp)
+
+</Accordion>
+<Accordion title="Builds never start, and ls-buildkit keeps restarting">
+
+**Symptom.** Deployments stay in `building` or fail early. `docker service ps ls-buildkit` shows tasks restarting, and its logs say `fork/exec /proc/self/exe: permission denied`.
+
+**Cause.** Rootless BuildKit needs unprivileged user namespaces. Ubuntu 23.10 and later restrict them with AppArmor.
+
+**Fix.** The installer and the node wizard write `/etc/sysctl.d/60-logistack-userns.conf`. If the file is missing on the build node, for example because you joined it by hand, create it:
+
+```sh
+echo "kernel.apparmor_restrict_unprivileged_userns = 0" | sudo tee /etc/sysctl.d/60-logistack-userns.conf
+sudo sysctl --system
+```
+
+</Accordion>
+<Accordion title="The build fails in the Dockerfile or Railpack step">
+
+**Symptom.** The deployment ends `failed` during `building`, and the build log shows a compiler, package manager or file-not-found error.
+
+**Cause.** The same error would happen with `docker build` on your machine: a wrong **Root** directory, a wrong Dockerfile path or context, a missing build-time variable, or Railpack not recognizing the project.
+
+**Fix.** Open the deployment's log in **Deployments** and read the first error, not the last line. Then check:
+
+- The Dockerfile path and context are relative to the service's root directory.
+- Variables the build needs (such as `NEXT_PUBLIC_*`) are marked as build-time variables. Runtime variables are not visible during the build.
+- The build works locally: `docker build -f Dockerfile .` from the same directory.
+
+</Accordion>
+<Accordion title="Deploys fail with a pull error or manifest unknown">
+
+**Cause.** The node cannot pull the image: the tag does not exist, or the registry is private and LogiStack has no credentials for it.
+
+**Fix.** Check the exact image reference in the service, then add the registry with a token that can read it in **Integrations > Registries**.
+
+</Accordion>
+</Accordions>
+
+## Running services
+
+<Accordions>
+<Accordion title="The service is unhealthy, or the deployment fails with rolled back: ...">
+
+**Symptom.** The service shows `unhealthy`, or a deployment ends `failed` with an error starting `rolled back:`. The old version keeps running.
+
+**Cause.** The new replicas never passed their health check within the rollout window, so Swarm rolled the update back. Common reasons:
+
+- The app listens on `127.0.0.1` or `localhost` instead of `0.0.0.0`, so nothing outside the container can reach it.
+- The domain or health check uses a different port than the app listens on.
+- The image is distroless. A service with a domain and no health check of its own gets a TCP check that needs `sh` and `grep` inside the image.
+- An HTTP health check runs `wget` or `curl` inside the container. The image needs one of them.
+- The app needs a variable or a database it does not have, and exits on start.
+
+**Fix.** Read the service's **Logs** first. Then make the app listen on `0.0.0.0` on the port the domain uses, or set an explicit health check in the service's settings: a `command` check works in images without a shell.
+
+![The Logs tab of a service streaming its container output](/screens/service-logs.webp)
+
+</Accordion>
+<Accordion title="The service keeps restarting (crash loop)">
+
+**Symptom.** The service shows `failed` or flips between `starting` and `failed`, with a reason such as `task: non-zero exit (1)`.
+
+**Cause.** The container exits right after it starts.
+
+**Fix.** The exit code and the last log lines say why. Exit code 137 usually means the container ran out of memory: raise the memory limit. Otherwise fix the start command or the missing configuration and deploy again.
+
+</Accordion>
+<Accordion title="The database editor says the database is unreachable">
+
+**Symptom.** The **Database** tab fails with a message ending in `a database deployed before the explorer existed needs a redeploy to join its network`.
+
+**Cause.** The editor reaches databases over the `ls-db` network, and a database deployed before that network existed is not on it.
+
+**Fix.** Deploy the database service once. Its data stays on its volume.
+
+</Accordion>
+</Accordions>
+
+## Nodes
+
+<Accordions>
+<Accordion title="Reaches the manager on 2377/tcp: Blocked">
+
+**Symptom.** The **Add server** wizard's checks fail with `Blocked: open 2377/tcp from this server to the manager`.
+
+**Cause.** A firewall between the two servers drops Swarm management traffic. Cloud providers often block it by default.
+
+**Fix.** Allow these ports between all LogiStack nodes, in both the host firewall and the provider's firewall: 2377/tcp, 7946/tcp and udp, 4789/udp. The wizard cannot test 7946 and 4789 over SSH, so open them even though the check only warns.
+
+```sh
+ufw allow from 203.0.113.7 to any port 2377 proto tcp
+ufw allow from 203.0.113.7 to any port 7946
+ufw allow from 203.0.113.7 to any port 4789 proto udp
+```
+
+</Accordion>
+<Accordion title="needs root or passwordless sudo">
+
+**Cause.** The SSH user can log in but cannot run commands as root without a password.
+
+**Fix.** Connect as `root`, or give the user passwordless sudo:
+
+```sh
+echo "deploy ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/logistack
+```
+
+</Accordion>
+<Accordion title="the node did not become ready in the swarm">
+
+**Cause.** The node joined, but the managers cannot talk to it. This is almost always the overlay ports, 7946 and 4789/udp, or a wrong advertise address on the manager.
+
+**Fix.** Open the overlay ports between the nodes, then run the wizard again. On the manager, `docker node ls` shows the node's state and `docker info --format '{{.Swarm.NodeAddr}}'` the address other nodes dial. It must be reachable from the new node.
+
+</Accordion>
+<Accordion title="The agent has not reported yet; the node shows as pending until it does">
+
+**Cause.** The node is in the swarm, but its `logistack-agent` task has not connected to the api.
+
+**Fix.** On a manager, check the agent's task on that node:
+
+```sh
+docker service ps logistack_logistack-agent --filter node=<hostname> --no-trunc
+docker service logs logistack_logistack-agent --since 10m | grep <hostname>
+```
+
+The agent needs the overlay network to reach the api. A task stuck in `pending` or failing to connect points to the same overlay ports.
+
+![The Nodes page listing each server with its role, status and agent version](/screens/nodes.webp)
+
+</Accordion>
+</Accordions>
+
+## Collect information for a bug report
+
+Run these on a manager and attach the output, with secrets removed:
+
+```sh
+curl -s http://127.0.0.1:3000/api/health
+docker service inspect logistack_logistack-api --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}'
+docker service ls --filter label=com.docker.stack.namespace=logistack
+docker service ps logistack_logistack-api logistack_logistack-worker --no-trunc | head -n 20
+docker service logs logistack_logistack-worker --since 30m 2>&1 | tail -n 200
+sudo tail -n 100 /var/log/logistack-install.log
+```

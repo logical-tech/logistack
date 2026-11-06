@@ -1,0 +1,75 @@
+---
+title: Use LogiStack with AI coding agents
+description: Set up Claude Code, Cursor and other AI coding agents to deploy on LogiStack with the MCP server, llms.txt docs, per-page Markdown and an AGENTS.md snippet.
+---
+
+AI coding agents can deploy and operate your apps on LogiStack when they have two things: a way to act, which is the [MCP server](./mcp-server.mdx) or the [REST API](./rest-api.mdx), and a way to learn, which is these docs in a form a model reads well. This page shows how to give an agent both, and what to put in your repository's agent instructions so it works safely.
+
+## Give the agent tools
+
+Connect the agent to `/mcp` with its own API key, as described in [MCP server](./mcp-server.mdx). In short, for Claude Code:
+
+```sh
+claude mcp add --transport http logistack https://logistack.example.com/mcp \
+  --header "Authorization: Bearer lsk_..."
+```
+
+Use a key made for the agent, scoped to the projects it works on, with an expiry. An agent with a `developer` key on one project can create services, set variables and deploy there, and nothing else. Every call it makes appears in the [audit log](../team/audit-log.mdx) under that key.
+
+Agents without MCP support can call the REST API with `curl`. Point them at the OpenAPI document at `https://logistack.example.com/api/openapi.json`.
+
+## Give the agent the docs
+
+The docs are published in Markdown for language models, following the [llms.txt](https://llmstxt.org) convention:
+
+| URL | What it contains |
+| --- | --- |
+| [`https://stack.logicaltech.it/docs/llms.txt`](https://stack.logicaltech.it/docs/llms.txt) | A short description of LogiStack, the install command, and a linked index of every docs page with its one-line description. |
+| [`https://stack.logicaltech.it/docs/llms-full.txt`](https://stack.logicaltech.it/docs/llms-full.txt) | Every page in one file, as Markdown. Load it when the agent has room for it and needs broad context. |
+| `https://stack.logicaltech.it/docs/llms.mdx/<path>/content.md` | One page as Markdown. `<path>` is the page's path in the docs. |
+
+For example, this page is at `https://stack.logicaltech.it/docs/llms.mdx/automation/ai-agents/content.md`, and the manifest reference is at `https://stack.logicaltech.it/docs/llms.mdx/automation/project-manifests/content.md`. Every docs page also has a **Copy Markdown** action for pasting it into a chat.
+
+Prefer `llms.txt` plus single pages over `llms-full.txt`: the agent reads the index, then fetches only the pages it needs.
+
+## Add LogiStack to your agent instructions
+
+Agents read a file in the repository root before they start: `AGENTS.md` for most agents, `CLAUDE.md` for Claude Code, `.cursor/rules` for Cursor, `.github/copilot-instructions.md` for GitHub Copilot. Paste this section into it and fill in your own URL, project and services:
+
+```md title="AGENTS.md"
+## Deployment: LogiStack
+
+This app is deployed on LogiStack, a self-hosted PaaS on Docker Swarm.
+
+- Dashboard and API: https://logistack.example.com (REST under /api, OpenAPI at /api/openapi.json)
+- MCP server: https://logistack.example.com/mcp, tools are named after REST operations
+- Project: storefront (prj_k3v9x2m4q8w1)
+  - production: env_p7d2c9a1r5t3, services api (svc_m2h5j8k1l4z9), web, orders-db
+  - staging: env_b4n8s6e2u0y7
+- Docs for agents: https://stack.logicaltech.it/docs/llms.txt
+  Fetch single pages as Markdown from https://stack.logicaltech.it/docs/llms.mdx/<path>/content.md
+
+Rules:
+- Work in staging unless I name production explicitly.
+- Never set `confirm: true` on a destructive tool (delete, stop, restore, rollback) without asking me first, in this conversation.
+- Infrastructure is configured in storefront.logistack.yaml. Change that file and apply it with dryRun: true first; show me the plan before applying for real. Never use prune unless I ask.
+- Never print or commit secret values. Secret variables are marked secret: true and have no value in the manifest.
+- Applying a manifest or changing a service does not deploy it. Deploy explicitly, then poll the deployment until it is healthy or failed, and report the error on failure.
+- Pushes to main deploy production automatically through the git webhook. Add [skip deploy] to a commit message to push without deploying.
+```
+
+Keep the IDs in the file: they save the agent a lookup on every task. They are not secrets. The API key is, so it belongs in the MCP client configuration or an environment variable, never in this file.
+
+## What agents do well here
+
+- **Diagnose a failed deploy.** "The last deploy of api failed, find out why." The agent reads the deployment's `error`, the service overview and the logs, and proposes a fix in your code.
+- **Wire up a new service.** "Add a Redis to staging and give api its URL." The agent creates the service, sets the variable and deploys api.
+- **Keep config in code.** "Export the project manifest and commit it." Later, "raise api to 3 replicas in production" becomes a reviewed change to the manifest.
+- **Release with checks.** "Set api to deploy on tags matching `v*.*.*` and wait for CI." The agent updates the deploy triggers.
+
+## Keep agents safe
+
+- One key per agent and machine, scoped and expiring. Revoke it in **Settings > API keys** when you are done.
+- Prefer `viewer` keys for agents that only investigate.
+- Destructive tools refuse to run without `confirm: true`. Keep a human in the loop for those, as the snippet above says.
+- Review the audit log, filtered by the key, to see exactly what an agent changed.

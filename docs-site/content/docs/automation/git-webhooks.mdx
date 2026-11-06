@@ -1,0 +1,227 @@
+---
+title: Git webhooks and deploys from CI
+description: Deploy LogiStack services on git push, tag or release, wait for CI checks, skip commits, and trigger deploys from GitHub Actions with the REST API.
+---
+
+LogiStack can deploy a service whenever something happens in its repository: a push to the branch, a new tag, or a published release. It can also wait for the commit's CI checks before it deploys. When your own pipeline builds the image, or the source has no webhook, let CI call the deploy endpoint instead. This page covers both.
+
+## How push deploys work
+
+Each connected [Git provider](../deploy/from-git.mdx) has one webhook URL:
+
+```txt
+https://logistack.example.com/api/webhooks/git/<provider-id>
+```
+
+The provider calls it on every push and pull request. LogiStack checks the signature (an HMAC signature, or GitLab's secret token), then looks at every running service that builds from that repository through that provider and applies the service's deploy triggers:
+
+- A matching event queues a `git_push` deployment of that commit.
+- With **Wait for CI checks to pass**, the deployment waits in `awaiting_checks` until the commit's checks pass.
+- An event the rules hold back records a `skipped` deployment with the reason, so you can see in **Deployments** why nothing deployed.
+- Pull request events create, update or remove [preview environments](../deploy/preview-environments.mdx) instead.
+
+### Where the webhook comes from
+
+| Provider | Webhook |
+| --- | --- |
+| GitHub | The GitHub App's webhook covers every repository the app is installed on. Nothing to add per repository. |
+| GitLab, Gitea and Forgejo, Bitbucket | LogiStack registers the webhook on the repository when you create a service from it. Registering is idempotent. |
+| Generic (SSH or HTTPS URL) | No API, so no webhook. Deploy by hand, or [deploy from CI](#deploy-from-ci). |
+
+If registration fails, the service wizard says **Add the push webhook by hand**. Copy the URL from the **Webhook** column in **Integrations > Git providers** and add it in the repository's webhook settings, with the provider's secret.
+
+On GitHub, LogiStack also reports each deployment as a `LogiStack` commit status: pending while it deploys, then success or failure.
+
+## Choose what deploys a service
+
+<Steps>
+<Step>
+### Open the service settings
+
+Open the service and select the **Settings** tab. Find the **Deploy triggers** panel.
+
+![The Settings tab of a service with the Deploy triggers panel](/screens/service-settings.webp)
+</Step>
+<Step>
+### Pick the event
+
+In **Deploy on**, choose:
+
+- **Pushes to** the source branch, the default. Optionally list **Watch paths**, one per line, so only pushes that change those paths deploy.
+- **Tags matching a pattern**, and set **Tag pattern**, a glob such as `v*.*.*`. `*` matches any tag.
+- **Published releases**, deployed when a release is published on GitHub, GitLab or Gitea and Forgejo and its tag matches **Tag pattern**. Bitbucket has no releases.
+</Step>
+<Step>
+### Optionally wait for CI
+
+Turn on **Wait for CI checks to pass**. Set **Give up after** in minutes (1 to 720, default 30). A check that fails, or does not finish in time, skips the deployment.
+</Step>
+<Step>
+### Save
+
+Select **Save triggers**.
+</Step>
+</Steps>
+
+Watch paths are globs (`packages/**/*.ts`) or directory prefixes (`apps/web`). An empty list deploys on every push. In a monorepo, give each service the directories it is built from:
+
+```txt title="Watch paths for apps/api"
+apps/api
+packages/db
+packages/shared
+```
+
+### Skip a commit
+
+A commit whose message contains `[skip ci]`, `[ci skip]` or `[skip deploy]` never deploys:
+
+```sh
+git commit -m "docs: fix typo in README [skip deploy]"
+```
+
+The same settings are available over the API: `PUT /api/services/{id}/git-trigger` and `PUT /api/services/{id}/watch-paths`.
+
+```sh
+curl -fsS -X PUT "$LOGISTACK_URL/api/services/svc_m2h5j8k1l4z9/git-trigger" \
+  -H "x-api-key: $LOGISTACK_API_KEY" -H "content-type: application/json" \
+  -d '{"on": "tag", "tagPattern": "v*.*.*", "waitForChecks": true, "checksTimeoutMinutes": 45}'
+```
+
+## Check it worked
+
+Push a commit to the branch, then open the service's **Deployments** tab. A new deployment with the commit's message appears within seconds. If it shows as skipped, its reason says which rule held it back.
+
+![The Deployments tab listing deployments with their trigger, commit and status](/screens/service-deployments.webp)
+
+In the provider, the webhook's delivery log shows LogiStack's answer:
+
+| Response | Meaning |
+| --- | --- |
+| `200` with `"outcome": "deployed"` | At least one deployment was queued or is awaiting checks. `deployments` lists their IDs. |
+| `202` with `"outcome": "skipped"` | Services matched, but rules held every one back. `reason` says why. |
+| `202` with `"outcome": "ignored"` | Nothing to do, for example no service builds from this repository, or the event type is not used. |
+| `401` | Missing or invalid signature. The secret in the provider does not match. |
+| `404` | Unknown provider. The provider was removed from LogiStack. |
+
+## Deploy from CI
+
+Call `POST /api/services/{id}/deploy` from any pipeline. It queues a deployment with trigger `api` and returns it. Use this when:
+
+- your CI builds and pushes the image itself and LogiStack should only run it;
+- the source is a generic Git URL with no webhook;
+- you want the deploy to happen only after your own tests and approvals.
+
+Create an API key for a [service account](../team/service-accounts.mdx), limited to the service with the `developer` role. That role can update the service and deploy it.
+
+### Redeploy a git service
+
+For a service that builds from git, a deploy builds the head of its branch:
+
+```sh
+curl -fsS -X POST -H "x-api-key: $LOGISTACK_API_KEY" \
+  "$LOGISTACK_URL/api/services/$SERVICE_ID/deploy"
+```
+
+### Ship a new image with GitHub Actions
+
+This workflow builds an image on every push to `main`, pushes it to GitHub Container Registry with the commit SHA as the tag, points the LogiStack service at the new tag, deploys it and waits until it is healthy. The service is an image service (source **Docker image**) that pulls `ghcr.io/acme/api`.
+
+Add these to the repository: secret `LOGISTACK_API_KEY`, variables `LOGISTACK_URL` (such as `https://logistack.example.com`) and `LOGISTACK_SERVICE_ID` (such as `svc_m2h5j8k1l4z9`). If the package is private, add a [registry](../deploy/registries.mdx) for `ghcr.io` in LogiStack so it can pull.
+
+```yaml title=".github/workflows/deploy.yml"
+name: Build and deploy
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+      LOGISTACK_URL: ${{ vars.LOGISTACK_URL }}
+      SERVICE_ID: ${{ vars.LOGISTACK_SERVICE_ID }}
+      LOGISTACK_API_KEY: ${{ secrets.LOGISTACK_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Point the service at the new image
+        run: |
+          curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/services/$SERVICE_ID" \
+            | jq --arg image "$IMAGE" '{spec: (.spec | .source.image = $image)}' > patch.json
+          curl -fsS -X PATCH "$LOGISTACK_URL/api/services/$SERVICE_ID" \
+            -H "x-api-key: $LOGISTACK_API_KEY" -H "content-type: application/json" \
+            --data @patch.json > /dev/null
+
+      - name: Deploy
+        id: deploy
+        run: |
+          id=$(curl -fsS -X POST -H "x-api-key: $LOGISTACK_API_KEY" \
+            "$LOGISTACK_URL/api/services/$SERVICE_ID/deploy" | jq -r .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "Deployment $id queued"
+
+      - name: Wait until healthy
+        timeout-minutes: 15
+        run: |
+          while :; do
+            dep=$(curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" \
+              "$LOGISTACK_URL/api/deployments/${{ steps.deploy.outputs.id }}")
+            status=$(jq -r .status <<<"$dep")
+            echo "status: $status"
+            case $status in
+              healthy) exit 0 ;;
+              failed|cancelled|superseded|skipped)
+                echo "::error::deployment $status: $(jq -r '.error // .reason // ""' <<<"$dep")"
+                exit 1 ;;
+            esac
+            sleep 5
+          done
+```
+
+`PATCH` replaces the whole `spec`, which is why the step reads the current spec and changes only the image. Each deployment gets its own image tag, so a [rollback](../deploy/deployments.mdx) to an earlier deployment runs exactly the image it ran before.
+
+### Other CI systems
+
+The calls are the same everywhere. A GitLab CI job:
+
+```yaml title=".gitlab-ci.yml"
+deploy:
+  stage: deploy
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - curl -fsS -X POST -H "x-api-key: $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/services/$LOGISTACK_SERVICE_ID/deploy" | jq
+```
+
+## Common problems
+
+- **Pushes do not deploy and the provider shows no delivery.** The webhook is missing. For GitHub, check the app is installed on the repository. For others, add the URL from **Integrations > Git providers** by hand.
+- **The delivery log shows `401`.** The webhook secret in the provider differs from the one LogiStack stored. Re-add the webhook with the URL and secret from LogiStack.
+- **`ignored: no service builds from this provider`.** The service was created from a public URL without choosing the provider. Pushes only reach services that build through a connected provider.
+- **`skipped` deployments.** Read the reason: the commit message carries a skip marker, no changed file is in **Watch paths**, the tag does not match, or the checks failed or timed out.
+- **The deploy endpoint returns `403`.** The key lacks `deploy` on the service, or `write` for the `PATCH` step.
+- **The deployment fails with a pull error.** LogiStack cannot read the image. Add a registry with credentials for it.

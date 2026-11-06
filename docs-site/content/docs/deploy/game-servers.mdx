@@ -1,0 +1,148 @@
+---
+title: Run a game or voice server
+description: Deploy Minecraft Java or Bedrock, Counter-Strike 2, TeamSpeak 3 or Mumble on LogiStack with published ports, an RCON console and DNS records.
+---
+
+A game server is a service kind for game and voice servers. LogiStack runs it on one node, publishes its ports on that node, keeps its world or data on a volume, and gives it a **Game** tab with live status, a console and the address players type. Use it for a Minecraft world for friends, a Counter-Strike 2 server, or a TeamSpeak or Mumble server for a team.
+
+## Supported servers
+
+| Server | Default ports | Clean hostname without a port | Notes |
+|---|---|---|---|
+| **Minecraft: Java Edition** | 25565/tcp | Yes, on any port (SRV `_minecraft._tcp`) | Vanilla, Paper, Fabric, Forge or NeoForge, with an RCON console |
+| **Minecraft: Bedrock Edition** | 19132/udp | Only on 19132; Bedrock clients ignore SRV | For consoles, phones and Windows |
+| **Counter-Strike 2** | 27015/udp | Only on 27015 | Dedicated server through SteamCMD, with RCON and game modes. amd64 only; needs about 60 GB of disk |
+| **TeamSpeak 3** | 9987/udp voice, 30033/tcp file transfer | Yes (SRV `_ts3._udp`) | ServerQuery admin. amd64 only |
+| **Mumble** | 64738/tcp and udp | Yes (SRV `_mumble._tcp`) | Open-source, low-latency voice chat |
+
+## How players reach the server
+
+Game traffic is raw TCP or UDP, not HTTP, so it doesn't go through the Caddy proxy or the **Domains** tab. Players connect to a port published on the node that runs the server, in host mode, so the server sees each player's real IP for bans and rate limits.
+
+<Callout type="info">
+Cloudflare's proxy (the orange cloud) and Cloudflare Tunnel carry web traffic only. Game DNS records stay DNS-only, so the node's IP is public.
+</Callout>
+
+A hostname such as `play.example.com` gets an A record pointing at the node. For games that read SRV records, LogiStack also writes an SRV record that carries the port, so players type just the hostname even on a non-default port. A second server on the same node uses the next free port; for Bedrock and CS2, players then type `host:port`.
+
+## Create a game server
+
+<Steps>
+<Step>
+
+### Start a new service
+
+Open the project and environment, select **New service**, choose **Game server** and select **Continue**.
+
+</Step>
+<Step>
+
+### Choose a server
+
+On **Choose a server**, pick a **Game** (Minecraft Java, Minecraft Bedrock, Counter-Strike 2) or a **Voice server** (TeamSpeak 3, Mumble). Optionally set the **Service name**; it defaults to the game, like `minecraft` or `teamspeak`.
+
+</Step>
+<Step>
+
+### Fill in the settings
+
+The **Settings** step depends on the game. You can change these later from the service settings; a restart applies them.
+
+<Tabs items={["Minecraft Java", "Minecraft Bedrock", "Counter-Strike 2", "TeamSpeak 3", "Mumble"]}>
+<Tab value="Minecraft Java">
+
+- **Server software**: **Vanilla** (Mojang's own server), **Paper** (fast, with Bukkit and Paper plugins), Fabric, Forge or NeoForge.
+- **Version**: **Latest release** follows each new release on restart. Pin one, like `1.21.4`, to keep mods working.
+- **Message of the day**, **Game mode**, **Difficulty**, **Max players** (1 to 1000) and **Seed** (empty for a random world).
+- **Whitelist**: only players you add can join. Add them from the console.
+- **Online mode**: players sign in with a Microsoft account. Turn off only for offline LAN play.
+- **PvP**: players can hurt each other.
+- **Bedrock players** (Paper only): adds Geyser and Floodgate so phones and consoles join too, on an extra UDP port, 19132.
+- Tick **I accept the Minecraft End User License Agreement**. LogiStack never accepts it for you.
+
+</Tab>
+<Tab value="Minecraft Bedrock">
+
+- **Version**: **Latest release**, **Preview**, or a pinned version. Bedrock clients only join a server on their own version.
+- **Server name**, **Game mode**, **Difficulty** and **Max players**.
+- **Allow list**: only players you add can join.
+- **Xbox sign-in**: players sign in with an Xbox account.
+- **Cheats**: players with permission can run commands.
+- Tick **I accept the Minecraft End User License Agreement**.
+
+</Tab>
+<Tab value="Counter-Strike 2">
+
+- **Server name**: shown in the community server browser.
+- **Game mode**: Competitive, Casual, Deathmatch, Wingman or Arms Race.
+- **Start map**, such as `de_dust2`, and **Max players** (2 to 64).
+- **Workshop collection** (optional): a Steam Workshop collection ID whose maps load on the server.
+- **Password**: players type a password LogiStack generates. Find it in the **Game** tab.
+- **Game Server Login Token**: Valve lists a public server only with one. Create it at **Create a token on Steam** for App ID 730 and paste the 32-character token. It is stored encrypted and never shown again.
+
+</Tab>
+<Tab value="TeamSpeak 3">
+
+Without a license file, TeamSpeak runs one virtual server with up to 32 slots, free for non-commercial use. Tick **I accept the TeamSpeak server license agreement**. After the first start, create a **Server Admin key** from the **Game** tab.
+
+</Tab>
+<Tab value="Mumble">
+
+- **Server name**, **Max users** and **Welcome message** (basic HTML works).
+- **Password**: people type a password LogiStack generates. Find it in the **Game** tab.
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### Choose node, port and memory
+
+On **Node, port and memory**:
+
+- **Node**: players connect to this node's address, and the world stays on its disk. Pick **The manager node** or another node by hostname and address. The wizard warns when the node has less disk than the game needs.
+- **Port**: the primary port, from 1024 to 65535. Other ports shift by the same offset. The default port is suggested first.
+- **Memory limit**: from 256 MB. For Minecraft Java, Java gets three quarters of it as heap. The container is stopped if it uses more.
+
+</Step>
+<Step>
+
+### Choose the address
+
+On **Address**, pick **Hostname**:
+
+- **IP address only**: players type the node IP and port.
+- **Hostname via DNS provider**: enter a **Hostname** such as `play.example.com` and pick the **DNS provider**. LogiStack writes the A and SRV records for you. See [DNS providers](../networking/dns-providers.mdx).
+- **Hostname, records by hand**: LogiStack shows the records to create at your DNS host.
+
+</Step>
+<Step>
+
+### Review and create
+
+Check the summary and select **Create and deploy**. The server starts right after, with fresh admin credentials.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+Open the service and select the **Game** tab. It shows:
+
+- The status: **Online**, **Starting**, **Stopped** or **Not answering**, with the version, map and player count the server reports.
+- **Players join at**: the address to share, like `play.example.com`. Use **Copy the join address**.
+- **Console**: RCON commands for Minecraft and CS2, recorded in the audit log, such as `whitelist add Notch` or `changelevel de_inferno`.
+- **Access**: the join password, the RCON or SuperUser password, and for TeamSpeak **Create admin key**. A privilege key makes whoever uses it Server Admin; use it once in your client.
+- **Hostnames**: the records for each hostname. Add more with **Who writes the records**.
+- **Ports** and **Node**. The node is pinned on first deploy.
+
+Upload worlds, plugins and mods through the **Files** tab. See [Volumes and files](../data/volumes-and-files.mdx).
+
+## Common problems
+
+- **Players can't connect**: open the published port in the node's or your cloud provider's firewall, for the right protocol (UDP for Bedrock, CS2 and TeamSpeak voice).
+- **"The node or port moved; sync the records"**: the server moved, so its DNS records point at the old address. Sync them from the **Game** tab.
+- **Bedrock or CS2 needs a port in the address**: those clients ignore SRV records. Only the server on the default port gets a clean hostname.
+- **CS2 doesn't appear in the server browser**: add a **Game Server Login Token**.
+- **CS2 or TeamSpeak doesn't start on an ARM node**: their images ship for amd64 only. Pick an amd64 node.

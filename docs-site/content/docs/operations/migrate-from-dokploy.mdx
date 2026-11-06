@@ -1,0 +1,231 @@
+---
+title: Migrate from Dokploy
+description: Move Dokploy projects, apps, compose files, databases, domains and settings to LogiStack on the same server, one service at a time, with a rollback for each.
+---
+
+If a server runs Dokploy, you can turn it into a LogiStack server without a maintenance window. You install LogiStack next to Dokploy, and a wizard in **Settings** › **Migrate** reads Dokploy, imports everything, moves your services over one at a time, hands ports 80 and 443 from Dokploy's Traefik to LogiStack, and finally removes Dokploy. Dokploy keeps serving every site until you move it, and each step is reversible until you switch traffic.
+
+## How the migration works
+
+1. **Read.** LogiStack reads Dokploy's database and compose files, read-only, and lists what it found.
+2. **Import.** It creates each project, service, domain and setting in LogiStack. Nothing is deployed, and Dokploy keeps serving.
+3. **Move.** One service at a time, databases first, LogiStack starts the service and stops Dokploy's copy. If the new one is not healthy, Dokploy's copy comes back on its own.
+4. **Switch traffic.** Dokploy's Traefik stops and LogiStack's Caddy takes ports 80 and 443, with Traefik's certificates already in place.
+5. **Remove.** LogiStack archives Dokploy's database and configuration on the server, then removes Dokploy.
+
+Databases keep their data in place: LogiStack adopts the same Docker volume Dokploy used, so nothing is copied. A moved service also keeps its Dokploy name (`appName`) as its hostname, so connection strings such as `postgres://app:…@myapp-db-x7k2pq:5432/app` keep working, both for services already on LogiStack and for those still on Dokploy.
+
+## Before you start
+
+- Take a backup of anything you cannot lose, as you would before any server change. The migration never deletes a volume, but a backup is your safety net.
+- The server runs Dokploy as a Swarm service (`dokploy`) with its database (`dokploy-postgres`). Dokploy v0.30.0 and v0.30.10 are tested.
+- You are an admin in LogiStack. The wizard is admin only.
+
+## Install LogiStack on the Dokploy server
+
+<Steps>
+<Step>
+### Run the installer
+
+On the Dokploy server, run the installer as for any install:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
+```
+
+It finds Dokploy from the Swarm service `dokploy` or the directory `/etc/dokploy`, explains the plan, and asks before it changes anything.
+</Step>
+<Step>
+### Know what the installer does next to Dokploy
+
+- Ingress stays off: LogiStack's Caddy runs no task, and Dokploy's Traefik (`dokploy-traefik`) keeps ports 80 and 443.
+- Setup is private. Dokploy uses port 3000, so LogiStack listens on `127.0.0.1:3001` instead.
+- LogiStack reads Dokploy for the wizard and never writes to it. It mounts `/etc/dokploy` read-only and reads Dokploy's database over `dokploy-network`, with the password Dokploy already keeps in a Swarm secret. The password never appears in the installer's output or log.
+</Step>
+<Step>
+### Open the setup wizard through an SSH tunnel
+
+From your computer:
+
+```bash
+ssh -L 3001:127.0.0.1:3001 root@49.12.88.7
+```
+
+Then open `http://localhost:3001` and finish the [setup wizard](../getting-started/setup-wizard.mdx).
+</Step>
+</Steps>
+
+## Start the migration
+
+Home shows **Dokploy runs on this server** with **Start migration**. Select it, or select **Settings** › **Migrate**. The wizard has five steps: **Review what moves**, **Import into LogiStack**, **Move services**, **Switch traffic** and **Done**.
+
+![The Home page with the Dokploy runs on this server panel and its Start migration button](/screens/home.webp)
+
+The header shows the migration as a strip with one cell per item: grey while it waits, blue while it moves, green on LogiStack. Items staying on Dokploy are faded. You can leave the wizard at any time; Home then reads **Continue migration** and the wizard resumes where you left it.
+
+<Steps>
+<Step>
+### Read Dokploy
+
+On **Review what moves**, select **Read Dokploy**. LogiStack lists your organization's settings first (registries, S3 destinations, notifications, SSH keys, GitHub Apps), then each Dokploy project and environment with its services.
+
+![The Migrate from Dokploy wizard on its first step, Review what moves, with the Read Dokploy button](/screens/settings-migrate.webp)
+</Step>
+<Step>
+### Review each item
+
+Each item shows its kind (**App**, **Compose**, **PostgreSQL**, **Redis**, **Registry**, …), its domains, and what carries over:
+
+- **Full**: everything carries over.
+- **Partial**: it carries over, minus what the notes list. Open the notes to read them.
+- **Not supported**: it stays on Dokploy.
+
+Turn off the switch on any item you want to leave on Dokploy. Select **Continue**.
+</Step>
+<Step>
+### Import into LogiStack
+
+Select **Import 14 items** (the count is yours). Rows update as each one lands. When it is done you see **Everything is imported. Nothing runs on LogiStack yet.**
+
+Services land in the folder **Imported from Dokploy**, in projects and environments with their Dokploy names. A Dokploy environment that LogiStack does not have yet is created.
+
+If an item fails, its row shows the error. Select **Retry 1 failed item**, or **Leave on Dokploy** to skip it. Select **Continue**.
+</Step>
+<Step>
+### Move services
+
+Select **Move 9 services in order**, read the dialog and select **Move services**. LogiStack moves them one at a time, databases first. Or select **Move** on one row to move just that service.
+
+Each row says what to expect:
+
+- **No downtime**: a service without volumes starts on LogiStack before Dokploy's copy stops.
+- **Pauses while its volumes move**: a service with volumes stops on Dokploy first, so two processes never write one volume, then starts on LogiStack. It pauses for a few seconds.
+- **Stopped on Dokploy: moves without starting**: it was stopped on Dokploy, so it is imported stopped.
+
+Settings (registries, S3 destinations, notifications, SSH keys) move with **Move the settings**; there is nothing to switch for them.
+
+When every service you chose runs on LogiStack, you see **Every service you chose runs on LogiStack.** Select **Continue**.
+</Step>
+<Step>
+### Switch traffic
+
+Until now Dokploy's Traefik still answers on ports 80 and 443 and routes your domains to the services on LogiStack. Select **Switch traffic**, read the dialog and select **Switch traffic**.
+
+Dokploy's Traefik stops and LogiStack takes ports 80 and 443, usually within seconds. If LogiStack does not come up within 90 seconds, Traefik starts again on its own and the wizard shows why.
+
+After the switch the wizard lists:
+
+- **Certificates**: each domain's certificate, **Imported from Traefik**, or **Issued fresh** with the reason. Wildcard and multi-name certificates are issued fresh by Caddy.
+- **Domains**: an HTTPS check of every moved domain.
+- **GitHub**: each GitHub App, with **Move webhook**. Until you select it, pushes still go to Dokploy. Select **Move webhook** for each one, then **Continue**.
+</Step>
+<Step>
+### Review what moved
+
+**Done** lists **On LogiStack** and **Still on Dokploy**, each with a count, and the notes for the items that stay.
+</Step>
+</Steps>
+
+### Check that it worked
+
+- Every moved service reads **Running** on its project page.
+- Your domains answer over HTTPS. On **Switch traffic**, every row under **Domains** passes.
+- A push to a Git-connected repository starts a deployment in LogiStack. See [Deployments](../deploy/deployments.mdx).
+
+## Move a service back
+
+Until you remove Dokploy, every move can be undone:
+
+- On **Move services**, select **Move back** on a service that runs on LogiStack. LogiStack stops its copy and starts Dokploy's again, with the replicas and containers it had before the move.
+- A move that fails, because the new service never turns healthy, goes back to Dokploy on its own. The row shows **Back on Dokploy** with the cause. Select **Try again**, or **Leave on Dokploy**.
+
+| Status | Meaning |
+| --- | --- |
+| **Planned** | Read from Dokploy, not imported yet. |
+| **Ready to move** | Imported into LogiStack, still served by Dokploy. |
+| **In progress** | Importing or moving now. |
+| **On LogiStack** | Moved. LogiStack serves it. |
+| **Back on Dokploy** | The move failed or was undone; Dokploy serves it. |
+| **Stays on Dokploy** | You left it on Dokploy, or it is not supported. |
+| **Failed** | The import failed. The row shows why. |
+
+## Remove Dokploy
+
+Once every item is on LogiStack or staying on Dokploy, and traffic is switched, you can remove Dokploy. Until then, **Remove Dokploy** is disabled and the wizard says what is missing, for example **Not yet: traffic still goes through Dokploy's proxy**.
+
+<Callout type="warn">
+Removing Dokploy cannot be undone from LogiStack. After it, services cannot be moved back. Make sure every site works on LogiStack first.
+</Callout>
+
+<Steps>
+<Step>
+### Start the removal
+
+On **Done**, select **Remove Dokploy**.
+</Step>
+<Step>
+### Confirm
+
+Type `dokploy` and select **Remove Dokploy**.
+</Step>
+<Step>
+### Read the report
+
+The panel **Dokploy removed** shows the archive path, what was removed and what was kept, with the reason.
+</Step>
+</Steps>
+
+LogiStack first archives Dokploy under `/var/lib/logistack/migration/<timestamp>/`, readable by root only:
+
+<Files>
+  <Folder name="/var/lib/logistack/migration/20261106-0941" defaultOpen>
+    <File name="dokploy.dump" />
+    <File name="etc-dokploy.tar.gz" />
+    <File name="inventory.json" />
+  </Folder>
+</Files>
+
+- `dokploy.dump`: a `pg_dump` of Dokploy's database, checked before anything is removed.
+- `etc-dokploy.tar.gz`: a copy of `/etc/dokploy`.
+- `inventory.json`: what was migrated, without any secret values.
+
+If the archive fails, Dokploy stays untouched. Then LogiStack removes Dokploy's services (`dokploy`, `dokploy-postgres`, `dokploy-redis`), its Traefik, and the Dokploy copies of the services you moved. Every volume stays, and so does anything you left on Dokploy. `dokploy-network` stays while something still uses it.
+
+## What carries over
+
+| From Dokploy | In LogiStack |
+| --- | --- |
+| Projects and environments | Projects and environments with the same names, in the folder **Imported from Dokploy**. |
+| Applications | Services from a Docker image, GitHub, GitLab, Gitea, Bitbucket or custom Git. Dockerfile, Railpack and static builds; Nixpacks, Heroku and Paketo builds become Railpack, with a note. |
+| App settings | Ports, replicas, CPU and memory limits, placement constraints, health check, command, bind mounts, volumes and file mounts. |
+| Environment variables | Each service's variables, with `${{project.X}}` and `${{environment.X}}` references resolved. |
+| Domains | Domains with path prefixes, and basic auth users. |
+| Compose | Each compose service becomes a LogiStack service in the same environment, started in `depends_on` order. |
+| Databases | PostgreSQL (including 18+), MySQL, MariaDB, MongoDB and Redis on their official image, with their version, credentials and data volume. |
+| Database backups | Backup policies with their schedule and retention, on the imported S3 destination. Earlier Dokploy backups stay in the bucket under their old prefix. |
+| Registries, S3 destinations, SSH keys | The same settings in LogiStack. |
+| Notifications | Slack, Discord, Teams, Mattermost, Telegram, email (SMTP and Resend), Gotify, ntfy and Pushover channels, plus one organization-wide rule for deploys, build errors, backups and server thresholds. |
+| GitHub Apps | The app with its key, webhook secret and installation. Its webhook moves to LogiStack on **Switch traffic**. |
+
+### What does not carry over
+
+These are listed in the item's notes, or the item is **Not supported**:
+
+- Redirects, preview deployments, per-app registry credentials, custom Swarm labels, networks, update and restart settings, global mode, `stripPath` and `internalPath`.
+- Apps on remote servers and "drop" sources.
+- Databases on a custom image (such as pgvector) or without a data volume.
+- GitLab, Gitea and Bitbucket providers, which Dokploy connects through OAuth while LogiStack needs an access token. Reconnect them in **Integrations** › **Git providers**; affected apps say so in their notes.
+- GitHub Enterprise apps and apps that were never installed.
+- Custom notification webhooks and Lark.
+- Dokploy's certificates (Traefik's certificates move with **Switch traffic** instead), volume backups, schedules, SSO, API keys and remote servers. Set these up again in LogiStack.
+
+Two services with the same hostname in one environment cannot both move; the later one is refused. A variable that names a service in another environment is reported, because Dokploy shares one network while LogiStack isolates environments.
+
+## Common problems
+
+- **No Dokploy or Coolify on this server.** The installer did not find Dokploy when it ran. Check that the `dokploy` service runs (`docker service ls`), then run the installer again.
+- **Couldn't read Dokploy.** The reader refuses a Dokploy database that lacks a column it needs and names the column. Update Dokploy to a tested version and select **Read Dokploy** again.
+- **A move rolled back.** The new service did not turn healthy. Open the service in LogiStack and read its [deployment log](../deploy/deployments.mdx) and [logs](./logs-and-terminal.mdx). Fix the cause (often a missing variable or a health check path), then select **Try again**.
+- **Switch traffic fell back to Traefik.** Caddy did not start within 90 seconds. The wizard shows the error. Check **Monitoring** › **Nodes** and the `caddy` service, then try again.
+- **A domain check fails after the switch.** DNS may still point elsewhere, or a certificate is still being issued. Wait a minute and reload. See [HTTPS certificates](../networking/https-certificates.mdx).
+- **Pushes still deploy on Dokploy.** Select **Move webhook** for the GitHub App on **Switch traffic**. If GitHub refuses, reconnect the provider in **Integrations** › **Git providers**.

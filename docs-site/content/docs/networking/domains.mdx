@@ -1,0 +1,312 @@
+---
+title: Add a domain to a service
+description: Route your own hostname or a generated sslip.io hostname to a service, create its A, AAAA or CNAME record, and route by path prefix.
+---
+
+A domain tells the Caddy proxy to send requests for a hostname to one port of a service. You need one whenever people or other systems should reach a service from the internet. LogiStack can also create the DNS record for you when a [connected DNS provider](./dns-providers.mdx) manages the zone, and it gets the HTTPS certificate on its own.
+
+You can add a domain in three places:
+
+- The service's **Domains** tab, for the quick path: hostname, port, done.
+- The **Domains** page in the sidebar, with the full wizard: DNS record type, propagation check, certificate mode and path prefix.
+- The **Domain** step of the new service wizard, when you create the service.
+
+## Add a domain from the service
+
+<Steps>
+<Step>
+
+### Open the Domains tab
+
+Open the project, select the service, then select the **Domains** tab. It lists the service's domains with their status, TLS mode and certificate, and the [Basic auth](./access-control.mdx#basic-auth-for-a-whole-service) panel below.
+
+![The Domains tab of the web service, listing shop.acme-retail.it as Active with a DNS-01 certificate issued by E6, and the Basic auth panel turned off](/screens/service-domains.webp)
+
+</Step>
+<Step>
+
+### Select Add domain
+
+Select **Add domain**. The dialog **Add a domain to web** opens.
+
+![The Add a domain to web dialog with Hostname and Port fields and an Advanced setup link](/screens/domain-add-dialog.webp)
+
+</Step>
+<Step>
+
+### Enter the hostname and port
+
+Type the **Hostname**, for example `shop.example.com`, without `https://`. **Port** is prefilled with the port of the service's HTTP health check, or its first port, or `80`. Change it to the port your app listens on inside the container, for example `3000`.
+
+As you type, LogiStack checks whether a connected DNS provider manages the zone:
+
+- If one does, the dialog says `example.com is managed by Cloudflare · Acme: the record is created for you.` LogiStack creates an A record (or AAAA for an IPv6 server) pointing at the server and issues the certificate over DNS-01.
+- If none does, the dialog says `No connected provider manages this zone. Point an A record at 203.0.113.10.` You create the record yourself, see [DNS records to create](#dns-records-to-create).
+
+</Step>
+<Step>
+
+### Pick the exposure
+
+This step only appears when the zone's Cloudflare provider has a [Cloudflare Tunnel](./cloudflare-tunnels.mdx). Under **Exposure**, pick:
+
+- **Public, Let's Encrypt**: this server answers on 443 with its own certificate.
+- **Cloudflare Tunnel**: the domain is served through the tunnel, with no open ports.
+
+</Step>
+<Step>
+
+### Save
+
+Select **Add domain**. The domain appears with status **Pending**, then turns **Active** once the proxy has loaded it.
+
+</Step>
+</Steps>
+
+For a path prefix, a CNAME record, a proxied Cloudflare record, an uploaded certificate or plain HTTP, select **Advanced setup** in the dialog. It opens the wizard below with the service already picked.
+
+## Add a domain with the wizard
+
+<Steps>
+<Step>
+
+### Open the Domains page
+
+Select **Domains** in the sidebar. The page lists every hostname the proxy routes in your organization, with a one-line summary of what needs attention, such as `10 domains, 1 with errors, 2 certificates expiring within 14 days, 1 waiting for the proxy.`
+
+![The Domains page listing ten domains with their status, TLS mode and certificate expiry, one in Error and one Pending](/screens/domains.webp)
+
+</Step>
+<Step>
+
+### Select Add domain
+
+Select **Add domain**. The **Add a domain** wizard opens on **Which service?**.
+
+![The first step of the Add a domain wizard, Which service?, with a Pick a service selector and the six steps listed on the left](/screens/domain-new.webp)
+
+</Step>
+<Step>
+
+### Pick the service
+
+Open **Pick a service** and search by service or project name. Services are grouped by project. Select **Continue**.
+
+</Step>
+<Step>
+
+### Enter the hostname, port and path prefix
+
+On **Hostname**, fill in:
+
+- **Hostname**: `shop.example.com`, or a wildcard such as `*.preview.example.com`. See [Wildcard hostnames](#wildcard-hostnames).
+- **Container port**: the port the app listens on inside the container, for example `3000`.
+- **Path prefix** (optional): `/api` to route only `/api/…` to this service. See [Route by path](#route-by-path).
+
+</Step>
+<Step>
+
+### Choose how the DNS record is managed
+
+On **DNS record**, LogiStack looks for a connected provider that manages the zone.
+
+If one does, it shows `example.com is managed by Cloudflare · Acme` and offers these choices under **DNS record**:
+
+- **Create the record for me** (Recommended): set at the provider, removed with the domain, and certificates over DNS-01.
+- **I'll manage the record myself**: you point it at this server and LogiStack leaves the zone alone.
+- **Through the Cloudflare Tunnel**: only when the provider has a tunnel. LogiStack adds the proxied CNAME and Cloudflare issues the certificate.
+
+With **Create the record for me**, pick the **Type** (`A`, `AAAA` or `CNAME`) and check **Points to** (the server's public address, prefilled) or **Target hostname** for a CNAME. On a Cloudflare zone you can turn on **Proxy through Cloudflare**. If the zone already has a record at that name, the wizard warns that creating replaces the record of the same type.
+
+If no provider manages the zone, the step says **No connected provider manages this zone.** and shows the record to create at your DNS host, for example:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| A | `shop.example.com` | `203.0.113.10` |
+
+</Step>
+<Step>
+
+### Create the record
+
+This step appears only with **Create the record for me**. It shows the record, for example `A shop.example.com → 203.0.113.10`. Select **Create record**. LogiStack writes it at the provider and shows the result. If the provider refuses, the error appears here; fix the value and try again.
+
+</Step>
+<Step>
+
+### Wait for propagation
+
+**Propagation** checks public resolvers until they return the new value. You can select **Continue** before it finishes: the proxy keeps retrying until the name resolves. A wildcard is checked through a name under it, such as `ls-check.preview.example.com`. A proxied Cloudflare record resolves to Cloudflare's addresses, so there is nothing to compare and the step says so.
+
+</Step>
+<Step>
+
+### Pick the certificate
+
+On **HTTPS**, pick how the proxy gets a certificate under **Certificate**:
+
+- **Automatic, DNS-01**: Let's Encrypt over the DNS provider. Works for wildcards, behind Cloudflare's proxy, and before the record propagates.
+- **Automatic, HTTP-01**: Let's Encrypt checks this server over port 80, so the record must already point here.
+- **Uploaded certificate**: a certificate you uploaded. Pick it under **Certificate**; only certificates whose names cover the hostname are listed.
+- **HTTP only**: plain HTTP on port 80. For internal tools behind another proxy.
+
+A record LogiStack manages always gets DNS-01, so HTTP-01 is not offered for it. A tunnel domain skips this step: Cloudflare's edge serves the certificate. See [HTTPS certificates](./https-certificates.mdx).
+
+</Step>
+<Step>
+
+### Review and add
+
+**Review and add** summarizes the route, the DNS record and the certificate. Select **Add domain**. The wizard returns to the Domains page.
+
+</Step>
+</Steps>
+
+## Check that it works
+
+1. On the Domains page, the domain's **Status** turns from **Pending** to **Active**.
+2. The **Certificate** column shows the days left and the issuer, for example `61 days · Jan 6, 2027` and `Issued by E6`. While the certificate is on its way it shows **Waiting for issuance**.
+3. Open the hostname. It is a link in the **Domain** column. You should land on your app over HTTPS.
+
+From a terminal:
+
+```bash
+dig +short shop.example.com
+curl -I https://shop.example.com
+```
+
+`dig` should print your server's address, and `curl` should print the app's response headers.
+
+## DNS records to create
+
+When no connected provider manages the zone, create the record at your DNS host. Point it at the server's public address, the one LogiStack shows in the dialog and the wizard.
+
+<Tabs items={["A (IPv4)", "AAAA (IPv6)", "CNAME"]}>
+<Tab value="A (IPv4)">
+
+The usual case. One record per hostname:
+
+```txt title="Zone example.com"
+shop.example.com.   300   IN   A   203.0.113.10
+```
+
+At the zone apex (`example.com` itself) an A record is the only option, because a CNAME cannot sit at the apex:
+
+```txt title="Zone example.com"
+example.com.        300   IN   A   203.0.113.10
+```
+
+</Tab>
+<Tab value="AAAA (IPv6)">
+
+If the server has a public IPv6 address, add an AAAA record next to the A record so IPv6 visitors reach it too:
+
+```txt title="Zone example.com"
+shop.example.com.   300   IN   AAAA   2001:db8::10
+```
+
+</Tab>
+<Tab value="CNAME">
+
+Point a name at another name that already resolves to the server. Useful when you move servers: you update one A record and every CNAME follows.
+
+```txt title="Zone example.com"
+srv1.example.com.   300   IN   A       203.0.113.10
+shop.example.com.   300   IN   CNAME   srv1.example.com.
+```
+
+</Tab>
+</Tabs>
+
+With **Automatic, HTTP-01** the record must point at the server before Let's Encrypt can check it. If it does not resolve yet, the domain stays **Pending** or shows **Not issued**, and the proxy retries on its own.
+
+<Callout type="warn">
+If you turn on Cloudflare's proxy (the orange cloud) for a record, set the zone's SSL/TLS mode to **Full (strict)**. With **Flexible**, Cloudflare talks plain HTTP to the server, LogiStack redirects it to HTTPS, and the page loops forever.
+</Callout>
+
+## Generated domains
+
+A generated hostname works right away, with no DNS to configure. LogiStack builds it from the service name, the last six characters of the service ID, and the base chosen in the [setup wizard](../getting-started/setup-wizard.mdx):
+
+| Base | Example |
+| --- | --- |
+| sslip.io | `web-a1b2c3.203-0-113-10.sslip.io` |
+| nip.io | `web-a1b2c3.203-0-113-10.nip.io` |
+| Your own wildcard | `web-a1b2c3.srv1.example.com` |
+
+sslip.io and nip.io answer any name that contains an IP address with that IP, so the hostname resolves to your server without a record. nip.io does not support IPv6; use sslip.io on an IPv6-only server. **Settings** > **General** shows the base in use under **Generated domains**.
+
+To get one, pick **Generated hostname** on the **Domain** step of the new service wizard. The REST API has the same action:
+
+```bash
+curl -X POST https://logistack.example.com/api/services/svc_xxxxxxxx/domains/generated \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"port": 3000}'
+```
+
+<Callout type="warn">
+sslip.io and nip.io are not on the Public Suffix List. Every server on the internet using them shares one Let's Encrypt budget of 50 certificates a week, so HTTPS for these hostnames can fail with a rate-limit error that is outside your control. Use them to try things out, and set up a [per-server wildcard](./wildcard-dns.mdx) for anything you keep.
+</Callout>
+
+## Route by path
+
+Fill in **Path prefix** in the wizard to send only part of a hostname to a service. Two services can share `example.com`:
+
+| Hostname | Path prefix | Service | Port |
+| --- | --- | --- | --- |
+| `example.com` | | `web` | `3000` |
+| `example.com` | `/api` | `api` | `8080` |
+
+A request for `https://example.com/api/orders` goes to `api`. Every other path goes to `web`. The proxy checks the longest prefix first. The prefix is passed through: `api` receives `/api/orders`, not `/orders`, so the app must serve its routes under `/api`.
+
+## Wildcard hostnames
+
+A hostname such as `*.preview.example.com` matches every name one level under `preview.example.com`, like `pr-42.preview.example.com`. An exact hostname on another domain still wins over the wildcard.
+
+Let's Encrypt issues wildcard certificates only over DNS-01, so a wildcard needs a [connected DNS provider](./dns-providers.mdx) that manages the zone. Without one, the **HTTPS** step says **No connected DNS provider manages this zone.** and the API refuses the domain.
+
+## Redirect one hostname to another
+
+The dashboard has no redirect setting yet. The REST API does: set `redirectTo` on a domain and the proxy answers every request with a `308` redirect to that hostname over HTTPS, keeping the path and query. Use it to send `www.example.com` to `example.com`.
+
+Create the `www.example.com` domain on the same service first, then replace its routing:
+
+```bash
+curl -X PUT https://logistack.example.com/api/domains/dom_xxxxxxxx \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "hostname": "www.example.com",
+    "port": 3000,
+    "https": true,
+    "cert": "auto",
+    "redirectTo": "example.com"
+  }'
+```
+
+A request for `http://www.example.com/shop?page=2` ends at `https://example.com/shop?page=2`. The Domains page shows `redirects to example.com` under the hostname. [Access rules](./access-control.mdx) do not apply to a redirect; protect the target domain instead.
+
+<Callout type="warn">
+`PUT /api/domains/{id}` replaces the whole routing. Saving the domain again from the dashboard wizard clears `redirectTo`. After editing a redirect domain in the wizard, send the `PUT` again.
+</Callout>
+
+## Edit or delete a domain
+
+Each row on the Domains page and on the service's Domains tab has three buttons:
+
+- The shield opens [access rules](./access-control.mdx).
+- The pencil opens the wizard with the domain's current values. **Which service?** cannot be changed. The last step is **Review changes** and the button is **Save domain**. The domain returns to **Pending** until the proxy loads the change.
+- The bin deletes the domain after you confirm. The proxy stops routing it. A DNS record LogiStack created is removed from the provider; records you created yourself stay as they are.
+
+## Common problems
+
+**Status is Error.** The message under the status says why, for example a certificate the proxy could not obtain. Hover it to read it in full. Fix the cause (a missing record, a provider token without permission), then open the domain with the pencil and select **Save domain** to retry.
+
+**Stuck on Pending with HTTP-01.** The record does not point at the server yet, or port 80 is blocked. Check with `dig +short shop.example.com` and make sure ports 80 and 443 are open in your provider's firewall.
+
+**`<provider> does not manage a zone for <hostname>`.** The DNS provider linked to the domain does not have that zone selected. Add the zone to the provider, or pick **I'll manage the record myself**.
+
+**`The certificate does not cover <hostname>`.** The uploaded certificate does not list the hostname. Upload one that does. See [HTTPS certificates](./https-certificates.mdx).
+
+**Redirect loop behind Cloudflare.** The zone's SSL/TLS mode is **Flexible**. Set it to **Full (strict)**.

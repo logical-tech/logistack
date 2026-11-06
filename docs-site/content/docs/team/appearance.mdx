@@ -1,0 +1,120 @@
+---
+title: Organization settings and appearance
+description: Set your organization's name and logo, define resource profiles, allow private hosts, and choose light, dark or system mode and a color theme in LogiStack.
+---
+
+Two settings pages shape how LogiStack looks and what your organization is called. **General** holds the organization's name and logo, the resource profiles new services pick from, and the values chosen during setup. **Appearance** holds your personal light or dark mode and color theme. Use them after setup to brand the dashboard for your team, or when you prefer a different look.
+
+## Organization name and logo
+
+The name and logo identify the organization in the sidebar's organization switcher, in invitations and in the browser tab. The logo also becomes the tab icon. Everyone sees them; only **Owners** and **Admins** can change them.
+
+<Steps>
+<Step>
+### Open General
+
+In the sidebar, under **Settings**, select **General**.
+
+![The General page with the Organization panel (logo tile with an Upload button, Name field set to Logical) and the Resource profiles panel listing Nano, Small, Medium and Large](/screens/settings-general.webp)
+</Step>
+<Step>
+### Upload a logo
+
+In the **Organization** panel, select **Upload**, or drop an image on the logo tile. Use a PNG, JPEG, WebP or GIF. Square works best: LogiStack crops it to the center and resizes it to 256 px before saving.
+
+Without a logo, the tile shows the organization's initial.
+</Step>
+<Step>
+### Set the name
+
+Edit **Name**, for example `Acme Retail`. Up to 80 characters.
+</Step>
+<Step>
+### Save
+
+Select **Save**. "Organization saved" confirms it. To undo unsaved edits, select **Discard**.
+</Step>
+</Steps>
+
+The sidebar and the browser tab update right away. The tab title becomes `LogiStack - Acme Retail`.
+
+To change the logo, select **Replace**. To go back to the initial, select **Remove**, then **Save**.
+
+<Callout type="info">
+SVG logos aren't accepted: an SVG can carry scripts, and the logo is also served as the tab icon.
+</Callout>
+
+## Resource profiles
+
+The **Resource profiles** panel on **General** lists named sizes to pick from when you create or edit a service, such as `Small` with 0.5 CPU cores and 512 MB of memory.
+
+1. Edit a row's **Name**, **CPU (cores)** and **Memory (MB)**, or select **Add profile** for a new row. Leave CPU or memory empty for no limit.
+2. Select the trash button to remove a profile.
+3. Pick **Default for new services**: the profile applied when a new service doesn't pick one or set its own limits. **No default (unlimited)** applies none.
+4. Select **Save**.
+
+A service copies the profile's limits when you pick it, so changing a profile here leaves existing services as they are. See [Service settings](../deploy/service-settings.mdx).
+
+## Instance values
+
+The **Instance** panel shows what you chose in the [setup wizard](../getting-started/setup-wizard.mdx), read-only:
+
+- **Instance URL**, for example `https://stack.example.com`
+- **Let's Encrypt email**
+- **Generated domains**: `sslip.io`, `nip.io`, `traefik.me` or **Custom wildcard**
+- **Local registry**: **On** or **Off**
+
+## Network safety
+
+When LogiStack checks a Git repository, a registry, an OIDC issuer or any other address someone typed, it refuses private, loopback, link-local and cloud metadata addresses, so a form can't be used to probe your network.
+
+If your registries or Git servers live on a private network, an Admin can turn on **Allow private hosts** in the **Network safety** panel and confirm with **Allow private hosts**.
+
+<Callout type="warn">
+With private hosts allowed, anyone who can create a service can make the server connect to addresses inside your network, such as `10.0.0.0/8` or `169.254.169.254`. Every check is still written to the [audit log](./audit-log.mdx). Turn it off again with the same switch.
+</Callout>
+
+## Mode and theme
+
+Appearance is personal: it applies to this browser only, and other members keep their own choice.
+
+<Steps>
+<Step>
+### Open Appearance
+
+In the sidebar, under **Settings**, select **Appearance**. You can also open the theme menu in the top bar and select **More themes…**.
+
+![The Appearance page with the Mode control set to System, a Filter themes field, LogiStack Default selected, and theme previews under Editor classics and Inspired by](/screens/settings-appearance.webp)
+</Step>
+<Step>
+### Pick a mode
+
+Under **Mode**, select **Light**, **Dark** or **System**. Every theme has a light and a dark variant. **System** follows your operating system.
+</Step>
+<Step>
+### Pick a theme
+
+Under **Theme**, select a card. Each card is a live preview of the dashboard in that theme. The choice applies at once. Use the arrow keys to move between themes.
+
+To find one quickly, type in **Filter themes**, for example `rose`, `green` or `violet`.
+</Step>
+</Steps>
+
+Themes come in groups:
+
+| Group | Themes |
+| --- | --- |
+| Default | **LogiStack Default** |
+| Editor classics | **Catppuccin**, **Rosé Pine**, **Gruvbox**, **Solarized**, **Tokyo Night** |
+| Presets | Groups such as **Inspired by**, with themes like **Claude**, **Doom 64**, **Marvel** and **Material Design** |
+
+Editor classics also recolor status colors, the terminal and the log viewer. Presets change surfaces, the accent color, the sidebar and corner radius; LogiStack keeps its own font and chart colors. Every theme keeps text readable against its backgrounds.
+
+To return to the original look, select **Back to LogiStack Default**.
+
+The light, dark and system switch is also in the top bar's theme menu.
+
+### Common problems
+
+- **My theme is gone on another computer.** Themes are saved in each browser. Pick it again there.
+- **A theme I used disappeared after an update.** LogiStack falls back to **LogiStack Default** when a theme is no longer in the list.

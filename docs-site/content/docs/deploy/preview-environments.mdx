@@ -1,0 +1,111 @@
+---
+title: Preview environments for pull requests
+description: Give every pull request its own live LogiStack environment with its own URL, cloned from staging or production and removed when the pull request closes.
+---
+
+A preview environment is a temporary copy of a project for one pull request. When someone opens a pull request, LogiStack clones an environment you choose into `pr-<number>`, builds the pull request's head commit, gives it its own URL and posts that URL on the pull request. Closing or merging the pull request removes the copy. Use previews so reviewers can click through a change before it merges.
+
+## Before you start
+
+- Connect the repository through a Git provider that sends pull request events: GitHub, GitLab, Gitea or Bitbucket. See [Deploy from Git](./from-git.mdx#connect-a-git-provider).
+- Have an environment to clone, usually **Staging**, with at least one service that builds from that repository.
+
+## Turn on previews
+
+<Steps>
+<Step>
+
+### Open Preview deployments
+
+Open the project, open the actions menu in the project header and select **Preview deployments…**.
+
+![The Preview deployments wizard on its What a preview runs step, with the Clone from field](/screens/project-previews.webp)
+
+</Step>
+<Step>
+
+### Choose what a preview runs
+
+On **What a preview runs**:
+
+- **Clone from**: the environment each preview copies. Every preview starts with its services, stacks and variables. Volumes and databases are never shared: each preview gets empty ones.
+- **Services that build the pull request**: tick the Git services that should build the pull request's head commit, for example `web` and `api`. The others run what the source runs. Pull requests on these services' repository open previews.
+
+</Step>
+<Step>
+
+### Choose where it is reached
+
+On **Where it is reached**, every service the source exposes on a domain gets one in the preview. Pick **Preview hostnames**:
+
+- **Generated**: each service gets an sslip.io or wildcard hostname of its own. Nothing to configure.
+- **A pattern**: readable hosts on a domain you point at this server. The **Pattern** must include `{number}`, and can use `{service}` and `{wildcard}`.
+
+```text title="Pattern examples"
+pr-{number}.{wildcard}
+pr-{number}-{service}.preview.example.com
+```
+
+For `pr-{number}-{service}.preview.example.com`, create a wildcard DNS record `*.preview.example.com` pointing at the server. See [Wildcard DNS](../networking/wildcard-dns.mdx).
+
+</Step>
+<Step>
+
+### Override variables
+
+On **Variables**, add the variables that must differ in a preview, such as a test payment key or a public URL. They win over every definition in the source environment. Values are stored as secrets; when you edit later, a stored value shows **Stored; type to replace**.
+
+```text title="Typical overrides"
+STRIPE_SECRET_KEY   sk_test_51H...
+PUBLIC_URL          https://pr-42.preview.example.com
+```
+
+</Step>
+<Step>
+
+### Set limits and safety
+
+On **Limits and safety**:
+
+- **At most**: how many previews run at once, 1 to 50 (default 5). A pull request opened past the limit gets no preview until one closes.
+- **Remove after**: hours without a commit, up to 90 days (default 72). Closing or merging removes the preview at once.
+- **Preview pull requests from forks**: off by default. Leave it off for public repositories.
+- **Previews on**: turning previews off stops new ones; running ones stay until their pull request closes.
+
+<Callout type="warn">
+With forks allowed, anyone who can fork the repository can run code on your server. A fork's pull request is built and started with the preview's variables, secrets included, so its author can read every one of them and use the server's network. Only allow this when every fork author is trusted.
+</Callout>
+
+</Step>
+<Step>
+
+### Review and turn on
+
+Check the summary and select **Turn on previews**. Later edits use **Save changes**.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+Open a pull request on the repository. Then:
+
+- A new environment `pr-<number>` appears among the project's environments.
+- A comment on the pull request shows the preview URL. LogiStack keeps it up to date as you push.
+- Each push to the pull request's branch redeploys the followed services.
+
+From the environment's menu, **Open preview** opens its URL and **Pull request #&lt;number&gt;** opens the pull request.
+
+## How a preview is removed
+
+A preview is deleted, with its volumes and databases, when:
+
+- The pull request is closed or merged.
+- No pull request event touched it for the **Remove after** hours.
+
+## Common problems
+
+- **No preview appears**: the pull request isn't on the repository of a followed service, the limit in **At most** is reached, or the pull request comes from a fork and forks are off.
+- **No comment on the pull request**: for GitHub, the app needs read and write access to **Pull requests**; for GitLab, Gitea and Bitbucket, the token needs write access.
+- **The preview can't reach its database**: each preview gets an empty database. Run migrations with a pre-deploy command, and seed data in it if your app needs some. See [Deployments](./deployments.mdx#release-commands).
+- **"Include `{number}`, so each pull request gets its own host"**: add `{number}` to the pattern.

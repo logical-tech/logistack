@@ -1,0 +1,42 @@
+---
+title: Team and security
+description: Invite your team, grant roles per folder, project or environment, connect SSO, require 2FA and manage API keys, service accounts and the audit log.
+---
+
+Everything about who can reach your LogiStack organization and what they can do there lives under **Settings** in the sidebar, plus **Account and security** in your user menu. Read this section when you add a teammate, connect CI or an AI agent, plug in your company's identity provider, or need to answer "who changed this?".
+
+## How access works
+
+Every person and every machine acts through a **role**, and every role is granted on a **scope**:
+
+- A **role** is a set of actions: Read, Read secrets, Deploy, Write, Delete, Administer and Terminal. LogiStack ships four built-in roles (Owner, Admin, Developer, Viewer) and you can add your own.
+- A **scope** is the whole organization, a folder, a project, an environment or a single service. A role on a folder reaches every project, environment and service inside it.
+- Access only adds up. A member's organization role applies everywhere, and extra grants widen it on one part of the tree. Nothing ever takes access away.
+- API keys act as their owner, optionally narrowed to some scopes. A key never does more than the person or service account that owns it.
+
+```text title="Example: one organization, three people"
+Organization "Logical"
+├── Giulia      Admin on the organization        → manages everything
+├── Marco       Viewer on the organization
+│               + Developer on folder Clients     → deploys anything under Clients
+└── Tom         Viewer on the organization
+                + deployer on project Storefront   → deploys Storefront only
+```
+
+## Pages in this section
+
+<Cards>
+  <Card title="Members and invitations" href="/team/members-and-invitations" description="Invite teammates with a link, accept an invitation, change roles and remove people." />
+  <Card title="Roles and permissions" href="/team/roles-and-permissions" description="The built-in roles, custom roles, and grants on folders, projects, environments and services." />
+  <Card title="Single sign-on" href="/team/sso" description="Connect Okta, Microsoft Entra ID, Google Workspace or Keycloak over OIDC or SAML." />
+  <Card title="Two-factor and passkeys" href="/team/two-factor-and-passkeys" description="Authenticator apps, backup codes, passkeys, sessions and the organization-wide 2FA requirement." />
+  <Card title="API keys" href="/team/api-keys" description="Create, scope, rotate and revoke lsk_ keys for the REST API, the CLI and MCP." />
+  <Card title="Service accounts" href="/team/service-accounts" description="Machine identities for CI and agents, so keys survive people leaving the team." />
+  <Card title="Audit log" href="/team/audit-log" description="Every change, who made it, from where, and whether it went through. Filter and export." />
+  <Card title="SSH keys" href="/team/ssh-keys" description="Deploy keys for private Git repositories and keys for bootstrapping new servers." />
+  <Card title="Organization and appearance" href="/team/appearance" description="The organization's name and logo, resource profiles, light and dark mode, and color themes." />
+</Cards>
+
+## Who can change these settings
+
+Only **Owners** and **Admins** of the organization manage members, roles, SSO, the 2FA requirement, service accounts and SSH keys, and read the audit log. Everyone can manage their own API keys, passkeys, two-factor and sessions, and pick their own theme.

@@ -1,0 +1,131 @@
+---
+title: Production, staging and custom environments
+description: Create production, staging and custom environments in a LogiStack project, recolor them, set the default, and clone one into another with a manifest.
+---
+
+An environment is an isolated set of services, variables and domains inside a project. Services in one environment share a private network and can't reach services in another, so a staging app never talks to the production database by accident. Use environments to run the same project at different stages, such as **Production** and **Staging**, or to give a client their own copy.
+
+## Environment kinds
+
+Every project starts with a **Production** environment. When you create another, you pick its **Kind**:
+
+| Kind | Typical use |
+|---|---|
+| **Production** | What your users reach |
+| **Staging** | A pre-release copy for testing |
+| **Preview** | A short-lived copy for a pull request. LogiStack creates these itself; see [Preview environments](./preview-environments.mdx) |
+| **Custom** | Anything else, like `demo` or `client-acme` |
+
+The kind sets the default color of the environment's dot. It doesn't change how services run.
+
+## Create an environment
+
+<Steps>
+<Step>
+
+### Open the project
+
+Select **Projects** in the sidebar and open the project. The environment tabs sit above the services.
+
+![The Storefront project page with its environment tabs and services](/screens/project.webp)
+
+</Step>
+<Step>
+
+### Add the environment
+
+Select **New environment**. In the dialog, enter a **Name** such as `Staging` and pick the **Kind**. Select **Create environment**.
+
+</Step>
+<Step>
+
+### Add services
+
+The new environment is empty. Select **New service** to add services to it, or clone another environment as described below.
+
+</Step>
+</Steps>
+
+## Change an environment
+
+Select the settings icon next to the environment tabs (labelled `<name> settings`) to open its menu:
+
+- **Open by default**: the project opens on this environment.
+- **Export manifest**: download the environment as a YAML manifest.
+- **Color**: pick one of six colors for the environment's dot, shown across the dashboard.
+
+## Clone an environment
+
+To copy an environment's services, stacks, variables, domains and backup policies into another, export its manifest and apply it to the target.
+
+<Steps>
+<Step>
+
+### Export the source
+
+Open the source environment's menu and select **Export manifest**. You get a file like `storefront-production.logistack.yaml`.
+
+</Step>
+<Step>
+
+### Create the target
+
+Select **New environment** and create it, for example `Staging` with the kind **Staging**.
+
+</Step>
+<Step>
+
+### Edit the manifest
+
+Open the file and change what must differ in the copy:
+
+```yaml title="storefront-production.logistack.yaml (excerpt)"
+version: 1
+kind: environment
+environment:
+  name: Staging
+  slug: staging
+  kind: staging
+  variables:
+    - key: PUBLIC_URL
+      value: https://staging.shop.example.com
+  services:
+    - slug: web
+      domains:
+        - hostname: staging.shop.example.com
+          port: 3000
+          https: true
+```
+
+Change hostnames so the copy doesn't claim the production domains, and point variables like `DATABASE_URL` at the staging database.
+
+</Step>
+<Step>
+
+### Import it
+
+In the project header, open the actions menu and select **Import manifest…**. Drop the file, choose the new environment under **Apply to**, and select **Continue**. **Review changes** lists every resource it creates. Select **Apply changes**.
+
+![The Import manifest page of the Storefront project, with a drop zone for the manifest file](/screens/project-import.webp)
+
+</Step>
+<Step>
+
+### Set secrets and deploy
+
+Secret values are never exported. Set them on the new services' **Environment** tabs, then select **Deploy** on each service. Applying a manifest creates the services but doesn't deploy them.
+
+</Step>
+</Steps>
+
+<Callout type="info">
+Each environment gets its own volumes and databases. Cloning copies the configuration, not the data. To copy data, restore a backup into the new database. See [Restore](../data/restore.mdx).
+</Callout>
+
+What a manifest doesn't carry: secret values, generated domains, basic auth and domain access rules, node pins and adopted volumes. Stacks from a pasted compose file or a template come across as their individual services. See [Project manifests](../automation/project-manifests.mdx).
+
+## Common problems
+
+- **A service in one environment can't reach another's database**: by design. Each environment has its own network. Put both services in the same environment.
+- **The import reports a name that matches nothing**: the manifest names a Git provider, S3 destination, DNS provider or certificate that doesn't exist in this organization. Create it, or fix the name.
+- **The copy's services don't start**: applying a manifest doesn't deploy. Select **Deploy** on each service.

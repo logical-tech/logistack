@@ -1,0 +1,219 @@
+---
+title: Connect a DNS provider
+description: Connect Cloudflare, Amazon Route 53 or Hetzner DNS so LogiStack creates domain records, issues DNS-01 and wildcard certificates, and edits zone records for you.
+---
+
+A DNS provider is an API credential for the service that hosts your zones. With one connected, LogiStack creates the A or CNAME record when you add a domain, removes it when you delete the domain, and issues certificates over DNS-01, which wildcards and Cloudflare-proxied records need. You can also browse and edit every record in the zone from the dashboard. Connect one as soon as you use your own domains.
+
+LogiStack supports three providers:
+
+| Provider | Credential | Notes |
+| --- | --- | --- |
+| Cloudflare | API token | Also used for [Cloudflare Tunnels](./cloudflare-tunnels.mdx) and [Origin certificates](./https-certificates.mdx#issue-a-cloudflare-origin-certificate). Records can be proxied. |
+| Amazon Route 53 | IAM access key | Region defaults to `us-east-1`. |
+| Hetzner DNS | Hetzner Cloud API token | Uses the Hetzner Cloud DNS API. |
+
+## Credentials for each provider
+
+Give LogiStack a credential limited to DNS on the zones it should manage. It is encrypted at rest and never shown again.
+
+<Tabs items={["Cloudflare", "Amazon Route 53", "Hetzner DNS"]}>
+<Tab value="Cloudflare">
+
+Field: **API token**.
+
+In the Cloudflare dashboard, go to **My Profile** > **API Tokens** > **Create Token** and use the **Edit zone DNS** template, limited to the zones you choose.
+
+Add these permissions to the same token if you need the features:
+
+| Permission | For |
+| --- | --- |
+| Zone › DNS › Edit | Records and DNS-01 (required) |
+| Zone › SSL and Certificates › Edit | [Cloudflare Origin certificates](./https-certificates.mdx#issue-a-cloudflare-origin-certificate) |
+| Account › Cloudflare Tunnel › Edit and Account › Account Settings › Read | [Cloudflare Tunnels](./cloudflare-tunnels.mdx) |
+
+</Tab>
+<Tab value="Amazon Route 53">
+
+Fields: **Access key ID**, **Secret access key**, **Region** (prefilled with `us-east-1`; Route 53 itself is global).
+
+Create an IAM user or role with `route53:ListHostedZones`, `route53:ListResourceRecordSets` and `route53:ChangeResourceRecordSets`. A minimal policy:
+
+```json title="logistack-route53.json"
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["route53:ListHostedZones"],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "route53:ListResourceRecordSets",
+        "route53:ChangeResourceRecordSets"
+      ],
+      "Resource": "arn:aws:route53:::hostedzone/Z0123456789ABCDEFGHIJ"
+    }
+  ]
+}
+```
+
+</Tab>
+<Tab value="Hetzner DNS">
+
+Field: **API token**.
+
+In the Hetzner Console, open your project, then **Security** > **API tokens**, and create a token with **Read & Write** access.
+
+</Tab>
+</Tabs>
+
+## Connect a provider
+
+<Steps>
+<Step>
+
+### Open DNS providers
+
+Select **DNS providers** in the sidebar, under **Integrations**. The page lists connected providers with their zones and how many domains use each.
+
+![The DNS providers page listing Cloudflare · Logical with zones logical.it and acme-retail.it used by 5 domains, and Hetzner · Nordwind with zone nordwind.de used by 1 domain](/screens/dns.webp)
+
+</Step>
+<Step>
+
+### Select Connect provider
+
+Select **Connect provider**. The **Connect a DNS provider** wizard opens on **Where does the zone live?**.
+
+![The first step of the Connect a DNS provider wizard, Where does the zone live?, with Cloudflare, Amazon Route 53 and Hetzner DNS as choices](/screens/dns-new.webp)
+
+</Step>
+<Step>
+
+### Pick the provider
+
+Under **DNS provider**, pick **Cloudflare**, **Amazon Route 53** or **Hetzner DNS**. Select **Continue**.
+
+</Step>
+<Step>
+
+### Enter the credentials
+
+On **Credentials**, fill in the fields for the provider. See [Credentials for each provider](#credentials-for-each-provider). The step repeats where to get the credential.
+
+</Step>
+<Step>
+
+### Test the connection
+
+On **Test the connection**, run the test. LogiStack verifies the credential and lists the zones it can edit, for example `Connected to Cloudflare` and `2 zones visible: logical.it, acme-retail.it`. Nothing changes at the provider.
+
+If the credential works but sees no zones, the test fails with `The credential works but sees no zones`. Give it access to at least one zone and test again.
+
+</Step>
+<Step>
+
+### Pick the zones to manage
+
+On **Zones to manage**, select the zones LogiStack may use, or **Select all**. Domains in these zones get records and DNS-01 certificates automatically. Other zones stay untouched.
+
+</Step>
+<Step>
+
+### Name it
+
+On **Name it**, enter a **Name** after the account or client, for example `Cloudflare · Acme`. LogiStack suggests one from the first zone.
+
+</Step>
+<Step>
+
+### Connect
+
+Review the summary and select **Connect provider**. The credential is checked once more as it is saved.
+
+</Step>
+</Steps>
+
+From now on, when you [add a domain](./domains.mdx) whose hostname falls in a managed zone, the dialog says the record is created for you, and the wizard offers **Create the record for me**.
+
+## Manage zone records
+
+You can view and edit every record of a managed zone without opening the provider's dashboard.
+
+<Steps>
+<Step>
+
+### Open the zone
+
+On **DNS providers**, select a zone chip on the provider's row, for example `logical.it`. The zone page lists its records with **Name**, **Type**, **Value**, **Proxy** (Cloudflare only) and **TTL**. Names are relative to the zone: `@` is the apex.
+
+![The records of the logical.it zone at Cloudflare: A, TXT, MX, CAA, SRV and CNAME records, with api and app tagged LogiStack](/screens/dns-zone.webp)
+
+</Step>
+<Step>
+
+### Find a record
+
+Type in **Filter name or value**, or pick a type in **All types**. Press Escape to clear the filter.
+
+</Step>
+<Step>
+
+### Add or edit a record
+
+Select **Add record**, or the pencil on a row. In the dialog, set:
+
+![The Add record dialog for the logical.it zone with Type, Name, Value, TTL, Comment and Proxy through Cloudflare](/screens/dns-record-edit.webp)
+
+- **Type**: `A`, `AAAA`, `CNAME`, `TXT`, `MX`, `SRV`, `CAA` or `NS`.
+- **Name**: `@` for the zone itself, `*` for a wildcard, or a name like `www`.
+- The value fields for the type, for example **IPv4 address** for A, **Target** for CNAME, **Priority** and **Mail server** for MX, **Flags**, **Tag** and **Value** for CAA.
+- **TTL**: how long resolvers may cache the answer. Cloudflare offers **Auto**; Hetzner accepts 60 seconds or more.
+- **Comment** (Cloudflare only).
+- **Proxy through Cloudflare** (Cloudflare A, AAAA and CNAME only). Proxied records always use **Auto** TTL.
+
+Select **Add record** or **Save record**. The change applies at the provider immediately.
+
+</Step>
+</Steps>
+
+Some examples:
+
+| Name | Type | Value | What it does |
+| --- | --- | --- | --- |
+| `@` | A | `203.0.113.10` | Points `example.com` at the server |
+| `www` | CNAME | `example.com` | Points `www.example.com` at the same place |
+| `@` | MX | `10 mx1.improvmx.com` | Routes mail for the domain |
+| `@` | CAA | `0 issue "letsencrypt.org"` | Allows Let's Encrypt to issue for the domain |
+| `_dmarc` | TXT | `v=DMARC1; p=quarantine` | Publishes a DMARC policy |
+
+The editor checks values before saving. A CNAME cannot sit at the zone apex and has exactly one target, and a Cloudflare record holds one value. Route 53 and Hetzner record sets can hold several values; add more with the value list.
+
+### Records LogiStack created
+
+A record created for a domain carries a **LogiStack** tag next to its name. Hover it to see which domain it belongs to. Deleting the domain removes the record. If you delete the record here instead, the dialog warns that the domain stops resolving and LogiStack no longer tracks it.
+
+### Read-only records
+
+A lock replaces the edit buttons on records LogiStack cannot change safely. Hover it to see why:
+
+- Route 53 aliases to an AWS resource, and records with a routing policy. Edit them in the AWS console.
+- The Route 53 hosted zone's own name servers.
+- Hetzner records protected in the Hetzner Console.
+
+## Remove a provider
+
+Select the bin on the provider's row and confirm **Remove**. LogiStack forgets the credentials. Records it already created stay at the provider. A provider that domains still use can't be removed: delete those domains or switch them to **I'll manage the record myself** first.
+
+## Common problems
+
+**`The provider refused the credential`.** The token or key is wrong, expired, or lacks permission. Create a new one with the permissions above.
+
+**A zone is missing from the wizard.** The credential cannot see it. For Cloudflare, check the token's zone resources. For Route 53, check the IAM policy's `Resource`.
+
+**`Couldn't load the zone`.** The provider API did not answer or the credential lost access. Select **Try again**. If it persists, reconnect the provider.
+
+**A domain in a managed zone still asks for a manual record.** The zone is not selected on the provider. The dashboard cannot change a provider's zones yet; the REST API can (`PATCH /api/dns-providers/{id}` with a `zones` list), and so can the `dns_provider_update` tool of the [MCP server](../automation/mcp-server.mdx).

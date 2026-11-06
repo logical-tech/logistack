@@ -1,0 +1,208 @@
+---
+title: Run S3-compatible object storage
+description: Run MinIO, RustFS, Garage or SeaweedFS as a service, then manage buckets, upload files, create share links and give each app a scoped access key.
+---
+
+An object storage service is an S3-compatible server that runs in your project, next to your apps. Use it for user uploads, product images, exports or anything else your app stores as files through the S3 API, when you don't want a cloud bucket. LogiStack creates the root credentials, and its **Storage** tab gives you a file browser, scoped access keys, share links and ready-to-paste connection settings.
+
+## Choose an engine
+
+| Engine | Good at |
+| --- | --- |
+| MinIO | Most complete S3 API, web console, versioning and policies |
+| RustFS | MinIO-compatible API, web console, permissive license |
+| Garage | Tiny memory footprint, scoped keys |
+| SeaweedFS | Many small files, versioning and policies, IAM keys |
+
+## Create an object storage service
+
+<Steps>
+<Step>
+
+### Start a new service
+
+Open the project and select **New service**. Pick **Object storage**.
+
+</Step>
+<Step>
+
+### Choose an engine
+
+In **Choose an engine**, pick MinIO, RustFS, Garage or SeaweedFS, and name the service, such as `media`. LogiStack creates the root credentials and keeps them encrypted.
+
+</Step>
+<Step>
+
+### Decide on public access
+
+In **Public access**, choose whether the **S3 endpoint** gets a domain, such as `s3.acme-retail.it`, and whether the **Web console** gets one, such as `console.s3.acme-retail.it` (MinIO and RustFS only). Apps in the same environment always reach the internal endpoint, and buckets start private either way.
+
+</Step>
+<Step>
+
+### Review and create
+
+Check the summary and create the service. LogiStack then opens its **Storage** tab.
+
+</Step>
+</Steps>
+
+## Find all storage
+
+Select **Storage** in the sidebar to see every object storage service in the organization, with its **Engine**, **Project** and **Status**. Select a service to open its **Storage** tab.
+
+![The Storage page, listing the media, uploads, archive and datasets services with their engine, project and status](/screens/storage.webp)
+
+The **Storage** tab has three sections: **Browser**, **Access keys** and **Connection**. It shows content once the service reports healthy.
+
+## Create a bucket
+
+<Steps>
+<Step>
+
+### Open the browser
+
+Open the storage service, select **Storage**, then **Browser**.
+
+![The Storage tab of a MinIO service: buckets on the left, folders and files of product-images on the right](/screens/service-storage.webp)
+
+</Step>
+<Step>
+
+### Add the bucket
+
+Select **+** (**New bucket**). Enter a **Name** of 3 to 63 lowercase letters, digits, dots and dashes, such as `product-images`, and create it.
+
+</Step>
+<Step>
+
+### Set its options
+
+Select the settings icon next to the bucket name:
+
+- **Versioning** keeps every version of an object, so overwrites and deletes can be undone from an S3 client. Not every engine supports it.
+- **Public read** lets anyone download any object by its URL. Listing stays private. It takes effect once the S3 endpoint has a public domain.
+- Delete the bucket by typing its name to confirm.
+
+</Step>
+</Steps>
+
+## Upload and manage files
+
+- Drop files on the browser, or select **Upload** to pick them. They stream through LogiStack, so the bucket stays private. An upload tray shows each file's progress and lets you cancel.
+- Select **New folder** to create a folder. Use a slash in the name to nest folders, such as `2026/11`.
+- Select an object to open its details: a preview for images, text and JSON, its **Size**, **Type**, **Modified** time, **ETag** and **S3 URL**.
+- Open an object's **…** menu for **Download**, **Share link**, **Rename** and **Delete**. Rename with a slash in the new name to move it into a folder.
+- Select several rows with their checkboxes and select **Delete** to remove them at once. Deleting a folder deletes everything inside it. There is no undo.
+
+### Share a file with a link
+
+<Steps>
+<Step>
+
+### Open the share dialog
+
+Open the object's **…** menu and select **Share link**.
+
+</Step>
+<Step>
+
+### Choose the expiry
+
+Set **Expires after** to **1 hour**, **1 day** or **7 days**, and select **Create link**.
+
+</Step>
+<Step>
+
+### Copy the link
+
+Select **Copy share link** and send it. Anyone with the link can download the file until it expires.
+
+</Step>
+</Steps>
+
+When the S3 endpoint has a public domain, the link is signed for it. Without one, the file is served through LogiStack.
+
+## Give an app its own access key
+
+Give each app its own key, limited to the buckets it needs. Revoking one never affects the others.
+
+<Steps>
+<Step>
+
+### Open Access keys
+
+In the **Storage** tab, select **Access keys**, then **New access key**.
+
+</Step>
+<Step>
+
+### Scope the key
+
+Enter a **Name** after what uses it, such as `storefront web`. Tick the buckets it may reach, and set **Access** to **Read only** or **Read and write**. Select **Create key**.
+
+</Step>
+<Step>
+
+### Copy the secret
+
+Copy the access key ID and the secret access key, or select **Copy environment variables**. The engine keeps the secret and LogiStack doesn't, so it is not shown again. Select **I've saved it**.
+
+</Step>
+</Steps>
+
+The environment variables look like this, ready for the app's [environment](../deploy/environment-variables.mdx):
+
+```bash title=".env"
+S3_ENDPOINT=http://media:9000
+S3_REGION=us-east-1
+S3_BUCKET=product-images
+AWS_ACCESS_KEY_ID=LSK8D2F0QX7M
+AWS_SECRET_ACCESS_KEY=s8H1pQ...
+S3_FORCE_PATH_STYLE=true
+```
+
+To revoke a key, select its trash icon, then **Revoke key**. Apps using it get access denied on their next request.
+
+## Connect from an app
+
+Select **Connection** to see:
+
+- **Endpoints**: **Internal** (for services in the same environment), **Public** (when the S3 endpoint has a domain), **Console**, **Region** and **Addressing**.
+- **Root credentials**: the root access key ID and secret. Use them for administration only.
+- **Environment variables**: pick **Same environment** or **Internet** as the **Endpoint**, pick a bucket, and copy the block. It uses the root key; for an app, paste a scoped key's pair instead.
+
+Most S3 SDKs need path-style addressing for these engines, as in this Node.js example:
+
+```ts title="storage.ts"
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+const s3 = new S3Client({
+  endpoint: process.env.S3_ENDPOINT,
+  region: process.env.S3_REGION,
+  forcePathStyle: true,
+});
+
+await s3.send(
+  new PutObjectCommand({
+    Bucket: process.env.S3_BUCKET,
+    Key: "products/sku-1042.webp",
+    Body: image,
+    ContentType: "image/webp",
+  }),
+);
+```
+
+## Use it as a backup destination
+
+Under **Connection**, **Use as backup destination** turns a bucket into an [S3 destination](./s3-destinations.mdx) in one step. Select **Use for backups**, enter a **Bucket**, and select **Add destination**. LogiStack creates the bucket if it's missing, a read and write key for it, and the destination. Only organization admins can do this.
+
+<Callout type="warn">
+Backups stored on the same server don't protect you from losing that server. Keep an off-site destination too.
+</Callout>
+
+## Troubleshooting
+
+- **The engine isn't running**: the tab waits for the service to report healthy. Check its [logs](../operations/logs-and-terminal.mdx).
+- An app gets access denied: the key was revoked, isn't scoped to that bucket, or is read-only and the app writes.
+- A public URL returns 403: turn on **Public read** for the bucket, and make sure the S3 endpoint has a domain.

@@ -1,0 +1,95 @@
+---
+title: Deploy an app from a template
+description: Deploy n8n, Plausible and over 500 other self-hosted apps from the LogiStack template catalog, with their databases, volumes and generated secrets.
+---
+
+A template is a ready-made recipe for a self-hosted app: its containers, databases, volumes, domain and the secrets it needs. Deploying one creates every service in one step and wires them together on the environment's network. Use templates when you want a known app like n8n, Plausible or Uptime Kuma running without writing a compose file.
+
+## What a template contains
+
+The catalog ships with LogiStack in `packages/templates/catalog`, one JSON file per app, over 500 in all. Each template declares:
+
+- **Services**: applications with a pinned image (never a floating tag like `latest`) and managed databases (PostgreSQL, MySQL, MariaDB, MongoDB, Redis or libSQL).
+- **Inputs**: values you can set, such as the public URL. Passwords, keys and UUIDs are generated for you.
+- **Volumes and files**: where each service keeps its data, and config files written into the container.
+- **Start order**: which services start after which.
+- **Source and license**: most templates are adapted from the Coolify or Dokploy catalogs. The detail page names the upstream file and its license.
+
+Env values in a template reference inputs with `${{ inputs.<key> }}` and sibling services with `${{ services.<name>.host }}`. For example, the YOURLS template sets:
+
+```json title="packages/templates/catalog/yourls.json (excerpt)"
+"env": {
+  "YOURLS_SITE": "https://${{ inputs.mainDomain }}",
+  "YOURLS_PASS": "${{ inputs.adminPassword }}",
+  "YOURLS_DB_HOST": "${{ services.yourls-mysql.host }}",
+  "YOURLS_DB_PASS": "${{ inputs.mysqlPassword }}"
+}
+```
+
+## Deploy a template
+
+<Steps>
+<Step>
+
+### Open the template gallery
+
+Open the project and environment, select **New service**, then select the **Templates** tile at the bottom of **Choose a source**.
+
+The gallery opens on **New from a template**, scoped to the current project and environment.
+
+![The template gallery with a search field, category filters with counts, and app cards showing their services and tags](/screens/templates.webp)
+
+</Step>
+<Step>
+
+### Find the app
+
+Type in **Search by name, tag or purpose**, for example `n8n`, `analytics` or `backups`, or filter by category: **AI**, **Analytics**, **Automation**, **CMS**, **Communication**, **Databases**, **Dev tools**, **Finance**, **Media**, **Monitoring**, **Networking**, **Productivity**, **Security**, **Storage** or **Other**. Each card shows how many services the template creates. Select the card.
+
+</Step>
+<Step>
+
+### Check what it creates
+
+The **What it creates** step lists every service with its image, its public port, its volumes and what it starts after. **Website** and **Docs** link to the upstream project. Select **Continue**.
+
+![The n8n template on its What it creates step, listing the n8n service with port 5678 and the n8n-data volume, and a task-runners service that starts after n8n](/screens/template-detail.webp)
+
+</Step>
+<Step>
+
+### Fill in the settings
+
+On **Settings**, only the required fields need an answer:
+
+- **Address** › **Public URL**: your own hostname, such as `n8n.example.com`. Leave it empty to get a generated address like `n8n-a1b2c3.203-0-113-10.sslip.io`.
+- **Required**: values the app can't guess, such as an admin email.
+- **Credentials**: passwords and keys marked **Auto-generated**. They are generated when you deploy and stored as secret variables. Select **Set my own** only if you need a known value, and **Generate instead** to go back.
+- **Optional settings**: extra values with safe defaults.
+
+</Step>
+<Step>
+
+### Review and deploy
+
+The **Review** step shows each service, the public URL, and which values you set versus which are auto-generated. Select **Deploy**.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+After **Deploy**, the page follows each service's first deployment. Services start in dependency order. When every service is healthy you see **Every service is healthy.** with links to the app's URL, **Open the stack** and **Go to the environment**.
+
+The template becomes a stack in the environment. Its **Overview** tab lists the containers, and the **Compose** tab shows the effective compose of what runs. See [Compose stacks](./compose-stacks.mdx).
+
+## Find the generated secrets
+
+Generated passwords live as secret variables on the services that use them. Open the service (for example `n8n`), select **Environment**, and reveal the value with the eye icon. You need permission to read secrets. See [Environment variables](./environment-variables.mdx).
+
+## Common problems
+
+- **"Production already has a service named postgres"**: each service keeps its template name, because the others reach it by that name. Deploy the template into another environment, or create a new one. See [Environments](./environments.mdx).
+- **"Nothing new was created"**: you deployed the same template with the same name into the same environment again. LogiStack returns the services from the first deploy instead of creating duplicates.
+- **A service failed**: open it, read its deployment log in **Deployments**, fix the setting there and redeploy.
+- **The custom domain shows a certificate error**: the DNS record doesn't point at the server yet. See [Domains](../networking/domains.mdx).

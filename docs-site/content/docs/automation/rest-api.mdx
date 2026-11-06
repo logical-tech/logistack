@@ -1,0 +1,278 @@
+---
+title: REST API
+description: Call the LogiStack REST API with an lsk_ API key. Base URL, authentication, OpenAPI reference, errors and curl examples to create and deploy services.
+---
+
+The REST API is the same API the dashboard uses. Every page, wizard and button calls it, so anything you can do in the browser you can script. Use it from CI jobs, from your own tools, or to debug what a request returns. The [MCP server](./mcp-server.mdx) and [manifests](./project-manifests.mdx) are built on it.
+
+## Base URL
+
+The API lives under `/api` on your dashboard's URL, the instance URL you chose in the [setup wizard](../getting-started/setup-wizard.mdx):
+
+```txt
+https://logistack.example.com/api
+```
+
+The examples below read the URL and the key from environment variables:
+
+```sh
+export LOGISTACK_URL=https://logistack.example.com
+export LOGISTACK_API_KEY=lsk_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Interactive reference
+
+Two routes describe every operation. Neither needs a key to open:
+
+| URL | What it is |
+| --- | --- |
+| `/api/openapi.json` | The OpenAPI 3.1 document. Generate a client from it, or import it into Postman or Insomnia. |
+| `/api/docs` | An interactive reference (Scalar) built from that document. Try requests from the browser. |
+
+The document is generated from the server's route definitions, so it always matches the release you run.
+
+## Authenticate with an API key
+
+Create a key in **Settings > API keys** with **Create API key**. The wizard asks for a name and owner, the access (everything the owner can do, or a list of scopes) and an expiry. Keys start with `lsk_` and are shown once. See [API keys](../team/api-keys.mdx) for the full walkthrough.
+
+![The API keys page listing keys with their scopes and last use, and the MCP server panel](/screens/settings-api-keys.webp)
+
+Send the key in one of two headers:
+
+<Tabs items={["x-api-key", "Authorization"]}>
+  <Tab value="x-api-key">
+    ```sh
+    curl -H "x-api-key: $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/me"
+    ```
+  </Tab>
+  <Tab value="Authorization">
+    ```sh
+    curl -H "Authorization: Bearer $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/me"
+    ```
+  </Tab>
+</Tabs>
+
+A key acts as its owner, narrowed to its scopes: a scoped key may do an action only where both the owner and the key's scopes allow it. Every call is recorded in the [audit log](../team/audit-log.mdx) with the key as the actor, and the key list shows when and from which IP each key was last used.
+
+<Callout type="info">
+  Keys are exempt from the organization's two-factor requirement, and a key acts in the organization it was created in. To automate several organizations, create one key in each.
+</Callout>
+
+## Requests and responses
+
+- Bodies are JSON. Send `content-type: application/json` with every `POST`, `PUT` and `PATCH`.
+- IDs are prefixed strings: `prj_` for projects, `env_` for environments, `svc_` for services, `dep_` for deployments.
+- Timestamps are ISO 8601 strings.
+- `PATCH` takes any subset of the fields, but at least one. A field you send replaces the stored value: `spec` is replaced whole, not merged.
+- Request bodies are limited to 128 MB, except object storage uploads and database restores, which stream.
+
+### Lists and pagination
+
+Most list routes return a plain JSON array with every item the key can see, for example `GET /api/projects`. Two kinds of routes page:
+
+- `GET /api/services/{id}/deployments` returns the newest deployments first and takes `?limit=` (1 to 100, default 20).
+- `GET /api/audit-log` is cursor-paginated: pass the cursor from the previous page as `?cursor=` to read the next one.
+
+### Errors
+
+Every error has the same shape:
+
+```json
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "request validation failed",
+    "details": [
+      { "path": ["spec", "replicas"], "message": "Too small: expected number to be >=0" }
+    ]
+  }
+}
+```
+
+| HTTP | `code` | Meaning |
+| --- | --- | --- |
+| 400 | `bad_request` | The request is malformed or not allowed in this state. `message` says why. |
+| 400 | `validation_failed` | The body, query or path failed validation. `details` lists each issue with its path. |
+| 401 | `unauthorized` | No key, or the key is invalid, revoked or expired. |
+| 403 | `forbidden` | The key is valid but may not do this action on this resource. |
+| 403 | `two_factor_required` | A signed-in user must set up a second factor first. Keys never get this. |
+| 404 | `not_found` | The resource does not exist, or is in another organization. |
+| 409 | `conflict` | A unique name is taken, or the resource is busy (for example a node being removed). |
+| 413 | `bad_request` | The body is larger than 128 MB. |
+| 422 | `unprocessable` | The request is valid but cannot be done, for example a variable named `LOGISTACK_*`, which is reserved. |
+| 500 | `internal` | A server error. The server log has the details under the request's ID. |
+
+## Examples
+
+Each example is a complete command. Pipe the output through `jq` to read it.
+
+### Check the key
+
+`GET /api/me` returns the user or service account behind the key and its organization:
+
+```sh
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/me" | jq
+```
+
+### List projects
+
+```sh
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/projects" | jq
+```
+
+```json title="Response (abridged)"
+[
+  {
+    "id": "prj_k3v9x2m4q8w1",
+    "name": "Storefront",
+    "slug": "storefront",
+    "description": null,
+    "folderId": null,
+    "archivedAt": null,
+    "environments": [
+      { "id": "env_p7d2c9a1r5t3", "name": "Production", "kind": "production", "color": null },
+      { "id": "env_b4n8s6e2u0y7", "name": "Staging", "kind": "staging", "color": "amber" }
+    ],
+    "services": [
+      { "id": "svc_m2h5j8k1l4z9", "name": "API", "status": "running", "environmentId": "env_p7d2c9a1r5t3" }
+    ]
+  }
+]
+```
+
+Add `?archived=true` to list archived projects instead, or `?folderId=` to list one folder's projects.
+
+### Create a project
+
+A new project gets a **Production** environment automatically:
+
+```sh
+curl -fsS -X POST "$LOGISTACK_URL/api/projects" \
+  -H "x-api-key: $LOGISTACK_API_KEY" -H "content-type: application/json" \
+  -d '{"name": "Storefront", "description": "Shop frontend and API"}' | jq
+```
+
+List its environments to get the production environment's ID:
+
+```sh
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" \
+  "$LOGISTACK_URL/api/projects/prj_k3v9x2m4q8w1/environments" | jq '.[] | {id, name, kind}'
+```
+
+### Create a service
+
+Services are created in an environment with `POST /api/environments/{id}/services`. The `spec` is the same object the dashboard builds. This one runs a prebuilt image:
+
+```sh
+curl -fsS -X POST "$LOGISTACK_URL/api/environments/env_p7d2c9a1r5t3/services" \
+  -H "x-api-key: $LOGISTACK_API_KEY" -H "content-type: application/json" \
+  -d @- <<'JSON' | jq
+{
+  "name": "API",
+  "spec": {
+    "kind": "application",
+    "source": { "type": "image", "image": "ghcr.io/acme/api:1.4.2" },
+    "build": { "type": "image" },
+    "ports": [],
+    "replicas": 2,
+    "resources": { "cpu": 0.5, "memoryMb": 512 },
+    "healthcheck": { "type": "http", "port": 8080, "path": "/healthz" },
+    "placement": []
+  }
+}
+JSON
+```
+
+To build from a repository instead, use a git source and a build type. `gitProviderId` is the ID of a connected [Git provider](../deploy/from-git.mdx) (list them with `GET /api/git-providers`):
+
+```json title="spec for a git service"
+{
+  "kind": "application",
+  "source": {
+    "type": "git",
+    "gitProviderId": "git_r8f3w6t1y9u2",
+    "repository": "acme/storefront",
+    "branch": "main",
+    "path": "/"
+  },
+  "build": { "type": "dockerfile", "dockerfilePath": "Dockerfile", "context": "." },
+  "ports": [],
+  "replicas": 1,
+  "resources": {},
+  "placement": []
+}
+```
+
+`build.type` is `dockerfile`, `railpack`, `static` (with `publishDir`) or, only with an image source, `image`. The response is the created service with its `id`. Creating a service does not deploy it.
+
+### Trigger a deploy
+
+```sh
+curl -fsS -X POST -H "x-api-key: $LOGISTACK_API_KEY" \
+  "$LOGISTACK_URL/api/services/svc_m2h5j8k1l4z9/deploy" | jq
+```
+
+The response is `202 Accepted` with the queued deployment. Its `trigger` is `api` when a key calls it:
+
+```json
+{
+  "id": "dep_w5q2e8r4t1y6",
+  "serviceId": "svc_m2h5j8k1l4z9",
+  "status": "queued",
+  "trigger": "api",
+  "commitSha": null,
+  "imageRef": null,
+  "error": null,
+  "createdAt": "2026-11-06T09:14:03.512Z"
+}
+```
+
+The key needs the `deploy` permission on the service. A deploy into an archived project is refused.
+
+### Read a deployment
+
+```sh
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" \
+  "$LOGISTACK_URL/api/deployments/dep_w5q2e8r4t1y6" | jq '{status, imageRef, commitSha, error, finishedAt}'
+```
+
+`status` moves through `queued`, `cloning`, `building`, `pushing` (git builds only), `releasing`, `deploying`, and ends at `healthy`, `failed`, `cancelled`, `superseded` or `skipped`. `awaiting_checks` means the deployment waits for the commit's CI checks. On failure, `error` says why.
+
+To wait for the result in a script, poll until the status is final:
+
+```sh title="wait-for-deploy.sh"
+dep=dep_w5q2e8r4t1y6
+while :; do
+  status=$(curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" \
+    "$LOGISTACK_URL/api/deployments/$dep" | jq -r .status)
+  echo "status: $status"
+  case $status in
+    healthy) exit 0 ;;
+    failed|cancelled|superseded|skipped) exit 1 ;;
+  esac
+  sleep 5
+done
+```
+
+List a service's recent deployments:
+
+```sh
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" \
+  "$LOGISTACK_URL/api/services/svc_m2h5j8k1l4z9/deployments?limit=5" | jq '.[] | {id, status, trigger, createdAt}'
+```
+
+### Roll back, restart and cancel
+
+| Action | Route |
+| --- | --- |
+| Roll back to a previous deployment's image | `POST /api/deployments/{id}/rollback` |
+| Cancel a running deployment | `POST /api/deployments/{id}/cancel` |
+| Restart a service's tasks | `POST /api/services/{id}/restart` |
+| See what a deploy would change | `GET /api/services/{id}/pending-diff` |
+
+## Common problems
+
+- **401 with a key you just created.** Check the header name and that the whole key, starting with `lsk_`, is sent. An expired or revoked key also returns 401.
+- **403 on a deploy.** The key's owner or its scopes lack `deploy` on that service. A viewer key can read but not deploy.
+- **404 for an ID you can see in the dashboard.** The key belongs to another organization, or its scopes do not include that resource.
+- **CORS errors from a browser app.** The API only allows the dashboard's own origin. Call it from a server or a CI job.

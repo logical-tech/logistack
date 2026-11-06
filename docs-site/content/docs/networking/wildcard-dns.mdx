@@ -1,0 +1,98 @@
+---
+title: Per-server wildcard DNS
+description: Give every generated hostname a name under your own domain with one wildcard certificate over DNS-01, and avoid the shared sslip.io and nip.io rate limits.
+---
+
+A per-server wildcard is a DNS name such as `*.srv1.example.com` that points at your server. LogiStack gives every service a generated hostname under it, like `web-a1b2c3.srv1.example.com`, and serves all of them with one wildcard certificate issued over DNS-01. Set it up when you keep services on generated hostnames for more than a quick test, or when you run preview environments.
+
+## Why generated sslip.io hostnames are a fallback
+
+sslip.io and nip.io turn any name containing an IP address into that IP, so `web-a1b2c3.203-0-113-10.sslip.io` resolves to `203.0.113.10` with no DNS setup. That is why the setup wizard offers them as **Quick start**.
+
+The catch is HTTPS. Let's Encrypt allows 50 new certificates per registered domain per week. The registered domain is defined by the Public Suffix List, and neither `sslip.io` nor `nip.io` (nor `traefik.me`) is on it. So for Let's Encrypt, every hostname under `sslip.io` belongs to the single registered domain `sslip.io`. Every LogiStack server, and every other user of sslip.io in the world, draws from the same 50 certificates a week.
+
+When that budget runs out, issuance fails with an error like `too many certificates already issued for "sslip.io"`, and your domain stays without a certificate until the window moves on. You cannot fix it from your side.
+
+A per-server wildcard avoids the problem twice over:
+
+- The hostnames sit under your own registered domain, so they never touch the shared budget.
+- One wildcard certificate covers every generated hostname. Adding the fiftieth service issues nothing new.
+
+| | sslip.io / nip.io | Per-server wildcard |
+| --- | --- | --- |
+| DNS setup | None | Two A records, created for you with a DNS provider |
+| Example hostname | `web-a1b2c3.203-0-113-10.sslip.io` | `web-a1b2c3.srv1.example.com` |
+| Certificates | One per hostname, from a budget shared with the world | One wildcard for all hostnames |
+| Good for | Trying LogiStack | Anything you keep |
+
+## Set up the wildcard
+
+You choose the base for generated hostnames in the **Instance URL and domain** step of the [setup wizard](../getting-started/setup-wizard.mdx). **Settings** > **General** shows the choice under **Generated domains**; the dashboard cannot change it after setup yet.
+
+<Steps>
+<Step>
+
+### Pick your own wildcard domain
+
+On **Instance URL and domain**, under **Domain**, pick **Your own wildcard domain** (Recommended).
+
+</Step>
+<Step>
+
+### Enter the wildcard base
+
+In **Wildcard base**, enter the name that goes after `*.`, for example `srv1.example.com`. Every service gets a hostname under it. One name per server keeps servers apart: `srv1.example.com`, `srv2.example.com`.
+
+</Step>
+<Step>
+
+### Pick a DNS provider
+
+In **DNS provider for certificates**, pick the provider that hosts `example.com`: **Cloudflare**, **Amazon Route 53** or **Hetzner DNS**. Fill in its credentials. See [DNS providers](./dns-providers.mdx#credentials-for-each-provider) for the permissions each needs.
+
+LogiStack creates two records with these credentials when you finish:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| A | `*.srv1.example.com` | `203.0.113.10` |
+| A | `srv1.example.com` | `203.0.113.10` |
+
+The provider is saved as your organization's first DNS provider.
+
+</Step>
+<Step>
+
+### Check DNS
+
+On **Check DNS**, run the test. LogiStack verifies the credentials and finds the zone, for example `Cloudflare manages example.com`. On finish it points `*.srv1.example.com` and `srv1.example.com` at the server and requests one wildcard certificate over DNS-01.
+
+</Step>
+</Steps>
+
+After setup, the wildcard certificate for `*.srv1.example.com` appears under **Issued automatically** on **Settings** > **Certificates**. Generated hostnames and the dashboard, when it lives under the base, are served from it and get no certificate of their own.
+
+### Without a DNS provider
+
+If your DNS host has no API LogiStack supports, pick **None, I'll manage records myself** in **DNS provider for certificates** and create the two A records yourself. **Check DNS** then looks up `ls-check.srv1.example.com` and passes once it resolves to the server.
+
+Hostnames still live under your own domain, but there is no wildcard certificate: Let's Encrypt issues wildcards only over DNS-01, so each generated hostname gets its own certificate over HTTP-01. These count against the 50-per-week budget of `example.com`, which is yours alone.
+
+## Wildcard domains on a service
+
+A wildcard can also be a regular [domain](./domains.mdx#wildcard-hostnames) on one service, for example `*.preview.example.com` routed to an app that serves tenants by subdomain. It needs a connected DNS provider for the zone and always uses **Automatic, DNS-01**. This is separate from the per-server wildcard and works whatever base the server uses.
+
+## Check that it works
+
+```bash
+dig +short anything.srv1.example.com
+```
+
+The command should print the server's address. Then create a service with **Generated hostname** on the **Domain** step and open its hostname over HTTPS. The certificate's subject is `*.srv1.example.com`.
+
+## Common problems
+
+**The wildcard certificate is missing from Settings > Certificates.** The DNS provider no longer manages the zone, or its token lost permission. Open [DNS providers](./dns-providers.mdx) and check that the zone is listed on the provider.
+
+**Check DNS fails with `doesn't resolve to … yet`.** New records can take a few minutes to propagate. With manual records, check that both A records exist and point at the server, then test again.
+
+**An IPv6-only server with nip.io.** nip.io does not support IPv6. Use sslip.io or your own wildcard.

@@ -1,0 +1,21 @@
+{
+	"title": "Deploy",
+	"icon": "Rocket",
+	"pages": [
+		"index",
+		"from-git",
+		"from-image",
+		"build-types",
+		"templates",
+		"compose-stacks",
+		"databases",
+		"game-servers",
+		"deployments",
+		"environment-variables",
+		"environments",
+		"preview-environments",
+		"service-settings",
+		"build-platforms",
+		"registries"
+	]
+}

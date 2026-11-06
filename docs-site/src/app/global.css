@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/* The marketing site's palette (site/src/app/globals.css), so /docs reads as the same product. */
+@theme {
+	--font-sans: var(--font-mona), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: var(--font-geist-mono), ui-monospace, monospace;
+	--color-fd-primary: #3c6fd8;
+	--color-fd-ring: #3c6fd8;
+}
+
+.dark {
+	--color-fd-background: #111214;
+	--color-fd-foreground: #f1f2f4;
+	--color-fd-muted: #17181b;
+	--color-fd-muted-foreground: #a7abb3;
+	--color-fd-popover: #17181b;
+	--color-fd-card: #16171a;
+	--color-fd-border: #ffffff17;
+	--color-fd-primary: #6e9cf7;
+	--color-fd-primary-foreground: #0c0d0f;
+	--color-fd-secondary: #1b1c20;
+	--color-fd-accent: #1d1f23;
+	--color-fd-ring: #6e9cf7;
+}
+
+.dark #nd-sidebar {
+	--color-fd-muted: #1b1c20;
+	--color-fd-secondary: #1d1f23;
+}
+
+html {
+	scrollbar-gutter: stable;
+}
+
+::selection {
+	background: #6e9cf74d;
+}
+
+/* Screenshots: a hairline frame so dark UI doesn't melt into the dark page. */
+.prose img {
+	border: 1px solid var(--color-fd-border);
+	border-radius: 12px;
+}

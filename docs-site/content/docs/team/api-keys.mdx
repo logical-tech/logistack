@@ -1,0 +1,146 @@
+---
+title: API keys
+description: Create LogiStack API keys for CI, scripts and AI agents, limit them to a folder or project, set an expiry, rotate or revoke them, and call the API with curl.
+---
+
+An API key lets a script, a CI pipeline or an AI agent use the LogiStack [REST API](../automation/rest-api.mdx), the CLI and the [MCP server](../automation/mcp-server.mdx) without a password. Keys start with `lsk_`. Each key acts as its owner (you or a [service account](./service-accounts.mdx)), optionally narrowed to some scopes, and can expire. LogiStack stores only a hash and shows the secret once.
+
+Any member can create keys for themselves. Only **Owners** and **Admins** can create keys for service accounts.
+
+## Open API keys
+
+In the sidebar, under **Settings**, select **API keys**. The page has three parts: **Keys**, **Service accounts** and **MCP server**.
+
+![The API keys page listing four keys with owner, access, last use, expiry and status, the GitHub Actions service account, and the MCP server endpoint](/screens/settings-api-keys.webp)
+
+Each key row shows:
+
+| Column | Shows |
+| --- | --- |
+| **Name** | The name and the first characters of the key, like `lsk_Qm4…` |
+| **Owner** | You, another member, or a service account (with a robot icon) |
+| **Access** | **All of the owner's access**, or the first scope, like `Developer on Storefront` (`+2` when there are more) |
+| **Last used** | When, and from which IP |
+| **Expires** | Time left, or **Never** |
+| **Status** | **Active**, **Expired** or **Revoked** |
+
+Admins see service accounts' keys too. Members see their own.
+
+## Create a key
+
+<Steps>
+<Step>
+### Start the wizard
+
+Select **Create API key**. The **New API key** wizard opens.
+
+![Step 1 of the New API key wizard: Name storefront-ci and Owner You](/screens/api-key-new.webp)
+</Step>
+<Step>
+### Name it and pick the owner
+
+In **Name**, describe what uses it, up to 32 characters, for example `storefront-ci` or `claude-code`.
+
+In **Owner**, keep **You**, or pick a service account. A key owned by a service account keeps CI working when people leave the team. Select **Continue**.
+</Step>
+<Step>
+### Choose the access
+
+Pick one:
+
+- **Everything the owner can do**: follows the owner's roles, now and as they change.
+- **Limit to scopes**: one or more rows of role plus scope. For each row, pick a role (for example **Developer**), then **Folder**, **Project**, **Environment**, **Service** or **Whole organization**, then the target. Select **Add scope** for more rows, up to 20.
+
+The box below lists the owner's access. A key never does more than its owner: an action is allowed only where both the owner and the key's scopes allow it. Select **Continue**.
+</Step>
+<Step>
+### Set the expiry
+
+Pick **30 days** (a trial or a short job), **90 days** (a sensible default for CI), **1 year** (long-lived automation) or **Never** (until you revoke it). Select **Continue**.
+</Step>
+<Step>
+### Review and create
+
+Check the summary and select **Create key**.
+</Step>
+<Step>
+### Copy the secret
+
+The **Key created** page shows the key and a ready-made Claude Code command with the key filled in. Copy the key into your secret store now, for example a GitHub Actions secret named `LOGISTACK_KEY`. Then select **Done**.
+</Step>
+</Steps>
+
+<Callout type="warn">
+The secret is shown once. LogiStack stores only its hash, so nobody can show it again. If you lose it, [rotate the key](#rotate-a-key).
+</Callout>
+
+### Example: a CI key for one project
+
+| Field | Value |
+| --- | --- |
+| Name | `storefront-ci` |
+| Owner | GitHub Actions (service account) |
+| Access | Limit to scopes: **Developer** on project **Storefront** |
+| Expiry | 90 days |
+
+The pipeline can deploy and edit Storefront, and nothing else, even if the service account later gets broader roles.
+
+## Use the key
+
+Send the key in the `Authorization` header as a bearer token, or in `x-api-key`. The API lives under `/api` on your instance URL.
+
+```bash title="List your projects"
+curl https://stack.example.com/api/projects \
+  -H "Authorization: Bearer lsk_Qm4..."
+```
+
+```bash title="The same with x-api-key"
+curl https://stack.example.com/api/projects \
+  -H "x-api-key: lsk_Qm4..."
+```
+
+```yaml title=".github/workflows/deploy.yml"
+- name: Deploy to LogiStack
+  run: |
+    curl -fsS -X POST "https://stack.example.com/api/services/svc_storefront_web/deploy" \
+      -H "Authorization: Bearer ${{ secrets.LOGISTACK_KEY }}"
+```
+
+The interactive API reference is at `https://<your-instance>/api/docs`, and the OpenAPI document at `/api/openapi.json`. See [REST API](../automation/rest-api.mdx) for endpoints and request bodies.
+
+### Connect an AI agent
+
+The **MCP server** panel shows the **Endpoint** (`https://<your-instance>/mcp`) and a Claude Code command:
+
+```bash
+claude mcp add --transport http logistack https://stack.example.com/mcp \
+  --header "Authorization: Bearer lsk_..."
+```
+
+Every REST operation is a tool. Each call acts with the key's permissions and lands in the [audit log](./audit-log.mdx). Destructive tools (delete, stop, restore, rollback) only run with an explicit `confirm: true`. See [MCP server](../automation/mcp-server.mdx).
+
+## Rotate a key
+
+Rotate a key when its secret may have leaked, when someone who saw it leaves, or before it expires.
+
+1. In the key's row, select **⋯**, then **Rotate**.
+2. Read the dialog and select **Rotate key**.
+3. Copy the new secret from **New secret for storefront-ci** and select **Done**.
+
+The new secret keeps the same owner, access and lifetime. The old secret stops working at once, so update every place that uses it right away. You can't rotate a revoked key.
+
+## Revoke a key
+
+1. In the key's row, select **⋯**, then **Revoke**.
+2. Select **Revoke key**.
+
+Requests with this key fail from now on. The key stays in the list as **Revoked**, for the record.
+
+Keys also stop working when their owner is removed from the organization, or when their service account is deleted.
+
+## Troubleshooting
+
+- **401 Unauthorized.** The key is wrong, expired or revoked, or the header is malformed. A bearer token must start with `lsk_`.
+- **403 Forbidden.** The key's owner, or its scopes, don't allow that action on that resource. Check the **Access** column, then [roles and permissions](./roles-and-permissions.mdx).
+- **The key works for one project but not another.** It's limited to scopes. Create a key with the scopes you need.
+- **"Keep it to 32 characters."** Shorten the name.

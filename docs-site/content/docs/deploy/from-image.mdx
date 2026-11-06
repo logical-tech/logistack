@@ -1,0 +1,105 @@
+---
+title: Deploy a Docker image
+description: Run a published Docker image from Docker Hub, GHCR or any registry on LogiStack, with a domain, published ports, bind mounts and release commands.
+---
+
+An image service runs a container image that is already built, such as `nginx:1.29` or `ghcr.io/acme/api:1.4.2`. LogiStack pulls it at each deployment and rolls it out replica by replica; there is no build step. Use it for software you don't build yourself, or for images your own CI pushes to a registry.
+
+## Before you start
+
+- Pick a pinned tag or digest, such as `ghcr.io/acme/api:1.4.2` or `nginx@sha256:…`. A floating tag like `:latest` makes rollbacks unpredictable, because the same reference can point at a different image tomorrow.
+- For a private image, add its registry first and make it the default. LogiStack sends the default registry's credentials only when the image lives on that registry's host; other pulls are anonymous. See [Registries](./registries.mdx).
+
+## Create the service
+
+<Steps>
+<Step>
+
+### Start a new service
+
+Open the project and environment, select **New service**, choose **Docker image** and select **Continue**.
+
+![The New service wizard on its Choose a source step](/screens/service-new.webp)
+
+</Step>
+<Step>
+
+### Enter the image
+
+On **Configure**, fill in:
+
+- **Image**: the full reference, for example `ghcr.io/acme/web:2.4.1`. Images without a registry host come from Docker Hub (`nginx:1.29` is `docker.io/library/nginx:1.29`).
+- **Container port**: the port the image listens on. It defaults to `80`. The domain routes here.
+- **Service name** (optional): defaults to the image name, `web` for `ghcr.io/acme/web:2.4.1`.
+- **Resources**: the resource profile whose limits the service copies.
+
+</Step>
+<Step>
+
+### Set advanced options if you need them
+
+Open **Advanced** for traffic and host access that doesn't go through a domain:
+
+- **Published ports**: for TCP or UDP traffic outside the proxy, like a game or MQTT port. Each row has the **Container port**, the **Published** port and the **Protocol**. **Bind on** is **Its node** (the port opens only on the node running the replica) or **Every node** (the Swarm routing mesh).
+- **Bind mounts**: a **Host path** mounted at a **Container path**, optionally **Read-only**. Host paths bypass LogiStack's volumes: they aren't backed up or cleaned up, and the service is pinned to the node that holds them. Only admins can save bind mounts.
+- **Run as**: a numeric `uid` or `uid:gid`, such as `1000:1000`. Empty uses the image's user.
+- **Restart**: **Always**, **On failure** or **Never**. When Swarm starts a replica again after it exits.
+- **Add capabilities** and **Drop capabilities**: Linux kernel capabilities, such as `NET_BIND_SERVICE`. A safe pattern is to drop `ALL`, then add back only what the process needs.
+
+Open **Release commands** to run a one-off command on the new image before or after each rollout. See [Deployments](./deployments.mdx#release-commands).
+
+</Step>
+<Step>
+
+### Test the source
+
+On **Test the source**, LogiStack fetches the image manifest from the registry. If it fails, check the spelling, the tag, and the registry credentials.
+
+</Step>
+<Step>
+
+### Choose a domain
+
+Pick **Generated hostname**, **Custom hostname** (for example `status.example.com`) or **No public domain**. Keep **HTTPS** on for a Let's Encrypt certificate. See [Domains](../networking/domains.mdx).
+
+</Step>
+<Step>
+
+### Review and deploy
+
+Check the summary, including any published ports and bind mounts, and select **Create and deploy**.
+
+</Step>
+</Steps>
+
+## Example: a stateless web app
+
+```text title="New service values"
+Image:            ghcr.io/acme/web:2.4.1
+Container port:   3000
+Service name:     web
+Domain:           Custom hostname, shop.example.com, HTTPS on
+```
+
+Set the variables the app needs, such as `DATABASE_URL`, in the **Environment** tab, then select **Save and redeploy**. See [Environment variables](./environment-variables.mdx).
+
+## Example: a service with a published TCP port
+
+```text title="Advanced, Published ports"
+Container port   Published   Protocol   Bind on
+1883             1883        TCP        Its node
+```
+
+With **Its node**, clients reach the broker on the address of the node running the replica, and the source IP of each client is preserved.
+
+## Update the image
+
+To deploy a new version, open **Settings**, change **Image** under **Source and build** (for example from `ghcr.io/acme/web:2.4.1` to `ghcr.io/acme/web:2.5.0`), select **Save**, then select **Deploy**. The header shows **Review changes** with the image change before you deploy. See [Deployments](./deployments.mdx).
+
+To redeploy the same tag after your CI pushed a new image to it, select **Deploy**. Pinned tags are still the better practice.
+
+## Common problems
+
+- **The manifest test fails with "denied" or "unauthorized"**: the image is private and the default registry is not the image's registry, or its token lacks read access. Add the registry and make it the default.
+- **The deployment is Ready but the domain returns 502**: **Container port** doesn't match the port the process listens on. Fix it in **Settings** under **Command and ports**.
+- **A published port fails to schedule**: another service on that node already holds the port. Choose a different **Published** port.

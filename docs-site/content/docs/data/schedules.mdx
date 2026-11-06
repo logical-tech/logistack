@@ -1,0 +1,149 @@
+---
+title: Run scheduled jobs with cron
+description: Create schedules that run a shell script on a cron in a fresh container, inside a service or on a node, with a timezone, timeout, overlap rule and run history.
+---
+
+A schedule runs a shell script on a cron. It can run in a fresh container from any image, inside a running service with that service's environment, or on a node's host. Every run keeps its exit code, duration and output. Use schedules for maintenance (`VACUUM`, cache warm-up, pruning), reports, data syncs and any job your app needs on a clock. For database and volume backups, use a [backup policy](./backups.mdx) instead.
+
+![The Schedules page, listing schedules with their target, when they run and the last run's status](/screens/schedules.webp)
+
+## Create a schedule
+
+<Steps>
+<Step>
+
+### Start a new schedule
+
+In the sidebar, select **Schedules**, then **New schedule**.
+
+![The new schedule wizard, on the Name it step](/screens/schedule-new.webp)
+
+</Step>
+<Step>
+
+### Name it
+
+In **Name it**, enter a **Name**, such as `Nightly VACUUM ANALYZE`. It appears in run history and failure notifications. Pick a **Project**, or **None, the whole organization**. People with access to the project can see and run it; without a project, only organization members can. Select **Continue**.
+
+</Step>
+<Step>
+
+### Set when it runs
+
+In **When it runs**, use the **Simple** editor (**Minutes**, **Hourly**, **Daily**, **Weekly**, **Monthly**) or switch to **Cron** and type an expression. Pick the **Time zone**; runs follow that zone's clock, daylight saving included. The default is your browser's zone. **Next 5 runs** shows the upcoming fire times.
+
+</Step>
+<Step>
+
+### Choose where it runs
+
+In **Where it runs**, pick one:
+
+- **A fresh container**: pulled from an **Image**, such as `alpine:3.22` or `postgres:17`, started for this run and removed after. Nothing it writes survives. Pin a tag; the image needs `/bin/sh`.
+- **Inside a service**: runs in a running replica of the **Service** you pick, with its environment, network and volumes. With several replicas, one is picked per run.
+- **On a node's host** (**Admins only**): a root shell on the **Node**, outside every container. Use it only for jobs that need the host itself, such as rotating logs or pruning images.
+
+</Step>
+<Step>
+
+### Write the script
+
+In **Script**, write the commands. It runs with `/bin/sh`. Scripts can be up to 64 KiB, and output is kept up to 1 MiB per run. Inside a service, the service's environment variables, secrets included, are set.
+
+</Step>
+<Step>
+
+### Set limits and alerts
+
+In **Limits and alerts**:
+
+- **Timeout**: **Stop after** a number of minutes, from 1 to 1440 (default 60). A run still going then is stopped and marked failed.
+- **When a run is still going**: **Skip if still running** (default, safest for jobs that write), **Run in parallel**, or **Replace the running one** (the running job is cancelled).
+- **Notify on failure**: failed runs reach the notification channels whose rules include schedule failures.
+- **Enabled**: paused schedules keep their history and can still be run by hand.
+
+</Step>
+<Step>
+
+### Review and create
+
+Check the summary and select **Create schedule**. The schedule's page opens and a message shows the next run time.
+
+</Step>
+</Steps>
+
+## Script examples
+
+```sh title="Inside the postgres service: vacuum and reindex"
+#!/bin/sh
+set -eu
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'VACUUM (ANALYZE, VERBOSE) orders'
+psql "$DATABASE_URL" -c 'REINDEX TABLE CONCURRENTLY order_items'
+```
+
+```sh title="Inside the web service: run a Laravel command"
+#!/bin/sh
+set -eu
+php artisan queue:prune-failed --hours=72
+```
+
+```sh title="In a fresh curlimages/curl:8.11.1 container: ping a health check"
+#!/bin/sh
+set -eu
+curl -fsS --retry 3 https://hc.example.com/ping/5b2c1e7a
+```
+
+Start scripts with `set -eu`, so a failing command fails the run and an unset variable stops it.
+
+## Cron syntax
+
+An expression has five fields: minute, hour, day of month, month and day of week. Seconds and `@daily`-style shortcuts aren't accepted.
+
+```text
+┌───────── minute (0-59)
+│ ┌─────── hour (0-23)
+│ │ ┌───── day of month (1-31)
+│ │ │ ┌─── month (1-12)
+│ │ │ │ ┌─ day of week (0-6, Sunday = 0)
+│ │ │ │ │
+15 2 * * *
+```
+
+| Expression | Runs |
+| --- | --- |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 * * * *` | Every hour, on the hour |
+| `15 2 * * *` | Every day at 02:15 |
+| `30 9 * * 1-5` | Weekdays at 09:30 |
+| `0 3 * * 0` | Sundays at 03:00 |
+| `0 6 1 * *` | The 1st of every month at 06:00 |
+| `0 0,12 * * *` | Every day at 00:00 and 12:00 |
+
+Times are in the schedule's time zone. With `Europe/Rome`, `15 2 * * *` runs at 02:15 Rome time all year.
+
+## Follow a schedule
+
+Select a schedule to open its page.
+
+![A schedule's page, with the latest run's exit code, duration and output, and the run history below](/screens/schedule-detail.webp)
+
+- The header shows where it runs, the schedule in words and the next run.
+- The run panel shows the latest run's **Trigger** (**Schedule** or **By hand**), **Exit code**, **Duration**, **Output** size, and the full output. A running job streams its output live.
+- **History** lists runs with **Started**, **Status**, **Trigger**, **Exit**, **Duration** and **Output**. Select a run's start time to show its output.
+
+Run statuses are **Running**, **Succeeded**, **Failed**, **Skipped** (a tick arrived while the previous run was still going) and **Cancelled** (replaced by a newer run).
+
+## Run, edit, pause or delete
+
+- **Run now** starts a run right away, even when the schedule is paused. If a run is still going and the rule is **Skip if still running**, the new run is recorded as skipped.
+- **Edit** opens the same wizard with the current values. Select **Save changes** at the end.
+- The **Enabled** switch pauses and resumes the schedule. On the **Schedules** page, each row has the same switch and a run button.
+- The trash icon deletes the schedule. Its run history and output are deleted too. Nothing it changed is undone.
+
+## Troubleshooting
+
+- **Fix the cron expression**: use exactly five fields, such as `0 3 * * *`.
+- A run fails after exactly the timeout: the job took longer than **Stop after**. Raise the timeout or split the job.
+- Runs show **Skipped**: the previous run was still going. Shorten the job, space the schedule out, or pick **Run in parallel**.
+- `not found` errors in a fresh container: the image lacks the tool. Use an image that has it, such as `postgres:17` for `psql`.
+- **On a node's host** is missing: only organization admins can run jobs on a host.

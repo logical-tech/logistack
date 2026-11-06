@@ -1,0 +1,144 @@
+---
+title: Build for amd64 and arm64
+description: Choose which CPU architectures LogiStack builds images for, build multi-architecture images for mixed amd64 and arm64 swarms, and set up QEMU emulation.
+---
+
+Build platforms decide which processor architectures your images are built for: `amd64` (Intel and AMD servers) or `arm64` (ARM servers such as Graviton, Ampere or Apple silicon). A service only runs on servers of the architectures its image was built for. You need this page when your swarm mixes both kinds of server, or when BuildKit runs on a different architecture from the servers that run your apps.
+
+## How a build picks its architectures
+
+- **Automatic**: a service builds for every architecture in the swarm. This is the default.
+- **Both at once**: a Dockerfile built for amd64 and arm64 becomes one image, a manifest list, that every server pulls its own half of. BuildKit pushes it straight to the registry, so it needs one.
+- **Placement**: a service only runs on servers of the architectures its image was built for. A single-architecture image never lands on the other kind.
+- **Emulation**: BuildKit builds a foreign architecture through QEMU, several times slower than on its own CPU. Nothing is set up without you asking.
+
+Railpack builds one architecture per image. On a mixed swarm, **Automatic** with Railpack builds BuildKit's own architecture.
+
+## Check what BuildKit can build
+
+<Steps>
+<Step>
+
+### Open Builds
+
+Select **Builds** under **Settings** in the sidebar.
+
+![The Builds settings page: amd64 is Native and arm64 Can't build, both in this swarm, with a Set up emulation button](/screens/settings-builds.webp)
+
+</Step>
+<Step>
+
+### Read the Architectures table
+
+Each row shows an architecture, whether it has **Servers in this swarm** (**In this swarm** or **No servers**), and whether **BuildKit** can build it: **Native**, through emulation, or **Can't build**.
+
+</Step>
+<Step>
+
+### Refresh it
+
+Select **Check BuildKit** to ask BuildKit for its platforms again. BuildKit also reports them the first time it builds.
+
+</Step>
+</Steps>
+
+## Set up cross-architecture builds
+
+If an architecture in your swarm shows **Can't build**, set up QEMU emulation. You need to be an admin.
+
+<Steps>
+<Step>
+
+### Start the setup
+
+On **Builds**, select **Set up emulation**.
+
+![The Set up cross-architecture builds wizard on its Check BuildKit step](/screens/settings-emulation.webp)
+
+</Step>
+<Step>
+
+### Check BuildKit
+
+On **Check BuildKit**, select **Check BuildKit**. It lists the platforms BuildKit can build and what is missing, for example "BuildKit can't build arm64 yet". If nothing is missing, there is nothing to set up. Select **Continue**.
+
+</Step>
+<Step>
+
+### Review what runs
+
+**Review what runs** lists exactly what the setup does:
+
+- **Runs**: `tonistiigi/binfmt`, once, as a Swarm job.
+- **Where**: the server BuildKit runs on.
+- **Access**: `CAP_SYS_ADMIN` with the default seccomp and AppArmor profiles off, to mount `binfmt_misc`. Never a privileged container.
+- **Registers**: QEMU for the missing architectures, in that server's kernel.
+- **Then**: BuildKit restarts to pick the emulators up.
+- **Lasts**: until that server reboots. Run the setup again after a reboot.
+
+<Callout type="warn">
+Builds running when BuildKit restarts fail. Pick a quiet moment, or deploy them again afterwards.
+</Callout>
+
+</Step>
+<Step>
+
+### Run it
+
+On **Set up emulation**, select **Run setup**. The worker runs the job, restarts BuildKit and checks it again. When it finishes, select **Done**. You see "Cross-architecture builds are on".
+
+</Step>
+<Step>
+
+### Rebuild
+
+Deploy each service again to build it for its new architectures.
+
+</Step>
+</Steps>
+
+## Choose a service's architectures
+
+<Steps>
+<Step>
+
+### Open the service settings
+
+Open the service, select **Settings**, and find **Architectures** under **Source and build**.
+
+</Step>
+<Step>
+
+### Pick the architectures
+
+- **Automatic (amd64 and arm64)**: every architecture in the swarm.
+- **amd64 only** or **arm64 only**: one architecture. The service runs only on those servers.
+- **amd64 and arm64**: one image for both kinds of server. Dockerfile builds only; needs a registry.
+
+If BuildKit can't build a chosen architecture, the field says so and links to **Set up emulation**.
+
+</Step>
+<Step>
+
+### Save and deploy
+
+Select **Save**, then **Deploy**.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+The deployment log names the targets:
+
+```text
+==> building registry.example.com/acme/web:dep_8k2p1q for linux/amd64, linux/arm64 (dockerfile)
+==> registry.example.com/acme/web:dep_8k2p1q was pushed by BuildKit as a manifest list
+```
+
+## Common problems
+
+- **`BuildKit cannot build linux/arm64: set up cross-architecture emulation in Settings > Builds, or build for linux/amd64 only`**: run the emulation setup, or pick one architecture.
+- **`a multi-platform build pushes a manifest list: configure a registry first`**: add a registry. See [Registries](./registries.mdx).
+- **Builds fail after a server reboot**: emulation lasts until the BuildKit server reboots. Run **Set up emulation** again.
+- **Emulated builds are slow**: expected, QEMU is several times slower than native. Build only for the architectures your servers run.

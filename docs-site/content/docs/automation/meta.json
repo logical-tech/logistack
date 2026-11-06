@@ -1,0 +1,12 @@
+{
+	"title": "Automate",
+	"icon": "Bot",
+	"pages": [
+		"index",
+		"rest-api",
+		"mcp-server",
+		"project-manifests",
+		"git-webhooks",
+		"ai-agents"
+	]
+}

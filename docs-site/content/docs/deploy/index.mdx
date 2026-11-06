@@ -1,0 +1,76 @@
+---
+title: Deploy services
+description: The kinds of service LogiStack runs, from Git repositories and Docker images to databases, Compose stacks, templates and game servers.
+---
+
+A service is one thing LogiStack runs inside an environment: an app built from Git, a published Docker image, a managed database, a Compose stack, an object storage server, a game server or a web server. This section explains each source, how a deployment rolls out, and the settings you change afterwards. Read it when you add something new to a project or need to change how an existing service builds and runs.
+
+## How services are organized
+
+Every service lives in an environment, and every environment lives in a project. A new project starts with a **Production** environment. Services in the same environment share a private network and reach each other by service name, so an app reaches a database called `postgres` at `postgres:5432`.
+
+LogiStack stores the desired state of each service in Postgres. A worker converges Docker Swarm and the Caddy proxy to that state, so every operation is safe to repeat.
+
+## Add a service
+
+<Steps>
+<Step>
+
+### Open the project
+
+Select **Projects** in the sidebar, then open your project. Pick the environment from the environment list.
+
+![The Storefront project page with its Production environment and the New service button](/screens/project.webp)
+
+</Step>
+<Step>
+
+### Start the wizard
+
+Select **New service**. The **Choose a source** step lists every kind of service.
+
+![The New service wizard on its Choose a source step, listing Git repository, Docker image, Database, Docker Compose, Object storage, Game server, Web server and Templates](/screens/service-new.webp)
+
+</Step>
+<Step>
+
+### Pick a source and follow the steps
+
+Choose a source and select **Continue**. Each source has its own steps, described in the pages below. The last step is always **Review**: nothing is created until you select **Create and deploy**.
+
+</Step>
+</Steps>
+
+## Sources
+
+| Source in the wizard | What it creates | Page |
+|---|---|---|
+| **Git repository** | An application built on every push with a Dockerfile or Railpack | [Deploy from Git](./from-git.mdx) |
+| **Docker image** | An application that runs a published image | [Deploy a Docker image](./from-image.mdx) |
+| **Database** | PostgreSQL, MySQL, MariaDB, MongoDB, Redis or libSQL with generated credentials | [Databases](./databases.mdx) |
+| **Docker Compose** | A stack: one service per compose service, deployed together | [Compose stacks](./compose-stacks.mdx) |
+| **Object storage** | An S3-compatible server with buckets and scoped keys | [Object storage](../data/object-storage.mdx) |
+| **Game server** | Minecraft, Counter-Strike 2, TeamSpeak 3 or Mumble | [Game servers](./game-servers.mdx) |
+| **Web server** | Nginx, Caddy, Apache or an HAProxy load balancer, with its config editable from the **Files** tab | [Volumes and files](../data/volumes-and-files.mdx) |
+| **Templates** | Over 500 ready-made apps with their databases and secrets | [Templates](./templates.mdx) |
+
+<Cards>
+  <Card title="Deploy from Git" href="/deploy/from-git/" description="Connect GitHub, GitLab, Gitea, Bitbucket or any SSH host and deploy on push." />
+  <Card title="Deploy a Docker image" href="/deploy/from-image/" description="Run nginx, ghcr.io/acme/api:1.4.2 or any image from a registry." />
+  <Card title="Build types" href="/deploy/build-types/" description="Dockerfile and Railpack builds on BuildKit, with examples." />
+  <Card title="Templates" href="/deploy/templates/" description="Deploy n8n, Plausible and 500 other apps in one step." />
+  <Card title="Compose stacks" href="/deploy/compose-stacks/" description="Paste a docker-compose.yml or follow one in a repository." />
+  <Card title="Databases" href="/deploy/databases/" description="Managed databases with generated credentials and backups." />
+  <Card title="Game servers" href="/deploy/game-servers/" description="Minecraft, CS2, TeamSpeak 3 and Mumble with a console and DNS records." />
+  <Card title="Deployments" href="/deploy/deployments/" description="Live logs, rolling updates, cancel, rollback and Review changes." />
+</Cards>
+
+## After the first deployment
+
+Each service page has tabs for its day-to-day work. The ones in this section:
+
+- **Deployments**: history and live build logs. See [Deployments](./deployments.mdx).
+- **Environment**: variables and secrets. See [Environment variables](./environment-variables.mdx).
+- **Settings**: source, build, resources, healthcheck, ports and placement. See [Service settings](./service-settings.mdx).
+
+For the organization-wide build setup, see [Build platforms](./build-platforms.mdx) and [Registries](./registries.mdx). To give every pull request its own copy of a project, see [Preview environments](./preview-environments.mdx).

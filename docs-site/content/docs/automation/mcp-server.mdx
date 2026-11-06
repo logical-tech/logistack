@@ -1,0 +1,198 @@
+---
+title: MCP server
+description: Connect Claude Code, Claude Desktop, Cursor or VS Code to LogiStack's built-in MCP server and let an AI agent deploy, inspect and manage services.
+---
+
+LogiStack ships a Model Context Protocol (MCP) server at `/mcp` on your dashboard's URL. It lets an AI agent such as Claude Code work with your projects: list services, read deployments, change variables, deploy and roll back. Use it when you want to operate LogiStack in plain language from your editor or terminal. Nothing to install: the server is part of the API and is always on.
+
+## How it works
+
+- **Endpoint.** `https://logistack.example.com/mcp`, over Streamable HTTP. It is stateless and answers in JSON.
+- **Authentication.** An API key in the `Authorization: Bearer lsk_...` header. The `x-api-key` header and browser sessions are not accepted here, so a logged-in browser cannot drive the API through `/mcp`.
+- **Tools mirror the REST API.** Every [REST](./rest-api.mdx) operation is one tool, with the same inputs: path parameters, query parameters and a `body` object. First-run setup routes are left out.
+- **Same permissions, same audit trail.** Each tool call is replayed against the API with the key, so the key's role and scopes apply exactly as they do over REST, and every change shows in the [audit log](../team/audit-log.mdx) with the key as the actor.
+- **Destructive tools need `confirm: true`.** Every `DELETE`, and every operation that stops, restores or rolls back something, has a required `confirm` argument. Without it the call is refused with a message telling the agent to ask you first. The server's instructions also tell the agent to ask before setting it.
+
+Tool names come from the operation: an audited action such as `service.create` becomes `service_create`, and a read becomes its method and path, such as `get_projects` or `get_deployments_by_id`.
+
+| Task | Tool | REST route |
+| --- | --- | --- |
+| List projects | `get_projects` | `GET /api/projects` |
+| Create a service | `service_create` | `POST /api/environments/{id}/services` |
+| Trigger a deploy | `deployment_create` | `POST /api/services/{id}/deploy` |
+| Read a deployment | `get_deployments_by_id` | `GET /api/deployments/{id}` |
+| Roll back (destructive) | `deployment_rollback` | `POST /api/deployments/{id}/rollback` |
+| Stop a service (destructive) | `service_stop` | `POST /api/services/{id}/stop` |
+| Delete a service (destructive) | `service_delete` | `DELETE /api/services/{id}` |
+| Apply a manifest | `project_apply`, `environment_apply` | `POST /api/projects/{id}/apply` |
+
+Ask your client to list the tools to see all of them.
+
+## Create a key for the agent
+
+<Steps>
+<Step>
+### Open the API keys page
+
+Go to **Settings > API keys**. The **MCP server** panel at the bottom shows your endpoint and a ready-made Claude Code command.
+
+![The API keys page with the MCP server panel showing the endpoint and the Claude Code command](/screens/settings-api-keys.webp)
+</Step>
+<Step>
+### Create the key
+
+Select **Create API key**. In **Name and owner**, name it after the agent and machine, such as `claude-laptop`. In **Access**, choose **Limit to scopes** and grant the smallest role that does the job: `viewer` for an agent that only reads, `developer` on one project for an agent that deploys it. Pick an **Expiry**, then select **Create key**.
+
+![The New API key wizard on the Access step, with a developer scope on one project](/screens/api-key-new.webp)
+</Step>
+<Step>
+### Copy the key
+
+The next screen shows the key once, with the Claude Code command already filled in. Copy it now.
+</Step>
+</Steps>
+
+<Callout type="warn">
+  The agent can do anything the key allows. Give an agent its own key with narrow scopes and an expiry, never an owner's unscoped key. Revoke it from **Settings > API keys** when you stop using it.
+</Callout>
+
+## Connect your client
+
+Replace `logistack.example.com` with your dashboard's host and `lsk_...` with the key.
+
+<Tabs items={["Claude Code", "Claude Desktop", "Cursor", "VS Code"]}>
+  <Tab value="Claude Code">
+    Run this in a terminal. It is the same command the dashboard shows after you create a key:
+
+    ```sh
+    claude mcp add --transport http logistack https://logistack.example.com/mcp \
+      --header "Authorization: Bearer lsk_..."
+    ```
+
+    Add `--scope project` to save it in the repository's `.mcp.json` for your team. Do not commit a real key: keep the header value in an environment variable, as below, and have each person export their own.
+
+    ```json title=".mcp.json"
+    {
+      "mcpServers": {
+        "logistack": {
+          "type": "http",
+          "url": "https://logistack.example.com/mcp",
+          "headers": { "Authorization": "Bearer ${LOGISTACK_API_KEY}" }
+        }
+      }
+    }
+    ```
+
+    Check the connection with `claude mcp list`, or `/mcp` inside a session.
+  </Tab>
+  <Tab value="Claude Desktop">
+    Claude Desktop starts local MCP servers from its configuration file. Bridge to the remote endpoint with `mcp-remote`, which needs Node.js. Open **Settings > Developer > Edit Config** and add:
+
+    ```json title="claude_desktop_config.json"
+    {
+      "mcpServers": {
+        "logistack": {
+          "command": "npx",
+          "args": [
+            "-y", "mcp-remote",
+            "https://logistack.example.com/mcp",
+            "--header", "Authorization:${LOGISTACK_AUTH}"
+          ],
+          "env": { "LOGISTACK_AUTH": "Bearer lsk_..." }
+        }
+      }
+    }
+    ```
+
+    The header is passed through `env` because some platforms split arguments on spaces. Restart Claude Desktop. LogiStack's tools appear under the tools menu in a new chat.
+  </Tab>
+  <Tab value="Cursor">
+    Add the server to `~/.cursor/mcp.json` for every project, or `.cursor/mcp.json` for one:
+
+    ```json title="~/.cursor/mcp.json"
+    {
+      "mcpServers": {
+        "logistack": {
+          "url": "https://logistack.example.com/mcp",
+          "headers": { "Authorization": "Bearer lsk_..." }
+        }
+      }
+    }
+    ```
+
+    Open **Cursor Settings > MCP** and check that `logistack` shows a green dot and its tools.
+  </Tab>
+  <Tab value="VS Code">
+    Add `.vscode/mcp.json` to the workspace. The `inputs` entry makes VS Code prompt for the key once and store it, so it never lands in the file:
+
+    ```json title=".vscode/mcp.json"
+    {
+      "inputs": [
+        {
+          "type": "promptString",
+          "id": "logistack-key",
+          "description": "LogiStack API key (lsk_...)",
+          "password": true
+        }
+      ],
+      "servers": {
+        "logistack": {
+          "type": "http",
+          "url": "https://logistack.example.com/mcp",
+          "headers": { "Authorization": "Bearer ${input:logistack-key}" }
+        }
+      }
+    }
+    ```
+
+    Select **Start** above the server entry, then use the tools from Copilot Chat in agent mode.
+  </Tab>
+</Tabs>
+
+Any other client that supports Streamable HTTP with custom headers works the same way.
+
+## Check it worked
+
+Ask the agent a read-only question:
+
+```txt
+Using LogiStack, list my projects and the status of each service.
+```
+
+The agent calls `get_projects` and answers with your project names and service statuses. If it replies that it has no such tool, the client did not load the server: check the URL ends in `/mcp` and the header starts with `Bearer lsk_`.
+
+## Example prompts
+
+```txt
+Show the last five deployments of the API service in storefront production, with their status and commit.
+```
+
+```txt
+The checkout service in staging is unhealthy. Read its overview and its latest failed deployment, and tell me why.
+```
+
+```txt
+Add a Postgres 17 database called orders-db to storefront staging.
+```
+
+```txt
+Set LOG_LEVEL=debug on the API service in staging, then deploy it and wait until it is healthy.
+```
+
+```txt
+Export the storefront project as a YAML manifest, add a Redis service to staging, and apply it as a dry run first. Show me the plan before applying.
+```
+
+```txt
+Roll the API service in production back to the deployment before the current one.
+```
+
+For the last one, the agent finds the deployment, calls `deployment_rollback` without `confirm`, gets refused, and asks you. It runs the rollback only after you agree.
+
+## Common problems
+
+- **`401 send an API key as Authorization: Bearer lsk_...`.** The client sent no header, used `x-api-key`, or dropped the `Bearer ` prefix.
+- **`401 invalid, revoked or expired API key`.** Create a new key and update the client configuration.
+- **A tool returns `403 forbidden`.** The key's role or scopes do not cover that resource. Widen the key's scopes, or ask the agent to work in a scope it has.
+- **The agent tries a destructive tool again and again.** It is missing `confirm: true`. Tell it you approve, and it calls the tool again with the flag.
+- **The client cannot reach the server.** `/mcp` is served on the dashboard's URL. Before setup is complete, or when the dashboard is only reachable through an SSH tunnel, use the tunnel address, such as `http://localhost:3000/mcp`.

@@ -1,0 +1,162 @@
+---
+title: Add an S3 destination for backups
+description: Connect an S3-compatible bucket such as AWS S3, Cloudflare R2, Backblaze B2, Hetzner, MinIO or Wasabi, and test the connection before backup policies use it.
+---
+
+An S3 destination is a bucket that backup policies write to. It holds the endpoint, bucket, region, an optional prefix and a key pair. Any S3-compatible store works. Add one before you create your first [backup policy](./backups.mdx), and prefer a bucket at another provider or region than your server, so a lost server doesn't take its backups with it.
+
+![The S3 destinations page, listing an R2, a Hetzner, a B2 and a MinIO destination with their bucket, prefix and how many policies use them](/screens/s3.webp)
+
+## Before you start
+
+- Create the bucket at your provider. LogiStack doesn't create it for you.
+- Create a key pair that reaches only this bucket, with permission to put, get, delete and list objects.
+- Only organization admins can add destinations.
+
+## Add a destination
+
+<Steps>
+<Step>
+
+### Open S3 destinations
+
+In the sidebar, under **Integrations**, select **S3 destinations**, then **Add destination**.
+
+</Step>
+<Step>
+
+### Pick the provider
+
+In **Where should backups go?**, pick **Amazon S3**, **Cloudflare R2**, **Backblaze B2**, **Hetzner Object Storage**, **MinIO**, **Wasabi** or **S3-compatible**. The preset fills in the endpoint, region and addressing. Select **Continue**.
+
+![The Add an S3 destination wizard, on the provider step](/screens/s3-new.webp)
+
+</Step>
+<Step>
+
+### Describe the bucket
+
+In **Bucket**, fill in:
+
+- **Endpoint**: the full URL, starting with `https://`.
+- **Bucket**: 3 to 63 lowercase letters, digits, dots and dashes, such as `acme-backups`.
+- **Region**: the bucket's region, or `us-east-1` when the store doesn't care.
+- **Prefix** (optional, default `logistack`): a folder inside the bucket, so one bucket can serve several LogiStack instances.
+- **Path-style addressing**: puts the bucket in the path (`host/bucket/key`) instead of the hostname. MinIO and most self-hosted stores need it.
+
+</Step>
+<Step>
+
+### Paste the keys
+
+In **Access keys**, paste the **Access key ID** and the **Secret access key**. The secret is encrypted at rest and never shown again. The step explains where to create keys for the provider you picked.
+
+</Step>
+<Step>
+
+### Test the bucket
+
+In **Test the bucket**, select **Run test**. LogiStack writes a small probe object under `<bucket>/<prefix>/.logistack-probe-…`, reads it back and deletes it. A pass means the keys can put, get and delete: the three things backups, restores and retention do. Nothing is saved until the test passes.
+
+</Step>
+<Step>
+
+### Name and save
+
+In **Name and review**, keep the suggested **Name** (such as `Cloudflare R2 · acme-backups`) or type your own. It's what you pick when setting up a backup policy. Check the summary and select **Add destination**.
+
+</Step>
+</Steps>
+
+## Provider examples
+
+<Tabs items={["AWS S3", "Cloudflare R2", "Backblaze B2", "MinIO"]}>
+<Tab value="AWS S3">
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://s3.eu-central-1.amazonaws.com` |
+| Bucket | `acme-backups` |
+| Region | `eu-central-1` |
+| Path-style addressing | Off |
+
+Create the keys in IAM: open a user meant only for backups, then **Security credentials** > **Create access key**. Give it a policy limited to the bucket:
+
+```json title="backup-user-policy.json"
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::acme-backups/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::acme-backups"
+    }
+  ]
+}
+```
+
+</Tab>
+<Tab value="Cloudflare R2">
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://<account-id>.r2.cloudflarestorage.com` |
+| Bucket | `acme-backups` |
+| Region | `auto` |
+| Path-style addressing | Off |
+
+Your account ID is on the R2 overview page, next to the S3 API endpoint. In R2, open **Manage API tokens** > **Create API token** with **Object Read & Write**, scoped to this bucket. Copy the **Access Key ID** and **Secret Access Key**; Cloudflare shows the secret once. R2 has no egress fees, which keeps restores cheap.
+
+</Tab>
+<Tab value="Backblaze B2">
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://s3.eu-central-003.backblazeb2.com` |
+| Bucket | `acme-backups` |
+| Region | `eu-central-003` |
+| Path-style addressing | Off |
+
+The endpoint is shown as **Endpoint** on the bucket's page; the region is its middle part. Under **Application Keys** > **Add a New Application Key**, allow **Read and Write** on this bucket only. The **keyID** is the access key and the **applicationKey** is the secret.
+
+</Tab>
+<Tab value="MinIO">
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://minio.example.com` |
+| Bucket | `acme-backups` |
+| Region | `us-east-1` |
+| Path-style addressing | On |
+
+Use the API address (port 9000 by default), not the console. The region is `us-east-1` unless `MINIO_REGION` is set. In the MinIO Console, open **Access Keys** > **Create access key**, with a policy that allows put, get and delete on this bucket.
+
+</Tab>
+</Tabs>
+
+For Hetzner, use `https://fsn1.your-objectstorage.com` (or `nbg1`, `hel1`) with the matching region. For Wasabi, use the service URL of the bucket's region, such as `https://s3.eu-central-1.wasabisys.com`; Wasabi bills deleted objects for 90 days. **S3-compatible** covers Ceph, Garage, SeaweedFS and any store that signs requests with Signature V4.
+
+<Callout>
+An [object storage service](./object-storage.mdx) on LogiStack can become a destination in one step with **Use for backups**. Keep an off-site destination too: backups on the same server don't survive losing it.
+</Callout>
+
+## Check it worked
+
+The destination shows under **Destinations** with its provider, endpoint host, bucket and prefix, region, and **Not used yet**. Once a policy writes to it, the row shows **Used by 1 policy**. Select **Run now** on a policy and check that a file appears in the bucket under the prefix.
+
+## Remove a destination
+
+Select the trash icon on its row, then **Remove destination**. LogiStack forgets the credentials; backups already in the bucket stay there. A destination still used by a policy can't be removed: move those policies to another destination or delete them first.
+
+## Troubleshooting
+
+- **Use the full URL, starting with https://**: paste the endpoint with its scheme.
+- **Fill in your account ID**: replace `<account-id>` in the R2 endpoint.
+- The test fails with access denied: the key lacks put, get or delete on the bucket, or is scoped to another bucket.
+- The test fails with a DNS or bucket-not-found error on a self-hosted store: turn on **Path-style addressing**.
+- The test fails with a signature error: check the **Region**.

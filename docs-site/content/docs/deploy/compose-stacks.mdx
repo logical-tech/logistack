@@ -1,0 +1,187 @@
+---
+title: Deploy a Docker Compose stack
+description: Paste a docker-compose.yml or follow one in a Git repository, and LogiStack deploys every compose service as one stack with domains, volumes and logs.
+---
+
+A stack is a group of services created from one Docker Compose file. Each compose service becomes a LogiStack service that you can scale, give a domain and inspect on its own, while the stack lets you deploy, restart and edit them together. Use a stack when an app already ships a `docker-compose.yml`, or when you want several containers to move as one unit.
+
+## Two ways to create a stack
+
+- **Paste a file**: you paste the compose file once. Edit it later from the stack's **Compose** tab.
+- **From a repository**: LogiStack reads the file from a branch of a connected repository. Every push re-syncs the stack and rebuilds services that use `build:`. This option appears when you have a GitHub, GitLab, Gitea or Bitbucket provider; an **Any Git host over SSH** provider can't serve a compose file.
+
+## Create a stack
+
+<Steps>
+<Step>
+
+### Start a new service
+
+Open the project and environment, select **New service**, choose **Docker Compose** and select **Continue**.
+
+</Step>
+<Step>
+
+### Provide the compose file
+
+On **Configure**, under **Compose file**, choose **Paste a file** or **From a repository**.
+
+- **Paste a file**: paste the YAML into **Compose file**. It needs a top-level `services:` key.
+- **From a repository**: pick the **Git provider**, the **Repository** and the **Branch**, and enter the **Compose file path** from the repository root, such as `docker-compose.yml` or `deploy/compose.yaml`.
+
+Optionally set a **Service name** for the stack. It defaults to `stack`.
+
+</Step>
+<Step>
+
+### Test the source
+
+For a repository, **Test the source** checks that LogiStack can read the branch. A pasted file skips this step.
+
+</Step>
+<Step>
+
+### Review and deploy
+
+Check the summary and select **Create and deploy**. If the file has parts LogiStack can't run, the error lists every one of them, so you can fix them all at once.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+The stack page opens with the toast "`<name>` is deploying" and the number of containers that start in dependency order.
+
+![The plausible stack's Overview tab, listing the clickhouse, plausible and plausible-db containers with status, CPU, memory and where each is reached](/screens/stack.webp)
+
+The **Overview** tab lists each **Container** with its **Status**, **CPU**, **Memory**, where it is **Reached at** (a domain, an internal `name:port`, or **Internal only**) and when it was **Deployed**. Below are **CPU by container**, **Memory by container** and **Recent deployments**.
+
+The **Logs** tab follows the output of **All containers** or one **Container**, over a time window you pick in **Since**.
+
+![The plausible stack's Logs tab, with output from all three containers interleaved](/screens/stack-logs.webp)
+
+## A real compose example
+
+This file runs Plausible Analytics with its PostgreSQL and ClickHouse databases:
+
+```yaml title="docker-compose.yml"
+services:
+  plausible:
+    image: ghcr.io/plausible/community-edition:v3.1
+    ports: ["8000"]
+    environment:
+      BASE_URL: https://stats.example.com
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-change-me}
+      DATABASE_URL: postgres://postgres:postgres@plausible-db:5432/plausible
+      CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible
+    depends_on: [plausible-db, clickhouse]
+  plausible-db:
+    image: postgres:16.4
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes: ["db-data:/var/lib/postgresql/data"]
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8-alpine
+    volumes: ["event-data:/var/lib/clickhouse"]
+volumes:
+  db-data: {}
+  event-data: {}
+```
+
+What LogiStack does with it:
+
+- `plausible`, `plausible-db` and `clickhouse` become three services. They reach each other by those names, so `plausible-db:5432` and `clickhouse:8123` work unchanged.
+- `postgres:16.4` is an official database image with a pinned tag, so `plausible-db` becomes a managed database with backups and the database editor.
+- `depends_on` sets the start order.
+- `db-data` and `event-data` become named volumes.
+- `${SECRET_KEY_BASE:-change-me}` takes its default. Replace it by setting `SECRET_KEY_BASE` on the `plausible` service.
+
+After it runs, open the `plausible` container and add `stats.example.com` in its **Domains** tab, pointing at port `8000`. See [Domains](../networking/domains.mdx).
+
+## What is converted
+
+| Compose | In LogiStack |
+|---|---|
+| `services.<name>` | One service named after it (lowercased), reachable by that name on the environment network |
+| `image` | The image, which must not be built from a variable |
+| Official `postgres`, `mysql`, `mariadb`, `mongo` images with a pinned tag | A managed database |
+| `build` | A Dockerfile build from the stack's repository (stacks from a repository only) |
+| `environment`, `${VAR:-default}` | Service variables; a default is taken, any other unset variable is empty |
+| `ports`, `expose` | Container ports; a published port binds on the node (`host` mode) unless it says `mode: ingress` |
+| `volumes` (named, or a relative path) | A named volume; a relative bind like `./data` becomes a volume named after its path |
+| `depends_on` | Start order |
+| `command`, `entrypoint`, `healthcheck`, `user`, `cap_add`, `cap_drop`, `restart` | The matching service settings |
+| `mem_limit`, `cpus`, `deploy.resources` | Resource limits |
+
+Keys that don't change behavior, such as `container_name`, `hostname`, `labels`, `logging`, `networks` and `x-*` extensions, are accepted and ignored.
+
+## Limits
+
+LogiStack refuses the file, and lists every reason, when it contains:
+
+- `build:` in a pasted file. Builds need a repository: create the stack **From a repository** instead.
+- A host path bind mount such as `/srv/data:/data` or `~/data:/data`.
+- `privileged: true` or `network_mode`. Swarm services can't run privileged.
+- `security_opt` other than `no-new-privileges`, or `links` with an alias.
+- `env_file`.
+- Ports with a host IP or a range, such as `127.0.0.1:8080:80` or `3000-3005:3000-3005`.
+- `tmpfs` volumes.
+- A volume shared by two services.
+- A non-numeric `user`, such as `node`. Use `1000:1000`.
+- Top-level keys other than `services`, `volumes`, `networks`, `version`, `name` and `x-*`, for example `configs` or `secrets`.
+- Two service names that collide once lowercased.
+
+Domains are not read from the compose file. Add them per container once the stack runs.
+
+## Edit the compose file
+
+<Steps>
+<Step>
+
+### Open the Compose tab
+
+Open the stack and select **Compose**. **Compose file** shows the file last applied; **Effective** shows what LogiStack runs now, written as compose from each container's settings, with secrets shown as `<secret>` unless you can read secrets.
+
+![The Compose tab of the plausible stack, showing the compose file with an Edit button](/screens/stack-compose.webp)
+
+</Step>
+<Step>
+
+### Edit and review
+
+Select **Edit**, change the file, then select **Review changes**. The **Review compose changes** dialog lists each container as **New**, **Changed** or **Removed**.
+
+</Step>
+<Step>
+
+### Apply
+
+Select **Apply and deploy**, or **Keep editing**. Services are matched by compose service name: new ones are created, removed ones deleted (their volumes are kept), and changed ones updated and redeployed. Settings you changed on a service since the last apply survive, because only what the file itself changed is written.
+
+</Step>
+</Steps>
+
+For a stack from a repository, push to the branch, or select **Sync now** on the **Compose** tab to read the file at the head of the branch, review the changes and apply them.
+
+<Callout type="info">
+A pasted compose file can hold credentials, so the **Compose file** view shows only to members who can read secrets. The **Effective** view masks them.
+</Callout>
+
+## Stack actions
+
+The stack header has **Stop all**, **Restart all** and **Deploy all**.
+
+- **Stop all**: every container scales to zero and its domains leave the proxy. Data, volumes and configuration stay.
+- **Restart all**: each container's replicas are replaced on their current image, one at a time. No build runs.
+- **More actions** › **Delete stack…**: removes its containers, their domains, variables and deployments. Type the stack name to confirm.
+
+<Callout type="warn">
+Deleting a stack cannot be undone.
+</Callout>
+
+## Common problems
+
+- **"A compose file needs a top-level services: key"**: the pasted text isn't a compose file, or it's indented under another key.
+- **`<service>.volumes host path /srv/app`**: replace the host path with a named volume, like `app-data:/srv/app`.
+- **The app can't reach its database**: use the compose service name as the host (`plausible-db`), not `localhost`.
+- **A variable is empty**: `${VAR}` without a default is empty until you set `VAR` on that service's **Environment** tab.

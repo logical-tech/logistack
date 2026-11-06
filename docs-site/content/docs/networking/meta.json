@@ -1,0 +1,14 @@
+{
+	"title": "Domains and networking",
+	"icon": "Globe",
+	"pages": [
+		"index",
+		"domains",
+		"https-certificates",
+		"wildcard-dns",
+		"dns-providers",
+		"cloudflare-tunnels",
+		"access-control",
+		"network-map"
+	]
+}

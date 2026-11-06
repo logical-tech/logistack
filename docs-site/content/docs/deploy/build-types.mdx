@@ -1,0 +1,167 @@
+---
+title: Build types for Git services
+description: How LogiStack builds Git services with BuildKit using a Dockerfile or Railpack, with build variables, secrets, multi-stage targets and example Dockerfiles.
+---
+
+A Git service needs a build type: how LogiStack turns the checked-out repository into an image. Every build runs on BuildKit, which LogiStack runs as a rootless system service. Pick **Dockerfile** when your repository has one or you want full control, and **Railpack** when you want LogiStack to detect the language and build it for you.
+
+## Choose a build type
+
+You choose it in the **Build with** field when you create the service, and change it later under **Settings** › **Source and build** › **Builder**.
+
+| In the wizard | In Settings | What it does |
+|---|---|---|
+| **Dockerfile** | **Dockerfile** | Builds your Dockerfile with BuildKit. |
+| **Railpack (no Dockerfile needed)** | **Railpack (detect)** | Detects the language and framework, and builds an image without a Dockerfile. |
+| **Static site** | **Static site** | Meant to serve a folder of built files. See the note below. |
+
+<Callout type="warn">
+The build pipeline does not run **Static site** builds yet: a deployment with this builder fails with `build type static is not supported yet`. Until it ships, build static sites with a small Dockerfile, as in the [static site example](#static-site-with-caddy).
+</Callout>
+
+## How a build runs
+
+1. **Cloning**: the worker checks out the exact commit the trigger named, in the **Root directory** you set.
+2. **Building**: BuildKit builds the image for the target architectures. The log streams to the **Deployments** tab.
+3. **Pushing**: the image is pushed to the default registry as `<registry>/<org>/<service>:<deploymentId>`. Tags are immutable and never `:latest`, so a rollback runs exactly the image it names.
+
+On a single-node server with no registry, the image is loaded straight into the local Docker engine. A swarm with more than one node needs a registry, because every node must pull the image. See [Registries](./registries.mdx).
+
+## Dockerfile
+
+<Steps>
+<Step>
+
+### Choose Dockerfile
+
+Under **Settings** › **Source and build**, set **Builder** to **Dockerfile**.
+
+![The Source and build section of a service's settings, with the Dockerfile builder, the Dockerfile and Build context fields](/screens/service-settings.webp)
+
+</Step>
+<Step>
+
+### Point at the file
+
+- **Dockerfile**: the path of the file, relative to the **Root directory**. Default `Dockerfile`.
+- **Build context**: the folder sent to BuildKit, relative to the **Root directory**. Default `.`.
+- **Target stage** (optional): the stage of a multi-stage Dockerfile to build, such as `runtime`.
+
+</Step>
+<Step>
+
+### Save and deploy
+
+Select **Save**, then **Deploy**. Source and build settings apply from the next deployment.
+
+</Step>
+</Steps>
+
+### Example: Node.js app
+
+```dockerfile title="Dockerfile"
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
+
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN corepack enable && pnpm build
+
+FROM node:22-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/.output ./.output
+EXPOSE 3000
+CMD ["node", ".output/server/index.mjs"]
+```
+
+Set **Container port** to `3000` and, if you want to stop before an extra test stage, **Target stage** to `runtime`.
+
+### Example: Go API
+
+```dockerfile title="Dockerfile"
+FROM golang:1.23 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/api ./cmd/api
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=build /out/api /api
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/api"]
+```
+
+### Static site with Caddy
+
+```dockerfile title="Dockerfile"
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY . .
+RUN npm ci && npm run build
+
+FROM caddy:2.10-alpine
+COPY --from=build /app/dist /usr/share/caddy
+EXPOSE 80
+```
+
+Set **Container port** to `80`. Caddy serves `/usr/share/caddy` by default.
+
+### Monorepo
+
+For a repository like this, set **Root directory** to `/` and **Dockerfile** to `apps/web/Dockerfile`, so the build context includes the shared packages:
+
+```text
+/
+├── apps/web/Dockerfile
+├── apps/api/Dockerfile
+└── packages/ui/
+```
+
+Or set **Root directory** to `/apps/web` when the app needs nothing outside its folder. Add **Watch paths** so only relevant pushes build. See [Deploy from Git](./from-git.mdx#set-the-root-directory-and-watch-paths).
+
+## Railpack
+
+Railpack inspects the repository, detects its language and framework, and writes a build plan that BuildKit then builds. No Dockerfile is needed.
+
+1. Under **Settings** › **Source and build**, set **Builder** to **Railpack (detect)**.
+2. Set **Container port** to the port your app listens on. If your app reads its port from `PORT`, set a `PORT` variable to the same value.
+3. Select **Save**, then **Deploy**.
+
+Railpack builds one architecture per image. On a swarm with both amd64 and arm64 servers, **Automatic** builds BuildKit's own architecture. See [Build platforms](./build-platforms.mdx).
+
+## Build-time variables and secrets
+
+A variable reaches the build only when its **Build** box is checked in the **Environment** tab.
+
+- A **non-secret** build variable is passed as a build argument. Declare it with `ARG` in the Dockerfile.
+- A **secret** build variable is passed as a BuildKit secret, never as an argument, so it doesn't end up in the image history. Mount it in the step that needs it.
+
+```dockerfile title="Dockerfile"
+ARG NEXT_PUBLIC_SHOP_NAME
+RUN --mount=type=secret,id=NPM_TOKEN,env=NPM_TOKEN \
+    pnpm install --frozen-lockfile
+RUN NEXT_PUBLIC_SHOP_NAME="$NEXT_PUBLIC_SHOP_NAME" pnpm build
+```
+
+The `LOGISTACK_*` deployment variables, like `LOGISTACK_COMMIT_SHA`, are also build arguments. BuildKit only hands an argument to a Dockerfile that declares it:
+
+```dockerfile
+ARG LOGISTACK_COMMIT_SHA
+RUN echo "$LOGISTACK_COMMIT_SHA" > /app/REVISION
+```
+
+See [Environment variables](./environment-variables.mdx).
+
+## Common problems
+
+- **`a multi-node swarm needs a registry: configure one before building`**: add a registry under **Integrations** › **Registries**.
+- **`BuildKit cannot build linux/arm64`**: the service targets an architecture BuildKit can't build. Set up emulation, or build for one architecture. See [Build platforms](./build-platforms.mdx).
+- **A build argument is empty**: the variable's **Build** box is not checked, or the Dockerfile has no `ARG` for it.
+- **`COPY` can't find a file**: the **Build context** doesn't include it. Widen the context or move the **Root directory** up.

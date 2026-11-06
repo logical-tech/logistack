@@ -1,0 +1,207 @@
+---
+title: Deploy an app from Git
+description: Connect a GitHub, GitLab, Gitea, Bitbucket or SSH Git repository to LogiStack, build it on every push and control deploys with watch paths and triggers.
+---
+
+A Git service builds your repository into an image and deploys it. LogiStack clones the branch you choose, builds it with a Dockerfile or Railpack, pushes the image to your registry and rolls it out with zero downtime. Use it for any app whose source you control. Private repositories need a connected Git provider; public ones work over HTTPS without credentials.
+
+## Connect a Git provider
+
+A Git provider gives LogiStack read access to your repositories and registers the push webhooks that trigger deployments. You can connect more than one.
+
+| Provider in the wizard | How it authenticates | Webhooks |
+|---|---|---|
+| **GitHub** (Recommended) | A GitHub App you create and own | Push and pull request webhooks set up by the app |
+| **GitLab** | gitlab.com or self-hosted, with a personal or group access token | Registered on each repository you deploy |
+| **Gitea or Forgejo** | Your own instance, with an access token | Registered on each repository you deploy |
+| **Bitbucket** | A Bitbucket Cloud workspace, with a workspace or repository access token | Registered on each repository you deploy |
+| **Any Git host over SSH** | One repository, read with a deploy key | None: deploy from CI or by hand |
+
+<Steps>
+<Step>
+
+### Open Git providers
+
+Select **Git providers** under **Integrations** in the sidebar, then select **Connect provider**.
+
+![The Connect a Git provider wizard on its Choose a provider step, with GitHub marked Recommended](/screens/git-new.webp)
+
+</Step>
+<Step>
+
+### Choose a provider
+
+Pick the provider and select **Continue**. The next steps depend on your choice.
+
+</Step>
+</Steps>
+
+<Tabs items={["GitHub", "GitLab", "Gitea or Forgejo", "Bitbucket", "SSH"]}>
+<Tab value="GitHub">
+
+GitHub connects through a GitHub App, not a token. LogiStack creates the app for you with the GitHub manifest flow, so you never copy keys by hand.
+
+1. On **Name the app**, enter an **App name** of up to 34 characters, such as `logistack-acme`. The name is public and unique across GitHub.
+2. Under **Owner**, choose **Personal account** or **Organization**. For an organization, enter its **Organization login** as it appears in `github.com/<login>`, for example `acme-retail`. You need to be an owner of that organization.
+3. On **Create it on GitHub**, check the permissions and select **Create on GitHub**. GitHub asks you to confirm. The app requests read access to code and metadata, read and write on **Pull requests** (to comment preview URLs) and **Commit statuses** (to report build and deploy results), and subscribes to `push` and `pull_request` events.
+4. On **Install it**, select **Install on GitHub**, pick the account and the repositories LogiStack may deploy, and confirm. GitHub sends you back. If it doesn't, select **I've installed it**.
+5. On **Test the connection**, LogiStack signs in as the app and lists what it can see.
+6. Select **Done**. You pick repositories when you create a service.
+
+</Tab>
+<Tab value="GitLab">
+
+1. Create a **personal** or **group** access token with the **api** scope. LogiStack needs `api` to register push webhooks; `read_api` can list repositories but not create webhooks. OAuth applications aren't supported.
+2. On **Credentials**, enter the instance URL (for example `https://gitlab.com` or `https://git.example.com`) and paste the **Access token**.
+3. On **Test the connection**, wait for the test to pass. Nothing is saved until it does.
+4. On **Name it**, keep the suggested name or type your own. It's how the connection appears when you pick a source.
+5. On **Review**, select **Connect provider**.
+
+</Tab>
+<Tab value="Gitea or Forgejo">
+
+1. In your Gitea or Forgejo instance, under **Settings › Applications**, generate a token with **repository: read and write** (write registers webhooks) and **user: read**.
+2. On **Credentials**, enter the **Instance URL**, such as `https://git.example.com`, and paste the **Access token**.
+3. On **Test the connection**, wait for the test to pass.
+4. On **Name it**, confirm the name, then select **Connect provider** on **Review**.
+
+</Tab>
+<Tab value="Bitbucket">
+
+1. Create a **workspace** or **repository** access token with **Repositories: Read** and **Webhooks: Read and write**. The wizard links to `https://bitbucket.org/<workspace>/workspace/settings/access-tokens`.
+2. On **Credentials**, enter the **Workspace** slug from `bitbucket.org/<workspace>`, for example `acme-retail`, and paste the **Access token**.
+3. On **Test the connection**, wait for the test to pass.
+4. On **Name it**, confirm the name, then select **Connect provider** on **Review**.
+
+</Tab>
+<Tab value="SSH">
+
+Use this for any Git server that speaks SSH: a self-hosted Gerrit, a bare repository on a VPS, or a host LogiStack has no API for. It reads one repository with a deploy key and registers no webhooks.
+
+1. Under **Deploy key**, choose an existing key or select **Generate a new key** and give it a **New key name** such as `ops-deploy`. LogiStack keeps the private key encrypted and never shows it.
+2. Copy the public key with **Copy public key** and add it as a read-only deploy key on the repository.
+3. Enter the **Repository URL**, SSH only: `git@git.example.com:acme/web.git` or `ssh://git@git.example.com:2222/acme/web.git`.
+4. Paste the host's key into **known_hosts**. Get it with:
+
+   ```bash
+   ssh-keyscan -t ed25519 git.example.com
+   ```
+
+   Without it, LogiStack accepts whatever key the host presents.
+5. On **Test the connection**, wait for the test to pass, then select **Connect provider**.
+
+To deploy on push, call the deploy webhook from your CI. See [Git webhooks](../automation/git-webhooks.mdx).
+
+</Tab>
+</Tabs>
+
+![The Git providers list](/screens/git.webp)
+
+## Create a service from a repository
+
+<Steps>
+<Step>
+
+### Start a new service
+
+Open the project and environment, select **New service**, choose **Git repository** and select **Continue**.
+
+</Step>
+<Step>
+
+### Choose the repository
+
+On **Configure**:
+
+- **Git provider**: the connection to read from. Choose **Public repository over HTTPS** for a public repository; no credentials are used.
+- **Repository**: with a provider, search and pick it from the list (private ones show a lock). For a public repository, type an HTTPS URL such as `github.com/acme/storefront`. SSH URLs need a connected **Any Git host over SSH** provider.
+- **Branch**: picking a repository fills in its default branch. With a provider, choose from the list; for an SSH host, type it.
+
+</Step>
+<Step>
+
+### Set the root directory and watch paths
+
+- **Root directory**: the folder that holds the app, starting with `/`. Keep `/` for a single-app repository. In a monorepo, enter the app's folder, such as `/apps/web`.
+- **Watch paths** (optional): globs or directories, one per line. A push builds only when it touches one of them. Leave empty to build on every push. Up to 50 paths of up to 200 characters each.
+
+```text title="Watch paths for a monorepo web app"
+apps/web/**
+packages/ui
+pnpm-lock.yaml
+```
+
+</Step>
+<Step>
+
+### Choose how to build
+
+- **Build with**: **Dockerfile**, **Railpack (no Dockerfile needed)** or **Static site**. See [Build types](./build-types.mdx).
+- **Container port**: the port your app listens on inside the container, for example `3000`. The proxy routes the domain to it.
+- **Service name** (optional): defaults to the repository name, like `storefront`. Letters, numbers, spaces and dashes, up to 40 characters.
+- **Resources**: a resource profile whose CPU and memory limits are copied to the service. Change them later in [Service settings](./service-settings.mdx).
+
+Open **Release commands** to run a migration before each rollout. See [Deployments](./deployments.mdx#release-commands).
+
+</Step>
+<Step>
+
+### Test the source
+
+On **Test the source**, LogiStack reads `<repository>@<branch>` with the provider, or over HTTPS without credentials for a public repository. Fix the repository or branch if the test fails.
+
+</Step>
+<Step>
+
+### Choose a domain
+
+On **Domain**, pick one:
+
+- **Generated hostname**: a name like `storefront-a1b2c3.203-0-113-10.sslip.io`, ready at once.
+- **Custom hostname**: your own, like `shop.example.com`. Point a CNAME or A record at the server.
+- **No public domain**: reachable only from other services on the internal network.
+
+Keep **HTTPS** on to get a Let's Encrypt certificate and redirect HTTP to HTTPS. See [Domains](../networking/domains.mdx).
+
+</Step>
+<Step>
+
+### Review and deploy
+
+Check the summary and select **Create and deploy**. LogiStack creates the service, saves the watch paths, registers the push webhook on the repository and starts the first deployment. The **Deployments** tab opens with the live log.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+- The **Deployments** tab shows the deployment move through **Cloning**, **Building**, **Pushing** and **Deploying** to **Ready**.
+- The service header shows **Running** with the replica count and the source, like `github.com/acme-retail/storefront@main`.
+- Push a commit to the branch. A new deployment with the trigger **Push** appears within seconds.
+
+## Deploy triggers
+
+Open **Settings** on the service and find **Deploy triggers** to choose which Git events deploy it.
+
+- **Deploy on**:
+  - **Pushes to `<branch>`**: every push to the source branch, narrowed by **Watch paths**.
+  - **Tags matching a pattern**: tag pushes whose name matches **Tag pattern**, a glob such as `v*.*.*`. `*` matches any tag.
+  - **Published releases**: releases whose tag matches the pattern. Bitbucket has no releases.
+- **Wait for CI checks to pass**: holds the deployment as **Waiting for checks** until the commit's checks pass. **Give up after** sets the limit in minutes, from 1 to 720 (default 30). A failed or unfinished check skips the deployment.
+
+Select **Save triggers** to apply.
+
+A commit whose message contains `[skip ci]`, `[ci skip]` or `[skip deploy]` never deploys. Held-back events appear in **Deployments** as **Skipped**, with the reason.
+
+```text title="Example: deploy only release tags after CI passes"
+Deploy on:            Tags matching a pattern
+Tag pattern:          v*.*.*
+Wait for CI checks:   on, give up after 30 minutes
+```
+
+## Common problems
+
+- **"Add the push webhook by hand"** after creating the service: LogiStack could not register the webhook (often a token without webhook permission). Copy the webhook URL from **Git providers** into the repository's webhook settings, or reconnect the provider with the right scope.
+- **The test fails for a private repository**: you chose **Public repository over HTTPS**. Pick the connected provider instead, and for GitHub make sure the app is installed on that repository.
+- **A push does nothing**: check **Watch paths** (the push may not touch them), the commit message for `[skip ci]`, and **Deploy on** in **Deploy triggers**.
+- **Every push deploys a monorepo app**: add **Watch paths** for the app and the packages it uses.

@@ -1,0 +1,248 @@
+---
+title: Single sign-on with OIDC and SAML
+description: Connect Okta, Microsoft Entra ID, Google Workspace or Keycloak to LogiStack over OIDC or SAML, test the sign-in, and let your email domain join automatically.
+---
+
+Single sign-on (SSO) lets people sign in to LogiStack with your company's identity provider (IdP) instead of a LogiStack password. You connect the provider once, over OpenID Connect (OIDC) or SAML 2.0, and tie it to your email domain. Anyone at that domain who signs in through it joins the organization with the role you choose. Set it up when your team already lives in Okta, Microsoft Entra ID, Google Workspace, Keycloak or a similar provider.
+
+You need the **Owner** or **Admin** role.
+
+## OIDC or SAML?
+
+Prefer **OIDC** when your provider supports it. The wizard discovers the endpoints from one URL and tests a real sign-in before saving. Use **SAML** when your provider or your security team requires it, for example ADFS, or an Entra ID tenant that only allows SAML apps.
+
+| | OIDC | SAML |
+| --- | --- | --- |
+| You give LogiStack | Issuer URL, client ID, client secret | Metadata URL or metadata XML |
+| You give the IdP | Redirect URI | ACS URL and Entity ID |
+| Built-in sign-in test | Yes | No |
+
+## Open Authentication
+
+In the sidebar, under **Settings**, select **Authentication**. The page holds the [two-factor requirement](./two-factor-and-passkeys.mdx#require-two-factor-for-the-whole-organization) and the list of **Identity providers**.
+
+![The Authentication page with the Require two-factor authentication switch, and one OIDC identity provider, https://logical.okta.com, where @logical.it joins as Developer](/screens/settings-authentication.webp)
+
+## Add an OIDC provider
+
+<Steps>
+<Step>
+### Start the wizard
+
+Select **Add OIDC provider**. The **Add an OIDC provider** wizard opens on the **Identity provider** step.
+
+![Step 1 of the Add an OIDC provider wizard, with an empty Issuer URL field and a Discover button](/screens/settings-oidc.webp)
+</Step>
+<Step>
+### Enter the issuer URL
+
+In **Issuer URL**, paste your provider's issuer. It must start with `https://`. See [provider examples](#oidc-provider-examples) for the exact value.
+</Step>
+<Step>
+### Discover the endpoints
+
+Select **Discover**. The LogiStack server fetches `/.well-known/openid-configuration` from the issuer. On success it shows "Found logical.okta.com" and lists the **Authorization**, **Token**, **User info** and **Keys (JWKS)** endpoints and the supported **Scopes**. LogiStack asks for `openid`, `email` and `profile`.
+
+Select **Continue**.
+</Step>
+<Step>
+### Register LogiStack at your provider
+
+The **Client credentials** step shows the **Redirect URI**. Copy it with the copy button and create a web application at your provider with that redirect URI.
+</Step>
+<Step>
+### Paste the client credentials
+
+Paste the application's **Client ID** and **Client secret**. The secret is saved on the server and never shown again. Select **Continue**.
+</Step>
+<Step>
+### Choose who joins automatically
+
+On **Who joins automatically**:
+
+- **Email domain**: your company domain without the `@`, for example `logical.it`. It's pre-filled from your own email. When someone types an address at this domain on the sign-in page, LogiStack picks this provider.
+- **Joins as**: the role new people get, for example **Developer** or **Viewer**. **Owner** isn't offered: an identity provider shouldn't hand out ownership.
+
+Existing members keep their role. Select **Continue**.
+</Step>
+<Step>
+### Test the sign-in
+
+On **Test sign-in**, select **Test sign-in**. LogiStack saves the provider, then opens your provider in a new window. Sign in there with an account at your domain. The window reports the result back and closes itself.
+
+<Callout type="info">
+The test signs this browser in as the account you used at the provider. Afterwards you may need to sign back in as yourself.
+</Callout>
+
+No test account at hand? Select **Skip the test**. A wrong secret or redirect URI then only shows when someone first signs in.
+</Step>
+<Step>
+### Review and finish
+
+The **Review** step summarizes the issuer, client ID, email domain, role and test result. Select **Finish**.
+</Step>
+</Steps>
+
+LogiStack confirms with "logical.okta.com connected" and lists the provider under **Identity providers**, for example `https://logical.okta.com` · `OIDC · client …9fA2` · `@logical.it joins as Developer`.
+
+### OIDC provider examples
+
+<Tabs items={["Okta", "Microsoft Entra ID", "Google Workspace", "Keycloak"]}>
+<Tab value="Okta">
+
+1. In the Okta Admin Console, go to **Applications › Applications › Create App Integration**.
+2. Choose **OIDC - OpenID Connect** and **Web Application**.
+3. Set **Sign-in redirect URIs** to the LogiStack **Redirect URI**.
+4. Assign the people or groups who may use LogiStack.
+5. Copy the **Client ID** and **Client secret** into the wizard.
+
+**Issuer URL**: `https://your-org.okta.com`
+
+</Tab>
+<Tab value="Microsoft Entra ID">
+
+1. In the Entra admin center, go to **App registrations › New registration**.
+2. Under **Redirect URI**, choose **Web** and paste the LogiStack **Redirect URI**.
+3. Copy the **Application (client) ID** and the **Directory (tenant) ID**.
+4. Under **Certificates & secrets**, create a client secret and copy its **Value**.
+
+**Issuer URL**: `https://login.microsoftonline.com/<tenant-id>/v2.0`, for example `https://login.microsoftonline.com/3f2a9c1e-7b4d-4e8a-9f10-2c6d8e5b7a41/v2.0`.
+
+</Tab>
+<Tab value="Google Workspace">
+
+1. In the Google Cloud console, configure the OAuth consent screen as **Internal**, so only your Workspace users can sign in.
+2. Go to **APIs & Services › Credentials › Create credentials › OAuth client ID**.
+3. Choose **Web application** and add the LogiStack **Redirect URI** under **Authorized redirect URIs**.
+4. Copy the **Client ID** and **Client secret**.
+
+**Issuer URL**: `https://accounts.google.com`
+
+</Tab>
+<Tab value="Keycloak">
+
+1. In your realm, go to **Clients › Create client**, with **Client type** OpenID Connect.
+2. Turn on **Client authentication**.
+3. Set **Valid redirect URIs** to the LogiStack **Redirect URI**.
+4. Copy the secret from the client's **Credentials** tab.
+
+**Issuer URL**: `https://<keycloak-host>/realms/<realm>`, for example `https://sso.logical.it/realms/logical`.
+
+</Tab>
+</Tabs>
+
+## Add a SAML provider
+
+<Steps>
+<Step>
+### Start the wizard
+
+On **Settings › Authentication**, select **Add SAML provider**. The **Add a SAML provider** wizard opens on **Register LogiStack at your IdP**.
+
+![Step 1 of the Add a SAML provider wizard, showing the ACS URL and Entity ID to copy into the identity provider](/screens/settings-saml.webp)
+</Step>
+<Step>
+### Register LogiStack at your provider
+
+Create a SAML application at your provider with the two values shown:
+
+- **ACS URL**, also called Reply URL or Single sign-on URL. It looks like `https://stack.example.com/api/auth/sso/saml2/sp/acs/saml-bdef3c15`.
+- **Entity ID**, also called Audience URI or Identifier.
+
+Have the provider send the user's email address as the NameID, or as an attribute named `email`. Then select **Continue**.
+</Step>
+<Step>
+### Give LogiStack the provider's metadata
+
+On **Identity provider metadata**, pick a **Metadata source**:
+
+- **Metadata URL**: LogiStack fetches it from the server. Paste the `https://` URL, for example `https://idp.company.com/saml/metadata`.
+- **Paste XML**: for a downloaded metadata file. Paste the whole document, starting with `<md:EntityDescriptor`. Files over 100 KB aren't accepted.
+
+Select **Continue**.
+</Step>
+<Step>
+### Choose who joins automatically
+
+Enter the **Email domain** (for example `logical.it`) and the **Joins as** role, the same as for OIDC. Select **Continue**.
+</Step>
+<Step>
+### Review and save
+
+Check the summary and select **Save provider**. LogiStack checks the metadata and its signing certificate as it saves.
+</Step>
+</Steps>
+
+The SAML wizard has no built-in test. Check it right away by signing in from a private browser window (see [Sign in with SSO](#sign-in-with-sso)).
+
+### SAML provider examples
+
+<Tabs items={["Okta", "Microsoft Entra ID", "Google Workspace", "Keycloak"]}>
+<Tab value="Okta">
+
+1. **Applications › Create App Integration › SAML 2.0**.
+2. **Single sign-on URL**: the LogiStack **ACS URL**. **Audience URI (SP Entity ID)**: the **Entity ID**.
+3. **Name ID format**: EmailAddress. **Application username**: Email.
+4. On the app's **Sign On** tab, copy the metadata URL and choose **Metadata URL** in the wizard.
+
+</Tab>
+<Tab value="Microsoft Entra ID">
+
+1. **Enterprise applications › New application › Create your own application**, non-gallery.
+2. Open **Single sign-on** and pick **SAML**.
+3. In **Basic SAML Configuration**, set **Identifier (Entity ID)** to the LogiStack **Entity ID** and **Reply URL** to the **ACS URL**.
+4. Make sure the **Unique User Identifier** (NameID) is the user's email, for example `user.mail`.
+5. Copy the **App Federation Metadata Url** into the wizard.
+
+</Tab>
+<Tab value="Google Workspace">
+
+1. In the Admin console, go to **Apps › Web and mobile apps › Add app › Add custom SAML app**.
+2. Download the IdP metadata file. You'll paste it with **Paste XML**.
+3. Set **ACS URL** and **Entity ID** to the LogiStack values.
+4. **Name ID format**: EMAIL. **Name ID**: Basic Information › Primary email.
+5. Turn the app on for the organizational units that should use LogiStack.
+
+</Tab>
+<Tab value="Keycloak">
+
+1. **Clients › Create client** with **Client type** SAML. Use the LogiStack **Entity ID** as the **Client ID**.
+2. Set **Valid redirect URIs** to the **ACS URL**.
+3. Set **Name ID format** to email.
+4. Use the realm descriptor as **Metadata URL**: `https://<keycloak-host>/realms/<realm>/protocol/saml/descriptor`.
+
+</Tab>
+</Tabs>
+
+## Sign in with SSO
+
+While at least one provider exists, the sign-in page offers **Continue with SSO**.
+
+![The Sign in with SSO page asking for a work email](/screens/sign-in-sso.webp)
+
+1. On the sign-in page, select **Continue with SSO**.
+2. In **Work email**, type your address, for example `giulia@logical.it`, and select **Continue**. The domain picks the provider.
+3. Sign in at your identity provider. You come back to LogiStack signed in.
+
+The first time, someone at the domain joins the organization with the provider's **Joins as** role. People who were already members keep their role.
+
+## Remove a provider
+
+On **Settings › Authentication**, select the trash button on the provider's row and confirm.
+
+<Callout type="warn">
+Nobody can sign in through a deleted provider, and its linked sign-ins are removed. Members it brought in stay, with their roles. People who never set a LogiStack password can't sign in until you add a provider again.
+</Callout>
+
+## Combine SSO with two-factor
+
+If you [require two-factor authentication](./two-factor-and-passkeys.mdx#require-two-factor-for-the-whole-organization) and your provider already enforces MFA, turn on **Trust the identity provider's MFA**. Members who can only sign in through SSO then count as enrolled.
+
+## Troubleshooting
+
+- **"No discovery document there".** The issuer URL is wrong, or the server can't reach it. Open `<issuer>/.well-known/openid-configuration` in a browser to check. Leave out trailing paths such as `/oauth2/v1`.
+- **Discovery fails for a provider on your private network.** LogiStack refuses private addresses by default. See [Network safety](./appearance.mdx#network-safety) in **Settings › General**.
+- **The test window shows "Sign-in failed".** The provider returned an error, usually a redirect URI mismatch or a wrong client secret. Compare the redirect URI character for character, then select **Test sign-in** again.
+- **The test window says it reports a test sign-in back to LogiStack.** It was opened without the wizard. Close it and start the test from the wizard.
+- **SAML sign-in comes back without an email.** Configure the provider to send the email as the NameID or as an `email` attribute.
+- **"That doesn't look like SAML metadata (no EntityDescriptor)."** You pasted something else, such as the certificate alone. Paste the full metadata XML.
