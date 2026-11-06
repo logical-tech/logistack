@@ -83,6 +83,12 @@ export function Included() {
 					</li>
 				))}
 			</ul>
+			<a
+				href="/features/"
+				className="pressable mt-8 inline-flex h-12 items-center rounded-full bg-tile px-5 text-[15px] font-medium hover:bg-raised"
+			>
+				See every feature, page by page
+			</a>
 		</Section>
 	);
 }
