@@ -1,7 +1,8 @@
 /**
  * The one-shot updater task: `bun apps/worker/src/update-runner.ts <updateId>`, started by the
- * worker as a Swarm job (instance-update.ts). It replaces the stack's images in order and writes
- * every step to the run's row and to `instance-update:<id>` on /ws.
+ * worker as a Swarm job (instance-update.ts). It drains the job queues, migrates, replaces the
+ * stack's images in order, and writes every step to the run's row and to `instance-update:<id>`
+ * on /ws. It runs the code of the release being left, so a change here takes effect one update later.
  */
 import {
 	LIVE_CHANNEL,
@@ -10,20 +11,22 @@ import {
 	type UpdateSteps,
 	updateChannel,
 } from "@logistack/contracts";
-import { createDb, instanceUpdate } from "@logistack/db";
+import { createDb, instanceSettings, instanceUpdate } from "@logistack/db";
 import { createDockerClient } from "@logistack/docker";
-import { RedisClient } from "bun";
 import { eq, sql } from "drizzle-orm";
-import { log } from "./bus.ts";
+import { createBus, log } from "./bus.ts";
 import { loadConfig } from "./config.ts";
-import { stackTargets } from "./instance-update.ts";
+import { drain, resume } from "./drain.ts";
+import { migrate, notifyOutcome, stackTargets } from "./instance-update.ts";
+import { createQueues, redisConnection } from "./queues.ts";
 import { runUpdate, type UpdateReport } from "./update.ts";
 
 const id = process.argv[2] ?? "";
 const cfg = loadConfig();
 const db = createDb(cfg.DATABASE_URL, { max: 1, onnotice: () => {} });
-const redis = new RedisClient(cfg.REDIS_URL);
+const bus = await createBus(cfg.REDIS_URL);
 const docker = createDockerClient({ socketPath: cfg.DOCKER_SOCKET });
+const queues = createQueues(redisConnection(cfg.REDIS_URL));
 
 const [row] = await db
 	.select()
@@ -54,7 +57,7 @@ const push = (set: Partial<typeof row>, state: UpdateState, line?: string) => {
 				})
 				.where(eq(instanceUpdate.id, id));
 			const m: LiveMessage = { kind: "update", channel, state, steps, line };
-			await redis.publish(LIVE_CHANNEL, JSON.stringify(m));
+			await bus.redis.publish(LIVE_CHANNEL, JSON.stringify(m));
 		})
 		.catch((e) =>
 			log("warn", "update progress not written", { error: String(e) }),
@@ -74,15 +77,36 @@ const report: UpdateReport = {
 };
 
 const targets = stackTargets(cfg, row.toVersion);
-const result = await runUpdate(docker, targets, report, {
-	local: cfg.LS_UPDATE_REGISTRY === "localhost",
-	timeoutMs: cfg.LS_UPDATE_TIMEOUT_MS,
-	pollMs: 2_000,
-}).catch((e: unknown) => ({ ok: false as const, error: String(e) }));
+const result = await runUpdate(
+	docker,
+	targets,
+	report,
+	{
+		local: cfg.LS_UPDATE_REGISTRY === "localhost",
+		timeoutMs: cfg.LS_UPDATE_TIMEOUT_MS,
+		pollMs: 2_000,
+	},
+	{
+		drain: (r) =>
+			drain(queues, r, {
+				timeoutMs: cfg.LS_UPDATE_DRAIN_TIMEOUT_MS,
+				pollMs: 5_000,
+			}),
+		resume: () => resume(queues),
+		migrate: (image, r) => migrate({ cfg }, docker, id, image, r),
+	},
+).catch((e: unknown) => ({ ok: false as const, error: String(e) }));
 
 await (result.ok
 	? push({ state: "succeeded" }, "succeeded", `Updated to ${row.toVersion}`)
 	: push({ state: "failed", error: result.error }, "failed", result.error));
+const [settings] = await db
+	.select({ url: instanceSettings.publicUrl })
+	.from(instanceSettings);
+await notifyOutcome(db, bus, row, result, settings?.url ?? null).catch((e) =>
+	log("warn", "update outcome not notified", { error: String(e) }),
+);
+await Promise.all(Object.values(queues).map((q) => q.close()));
+bus.close();
 await db.$client.end();
-redis.close();
 process.exit(result.ok ? 0 : 1);
