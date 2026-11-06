@@ -88,6 +88,7 @@ const environment = (
 	kind,
 	isDefault,
 	color: null,
+	preview: null,
 	createdAt: ago(60 * 24 * 90),
 	updatedAt: ago(60 * 24 * 90),
 });

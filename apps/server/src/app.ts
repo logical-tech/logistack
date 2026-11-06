@@ -40,6 +40,7 @@ import { networkMapRoutes } from "./routes/network-map.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
+import { previews } from "./routes/previews.ts";
 import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
 import { s3Destinations } from "./routes/s3-destinations.ts";
@@ -140,6 +141,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", services)
 		.route("/api", stacks)
 		.route("/api", manifests)
+		.route("/api", previews)
 		.route("/api", envVars)
 		.route("/api", domains)
 		.route("/api", domainAccess)

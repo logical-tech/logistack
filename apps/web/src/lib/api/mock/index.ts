@@ -220,6 +220,7 @@ export const mockAdapter: ApiAdapter = {
 				kind: "production",
 				isDefault: true,
 				color: null,
+				preview: null,
 				createdAt: at,
 				updatedAt: at,
 			});
@@ -266,6 +267,7 @@ export const mockAdapter: ApiAdapter = {
 				kind,
 				isDefault: false,
 				color: color ?? null,
+				preview: null,
 				createdAt: at,
 				updatedAt: at,
 			};
