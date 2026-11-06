@@ -32,6 +32,7 @@ import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
+import { expirePreviews } from "./previews.ts";
 import { listenForSyncRequests, syncProxy } from "./proxy.ts";
 import { switchProxy } from "./proxy-switch.ts";
 import {
@@ -165,6 +166,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "update-check") await checkForUpdate(ctx);
 				else if (job.name === "cleanup") await runCleanup(ctx);
 				else if (job.name === "checks") await pollChecks(ctx);
+				else if (job.name === "previews") await expirePreviews(ctx);
 				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
 				else await sweepOrphans(ctx);
@@ -230,6 +232,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			"certificates-every",
 			{ every: 15 * 60_000 },
 			{ name: "certificates" },
+		);
+		await ctx.queues.maintenance.upsertJobScheduler(
+			"previews-every",
+			{ every: 15 * 60_000 },
+			{ name: "previews" },
 		);
 		await ctx.queues.maintenance.upsertJobScheduler(
 			"retention-every",

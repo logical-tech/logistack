@@ -11,6 +11,7 @@ import {
 import {
 	DockerError,
 	type Filters,
+	LABEL_DISPOSABLE,
 	LABEL_KIND,
 	LABEL_RESOURCE,
 	managedFilters,
@@ -302,7 +303,8 @@ type Orphan = { key: string; remove: () => Promise<unknown>; data: boolean };
 
 /**
  * Managed objects with no DB row, removed once orphaned for longer than the grace period.
- * Volumes hold user data: they are reported, never removed automatically.
+ * Volumes hold user data: they are reported, never removed automatically, except a preview's
+ * disposable ones.
  */
 export async function sweepOrphans(
 	ctx: Ctx,
@@ -400,8 +402,9 @@ export async function sweepOrphans(
 				if (!liveMounts.has(id) && !liveVolServices.has(id))
 					orphans.push({
 						key: `volume:${v.Name}`,
-						remove: async () => {},
-						data: true,
+						remove: () => ctx.docker.volumes.remove(v.Name),
+						// shortcut: lists this node's volumes only; a preview volume on another node stays until removed by hand.
+						data: v.Labels?.[LABEL_DISPOSABLE] !== "true",
 					});
 
 		const seenKey = `ls:orphans:${ctx.cfg.LS_NAME_PREFIX || "prod"}`;

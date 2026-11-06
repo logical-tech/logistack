@@ -48,6 +48,8 @@ export type ServiceContext = {
 	mounts: CompileMount[];
 	/** Docker volumes another platform created, by owner id; see `adopted_volume`. */
 	adoptedVolumes: Record<string, string>;
+	/** Runs in a pull request preview. */
+	disposable: boolean;
 	domains: DomainRow[];
 	registry: { host: string; flat: boolean; auth?: RegistryAuth } | null;
 	/** How the clone authenticates; absent for public https repositories. */
@@ -136,6 +138,7 @@ export async function loadService(
 			organizationId: project.organizationId,
 			project,
 			environmentName: environment.name,
+			preview: environment.preview,
 		})
 		.from(service)
 		.innerJoin(environment, eq(environment.id, service.environmentId))
@@ -262,6 +265,7 @@ export async function loadService(
 		env,
 		mounts,
 		adoptedVolumes,
+		disposable: row.preview !== null,
 		domains,
 		registry: host
 			? {
@@ -346,6 +350,7 @@ export function compileInput(
 		context: deploymentContext(sc, deployment),
 		mounts: sc.mounts,
 		adoptedVolumes: sc.adoptedVolumes,
+		...(sc.disposable && { disposable: true }),
 		domains: sc.domains,
 		...refs,
 		fileIds: {},

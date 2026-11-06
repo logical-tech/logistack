@@ -13,6 +13,7 @@ import type {
 import {
 	type ConfigReference,
 	type Healthcheck,
+	LABEL_DISPOSABLE,
 	type Labels,
 	type ManagedKind,
 	type Mount,
@@ -59,6 +60,8 @@ export type CompileServiceInput = {
 	mounts: CompileMount[];
 	/** Volumes another platform created, by owner id (volume mount id, or service id for a data dir); mounted as they are. */
 	adoptedVolumes?: Record<string, string>;
+	/** A preview service: its volumes are labelled disposable, so they go with it. */
+	disposable?: boolean;
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
 	/** `db`: the shared network the api reaches databases on for the explorer; absent leaves them off it. */
@@ -318,7 +321,12 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					Type: "volume",
 					Source: `${prefix}${dockerName("vol", ownerId)}`,
 					Target,
-					VolumeOptions: { Labels: labelsFor(input, ownerId, "volume") },
+					VolumeOptions: {
+						Labels: {
+							...labelsFor(input, ownerId, "volume"),
+							...(input.disposable && { [LABEL_DISPOSABLE]: "true" }),
+						},
+					},
 				};
 	};
 	const volumeMounts: Mount[] = input.mounts

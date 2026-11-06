@@ -44,6 +44,7 @@ export async function reportCommitStatus(
 			commitSha: deployment.commitSha,
 			spec: service.spec,
 			projectId: environment.projectId,
+			preview: environment.preview,
 		})
 		.from(deployment)
 		.innerJoin(service, eq(service.id, deployment.serviceId))
@@ -75,11 +76,14 @@ export async function reportCommitStatus(
 			state: mapped.state,
 			context: LOGISTACK_CHECK,
 			description: mapped.description,
-			...(settings?.publicUrl
-				? {
-						target_url: `${settings.publicUrl.replace(/\/+$/, "")}/projects/${row.projectId}`,
-					}
-				: {}),
+			// A preview links to itself; anything else to its project in LogiStack.
+			...(row.preview?.urls[0]
+				? { target_url: row.preview.urls[0] }
+				: settings?.publicUrl
+					? {
+							target_url: `${settings.publicUrl.replace(/\/+$/, "")}/projects/${row.projectId}`,
+						}
+					: {}),
 		},
 		{
 			accept: "application/vnd.github+json",

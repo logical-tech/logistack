@@ -4,6 +4,8 @@ export const LABEL_MANAGED = "logistack.managed";
 export const LABEL_RESOURCE = "logistack.resource";
 export const LABEL_KIND = "logistack.kind";
 export const LABEL_ORG = "logistack.org";
+/** On the volumes of a pull request preview: the orphan sweep removes them once their owner is gone. */
+export const LABEL_DISPOSABLE = "logistack.disposable";
 
 export type ManagedKind =
 	| "service"
