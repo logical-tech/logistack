@@ -7,6 +7,7 @@ import {
 	type GitRepo,
 	ownerRepoPath,
 	type PrAction,
+	repoFilePath,
 	requireHmac,
 	summarizeChecks,
 	WebhookRejectedError,
@@ -170,6 +171,14 @@ export const bitbucket = defineProvider({
 					"x-token-auth",
 					config.accessToken,
 				);
+			},
+			async readFile(repo, ref, path) {
+				const res = await http.request(
+					"readFile",
+					`${API}/repositories/${ownerRepoPath("bitbucket", repo)}/src/${encodeURIComponent(ref)}/${repoFilePath("bitbucket", path)}`,
+					{ headers },
+				);
+				return res.text();
 			},
 			async commitChecks(repo, ref) {
 				const statuses = await all<{

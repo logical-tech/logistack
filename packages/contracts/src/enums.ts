@@ -18,8 +18,8 @@ export const serviceKinds = [
 	"storage",
 ] as const;
 export const ServiceKind = z.enum(serviceKinds);
-/** Where a stack's services came from: a catalog template or a pasted compose file. */
-export const stackSources = ["template", "compose"] as const;
+/** Where a stack's services came from: a catalog template, a pasted compose file, or a compose file in git. */
+export const stackSources = ["template", "compose", "git"] as const;
 export const StackSource = z.enum(stackSources);
 export type StackSource = z.infer<typeof StackSource>;
 export type ServiceKind = z.infer<typeof ServiceKind>;

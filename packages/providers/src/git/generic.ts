@@ -40,6 +40,13 @@ export const generic = defineProvider({
 					"not available without a provider API",
 				);
 			},
+			async readFile() {
+				throw new ProviderError(
+					"generic",
+					"readFile",
+					"not available without a provider API; connect GitHub, GitLab, Gitea or Bitbucket",
+				);
+			},
 			async verifyWebhook() {
 				throw new WebhookRejectedError("generic", "not_configured");
 			},

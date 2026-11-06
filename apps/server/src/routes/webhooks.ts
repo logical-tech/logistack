@@ -19,6 +19,7 @@ import { mutation } from "../audit.ts";
 import { envelope } from "../events.ts";
 import { client, loadProvider, providerState } from "../git/providers.ts";
 import { json, router } from "../openapi.ts";
+import { syncGitStacks } from "./stacks.ts";
 
 const Outcome = z
 	.object({
@@ -103,6 +104,10 @@ export const webhooks = router().openapi(
 		if (event.kind !== "push")
 			return c.json(ignored("pull request previews are not enabled"), 202);
 
+		// Stacks first: their own deployments cover the services a sync changed.
+		const stacks = await syncGitStacks(c, row.id, row.organizationId, event);
+		const viaStack = new Set(stacks.deployments.map((d) => d.serviceId));
+
 		const targets = await db
 			.select({
 				service,
@@ -128,6 +133,7 @@ export const webhooks = router().openapi(
 			if (!("source" in s.spec) || s.spec.source.type !== "git") continue;
 			const src = s.spec.source;
 			if (src.repository.toLowerCase() !== push.repo.toLowerCase()) continue;
+			if (viaStack.has(s.id)) continue;
 			decisions.push({
 				serviceId: s.id,
 				decision: evaluateTrigger(push, {
@@ -138,19 +144,22 @@ export const webhooks = router().openapi(
 			});
 		}
 		const addressed = decisions.filter((d) => d.decision.action !== "ignore");
-		if (!addressed.length)
+		const ids = stacks.deployments.map((d) => d.id);
+		const reasons = new Set(stacks.failures);
+		if (!addressed.length && !ids.length)
 			return c.json(
 				ignored(
-					targets.length
-						? `no service is triggered by this ${push.ref.kind} event`
-						: "no service builds from this provider",
+					[
+						...stacks.failures,
+						targets.length
+							? `no service is triggered by this ${push.ref.kind} event`
+							: "no service builds from this provider",
+					].join("; "),
 				),
 				202,
 			);
 
-		const ids: string[] = [];
 		const skipped: string[] = [];
-		const reasons = new Set<string>();
 		for (const { serviceId, decision } of addressed) {
 			const waiting = decision.action === "deploy" && decision.waitForChecks;
 			const [d] = await db
@@ -210,7 +219,12 @@ export const webhooks = router().openapi(
 				202,
 			);
 		return c.json(
-			{ outcome: "deployed" as const, deployments: ids, skipped },
+			{
+				outcome: "deployed" as const,
+				...(stacks.failures.length && { reason: stacks.failures.join("; ") }),
+				deployments: ids,
+				skipped,
+			},
 			200,
 		);
 	},

@@ -6,6 +6,7 @@ import {
 	type GitProvider,
 	type GitRepo,
 	ownerRepoPath,
+	repoFilePath,
 	requireHmac,
 	summarizeChecks,
 	withCredentials,
@@ -285,6 +286,20 @@ export const github = defineProvider({
 					"x-access-token",
 					await installationToken(),
 				);
+			},
+			async readFile(repo, ref, path) {
+				const res = await http.request(
+					"readFile",
+					`${API}/repos/${ownerRepoPath("github", repo)}/contents/${repoFilePath("github", path)}?ref=${encodeURIComponent(ref)}`,
+					{
+						headers: {
+							...apiHeaders,
+							accept: "application/vnd.github.raw+json",
+							authorization: `Bearer ${await installationToken()}`,
+						},
+					},
+				);
+				return res.text();
 			},
 			async commitChecks(repo, ref) {
 				const base = `/repos/${ownerRepoPath("github", repo)}/commits/${encodeURIComponent(ref)}`;

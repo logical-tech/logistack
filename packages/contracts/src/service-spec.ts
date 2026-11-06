@@ -19,6 +19,25 @@ const GitSource = z.object({
 	path: z.string().min(1),
 });
 
+/** Where a git stack reads its compose file; pushes to `branch` re-sync it. */
+export const StackGitSource = z.object({
+	gitProviderId: z.string().min(1),
+	repository: z.string().min(1),
+	branch: z.string().min(1),
+	/** Relative to the repository root, like `docker-compose.yml` or `deploy/compose.yaml`. */
+	composePath: z
+		.string()
+		.min(1)
+		.max(500)
+		.refine(
+			(p) =>
+				!p.startsWith("/") &&
+				p.split("/").every((s) => s !== ".." && s !== "" && !s.includes("\0")),
+			"must be a path inside the repository, like deploy/compose.yaml",
+		),
+});
+export type StackGitSource = z.infer<typeof StackGitSource>;
+
 export const ApplicationSource = z.discriminatedUnion("type", [
 	GitSource,
 	z.object({ type: z.literal("image"), image: z.string().min(1) }),

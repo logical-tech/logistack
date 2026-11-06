@@ -554,6 +554,40 @@ describe("API listing", () => {
 		expect(m.calls).toHaveLength(2);
 	});
 
+	test("readFile asks each API for the raw file at a ref", async () => {
+		const m = mockFetch(() => new Response("services: {}\n"));
+		const gl = instantiate(
+			gitProviders.gitlab,
+			{ baseUrl: "https://git.acme.dev", token: "t", webhookSecret: SECRET },
+			m,
+		);
+		const gt = instantiate(
+			gitProviders.gitea,
+			{ baseUrl: "https://gitea.acme.dev", token: "t", webhookSecret: SECRET },
+			m,
+		);
+		const bb = instantiate(
+			gitProviders.bitbucket,
+			{ workspace: "team", accessToken: "t" },
+			m,
+		);
+		expect(await gl.readFile("grp/app", "main", "deploy/compose.yml")).toBe(
+			"services: {}\n",
+		);
+		await gt.readFile("acme/app", "feat/x", "./compose.yml");
+		await bb.readFile("team/app", "main", "compose.yml");
+		expect(m.calls.map((c) => c.url)).toEqual([
+			"https://git.acme.dev/api/v4/projects/grp%2Fapp/repository/files/deploy%2Fcompose.yml/raw?ref=main",
+			"https://gitea.acme.dev/api/v1/repos/acme/app/raw/compose.yml?ref=feat%2Fx",
+			"https://api.bitbucket.org/2.0/repositories/team/app/src/main/compose.yml",
+		]);
+		for (const bad of ["../secrets", "a/../../b", "", "a//b"])
+			await expect(gt.readFile("acme/app", "main", bad)).rejects.toThrow(
+				ProviderError,
+			);
+		expect(m.calls).toHaveLength(3);
+	});
+
 	test("owner/name paths cannot escape", () => {
 		expect(ownerRepoPath("x", "acme/api.v2")).toBe("acme/api.v2");
 		for (const bad of ["../etc", "acme/..", "a/b/c", "acme/api?x=1", "acme"])

@@ -16,6 +16,7 @@ export * from "./pending-diff.ts";
 export * from "./permissions.ts";
 export * from "./ports.ts";
 export * from "./sql.ts";
+export * from "./stack-update.ts";
 export * from "./storage.ts";
 export * from "./template.ts";
 export * from "./two-factor.ts";
