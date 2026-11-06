@@ -7,7 +7,7 @@ const links = [
 	["Templates", "/templates/"],
 	["Data", "/#data"],
 	["FAQ", "/#faq"],
-	["Docs", `${site.github}#readme`],
+	["Docs", site.docs],
 ] as const;
 
 export function Nav() {
