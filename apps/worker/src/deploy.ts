@@ -42,6 +42,7 @@ import {
 	type ServiceContext,
 	svcName,
 } from "./load.ts";
+import { runRelease } from "./release.ts";
 
 export type DeploymentRow = typeof deployment.$inferSelect;
 type Patch = Partial<
@@ -50,6 +51,7 @@ type Patch = Partial<
 		| "startedAt"
 		| "finishedAt"
 		| "error"
+		| "warning"
 		| "commitSha"
 		| "commitMessage"
 		| "imageRef"
@@ -92,6 +94,8 @@ export type Steps = {
 	clone(): Promise<Patch>;
 	build(): Promise<Patch>;
 	push(): Promise<void>;
+	/** The pre-deploy command; throws when it fails, before Swarm sees the new spec. */
+	release(): Promise<void>;
 	deploy(): Promise<RolloutResult>;
 };
 
@@ -106,6 +110,7 @@ export async function drive(o: {
 	status: DeploymentStatus;
 	source: "git" | "image";
 	push: boolean;
+	release: boolean;
 	steps: Steps;
 	advance: (e: DeploymentEvent, patch?: Patch) => Promise<DeploymentStatus>;
 	signal: AbortSignal;
@@ -117,21 +122,36 @@ export async function drive(o: {
 		o.onState?.(state);
 	};
 	try {
+		const { release } = o;
 		if (state === "queued") {
-			await go({ type: "start", source: o.source });
+			await go({ type: "start", source: o.source, release });
 			if (o.source === "git") {
 				await go({ type: "cloned" }, await o.steps.clone());
-				await go({ type: "built", push: o.push }, await o.steps.build());
+				await go(
+					{ type: "built", push: o.push, release },
+					await o.steps.build(),
+				);
 				if (o.push) {
 					await o.steps.push();
-					await go({ type: "pushed" });
+					await go({ type: "pushed", release });
 				}
+			}
+			if (release) {
+				await o.steps.release();
+				await go({ type: "released" });
 			}
 		}
 		if (state !== "deploying")
 			throw new Error(`interrupted: the worker stopped during ${state}`);
 		const result = await o.steps.deploy();
-		if (result.ok) await go({ type: "healthy" }, { finishedAt: new Date() });
+		if (result.ok)
+			await go(
+				{ type: "healthy" },
+				{
+					finishedAt: new Date(),
+					...(result.warning ? { warning: result.warning } : {}),
+				},
+			);
 		else
 			await go(
 				{ type: "fail" },
@@ -269,6 +289,67 @@ async function runDeployment(
 	let commit = { commitSha: d.commitSha, commitMessage: d.commitMessage };
 	const state = { id: d.id, status: d.status };
 
+	const target = () => ({
+		id: d.id,
+		imageRef: ref,
+		gitRef: d.gitRef,
+		...commit,
+	});
+	const rollout = async (): Promise<RolloutResult> => {
+		line(`==> deploying ${ref}`);
+		const name = svcName(ctx, sc.service.id);
+		const current = await inspectService(ctx, name);
+		const label = (s?: {
+			TaskTemplate: { ContainerSpec: { Labels?: Record<string, string> } };
+		}) => s?.TaskTemplate.ContainerSpec.Labels?.["logistack.deployment"];
+		const timeoutMs = ctx.cfg.LS_DEPLOY_TIMEOUT_MS;
+		// Resuming: our spec is already applied, or Swarm already rolled it back.
+		if (current && label(current.Spec) === d.id)
+			return waitForRollout(
+				ctx,
+				name,
+				{ created: false, before: undefined },
+				{
+					timeoutMs,
+					signal,
+					deploymentId: d.id,
+				},
+			);
+		if (
+			current &&
+			label(current.PreviousSpec) === d.id &&
+			current.UpdateStatus?.State.startsWith("rollback")
+		)
+			return {
+				ok: false,
+				error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
+				rolledBack: true,
+			};
+		const input = await desiredInput(ctx, sc, target());
+		const snapshot = specSnapshot(input, sc.env);
+		await ctx.db
+			.update(deployment)
+			.set({
+				specSnapshotEncrypted: await encrypt(
+					ctx.masterKey,
+					JSON.stringify(snapshot),
+				),
+			})
+			.where(eq(deployment.id, d.id));
+		const applied = await upsertService(
+			ctx,
+			sc.registry?.auth,
+			compileService(input),
+		);
+		const result = await waitForRollout(ctx, name, applied, {
+			timeoutMs,
+			signal,
+			deploymentId: d.id,
+		});
+		line(result.ok ? "==> healthy" : `==> failed: ${result.error}`);
+		return result;
+	};
+
 	const steps: Steps = {
 		async clone() {
 			if (spec.kind !== "application" || spec.source.type !== "git")
@@ -338,60 +419,32 @@ async function runDeployment(
 			line(`==> pushing ${ref}`);
 			await pushImage(ctx, ref, sc.registry?.auth, line, signal);
 		},
-		async deploy() {
-			line(`==> deploying ${ref}`);
-			const target = { id: d.id, imageRef: ref, gitRef: d.gitRef, ...commit };
-			const name = svcName(ctx, sc.service.id);
-			const current = await inspectService(ctx, name);
-			const label = (s?: {
-				TaskTemplate: { ContainerSpec: { Labels?: Record<string, string> } };
-			}) => s?.TaskTemplate.ContainerSpec.Labels?.["logistack.deployment"];
-			const timeoutMs = ctx.cfg.LS_DEPLOY_TIMEOUT_MS;
-			// Resuming: our spec is already applied, or Swarm already rolled it back.
-			if (current && label(current.Spec) === d.id)
-				return waitForRollout(
-					ctx,
-					name,
-					{ created: false, before: undefined },
-					{
-						timeoutMs,
-						signal,
-						deploymentId: d.id,
-					},
-				);
-			if (
-				current &&
-				label(current.PreviousSpec) === d.id &&
-				current.UpdateStatus?.State.startsWith("rollback")
-			)
-				return {
-					ok: false,
-					error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
-					rolledBack: true,
-				};
-			const input = await desiredInput(ctx, sc, target);
-			const snapshot = specSnapshot(input, sc.env);
-			await ctx.db
-				.update(deployment)
-				.set({
-					specSnapshotEncrypted: await encrypt(
-						ctx.masterKey,
-						JSON.stringify(snapshot),
-					),
-				})
-				.where(eq(deployment.id, d.id));
-			const applied = await upsertService(
+		async release() {
+			if (spec.kind !== "application" || !spec.preDeploy) return;
+			const input = await desiredInput(ctx, sc, target());
+			const error = await runRelease(
 				ctx,
-				sc.registry?.auth,
 				compileService(input),
+				"pre",
+				spec.preDeploy,
+				{ registryAuth: sc.registry?.auth, line, signal },
 			);
-			const result = await waitForRollout(ctx, name, applied, {
-				timeoutMs,
-				signal,
-				deploymentId: d.id,
-			});
-			line(result.ok ? "==> healthy" : `==> failed: ${result.error}`);
-			return result;
+			if (error) throw new Error(error);
+		},
+		async deploy() {
+			const result = await rollout();
+			if (!result.ok || spec.kind !== "application" || !spec.postDeploy)
+				return result;
+			// The applied spec, also when resuming a rollout this worker did not start.
+			const live = await inspectService(ctx, svcName(ctx, sc.service.id));
+			const warning = live
+				? await runRelease(ctx, live.Spec, "post", spec.postDeploy, {
+						registryAuth: sc.registry?.auth,
+						line,
+						signal,
+					})
+				: "post-deploy skipped: the service disappeared";
+			return warning ? { ok: true, warning } : result;
 		},
 	};
 
@@ -400,6 +453,7 @@ async function runDeployment(
 			status: d.status,
 			source,
 			push,
+			release: spec.kind === "application" && !!spec.preDeploy,
 			steps,
 			signal,
 			onState: (s) => {
