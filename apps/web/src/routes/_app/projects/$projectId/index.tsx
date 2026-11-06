@@ -6,9 +6,11 @@ import {
 	Boxes,
 	Check,
 	Download,
+	ExternalLink,
 	FileUp,
 	Folder,
 	Gauge,
+	GitPullRequest,
 	MoreHorizontal,
 	Plus,
 	Settings2,
@@ -204,6 +206,15 @@ function ProjectDetail() {
 											</Link>
 										</DropdownMenuItem>
 									)}
+									<DropdownMenuItem asChild>
+										<Link
+											to="/projects/$projectId/previews"
+											params={{ projectId }}
+										>
+											<GitPullRequest />
+											Preview deployments…
+										</Link>
+									</DropdownMenuItem>
 									<DropdownMenuSeparator />
 									{archived ? (
 										<DropdownMenuItem
@@ -357,6 +368,14 @@ function EnvTabLabel({ env }: { env: Environment }) {
 		<>
 			<EnvDot env={env} />
 			{env.name}
+			{env.preview && (
+				<span
+					className="max-w-40 truncate font-normal text-muted-foreground"
+					title={env.preview.title}
+				>
+					{env.preview.title}
+				</span>
+			)}
 			{services && services.length > 0 && (
 				<SignalStrip
 					size="sm"
@@ -409,6 +428,27 @@ function EnvironmentMenu({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-52">
 				<DropdownMenuLabel>{env.name}</DropdownMenuLabel>
+				{env.preview && (
+					<>
+						{env.preview.urls[0] && (
+							<DropdownMenuItem asChild>
+								<a href={env.preview.urls[0]} target="_blank" rel="noreferrer">
+									<ExternalLink />
+									Open preview
+								</a>
+							</DropdownMenuItem>
+						)}
+						{env.preview.url && (
+							<DropdownMenuItem asChild>
+								<a href={env.preview.url} target="_blank" rel="noreferrer">
+									<GitPullRequest />
+									Pull request #{env.preview.number}
+								</a>
+							</DropdownMenuItem>
+						)}
+						<DropdownMenuSeparator />
+					</>
+				)}
 				<DropdownMenuItem
 					disabled={env.isDefault || update.isPending}
 					onSelect={() =>
