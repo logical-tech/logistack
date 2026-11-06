@@ -46,6 +46,12 @@ export function Templates({ templates }: { templates: number }) {
 							Each template is a plain manifest you can open and edit
 						</Check>
 					</ul>
+					<a
+						href="/templates/"
+						className="pressable inline-flex h-12 w-fit items-center gap-2 rounded-full bg-fg px-[22px] text-[15px] font-semibold text-bg hover:bg-white"
+					>
+						Browse all {templates} templates
+					</a>
 				</div>
 
 				<div className="relative isolate overflow-hidden rounded-[28px] bg-step p-4 sm:p-[70px]">

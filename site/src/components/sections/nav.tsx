@@ -3,9 +3,9 @@ import { site } from "@/content/site";
 import { LogoMark } from "../ui";
 
 const links = [
-	["Templates", "/#templates"],
+	["Features", "/features/"],
+	["Templates", "/templates/"],
 	["Data", "/#data"],
-	["Servers", "/#servers"],
 	["FAQ", "/#faq"],
 	["Docs", `${site.github}#readme`],
 ] as const;
