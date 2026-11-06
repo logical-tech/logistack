@@ -94,7 +94,8 @@ function errorBody(dialect: Dialect, e: GatewayError) {
 type Caller = {
 	organizationId: string;
 	userId: string;
-	keyId: string;
+	/** Null for in-process calls (the Agent), which use no key. */
+	keyId: string | null;
 	isAdmin: boolean;
 	autoChain: string[];
 };
@@ -131,27 +132,76 @@ async function caller(db: Db, headers: Headers): Promise<Caller> {
 			"gateway_disabled",
 			"The AI gateway is turned off for this organization.",
 		);
-	const grants = await grantsFor(
+	return member(
 		db,
-		row.userId,
-		row.userId,
 		row.organizationId,
+		row.userId,
+		row.keyId,
+		row.autoChain ?? [],
 	);
-	const org = organizationResource(row.organizationId);
-	const actor = { id: row.userId };
+}
+
+async function member(
+	db: Db,
+	organizationId: string,
+	userId: string,
+	keyId: string | null,
+	autoChain: string[],
+): Promise<Caller> {
+	const grants = await grantsFor(db, userId, userId, organizationId);
+	const org = organizationResource(organizationId);
+	const actor = { id: userId };
 	if (!grants || !can(actor, "ai", org, grants))
 		throw new GatewayError(
 			403,
 			"permission_denied",
-			"This key's owner no longer has the AI permission.",
+			keyId
+				? "This key's owner no longer has the AI permission."
+				: "Your role no longer includes the AI permission.",
 		);
 	return {
-		organizationId: row.organizationId,
-		userId: row.userId,
-		keyId: row.keyId,
+		organizationId,
+		userId,
+		keyId,
 		isAdmin: can(actor, "admin", org, grants),
-		autoChain: row.autoChain ?? [],
+		autoChain,
 	};
+}
+
+/** One-time tokens of requests the api makes to the gateway in-process, mapped to their member. */
+const inProcess = new Map<string, Caller>();
+const IN_PROCESS_HEADER = "x-logistack-member";
+
+/**
+ * Marks `req` as made by a member without a gateway key: budgets, the `ai` permission and the
+ * ledger apply as for a key; the gateway switch does not, since nothing is exposed. The token is
+ * random, lives only in this process and works once.
+ */
+export async function asMember(
+	db: Db,
+	organizationId: string,
+	userId: string,
+	req: Request,
+): Promise<Request> {
+	const [row] = await db
+		.select({ autoChain: aiSettings.autoChain })
+		.from(aiSettings)
+		.where(eq(aiSettings.organizationId, organizationId));
+	const token = crypto.randomUUID();
+	inProcess.set(
+		token,
+		await member(db, organizationId, userId, null, row?.autoChain ?? []),
+	);
+	setTimeout(() => inProcess.delete(token), 60_000).unref();
+	req.headers.set(IN_PROCESS_HEADER, token);
+	return req;
+}
+
+function callerOf(c: Context<Env>) {
+	const token = c.req.header(IN_PROCESS_HEADER);
+	const who = token ? inProcess.get(token) : undefined;
+	if (token) inProcess.delete(token);
+	return who ?? caller(c.var.deps.db, c.req.raw.headers);
 }
 
 type Attempt = { res: Response; cand: Candidate; fallbacks: number };
@@ -306,10 +356,11 @@ async function record(
 			fallbacks: a.fallbacks,
 			ok,
 		});
-		await db
-			.update(aiGatewayKey)
-			.set({ lastUsedAt: new Date() })
-			.where(eq(aiGatewayKey.id, who.keyId));
+		if (who.keyId)
+			await db
+				.update(aiGatewayKey)
+				.set({ lastUsedAt: new Date() })
+				.where(eq(aiGatewayKey.id, who.keyId));
 	} catch (err) {
 		log("error", "ai usage not recorded", { error: String(err) });
 	}
@@ -484,7 +535,7 @@ export const gateway = new Hono<Env>()
 		);
 	})
 	.get("/models", async (c) => {
-		const who = await caller(c.var.deps.db, c.req.raw.headers);
+		const who = await callerOf(c);
 		const keys = await c.var.deps.db
 			.select({
 				provider: aiProviderKey.provider,
@@ -508,7 +559,7 @@ export const gateway = new Hono<Env>()
 	})
 	.post("/chat/completions", async (c) => {
 		const { db } = c.var.deps;
-		const who = await caller(db, c.req.raw.headers);
+		const who = await callerOf(c);
 		const req = (await parse(c, ChatBody)) as unknown as ChatRequest;
 		const started = Date.now();
 		const reqBytes = JSON.stringify(req).length;
@@ -551,7 +602,7 @@ export const gateway = new Hono<Env>()
 	})
 	.post("/messages", async (c) => {
 		const { db } = c.var.deps;
-		const who = await caller(db, c.req.raw.headers);
+		const who = await callerOf(c);
 		const req = (await parse(c, MessagesBody)) as unknown as AnthropicRequest;
 		const native = (cand: Candidate) => cand.def.id === "anthropic";
 		const chat = anthropicToChat(req);
@@ -645,7 +696,7 @@ export const gateway = new Hono<Env>()
 	})
 	.post("/responses", async (c) => {
 		const { db } = c.var.deps;
-		const who = await caller(db, c.req.raw.headers);
+		const who = await callerOf(c);
 		const req = (await parse(c, ResponsesBody)) as unknown as ResponsesRequest;
 		const native = (cand: Candidate) => cand.def.id === "openai";
 		const chat = responsesToChat(req);
@@ -736,7 +787,7 @@ export const gateway = new Hono<Env>()
 	})
 	.post("/embeddings", async (c) => {
 		const { db } = c.var.deps;
-		const who = await caller(db, c.req.raw.headers);
+		const who = await callerOf(c);
 		const req = await parse(c, EmbeddingsBody);
 		if (parseModelRef(req.model).kind === "auto")
 			throw new GatewayError(

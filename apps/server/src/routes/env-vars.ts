@@ -7,7 +7,13 @@ import type { Context } from "hono";
 import type { Actor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
-import { notFound, one, parseInput, rejectReservedEnvKeys } from "../errors.ts";
+import {
+	Failure,
+	notFound,
+	one,
+	parseInput,
+	rejectReservedEnvKeys,
+} from "../errors.ts";
 import {
 	body,
 	errors,
@@ -63,7 +69,10 @@ const fromRow: ResolveResource = async (c, actor) => {
 async function present(c: Context<Env>, row: typeof envVar.$inferSelect) {
 	const actor = c.get("actor") as Actor;
 	const resource = c.get("resource") as Resource;
-	const reveal = !row.isSecret || actorCan(actor, "read:secrets", resource);
+	// Managed secret values come only from the audited `POST /secrets/{id}/reveal`.
+	const reveal =
+		!row.secretId &&
+		(!row.isSecret || actorCan(actor, "read:secrets", resource));
 	const { valueEncrypted, ...rest } = row;
 	return {
 		...rest,
@@ -147,6 +156,15 @@ export const envVars = router()
 		async (c) => {
 			const { id } = c.req.valid("param");
 			const { value, ...input } = c.req.valid("json");
+			const [cur] = await c.var.deps.db
+				.select({ secretId: envVar.secretId })
+				.from(envVar)
+				.where(eq(envVar.id, id));
+			if (cur?.secretId && (value !== undefined || input.isSecret === false))
+				throw new Failure(
+					"bad_request",
+					"this variable references a managed secret: change the secret (PATCH /secrets/{id}) or the service's variables (PUT /services/{id}/env-vars)",
+				);
 			const row = one(
 				await c.var.deps.db
 					.update(envVar)

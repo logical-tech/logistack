@@ -8,6 +8,7 @@ import type {
 } from "../service-ops";
 import type { Service } from "../types";
 import type { MockDb } from "./fixtures";
+import type { SecretsStore } from "./secrets";
 import type { VariablesStore } from "./variables";
 
 const delay = <T>(value: T, ms = 180 + Math.random() * 260): Promise<T> =>
@@ -106,6 +107,7 @@ const MOCK_CHANGES: PendingDiff["changes"] = [
 export function serviceOpsMock(
 	db: MockDb,
 	shared: VariablesStore,
+	secrets: SecretsStore,
 ): ServiceOpsApi {
 	const find = (id: string) => {
 		const service = db.services.find((s) => s.id === id);
@@ -164,25 +166,77 @@ export function serviceOpsMock(
 	const own = (s: Service): EffectiveEnvVar[] => {
 		const existing = vars.get(s.id);
 		if (existing) return existing;
-		const v = (key: string, value: string, isSecret = false) => ({
+		const v = (
+			key: string,
+			value: string | null,
+			secretId: string | null = null,
+		): EffectiveEnvVar => ({
 			id: rid("env"),
-			scope: "service" as const,
+			scope: "service",
 			scopeId: s.id,
 			key,
-			value,
-			isSecret,
+			value: secretId ? null : value,
+			isSecret: secretId !== null,
+			secretId,
 			isBuildTime: false,
 			overridden: false,
 			createdAt: iso(86_400_000 * 20),
 			updatedAt: iso(86_400_000 * 2),
 		});
+		const ref = (key: string, secret?: { id: string }) =>
+			secret ? [v(key, null, secret.id)] : [];
 		const list = [
 			v("PORT", "3000"),
-			v("SESSION_SECRET", "s3cr3t-session-value", true),
+			...ref(
+				"SESSION_SECRET",
+				secrets.serviceSecret(s.id, "SESSION_SECRET", "s3cr3t-session-value"),
+			),
 		];
-		vars.set(s.id, list);
+		if (s.environmentId === "env_storefront_production")
+			list.push(
+				...ref(
+					"STRIPE_SECRET_KEY",
+					secrets.byKey("project", "prj_storefront", "STRIPE_SECRET_KEY"),
+				),
+				...ref(
+					"DB_PASSWORD",
+					secrets.byKey(
+						"environment",
+						"env_storefront_production",
+						"DATABASE_PASSWORD",
+					),
+				),
+			);
+		// A reference left behind when Booking API moved from Acme to Nordwind: shows as broken.
+		if (s.id === "svc_booking_production_api")
+			list.push(
+				...ref(
+					"SFTP_PASSWORD",
+					secrets.byKey("folder", "fld_acme", "ACME_SFTP_PASSWORD"),
+				),
+			);
+		vars.set(
+			s.id,
+			list.sort((a, b) => a.key.localeCompare(b.key)),
+		);
 		return list;
 	};
+	secrets.setRefs(() =>
+		db.services.flatMap((s) =>
+			own(s).flatMap((v) =>
+				v.secretId
+					? [
+							{
+								envVarId: v.id,
+								key: v.key,
+								serviceId: s.id,
+								secretId: v.secretId,
+							},
+						]
+					: [],
+			),
+		),
+	);
 	const rank = ["organization", "project", "environment", "service"];
 	const varsOf = (s: Service): EffectiveEnvVar[] => {
 		const env = db.environments.find((e) => e.id === s.environmentId);
@@ -319,23 +373,61 @@ export function serviceOpsMock(
 		saveEnvVars: async (id, variables) => {
 			const s = find(id);
 			const previous = own(s);
+			const onChain = new Set(secrets.available(id).map((x) => x.id));
+			const outside = variables.flatMap((v) =>
+				v.secretId && !onChain.has(v.secretId) ? [v.secretId] : [],
+			);
+			if (outside.length)
+				throw new ApiError(
+					400,
+					"a referenced secret is not defined on this service's chain, or you cannot read its scope",
+					"bad_request",
+					{ secretIds: outside },
+				);
+			const missing = variables.filter((v) => {
+				if (v.secretId || v.value !== undefined) return false;
+				const prev = previous.find((p) => p.key === v.key);
+				return !prev || prev.isSecret !== v.isSecret;
+			});
+			if (missing.length)
+				throw new ApiError(400, "a new variable needs a value", "bad_request", {
+					keys: missing.map((v) => v.key),
+				});
+			// shortcut: service secrets this save leaves unreferenced stay listed; the server drops them.
 			vars.set(
 				id,
-				variables.map((input) => ({
-					...(previous.find((p) => p.key === input.key) ?? {
+				variables.map((input): EffectiveEnvVar => {
+					const prev = previous.find((p) => p.key === input.key);
+					const base = prev ?? {
 						id: rid("env"),
 						scope: "service" as const,
 						scopeId: s.id,
 						createdAt: iso(),
 						overridden: false,
-					}),
-					...input,
-					value:
-						input.value ??
-						previous.find((p) => p.key === input.key)?.value ??
-						null,
-					updatedAt: iso(),
-				})),
+						value: null,
+						isSecret: false,
+						secretId: null,
+					};
+					const kind = input.secretId
+						? { isSecret: true, secretId: input.secretId, value: null }
+						: input.isSecret && input.value !== undefined
+							? {
+									isSecret: true,
+									secretId: secrets.serviceSecret(s.id, input.key, input.value)
+										.id,
+									value: null,
+								}
+							: input.value !== undefined
+								? { isSecret: false, secretId: null, value: input.value }
+								: {};
+					return {
+						...base,
+						...kind,
+						key: input.key,
+						isBuildTime: input.isBuildTime,
+						updatedAt: iso(),
+					};
+				}),
 			);
 			return delay(undefined);
 		},

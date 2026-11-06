@@ -274,6 +274,27 @@
       "when": 1793991353414,
       "tag": "0038_service_autoscale",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793993646058,
+      "tag": "0039_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793993670467,
+      "tag": "0040_scope_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793994911875,
+      "tag": "0041_ai_agent",
+      "breakpoints": true
     }
   ]
 }

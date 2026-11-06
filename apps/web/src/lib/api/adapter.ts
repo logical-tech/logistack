@@ -1,5 +1,6 @@
 import type { AccessAdapter } from "./access-adapter";
 import type { NetworkingApi } from "./networking";
+import type { SecretsApi } from "./secrets";
 import type { ServiceOpsApi } from "./service-ops";
 import type { SsoApi } from "./sso";
 import type { StacksApi } from "./stacks";
@@ -137,6 +138,7 @@ export type ApiAdapter = {
 		): Promise<ServiceThreshold[]>;
 	};
 	networking: NetworkingApi;
+	secrets: SecretsApi;
 	serviceOps: ServiceOpsApi;
 	sso: SsoApi;
 	stacks: StacksApi;

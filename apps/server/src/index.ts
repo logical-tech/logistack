@@ -1,8 +1,9 @@
-import { importMasterKey } from "@logistack/core";
+import { deriveSecretsKek, importMasterKey } from "@logistack/core";
 import { createDb, runMigrations } from "@logistack/db";
 import { createNodeRunner } from "@logistack/worker/node-runner";
 import { mountAgentGateway } from "./agent-gateway.ts";
 import { serveAgentRpc } from "./agent-rpc.ts";
+import { resumeAgents } from "./ai/agent.ts";
 import { createApp } from "./app.ts";
 import { createAuth } from "./auth.ts";
 import { type Config, loadConfig } from "./config.ts";
@@ -27,6 +28,7 @@ export async function createDeps(config: Config): Promise<Deps> {
 		db,
 		auth: createAuth(config, db),
 		masterKey: await importMasterKey(config.LOGISTACK_MASTER_KEY),
+		secretsKek: await deriveSecretsKek(config.LOGISTACK_MASTER_KEY),
 		bus: await createBus(config.REDIS_URL),
 		nodes: await createNodeRunner(config.REDIS_URL),
 	};
@@ -76,6 +78,7 @@ if (import.meta.main) {
 	const running = await startServer(config);
 	log("info", "listening", { url: running.server.url.href });
 	await resumeImports(running.deps);
+	await resumeAgents(running.deps);
 	const stop = async () => {
 		await running.stop();
 		process.exit(0);

@@ -264,7 +264,8 @@ describe.skipIf(!hasDocker)("service operations", () => {
 		const asOwnerView = pick((await view(asOwner())).json);
 		expect(
 			asOwnerView.filter((r) => r.key === "DATABASE_URL").map((r) => r.value),
-		).toEqual(["postgres://project", "postgres://service"]);
+			// The service's typed secret is now a managed secret: its value comes only from the audited reveal.
+		).toEqual(["postgres://project", null]);
 
 		// A masked secret sent back without a value keeps it; a key left out is deleted.
 		const kept = await h.call("PUT", `/api/services/${serviceId}/env-vars`, {
@@ -282,10 +283,23 @@ describe.skipIf(!hasDocker)("service operations", () => {
 			{
 				scope: "service",
 				key: "DATABASE_URL",
-				value: "postgres://service",
+				value: null,
 				overridden: false,
 			},
 		]);
+		const row = (await view(asOwner())).json.find(
+			(r: { scope: string; key: string }) =>
+				r.scope === "service" && r.key === "DATABASE_URL",
+		);
+		const revealed = await h.call(
+			"POST",
+			`/api/secrets/${row.secretId}/reveal`,
+			{
+				...asOwner(),
+				body: {},
+			},
+		);
+		expect(revealed.json.value).toBe("postgres://service");
 	});
 
 	test("a user variable named LOGISTACK_* is rejected with a 422 on both write routes", async () => {

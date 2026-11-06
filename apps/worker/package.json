@@ -5,7 +5,8 @@
 	"exports": {
 		"./load": "./src/load.ts",
 		"./node-runner": "./src/node-runner.ts",
-		"./schedulers": "./src/schedulers.ts"
+		"./schedulers": "./src/schedulers.ts",
+		"./secrets": "./src/secrets.ts"
 	},
 	"scripts": {
 		"dev": "bun --watch src/index.ts",

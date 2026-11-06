@@ -11,6 +11,8 @@ export type Deps = {
 	db: Db;
 	auth: Auth;
 	masterKey: CryptoKey;
+	/** Wraps per-organization data keys of managed secrets (HKDF of the master key). */
+	secretsKek: CryptoKey;
 	bus: Bus;
 	/** Jobs, execs and log follows on any node, whichever replica holds its agent socket. */
 	nodes: NodeRunner;

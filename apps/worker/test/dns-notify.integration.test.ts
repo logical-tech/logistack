@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import tls from "node:tls";
 import type { EventEnvelope, ServiceSpec } from "@logistack/contracts";
-import { encrypt, importMasterKey } from "@logistack/core";
+import { deriveSecretsKek, encrypt, importMasterKey } from "@logistack/core";
 import {
 	certificate,
 	createDb,
@@ -200,6 +200,7 @@ describe.skipIf(!hasCaddyImage)(
 				docker,
 				bus: await createBus(cfg.REDIS_URL),
 				masterKey: await importMasterKey(cfg.LOGISTACK_MASTER_KEY),
+				secretsKek: await deriveSecretsKek(cfg.LOGISTACK_MASTER_KEY),
 				queues: {} as Queues,
 				nodes: {} as NodeRunner,
 			};

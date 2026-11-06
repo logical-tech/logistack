@@ -1,142 +1,127 @@
 ---
-title: Environment variables and secrets
-description: Set environment variables and secrets on LogiStack services, share them across the organization, a project or an environment, and pass them to builds.
+title: Secrets and environment variables
+description: Store secrets encrypted and versioned at the organization, folder, project, environment or service level, reference them from services, and share plain variables across scopes.
 ---
 
-Environment variables configure a service without changing its image: database URLs, API keys, feature flags. LogiStack stores every value encrypted, masks secrets from people who can't read them, and applies changes on the next deployment. Variables can be set once for the whole organization, a project or an environment, and overridden per service.
+Environment variables configure a service without changing its image: database URLs, API keys, feature flags. LogiStack keeps two kinds apart:
 
-## Scopes and precedence
+- **Secrets** are encrypted, versioned and audited. You define a secret once, at the level that owns it, and every service below that level can reference it. A service gets a secret only when its **Environment** tab references it.
+- **Variables** are plain configuration. They cascade to every service in their scope.
 
-A variable can live at four scopes. When the same key is set at more than one, the most specific wins:
+Both are applied on the next deployment.
 
-1. **Organization**: every service in the organization.
-2. **Project**: every service in the project.
-3. **Environment**: every service in one environment, like `DATABASE_URL` for Production.
-4. **Service**: one service. Wins over all the others.
+## Where secrets live
 
-For example, with `LOG_LEVEL=info` at the organization and `LOG_LEVEL=warn` on the Production environment, every Production service gets `warn` and every other service gets `info`.
+A secret is defined at one of five levels. A service can reference any secret defined on its own chain:
 
-## Set service variables
+1. **Organization**: available to every service.
+2. **Folder** and subfolder: available to every project inside.
+3. **Project**: available to every service in the project.
+4. **Environment**: available to every service in one environment, like the Production database password.
+5. **Service**: available to that service only.
+
+When two levels define the same key, the picker marks the less specific one as shadowed. For example, with `STRIPE_KEY` on the organization and on the Clients folder, services in Clients see the folder's as the first choice.
+
+## Create a secret
 
 <Steps>
 <Step>
 
-### Open the Environment tab
+### Open Secrets & variables
 
-Open the service and select **Environment**.
+- **Organization or folder**: select **Settings** › **Secrets & variables**. Pick the level in **Defined for**: the whole organization or one folder.
+- **Project or environment**: open the project's actions menu (**⋯**) and select **Secrets & variables**, then pick the project or one environment.
 
-![The Environment tab of the web service: service variables PORT and SESSION_SECRET, inherited variables with their scope, and the variables set on every deployment](/screens/service-environment.webp)
+![Settings › Secrets & variables, listing the organization secrets RESEND_API_KEY and SENTRY_AUTH_TOKEN with their version and usage](/screens/settings-variables.webp)
 
-</Step>
-<Step>
-
-### Add a variable
-
-Under **Service variables**, select **Add**. Type the name in **NAME** and the value next to it. Names use letters, digits and `_`, and don't start with a digit, such as `STRIPE_SECRET_KEY`.
-
-To add many at once, paste `KEY=value` into an empty name field, or select **Paste .env**, paste the file and select **Add N variables**. Comments, quotes and `export` are handled, and keys that already exist take the pasted value.
-
-```bash title=".env"
-# Payments
-STRIPE_SECRET_KEY=sk_live_51H...
-export PUBLIC_URL="https://shop.example.com"
-LOG_LEVEL=warn
-```
+![The Secrets & variables page of the Storefront project, Production selected, with the secret DATABASE_PASSWORD at version 2 used by 7 services](/screens/project-variables.webp)
 
 </Step>
 <Step>
 
-### Mark secrets and build variables
+### Add it
 
-- **Secret**: the value is hidden in the dashboard, the API and the [Review changes](./deployments.mdx#review-changes-before-deploying) diff. Members without permission to read secrets see **Hidden** and can only replace the value.
-- **Build**: the variable is also passed to the build. Non-secret build variables become Dockerfile build arguments; secret ones become BuildKit secrets. See [Build types](./build-types.mdx#build-time-variables-and-secrets).
+On the **Secrets** tab, select **Add secret**. Enter the key, the value and, optionally, a description such as "Transactional email, rotated by ops". Select **Add secret**.
+
+</Step>
+<Step>
+
+### Reference it from a service
+
+Open the service, select **Environment**, then **Add**. Type the name the container should see, select **Secret** and pick the secret from the list. The list groups secrets by where they are defined. The name in the container can differ from the secret's key: `DB_PASSWORD` can point at `PROD_PG_PASSWORD`.
+
+![The Environment tab of the web service: DB_PASSWORD references the Production secret DATABASE_PASSWORD, STRIPE_SECRET_KEY a project secret, SESSION_SECRET the service's own secret, and PORT is plain text](/screens/service-environment.webp)
 
 </Step>
 <Step>
 
 ### Save
 
-Select **Save and redeploy** to apply at once, or **Save** to apply on the next deployment. **Discard** drops the edits.
+Select **Save and redeploy** to apply at once, or **Save** to apply on the next deployment.
 
 </Step>
 </Steps>
 
-## Inherited variables
+## Type a secret directly on a service
 
-The **Inherited** panel lists the variables the service gets from the organization, project and environment, each with its scope. A crossed-out row is overridden by a more specific one. To change one for this service only, select **Override for this service**: it copies the key and value into **Service variables** for you to edit. To change it for everyone, select **Shared variables** at the top of the panel.
+On a service's **Environment** tab you can also select **Text**, type the value and turn on **Secret**. The toggle turns on by itself when the name looks sensitive (`PASSWORD`, `TOKEN`, `KEY`, `SECRET`, `CREDENTIAL`, `PRIVATE`). When you save, LogiStack stores the value as a secret of that service and references it, so every secret is managed in one place. **Review before saving** lists which keys become secrets and which stay plain variables.
 
-## Set organization, project and environment variables
+Removing the variable also removes that service secret, unless something else references it.
 
-Shared variables use the same editor as service variables: **Add**, **Paste .env**, **Secret**, **Build** and **Save**. Saving applies them to every service in the scope from its next deployment.
+To add many at once, select **Paste .env**. The preview shows which keys will become secrets.
 
-<Steps>
-<Step>
+```bash title=".env"
+STRIPE_SECRET_KEY=sk_live_51H...
+PUBLIC_URL="https://shop.example.com"
+LOG_LEVEL=warn
+```
 
-### Open the scope
+## See, change and roll back a secret
 
-- **Organization**: select **Settings** › **Variables** in the sidebar.
-- **Project or environment**: open the project, select the settings icon next to the environment tabs and select **Variables**. You can also open the project's actions menu (**⋯**) and select **Shared variables**, or select **Shared variables** in a service's **Inherited** panel.
+On the **Secrets** tab:
 
-![The Shared variables page of the Storefront project, with the Production tab selected and LOG_LEVEL and a secret DATABASE_URL](/screens/project-variables.webp)
+- The eye button shows the value. It needs the read secrets permission on the secret's level, and every reveal is recorded in the [audit log](../team/audit-log.mdx) as `secret.reveal`. The value hides again after 20 seconds.
+- **Edit value** saves a new version. Services that reference the secret show the change in [Review changes](./deployments.mdx#review-changes-before-deploying) until they redeploy.
+- **History** lists every version with its author. **Roll back** copies an earlier value as a new version.
+- **Usages** lists the services that reference the secret. **Delete** is unavailable while it is in use.
 
-</Step>
-<Step>
+Values never appear in variable lists, the API's variable endpoints, manifests, the audit log or deployment logs. Build and deployment logs replace any secret value, and its base64 form, with `***`.
 
-### Pick the project or one environment
+## How secrets are encrypted
 
-On the project's **Shared variables** page, **All environments** holds project variables. Each environment tab holds that environment's variables, which win over the project's.
+Each organization has its own data key. Every secret version is encrypted with AES-256-GCM under that key and bound to its organization, secret and version number, so a value copied into another row does not decrypt. Data keys are themselves encrypted with a key derived from the instance master key, which never leaves the LogiStack containers.
 
-</Step>
-<Step>
+An organization admin can select **Rotate encryption key** on **Settings** › **Secrets & variables**. LogiStack creates a new data key and re-encrypts every secret version. Values, versions and references don't change.
 
-### Edit and save
+## Plain variables
 
-Add or change variables as you would on a service, then select **Save**. Redeploy the services that should pick up the change.
+The **Variables** tab holds plain variables at four scopes. When the same key is set at more than one, the most specific wins: **Organization**, **Project**, **Environment**, then **Service**.
 
-</Step>
-</Steps>
+For example, with `LOG_LEVEL=info` at the organization and `LOG_LEVEL=warn` on Production, every Production service gets `warn` and every other service gets `info`.
 
-![Settings › Variables, listing the organization variables LOG_LEVEL and SENTRY_DSN](/screens/settings-variables.webp)
+On a service, the **Inherited** panel lists the plain variables it gets from the organization, project and environment. A crossed-out row is overridden by a more specific one. **Override for this service** copies the key and value into **Service variables** for you to edit.
 
-Changing shared variables needs the write permission on that scope, and seeing a secret value needs the read secrets permission on it. Without it, the row shows **Hidden** and you can only replace the value.
+Mark a variable **Build** to also pass it to the build. Plain build variables become Dockerfile build arguments; secrets become BuildKit secrets. See [Build types](./build-types.mdx#build-time-variables-and-secrets).
 
-### With the API or a manifest
+## With the API
 
-The same variables can be set through the API, the MCP server, or a [project manifest](../automation/project-manifests.mdx).
+The same operations are available over the API and the MCP server (`secret_create`, `secret_reveal`, and so on).
 
-```bash title="Create a secret DATABASE_URL for one environment"
-curl -fsS -X POST "https://stack.example.com/api/env-vars" \
+```bash title="Create a Production database password"
+curl -fsS -X POST "https://stack.example.com/api/secrets" \
   -H "x-api-key: $LOGISTACK_API_KEY" \
   -H "content-type: application/json" \
   -d '{
     "scope": "environment",
     "scopeId": "env_storefront_production",
-    "key": "DATABASE_URL",
-    "value": "postgres://app:s3cret@postgres:5432/shop",
-    "isSecret": true,
-    "isBuildTime": false
+    "key": "PG_PASSWORD",
+    "value": "s3cret-2026"
   }'
 ```
 
-`scope` is `organization`, `project`, `environment` or `service`, and `scopeId` is that resource's id. Over MCP, the same call is the `env_var_create` tool.
+`scope` is `organization`, `folder`, `project`, `environment` or `service`. To reference it, send `{"key": "DB_PASSWORD", "secretId": "sec_...", "isSecret": true, "isBuildTime": false}` in `PUT /api/services/{id}/env-vars`. `POST /api/secrets/{id}/reveal` returns the value.
 
-In a manifest, project variables go under the project's `variables` and environment variables under each environment's `variables`:
-
-```yaml title="storefront.logistack.yaml (excerpt)"
-version: 1
-kind: environment
-environment:
-  name: Production
-  slug: production
-  kind: production
-  variables:
-    - key: LOG_LEVEL
-      value: warn
-    - key: DATABASE_URL
-      secret: true
-```
-
-A secret without a value keeps the stored one when you apply.
+Secret variables created the older way, through `POST /api/env-vars` or a [project manifest](../automation/project-manifests.mdx) with `secret: true`, are converted into secrets on the next deployment. Every service that received one keeps receiving it through a reference.
 
 ## Variables set on every deployment
 
@@ -173,7 +158,9 @@ If it shows the old value, the service hasn't been redeployed since the change. 
 
 ## Common problems
 
-- **"Enter a value: the stored one is hidden from you"**: you added a key that exists as a secret you can't read. Type a new value or remove the row.
+- **"Secret not available"**: the service references a secret that is no longer on its chain, for example because its project moved to another folder. Select **Fix** and pick another secret.
+- **A secret can't be deleted**: it is in use. Open **Usages** and remove the references first.
+- **A secret is missing from the picker**: it is defined on another branch, or you lack the read permission on its level.
 - **"Defined twice"**: the same name appears on two rows. Keep one.
 - **A reserved name is refused**: names starting with `LOGISTACK_` belong to the deployment context variables. Rename yours.
 - **A build can't see a variable**: check its **Build** box and declare it with `ARG` in the Dockerfile.

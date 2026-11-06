@@ -14,6 +14,7 @@ import {
 	missingPlatforms,
 	platformsOfArchs,
 	resolveBuildPlatforms,
+	secretMasker,
 	specSnapshot,
 	transition,
 } from "@logistack/core";
@@ -46,6 +47,7 @@ import {
 	svcName,
 } from "./load.ts";
 import { runRelease } from "./release.ts";
+import { convertLegacySecrets } from "./secrets.ts";
 
 export type DeploymentRow = typeof deployment.$inferSelect;
 type Patch = Partial<
@@ -247,7 +249,12 @@ export function abortAll(reason: AbortReason) {
 	for (const r of running.values()) r.controller.abort(reason);
 }
 
-function deploymentLog(ctx: Ctx, id: string): { path: string; line: LogLine } {
+function deploymentLog(
+	ctx: Ctx,
+	id: string,
+	secrets: Iterable<string>,
+): { path: string; line: LogLine } {
+	const mask = secretMasker(secrets);
 	const path = join(ctx.cfg.LS_WORK_DIR, "logs", `${id}.log`);
 	let chain = mkdir(join(ctx.cfg.LS_WORK_DIR, "logs"), {
 		recursive: true,
@@ -256,7 +263,8 @@ function deploymentLog(ctx: Ctx, id: string): { path: string; line: LogLine } {
 	let published = Promise.resolve();
 	return {
 		path,
-		line: (text) => {
+		line: (raw) => {
+			const text = mask(raw);
 			// Ordered appends without blocking the producer; a lost line must not fail a deploy.
 			chain = chain.then(() => appendFile(path, `${text}\n`)).catch(() => {});
 			published = published
@@ -275,7 +283,11 @@ async function runDeployment(
 	const entry: Running = { controller, state: d.status };
 	running.set(d.id, entry);
 	const signal = controller.signal;
-	const { path, line } = deploymentLog(ctx, d.id);
+	const { path, line } = deploymentLog(
+		ctx,
+		d.id,
+		Object.values(sc.env).flatMap((v) => (v.isSecret ? [v.value] : [])),
+	);
 	const spec = sc.service.spec;
 	// Queued with an image already (rollback, restart): reuse it instead of building.
 	const source =
@@ -571,6 +583,7 @@ export async function processService(
 		if (plan.kind === "idle") return;
 		let sc: ServiceContext | null;
 		try {
+			await convertLegacySecrets(ctx);
 			sc = await loadService(ctx, serviceId);
 		} catch (e) {
 			await failAll(ctx, pending, e instanceof Error ? e.message : String(e));

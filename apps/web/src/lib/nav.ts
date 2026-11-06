@@ -239,11 +239,19 @@ export const NAV: NavGroup[] = [
 			},
 			{
 				to: "/settings/variables",
-				title: "Variables",
+				title: "Secrets & variables",
 				icon: Variable,
 				description:
-					"Environment variables every service in the organization inherits.",
-				keywords: ["env", "environment", "secrets", "dotenv", "shared"],
+					"Encrypted, versioned secrets services can reference, and plain variables every service inherits.",
+				keywords: [
+					"env",
+					"environment",
+					"secrets",
+					"dotenv",
+					"shared",
+					"variables",
+					"encryption key",
+				],
 			},
 			{
 				to: "/settings/appearance",

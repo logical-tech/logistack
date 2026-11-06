@@ -22,6 +22,7 @@ export function variablesStore(db: MockDb) {
 		key,
 		value,
 		isSecret,
+		secretId: null,
 		isBuildTime: key.startsWith("NEXT_PUBLIC_"),
 		createdAt: iso(86_400_000 * 20),
 		updatedAt: iso(86_400_000 * 2),
@@ -40,13 +41,7 @@ export function variablesStore(db: MockDb) {
 		const slug = env?.slug ?? "production";
 		return [
 			v(scope, id, "LOG_LEVEL", env?.kind === "production" ? "warn" : "debug"),
-			v(
-				scope,
-				id,
-				"DATABASE_URL",
-				`postgres://app:Xk29fQ7m@db.${slug}.internal:5432/app`,
-				true,
-			),
+			v(scope, id, "DATABASE_HOST", `db.${slug}.internal`),
 		];
 	};
 	const get = (scope: SharedScope, scopeId: string) => {
@@ -76,6 +71,7 @@ export function variablesStore(db: MockDb) {
 						...(prev ?? v(scope, scopeId, input.key, "")),
 						...input,
 						value: input.value ?? prev?.value ?? null,
+						secretId: null,
 						updatedAt: iso(),
 					};
 				}),

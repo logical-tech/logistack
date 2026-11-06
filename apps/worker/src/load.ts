@@ -12,14 +12,17 @@ import {
 	decrypt,
 	dockerName,
 	type ResolvedEnvVar,
+	type Resource,
 	resolveEnv,
 	scaledReplicas,
+	secretInChain,
 } from "@logistack/core";
 import {
 	adoptedVolume,
 	domain,
 	environment,
 	envVar,
+	folder,
 	gitProvider,
 	mount,
 	node,
@@ -38,6 +41,7 @@ import {
 } from "@logistack/providers";
 import { and, asc, eq, or } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
+import { readSecretValues } from "./secrets.ts";
 
 export type ServiceRow = typeof service.$inferSelect;
 export type DomainRow = typeof domain.$inferSelect;
@@ -131,7 +135,20 @@ async function gitAuth(
 	};
 }
 
-type LoadCtx = Pick<Ctx, "db" | "masterKey">;
+/** A project's folder and its parent, outermost first. */
+async function folderChain(
+	ctx: Pick<Ctx, "db">,
+	folderId: string | null,
+): Promise<string[]> {
+	if (!folderId) return [];
+	const [f] = await ctx.db
+		.select({ parentId: folder.parentId })
+		.from(folder)
+		.where(eq(folder.id, folderId));
+	return f?.parentId ? [f.parentId, folderId] : [folderId];
+}
+
+type LoadCtx = Pick<Ctx, "db" | "masterKey" | "secretsKek">;
 
 /** `gitAuth: false` skips minting clone credentials, for callers that only compile. */
 export async function loadService(
@@ -176,15 +193,43 @@ export async function loadService(
 				and(eq(envVar.scope, "service"), eq(envVar.scopeId, svc.id)),
 			),
 		);
+	const secrets = await readSecretValues(
+		ctx,
+		vars.flatMap((v) => (v.secretId ? [v.secretId] : [])),
+	);
+	const chainOf: Resource = {
+		type: "service",
+		organizationId: orgId,
+		folderIds: await folderChain(ctx, row.project.folderId),
+		projectId: row.project.id,
+		environmentId: svc.environmentId,
+		serviceId: svc.id,
+	};
 	const env = resolveEnv(
 		await Promise.all(
-			vars.map(async (v) => ({
-				scope: v.scope,
-				key: v.key,
-				value: await open(v.valueEncrypted),
-				isSecret: v.isSecret,
-				isBuildTime: v.isBuildTime,
-			})),
+			vars.map(async (v) => {
+				if (!v.secretId)
+					return {
+						scope: v.scope,
+						key: v.key,
+						value: await open(v.valueEncrypted),
+						isSecret: v.isSecret,
+						isBuildTime: v.isBuildTime,
+					};
+				const s = secrets.get(v.secretId);
+				// Re-checked here: moving a project to another folder can strand a folder secret.
+				if (!s || s.organizationId !== orgId || !secretInChain(s, chainOf))
+					throw new Error(
+						`${v.key} references a secret this service cannot use; pick another in its Environment tab`,
+					);
+				return {
+					scope: v.scope,
+					key: v.key,
+					value: s.value,
+					isSecret: true,
+					isBuildTime: v.isBuildTime,
+				};
+			}),
 		),
 	);
 

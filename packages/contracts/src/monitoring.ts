@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PruneReport, PruneTarget, pruneTargets } from "./agent.ts";
+import { AiAgentMessage, AiAgentStatus } from "./ai-agent.ts";
 import { NodeRole, NodeStatus } from "./enums.ts";
 import { UpdateState, UpdateSteps } from "./updates.ts";
 
@@ -478,6 +479,14 @@ export const LiveMessage = z.discriminatedUnion("kind", [
 		state: UpdateState,
 		steps: UpdateSteps,
 		line: z.string().optional(),
+	}),
+	/** An agent conversation on `ai-agent:<id>`: its status, plus the message being written. */
+	z.object({
+		kind: z.literal("ai-agent"),
+		channel: z.string(),
+		status: AiAgentStatus,
+		error: z.string().nullable().default(null),
+		message: AiAgentMessage.optional(),
 	}),
 ]);
 export type LiveMessage = z.infer<typeof LiveMessage>;
