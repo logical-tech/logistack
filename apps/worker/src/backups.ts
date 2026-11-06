@@ -39,6 +39,7 @@ import {
 	s3Destination as s3Provider,
 	selectForDeletion,
 } from "@logistack/providers";
+import { Decrypter, Encrypter, identityToRecipient } from "age-encryption";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { upsertService } from "./apply.ts";
 import {
@@ -62,6 +63,10 @@ import { publicAddress } from "./ssrf.ts";
 // process -> S3 multipart (or back), hashed on the way; nothing touches the control plane's disk.
 
 const JOB_TIMEOUT_S = 6 * 3600;
+/** Dump bytes the agent may run ahead of the upload; S3 pulls in 16 MiB parts. */
+const ACK_WINDOW_BYTES = 8 * 1024 * 1024;
+/** Objects written encrypted end in `.age`; restore decides by the key, not the policy's current setting. */
+const AGE_SUFFIX = ".age";
 const PAUSE_KEY = (serviceId: string) => `ls:backup:paused:${serviceId}`;
 
 type Policy = typeof backupPolicy.$inferSelect;
@@ -384,6 +389,32 @@ const engineImage = (svc: ServiceRow) => {
 	return databaseImage(svc.spec.engine, svc.spec.version);
 };
 
+/** The policy's age identity (`AGE-SECRET-KEY-1…`), or undefined when it backs up in plaintext. */
+async function backupIdentity(ctx: Ctx, policy: Policy) {
+	return policy.encryptionKeyEncrypted
+		? decrypt(ctx.masterKey, policy.encryptionKeyEncrypted)
+		: undefined;
+}
+
+/** A backup's bytes from S3, decrypted when it is an age file. */
+async function readBackup(
+	ctx: Ctx,
+	policy: Policy,
+	dest: S3Destination,
+	objectKey: string,
+): Promise<ReadableStream<Uint8Array>> {
+	const body = dest.download(objectKey);
+	if (!objectKey.endsWith(AGE_SUFFIX)) return body;
+	const identity = await backupIdentity(ctx, policy);
+	if (!identity) {
+		await body.cancel();
+		throw new Error("this backup is encrypted but its policy has no key");
+	}
+	const d = new Decrypter();
+	d.addIdentity(identity);
+	return d.decrypt(body);
+}
+
 function stamp(d: Date) {
 	return d.toISOString().replace(/[:.]/g, "-");
 }
@@ -394,7 +425,8 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 	const dest = await openDestination(ctx, policy.s3DestinationId);
 	const isVolume = policy.target === "volume";
 	const ext = isVolume ? VOLUME_EXTENSION : DUMP_EXTENSION[engineOf(svc)];
-	const key = `backups/${policy.id}/${stamp(run.startedAt)}-${run.id}.${ext}`;
+	const identity = await backupIdentity(ctx, policy);
+	const key = `backups/${policy.id}/${stamp(run.startedAt)}-${run.id}.${ext}${identity ? AGE_SUFFIX : ""}`;
 	const tick = progress(ctx, run.id, null);
 
 	const start = async () => {
@@ -408,6 +440,7 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 				script: dumpScript(engineOf(svc)),
 				timeoutSec: JOB_TIMEOUT_S,
 				outputLimitBytes: Number.MAX_SAFE_INTEGER,
+				ackWindowBytes: ACK_WINDOW_BYTES,
 			});
 		}
 		const nodeId = await volumeNode(ctx, svc);
@@ -427,17 +460,17 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 			script: volumeBackupScript,
 			timeoutSec: JOB_TIMEOUT_S,
 			outputLimitBytes: Number.MAX_SAFE_INTEGER,
+			ackWindowBytes: ACK_WINDOW_BYTES,
 		});
 	};
 
 	const go = async () => {
 		const job = await start();
-		const hash = new Bun.CryptoHasher("sha256");
-		let size = 0;
+		let dumped = 0;
 		let stderr = "";
 		const dec = new TextDecoder();
 		const it = job[Symbol.asyncIterator]();
-		const stream = new ReadableStream<Uint8Array>({
+		const dump = new ReadableStream<Uint8Array>({
 			async pull(c) {
 				for (;;) {
 					const { value, done } = await it.next();
@@ -446,9 +479,8 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 						stderr = tail(stderr + dec.decode(value.data, { stream: true }));
 						continue;
 					}
-					hash.update(value.data);
-					size += value.data.byteLength;
-					tick("uploading", size);
+					dumped += value.data.byteLength;
+					tick("uploading", dumped);
 					c.enqueue(value.data);
 					return;
 				}
@@ -457,8 +489,26 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 				await it.return?.();
 			},
 		});
+		let sealed: ReadableStream<Uint8Array> = dump;
+		if (identity) {
+			const e = new Encrypter();
+			e.addRecipient(await identityToRecipient(identity));
+			sealed = await e.encrypt(dump);
+		}
+		// Size and checksum describe the stored object, ciphertext when encrypted.
+		const hash = new Bun.CryptoHasher("sha256");
+		let size = 0;
+		const stored = sealed.pipeThrough(
+			new TransformStream<Uint8Array, Uint8Array>({
+				transform(chunk, c) {
+					hash.update(chunk);
+					size += chunk.byteLength;
+					c.enqueue(chunk);
+				},
+			}),
+		);
 		try {
-			await dest.upload(key, stream, {
+			await dest.upload(key, stored, {
 				contentType: "application/octet-stream",
 			});
 			const r = await job.result;
@@ -466,7 +516,7 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 				throw new Error(
 					`dump exited with ${r.exitCode}: ${stderr.trim() || "no output on stderr"}`,
 				);
-			if (size === 0) throw new Error("the dump was empty");
+			if (dumped === 0) throw new Error("the dump was empty");
 		} catch (e) {
 			await dest.delete(key).catch(() => {});
 			throw e;
@@ -554,8 +604,10 @@ async function verify(ctx: Ctx, l: Loaded, run: Run, sourceId?: string) {
 				{ target, cmd: ["sh", "-c", verifyRestoreScript(engine)], stdin: true },
 				{ timeoutMs: JOB_TIMEOUT_S * 1000 },
 			);
-			await feed(exec, dest.download(src.objectKey), (b) =>
-				tick("restoring", b),
+			await feed(
+				exec,
+				await readBackup(ctx, policy, dest, src.objectKey),
+				(b) => tick("restoring", b),
 			);
 			const sanity = judgeSanity(
 				engine,
@@ -600,7 +652,9 @@ async function restore(ctx: Ctx, l: Loaded, run: Run, job: BackupJob) {
 			},
 			{ timeoutMs: JOB_TIMEOUT_S * 1000 },
 		);
-		await feed(exec, dest.download(src.objectKey), (b) => tick("restoring", b));
+		await feed(exec, await readBackup(ctx, policy, dest, src.objectKey), (b) =>
+			tick("restoring", b),
+		);
 		tick("done", src.sizeBytes ?? 0, true);
 		return `Restored into ${target.name}`;
 	}
@@ -645,8 +699,10 @@ async function restore(ctx: Ctx, l: Loaded, run: Run, job: BackupJob) {
 					},
 					{ timeoutMs: JOB_TIMEOUT_S * 1000 },
 				);
-				await feed(exec, dest.download(src.objectKey), (b) =>
-					tick("restoring", b),
+				await feed(
+					exec,
+					await readBackup(ctx, policy, dest, src.objectKey),
+					(b) => tick("restoring", b),
 				);
 			},
 		);
