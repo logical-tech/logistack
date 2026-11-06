@@ -13,7 +13,9 @@ import { log } from "./log.ts";
 
 type Active = {
 	abort: AbortController;
-	exec?: ExecHandle;
+	/** Where `stdin` and `resize` go: an exec, or an archive write. */
+	exec?: Pick<ExecHandle, "write" | "end"> &
+		Partial<Pick<ExecHandle, "resize">>;
 	/** Serializes stdin writes, which wait for the agent socket to drain. */
 	chain: Promise<void>;
 };
@@ -43,7 +45,10 @@ export async function serveAgentRpc(
 
 	async function run(
 		nodeId: string,
-		m: Extract<AgentRpcRequest, { type: "job" | "exec" | "logs" | "disk" }>,
+		m: Extract<
+			AgentRpcRequest,
+			{ type: "job" | "exec" | "logs" | "disk" | "archive" }
+		>,
 		a: Active,
 	) {
 		const ping = setInterval(
@@ -65,13 +70,24 @@ export async function serveAgentRpc(
 					type: "disk",
 					...(await agents.disk(nodeId, m.req, { signal })),
 				});
+			} else if (m.type === "archive") {
+				const h = agents.archive(nodeId, m.req, { signal });
+				a.exec = h;
+				for await (const e of h)
+					await reply(
+						m.id,
+						e.type === "data"
+							? { type: "output", stream: "stdout", data: b64(e.data) }
+							: { ...e, type: "archive" },
+					);
 			} else if (m.type === "logs") {
 				for await (const l of agents.followLogs(nodeId, m.req, { signal }))
 					await reply(m.id, { type: "line", ...l });
 				await reply(m.id, { type: "end" });
 			} else {
-				a.exec = agents.exec(nodeId, m.req, { signal });
-				for await (const e of a.exec)
+				const h = agents.exec(nodeId, m.req, { signal });
+				a.exec = h;
+				for await (const e of h)
 					await reply(
 						m.id,
 						e.type === "output"
@@ -112,7 +128,8 @@ export async function serveAgentRpc(
 			m.type === "job" ||
 			m.type === "exec" ||
 			m.type === "logs" ||
-			m.type === "disk"
+			m.type === "disk" ||
+			m.type === "archive"
 		) {
 			if (active.has(m.id)) return;
 			const a: Active = {
@@ -128,7 +145,7 @@ export async function serveAgentRpc(
 		if (m.type === "cancel") return a.abort.abort();
 		const exec = a.exec;
 		if (!exec) return;
-		if (m.type === "resize") return exec.resize(m.rows, m.cols);
+		if (m.type === "resize") return exec.resize?.(m.rows, m.cols);
 		const data = Buffer.from(m.data, "base64");
 		const eof = m.eof;
 		a.chain = a.chain
