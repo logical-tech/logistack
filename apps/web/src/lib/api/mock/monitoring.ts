@@ -14,6 +14,7 @@ import type {
 	NodeJoin,
 	PreflightCheck,
 } from "../types";
+import { mockDb } from ".";
 
 const GiB = 1024 ** 3;
 const MiB = 1024 ** 2;
@@ -376,7 +377,44 @@ let settings: MonitoringSettings = {
 			enabled: false,
 		},
 	],
+	serviceThresholds: [
+		{
+			id: "sth_api_mem",
+			serviceId: "svc_storefront_production_api",
+			metric: "memoryMb",
+			above: 768,
+			forSec: 300,
+			enabled: true,
+			firing: true,
+			serviceName: "api",
+			projectId: "prj_storefront",
+		},
+	],
 };
+
+type ServiceThresholdRow = MonitoringSettings["serviceThresholds"][number];
+
+/** Names and project come from the service, as the server joins them. */
+function withService(
+	t: Omit<
+		ServiceThresholdRow,
+		"serviceName" | "projectId" | "firing" | "id"
+	> & {
+		id?: string;
+	},
+	prev?: ServiceThresholdRow,
+): ServiceThresholdRow | undefined {
+	const s = mockDb.services.find((x) => x.id === t.serviceId);
+	const env = s && mockDb.environments.find((e) => e.id === s.environmentId);
+	if (!s || !env) return undefined;
+	return {
+		...t,
+		id: t.id ?? rid("sth"),
+		firing: prev && prev.above === t.above ? prev.firing : null,
+		serviceName: s.name,
+		projectId: env.projectId,
+	};
+}
 
 // ---- Add-server runs ----
 
@@ -732,6 +770,16 @@ export const monitoringAdapter: Pick<
 			for (const t of input.thresholds) {
 				if (t.nodeId && !findNode(t.nodeId)) return fail(404, "node not found");
 			}
+			const serviceThresholds = input.serviceThresholds
+				? input.serviceThresholds.map((t) =>
+						withService(
+							t,
+							settings.serviceThresholds.find((p) => p.id === t.id),
+						),
+					)
+				: settings.serviceThresholds;
+			if (serviceThresholds.some((t) => !t))
+				return fail(404, "service not found");
 			settings = {
 				...settings,
 				retention: input.retention,
@@ -740,8 +788,34 @@ export const monitoringAdapter: Pick<
 					...t,
 					id: t.id ?? rid("thr"),
 				})),
+				serviceThresholds: serviceThresholds as ServiceThresholdRow[],
 			};
 			return delay(settings, 500);
+		},
+		serviceThresholds: (id) =>
+			delay(settings.serviceThresholds.filter((t) => t.serviceId === id)),
+		saveServiceThresholds: (id, input) => {
+			if (
+				input.thresholds.some(
+					(t) => t.metric === "memoryPercent" && t.above > 100,
+				)
+			)
+				return fail(400, "a percent of the memory limit is at most 100");
+			const mine = input.thresholds.map((t) =>
+				withService(
+					{ ...t, serviceId: id },
+					settings.serviceThresholds.find((p) => p.id === t.id),
+				),
+			);
+			if (mine.some((t) => !t)) return fail(404, "service not found");
+			settings = {
+				...settings,
+				serviceThresholds: [
+					...settings.serviceThresholds.filter((t) => t.serviceId !== id),
+					...(mine as ServiceThresholdRow[]),
+				],
+			};
+			return delay(mine as ServiceThresholdRow[], 400);
 		},
 	},
 };

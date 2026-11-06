@@ -173,6 +173,10 @@ export const httpAdapter: ApiAdapter = {
 	monitoring: {
 		settings: () => ok(api.monitoring.settings.$get()),
 		save: (json) => ok(api.monitoring.settings.$put({ json })),
+		serviceThresholds: (id) =>
+			ok(api.services[":id"].thresholds.$get({ param: { id } })),
+		saveServiceThresholds: (id, json) =>
+			ok(api.services[":id"].thresholds.$put({ param: { id }, json })),
 	},
 	networking: networkingHttp,
 	serviceOps: serviceOpsHttp,

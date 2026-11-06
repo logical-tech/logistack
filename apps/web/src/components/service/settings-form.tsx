@@ -42,6 +42,7 @@ import {
 	useServiceMutation,
 } from "@/lib/api/service-ops";
 import type { ProjectId } from "@/lib/api/types";
+import { ServiceAlerts } from "./service-alerts";
 
 type Build = ApplicationSpec["build"];
 const PIN = "node.hostname==";
@@ -680,6 +681,8 @@ export function SettingsForm({
 					</Button>
 				</div>
 			)}
+
+			<ServiceAlerts service={o} />
 
 			<DangerZone service={o} projectId={projectId} />
 		</div>

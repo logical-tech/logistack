@@ -6,6 +6,11 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { TimezonePicker } from "@/components/backups/cron-field";
 import { MonitoringPage } from "@/components/monitoring/monitoring-page";
+import {
+	minutes,
+	ServiceThresholdRow,
+	WINDOWS,
+} from "@/components/monitoring/service-threshold-row";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,6 +35,7 @@ import {
 } from "@/lib/api/monitoring";
 import type {
 	PruneTarget,
+	ServiceThreshold,
 	MonitoringSettingsInput as SettingsInput,
 	ThresholdMetric,
 } from "@/lib/api/types";
@@ -53,11 +59,12 @@ const METRIC: Record<ThresholdMetric, string> = {
 	disk: "Disk",
 };
 
-const WINDOWS = [60, 300, 600, 900, 1_800, 3_600];
-const minutes = (s: number) => (s < 3_600 ? `${s / 60} min` : `${s / 3_600} h`);
 const ALL = "__all";
 
-type Draft = SettingsInput & { cleanup: NonNullable<SettingsInput["cleanup"]> };
+type Draft = Omit<SettingsInput, "serviceThresholds"> & {
+	cleanup: NonNullable<SettingsInput["cleanup"]>;
+	serviceThresholds: ServiceThreshold[];
+};
 
 const TARGETS: { value: PruneTarget; label: string; hint: string }[] = [
 	{
@@ -85,6 +92,11 @@ function validate(d: Draft): Record<string, string> {
 		for (const i of r.error.issues) out[i.path.join(".")] ??= i.message;
 	const cron = cronError(d.cleanup.cron);
 	if (cron) out["cleanup.cron"] ??= cron;
+	d.serviceThresholds?.forEach((t, i) => {
+		if (t.metric === "memoryPercent" && t.above > 100)
+			out[`serviceThresholds.${i}.above`] ??=
+				"a percent of the limit is at most 100";
+	});
 	if (d.cleanup.enabled && !d.cleanup.targets.length)
 		out["cleanup.targets"] ??= "Pick at least one thing to clean up";
 	return out;
@@ -335,6 +347,9 @@ function Alerts() {
 				j === i ? { ...t, ...patch } : t,
 			),
 		});
+	const { serviceThresholds } = draft;
+	const setServiceThresholds = (next: ServiceThreshold[]) =>
+		setDraft({ ...draft, serviceThresholds: next });
 	const setRetention = (patch: Partial<Draft["retention"]>) =>
 		setDraft({ ...draft, retention: { ...draft.retention, ...patch } });
 	const setCleanup = (patch: Partial<Draft["cleanup"]>) =>
@@ -546,6 +561,57 @@ function Alerts() {
 							);
 						})}
 					</ul>
+				</Panel>
+
+				<Panel id="service-thresholds" title="Service thresholds">
+					<p className="border-b px-4 py-3 text-sm text-muted-foreground">
+						CPU and memory limits on single services, read per replica. Crossing
+						one emits{" "}
+						<code className="font-mono text-xs text-foreground">
+							service.threshold
+						</code>
+						. Add one from a service's Settings tab.
+					</p>
+					{serviceThresholds.length === 0 ? (
+						<p className="px-4 py-4 text-sm text-muted-foreground">
+							No service has a threshold yet.
+						</p>
+					) : (
+						<ul className="divide-y">
+							{serviceThresholds.map((t, i) => (
+								<ServiceThresholdRow
+									key={t.id ?? `new-${i}`}
+									value={t}
+									onChange={(patch) =>
+										setServiceThresholds(
+											serviceThresholds.map((x, j) =>
+												j === i ? { ...x, ...patch } : x,
+											),
+										)
+									}
+									onRemove={() =>
+										setServiceThresholds(
+											serviceThresholds.filter((_, j) => j !== i),
+										)
+									}
+									error={errors[`serviceThresholds.${i}.above`]}
+									lead={
+										<Link
+											to="/projects/$projectId/services/$serviceId/settings"
+											params={{
+												projectId: t.projectId,
+												serviceId: t.serviceId,
+											}}
+											hash="alerts"
+											className="dim min-w-0 truncate text-sm font-medium hover:underline"
+										>
+											{t.serviceName}
+										</Link>
+									}
+								/>
+							))}
+						</ul>
+					)}
 				</Panel>
 
 				<Panel id="retention" title="Retention" bodyClassName="p-4 sm:p-5">

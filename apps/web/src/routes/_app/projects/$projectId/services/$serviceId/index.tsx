@@ -5,7 +5,11 @@ import { type ReactNode, useState } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { Panel } from "@/components/panel";
 import { AddDomainDialog } from "@/components/service/add-domain-dialog";
-import { DeploymentStatusLabel, StatusLabel } from "@/components/status";
+import {
+	DeploymentStatusLabel,
+	StatusDot,
+	StatusLabel,
+} from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { domainsQuery } from "@/lib/api/networking";
 import {
@@ -301,12 +305,58 @@ function Domains({ service: o }: { service: ServiceOverview }) {
 	);
 }
 
+const CRASH_LOOP: StatusMeta = { label: "Crash loop", tone: "bad" };
+
+/** Quiet on purpose: the replicas below already show the failing tasks in red. */
+function CrashLoopNotice({
+	service: o,
+	projectId,
+}: {
+	service: ServiceOverview;
+	projectId: ProjectId;
+}) {
+	const loop = o.status.crashLoop;
+	if (!loop) return null;
+	return (
+		<div
+			role="status"
+			className="t-reveal flex items-start gap-3 rounded-xl bg-card px-4 py-3 shadow-card ring-1 ring-border lg:col-span-2"
+		>
+			<StatusDot meta={CRASH_LOOP} className="mt-1.5" />
+			<div className="min-w-0 flex-1">
+				<p className="text-sm font-medium">Restarting repeatedly</p>
+				<p className="mt-0.5 text-xs text-muted-foreground">
+					<span className="tabular">{loop.failures}</span> failed{" "}
+					{loop.failures === 1 ? "task" : "tasks"} in the last 5 minutes, since{" "}
+					<time dateTime={loop.since}>{relativeTime(loop.since)}</time>. Last
+					exit:{" "}
+					<code
+						className="font-mono text-bad-text break-all"
+						title={loop.reason}
+					>
+						{loop.reason}
+					</code>
+				</p>
+			</div>
+			<Button variant="ghost" size="sm" asChild>
+				<Link
+					to="/projects/$projectId/services/$serviceId/logs"
+					params={{ projectId, serviceId: o.id }}
+				>
+					View logs
+				</Link>
+			</Button>
+		</div>
+	);
+}
+
 function OverviewTab() {
 	const { serviceId, projectId } = Route.useParams();
 	const { data: service } = useQuery(overviewQuery(serviceId));
 	if (!service) return null;
 	return (
 		<div className="t-reveal grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+			<CrashLoopNotice service={service} projectId={projectId} />
 			<div className="grid content-start gap-6">
 				<Replicas tasks={service.status.tasks} />
 				<Current service={service} projectId={projectId} />

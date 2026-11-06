@@ -37,6 +37,8 @@ import type {
 	PruneResult,
 	Service,
 	ServiceId,
+	ServiceThreshold,
+	ServiceThresholdsInput,
 	SetupInput,
 	SourceCheck,
 } from "./types";
@@ -104,6 +106,11 @@ export type ApiAdapter = {
 	monitoring: {
 		settings(): Promise<MonitoringSettings>;
 		save(input: MonitoringSettingsInput): Promise<MonitoringSettings>;
+		serviceThresholds(id: ServiceId): Promise<ServiceThreshold[]>;
+		saveServiceThresholds(
+			id: ServiceId,
+			input: ServiceThresholdsInput,
+		): Promise<ServiceThreshold[]>;
 	};
 	networking: NetworkingApi;
 	serviceOps: ServiceOpsApi;
