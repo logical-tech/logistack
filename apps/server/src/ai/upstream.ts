@@ -2,6 +2,7 @@ import {
 	type AiProviderDef,
 	type AiTier,
 	aiProvider,
+	backoffSeconds,
 	decrypt,
 	type ModelRef,
 	servedModels,
@@ -107,6 +108,81 @@ export async function coolDown(
 
 export async function isCooling(redisUrl: string, c: Candidate) {
 	return (await redisFor(redisUrl).exists(coolKey(c.key.id, c.model))) === true;
+}
+
+const levelKey = (c: Candidate) => `ls:ai:level:${c.key.id}:${c.model}`;
+
+/** Seconds from `retry-after` (seconds or a date), capped at 30 minutes; undefined when absent. */
+function retryAfter(headers: Headers): number | undefined {
+	const raw = headers.get("retry-after");
+	if (!raw) return undefined;
+	const secs = Number(raw);
+	const s = Number.isFinite(secs)
+		? secs
+		: (Date.parse(raw) - Date.now()) / 1000;
+	return s > 0 ? Math.min(Math.ceil(s), 1_800) : undefined;
+}
+
+/** A quota hit: the provider's own reset time when it gives one, else a back-off that grows per repeat. */
+export async function backOff(
+	redisUrl: string,
+	c: Candidate,
+	headers: Headers,
+) {
+	const redis = redisFor(redisUrl);
+	const level = Number(await redis.incr(levelKey(c)));
+	await redis.expire(levelKey(c), 3_600);
+	await coolDown(redisUrl, c, retryAfter(headers) ?? backoffSeconds(level));
+}
+
+/** A success forgets earlier quota hits. */
+export async function recovered(redisUrl: string, c: Candidate) {
+	await redisFor(redisUrl).del(levelKey(c));
+}
+
+export const liveKey = (keyId: string) => `ls:ai:live:${keyId}`;
+
+/** Remaining quota a provider reported in its rate-limit headers, as last seen. */
+export type LiveLimits = {
+	model: string;
+	limitRequests?: number;
+	remainingRequests?: number;
+	limitTokens?: number;
+	remainingTokens?: number;
+	resetRequests?: string;
+	resetTokens?: string;
+	observedAt: string;
+};
+
+/** Keeps the `x-ratelimit-*` headers of the last answer per key and model, for the capacity view. */
+export async function observeLimits(
+	redisUrl: string,
+	c: Candidate,
+	h: Headers,
+) {
+	const num = (name: string) => {
+		const v = h.get(name);
+		return v === null || v === "" || Number.isNaN(Number(v))
+			? undefined
+			: Number(v);
+	};
+	const live: LiveLimits = {
+		model: c.model,
+		limitRequests:
+			num("x-ratelimit-limit-requests") ?? num("x-ratelimit-limit"),
+		remainingRequests:
+			num("x-ratelimit-remaining-requests") ?? num("x-ratelimit-remaining"),
+		limitTokens: num("x-ratelimit-limit-tokens"),
+		remainingTokens: num("x-ratelimit-remaining-tokens"),
+		resetRequests: h.get("x-ratelimit-reset-requests") ?? undefined,
+		resetTokens: h.get("x-ratelimit-reset-tokens") ?? undefined,
+		observedAt: new Date().toISOString(),
+	};
+	if (live.limitRequests === undefined && live.limitTokens === undefined)
+		return;
+	const redis = redisFor(redisUrl);
+	await redis.hset(liveKey(c.key.id), c.model, JSON.stringify(live));
+	await redis.expire(liveKey(c.key.id), 86_400);
 }
 
 /** Base URL and auth headers for a key, with a custom server's host checked like any user-given URL. */

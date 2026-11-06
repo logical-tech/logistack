@@ -1,7 +1,13 @@
+import {
+	aiProviders,
+	type AiProviderDef as CoreDef,
+	dailyAllowance,
+} from "@logistack/core/ai-providers";
 import { ApiError } from "../adapter";
 import type {
 	AiApi,
 	AiBudget,
+	AiCapacity,
 	AiFigures,
 	AiGatewayKey,
 	AiModel,
@@ -35,97 +41,19 @@ const DAY = 86_400_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const rid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 10)}`;
 
-const PROVIDERS: AiProviderDef[] = [
-	[
-		"groq",
-		"Groq",
-		"free",
-		"https://console.groq.com/keys",
-		"gsk_…",
-		"llama-3.3-70b-versatile",
-	],
-	[
-		"cerebras",
-		"Cerebras",
-		"free",
-		"https://cloud.cerebras.ai",
-		"csk-…",
-		"gpt-oss-120b",
-	],
-	[
-		"gemini",
-		"Google Gemini",
-		"free",
-		"https://aistudio.google.com/apikey",
-		"AIza…",
-		"gemini-2.5-flash",
-	],
-	[
-		"mistral",
-		"Mistral",
-		"free",
-		"https://console.mistral.ai/api-keys",
-		"32 characters",
-		"mistral-small-latest",
-	],
-	[
-		"openrouter",
-		"OpenRouter",
-		"free",
-		"https://openrouter.ai/settings/keys",
-		"sk-or-…",
-		null,
-	],
-	[
-		"nvidia",
-		"NVIDIA NIM",
-		"free",
-		"https://build.nvidia.com",
-		"nvapi-…",
-		"meta/llama-3.3-70b-instruct",
-	],
-	[
-		"huggingface",
-		"Hugging Face",
-		"free",
-		"https://huggingface.co/settings/tokens",
-		"hf_…",
-		null,
-	],
-	[
-		"cloudflare",
-		"Cloudflare Workers AI",
-		"free",
-		"https://dash.cloudflare.com/profile/api-tokens",
-		"account-id:api-token",
-		"@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-	],
-	["custom", "OpenAI-compatible server", "free", null, "optional", null],
-	[
-		"openai",
-		"OpenAI",
-		"paid",
-		"https://platform.openai.com/api-keys",
-		"sk-…",
-		"gpt-5-mini",
-	],
-	[
-		"anthropic",
-		"Anthropic",
-		"paid",
-		"https://console.anthropic.com/settings/keys",
-		"sk-ant-…",
-		"claude-sonnet-4-5",
-	],
-].map(([id, name, tier, keyUrl, keyHint, defaultModel]) => ({
-	id: id as string,
-	name: name as string,
-	tier: tier as "free" | "paid",
-	keyUrl: keyUrl ?? null,
-	keyHint: keyHint as string,
-	customBaseUrl: id === "custom",
-	defaultModel: defaultModel ?? null,
-}));
+/** The server's catalog view (`defView` in apps/server/src/routes/ai.ts). */
+const PROVIDERS: AiProviderDef[] = (aiProviders as readonly CoreDef[]).map(
+	(d) => ({
+		id: d.id,
+		name: d.name,
+		tier: d.tier,
+		keyUrl: d.keyUrl ?? null,
+		keyHint: d.keyHint,
+		customBaseUrl: d.customBaseUrl ?? false,
+		defaultModel: d.defaultModel ?? null,
+		keyless: d.keyless ?? false,
+	}),
+);
 const def = (id: string) => PROVIDERS.find((p) => p.id === id);
 
 /** What each provider's key serves once tested. */
@@ -157,6 +85,9 @@ const SERVED: Record<string, string[]> = {
 		"@cf/qwen/qwen2.5-coder-32b-instruct",
 	],
 	custom: ["llama3.2:3b", "qwen2.5-coder:7b"],
+	kilo: ["z-ai/glm-4.5-air:free", "qwen/qwen3-coder:free"],
+	llm7: ["gpt-oss-20b", "mistral-small-3.1-24b", "qwen2.5-coder-32b"],
+	ovh: ["Meta-Llama-3_3-70B-Instruct", "Qwen2.5-Coder-32B-Instruct"],
 	openai: ["gpt-5", "gpt-5-mini", "gpt-5-nano", "text-embedding-3-small"],
 	anthropic: ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-1"],
 };
@@ -569,7 +500,7 @@ function usage(range: AiUsageRange): AiUsage {
 function test(k: AiProviderKey, secret: string): AiProviderKey {
 	const bad =
 		/invalid|wrong|bad/i.test(secret) ||
-		(k.provider !== "custom" && secret.length < 8);
+		(!def(k.provider)?.keyless && secret.length < 8);
 	return {
 		...k,
 		status: bad ? "unhealthy" : "healthy",
@@ -623,7 +554,7 @@ export const mockAi: AiApi = {
 			if (!d) return fail(400, "unknown provider", "bad_request");
 			if (d.customBaseUrl && !input.baseUrl)
 				return fail(400, "a custom server needs its base URL", "bad_request");
-			if (!d.customBaseUrl && !input.key)
+			if (!d.keyless && !input.key)
 				return fail(400, `${d.name} needs an API key`, "bad_request");
 			if (d.id === "cloudflare" && !/^[^:\s]+:\S+$/.test(input.key ?? ""))
 				return fail(
@@ -702,4 +633,89 @@ export const mockAi: AiApi = {
 		},
 	},
 	usage: (range) => guard() ?? delay(usage(range)),
+	capacity: () => guard() ?? delay(capacity()),
 };
+
+/** Free tokens and requests already spent today, per provider. */
+const USED_TODAY: Record<string, { tokens: number; requests: number }> = {
+	groq: { tokens: 38_420, requests: 212 },
+	cerebras: { tokens: 412_880, requests: 641 },
+	gemini: { tokens: 91_300, requests: 74 },
+	openrouter: { tokens: 22_150, requests: 31 },
+};
+
+/** What the providers' rate-limit headers said on their last call. */
+const LIVE: Record<string, AiCapacity["providers"][number]["live"]> = {
+	groq: [
+		{
+			model: "llama-3.3-70b-versatile",
+			limitRequests: 1_000,
+			remainingRequests: 788,
+			limitTokens: 12_000,
+			remainingTokens: 11_240,
+			resetRequests: "4h12m",
+			resetTokens: "3.6s",
+			observedAt: ago(4 * 60_000),
+		},
+		{
+			model: "openai/gpt-oss-120b",
+			limitRequests: 1_000,
+			remainingRequests: 996,
+			observedAt: ago(52 * 60_000),
+		},
+	],
+	cerebras: [
+		{
+			model: "gpt-oss-120b",
+			limitTokens: 1_000_000,
+			remainingTokens: 587_120,
+			resetTokens: "9h47m",
+			observedAt: ago(11 * 60_000),
+		},
+	],
+};
+
+/** Mirrors the server: enabled free keys, published allowance × healthy keys. */
+function capacity(): AiCapacity {
+	const now = new Date();
+	const since = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+	);
+	const providers: AiCapacity["providers"] = [];
+	for (const d of aiProviders as readonly CoreDef[]) {
+		if (d.tier !== "free") continue;
+		const mine = keys.filter((k) => k.provider === d.id && k.enabled);
+		if (!mine.length) continue;
+		const healthy = mine.filter((k) => k.status !== "unhealthy").length;
+		const limits = d.freeQuota?.limits ?? [];
+		const per = dailyAllowance(limits);
+		const n = d.keyless ? Math.min(healthy, 1) : healthy;
+		providers.push({
+			provider: d.id,
+			name: d.name,
+			keys: mine.length,
+			healthy,
+			limits: [...limits],
+			note: d.freeQuota?.note ?? null,
+			docsUrl: d.freeQuota?.docsUrl ?? null,
+			daily: { tokens: per.tokens * n, requests: per.requests * n },
+			usedToday: USED_TODAY[d.id] ?? { tokens: 0, requests: 0 },
+			live: LIVE[d.id] ?? [],
+		});
+	}
+	const sum = (f: (p: (typeof providers)[number]) => number) =>
+		providers.reduce((t, p) => t + f(p), 0);
+	return {
+		providers,
+		totals: {
+			tokensPerDay: sum((p) => p.daily.tokens),
+			requestsPerDay: sum((p) => p.daily.requests),
+			tokensUsedToday: sum((p) => p.usedToday.tokens),
+			requestsUsedToday: sum((p) => p.usedToday.requests),
+			unpublished: providers.filter(
+				(p) => p.daily.tokens === 0 && p.daily.requests === 0,
+			).length,
+		},
+		since: since.toISOString(),
+	};
+}

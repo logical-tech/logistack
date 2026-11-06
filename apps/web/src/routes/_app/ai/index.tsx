@@ -4,6 +4,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { useState } from "react";
 import { z } from "zod";
 import { useAiSettings } from "@/components/ai/ai-page";
+import { FreeCapacity } from "@/components/ai/capacity";
 import { BudgetMeter, TierBadge, Tile } from "@/components/ai/parts";
 import {
 	TierLegend,
@@ -62,6 +63,7 @@ function Overview() {
 	const settings = useAiSettings();
 	return (
 		<div className="grid gap-8">
+			<FreeCapacity canAdmin={settings.canAdmin} />
 			<section aria-labelledby="usage-heading" className="grid gap-4">
 				<div className="flex flex-wrap items-end justify-between gap-3">
 					<div className="grid gap-1">

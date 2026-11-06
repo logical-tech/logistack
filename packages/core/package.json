@@ -5,7 +5,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./sql": "./src/sql.ts",
-		"./network-map": "./src/network-map.ts"
+		"./network-map": "./src/network-map.ts",
+		"./ai-providers": "./src/ai-providers.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc -p ."

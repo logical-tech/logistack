@@ -28,13 +28,27 @@ function fakeUpstream() {
 					{ error: { message: "slow down" } },
 					{ status: 429, headers: { "retry-after": "120" } },
 				);
+			if (body.model === "bad")
+				return Response.json(
+					{ error: { message: "messages: invalid role" } },
+					{ status: 400 },
+				);
 			const usage = { prompt_tokens: 1000, completion_tokens: 500 };
+			const limits = {
+				"x-ratelimit-limit-requests": "1000",
+				"x-ratelimit-remaining-requests": "998",
+				"x-ratelimit-limit-tokens": "12000",
+				"x-ratelimit-remaining-tokens": "11000",
+			};
 			if (!body.stream)
-				return Response.json({
-					id: "c1",
-					choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
-					usage,
-				});
+				return Response.json(
+					{
+						id: "c1",
+						choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
+						usage,
+					},
+					{ headers: limits },
+				);
 			const chunks = [
 				{ choices: [{ delta: { content: "hel" } }] },
 				{ choices: [{ delta: { content: "lo" }, finish_reason: "stop" }] },
@@ -166,6 +180,33 @@ describe.skipIf(!hasDocker)("AI gateway", () => {
 		expect(res.status).toBe(200);
 		expect(res.json.object).toBe("response");
 		expect(res.json.output[0].content[0].text).toBe("hello");
+	});
+
+	test("a bad request goes back to the client without trying others", async () => {
+		const before = upstream.calls.length;
+		const res = await h.call("POST", "/v1/chat/completions", {
+			...gw(),
+			body: { model: "custom/bad", messages: [{ role: "user", content: "x" }] },
+		});
+		expect(res.status).toBe(400);
+		expect(res.json.error.message).toContain("invalid role");
+		expect(upstream.calls.length).toBe(before + 1);
+	});
+
+	test("capacity shows today's use and the provider's reported limits", async () => {
+		const res = await h.call("GET", "/api/ai/capacity", as());
+		expect(res.status).toBe(200);
+		const custom = res.json.providers.find(
+			(p: { provider: string }) => p.provider === "custom",
+		);
+		expect(custom.usedToday.requests).toBeGreaterThanOrEqual(2);
+		expect(custom.live[0]).toMatchObject({
+			model: "ok",
+			remainingTokens: 11000,
+			limitRequests: 1000,
+		});
+		// The custom server publishes no free tier.
+		expect(res.json.totals.unpublished).toBe(1);
 	});
 
 	test("a member over the free cap is refused", async () => {
