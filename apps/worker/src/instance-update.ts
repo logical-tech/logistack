@@ -3,7 +3,9 @@ import {
 	checkSponsorKey,
 	compareVersions,
 	SPONSOR_RENEW_WINDOW_MS,
+	SPONSORS_SANDBOX_URL,
 	SPONSORS_URL,
+	sponsorKeys,
 } from "@logistack/core";
 import { instanceSettings, instanceUpdate, organization } from "@logistack/db";
 import {
@@ -297,7 +299,8 @@ export async function renewSponsorKey(
 		.select({ key: instanceSettings.sponsorKey })
 		.from(instanceSettings);
 	if (!s?.key) return;
-	const current = await checkSponsorKey(s.key, now);
+	const keys = sponsorKeys(ctx.cfg.LOGISTACK_SPONSOR_SANDBOX);
+	const current = await checkSponsorKey(s.key, now, keys);
 	if (
 		!current.ok ||
 		current.claims.kind !== "monthly" ||
@@ -305,7 +308,8 @@ export async function renewSponsorKey(
 	)
 		return;
 	try {
-		const res = await fetcher(`${SPONSORS_URL}/v1/refresh`, {
+		const base = current.sandbox ? SPONSORS_SANDBOX_URL : SPONSORS_URL;
+		const res = await fetcher(`${base}/v1/refresh`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ key: s.key }),
@@ -314,7 +318,7 @@ export async function renewSponsorKey(
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
 		const { key } = (await res.json()) as { key: string | null };
 		if (!key) return;
-		const next = await checkSponsorKey(key, now);
+		const next = await checkSponsorKey(key, now, keys);
 		if (!next.ok || next.claims.exp <= current.claims.exp) return;
 		await ctx.db
 			.update(instanceSettings)

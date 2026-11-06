@@ -76,6 +76,11 @@ function Thanks({ s }: { s: SponsorStatus }) {
 			<dl className="divide-y border-t">
 				<Row label="Sponsorship">
 					{s.kind === "monthly" ? `${money(s)} a month` : `${money(s)}, once`}
+					{s.sandbox && (
+						<span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+							Sandbox
+						</span>
+					)}
 				</Row>
 				<Row label="Key issued">{date(s.since)}</Row>
 				<Row label={s.kind === "monthly" ? "Renews before" : "Valid until"}>

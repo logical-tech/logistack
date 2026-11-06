@@ -22,12 +22,13 @@ const claims = {
 
 test("a key the sponsors Worker signs verifies on an instance", async () => {
 	const key = await signSponsorKey(claims, priv);
-	expect(await checkSponsorKey(key, claims.iat * 1000, pub)).toEqual({
+	expect(await checkSponsorKey(key, claims.iat * 1000, [pub])).toEqual({
 		ok: true,
 		claims,
 		expired: false,
+		sandbox: false,
 	});
-	const later = await checkSponsorKey(key, (claims.exp + 1) * 1000, pub);
+	const later = await checkSponsorKey(key, (claims.exp + 1) * 1000, [pub]);
 	expect(later.ok && later.expired).toBe(true);
 });
 
@@ -37,7 +38,7 @@ test("a tampered or foreign key is refused", async () => {
 	const forged = Buffer.from(
 		JSON.stringify({ ...claims, exp: claims.exp + 1e6 }),
 	).toString("base64url");
-	expect(await checkSponsorKey(`lss_${forged}.${sig}`, 0, pub)).toEqual({
+	expect(await checkSponsorKey(`lss_${forged}.${sig}`, 0, [pub])).toEqual({
 		ok: false,
 		reason: "signature",
 	});
@@ -45,7 +46,7 @@ test("a tampered or foreign key is refused", async () => {
 		ok: false,
 		reason: "signature",
 	});
-	expect(await checkSponsorKey("lsk_nope", 0, pub)).toEqual({
+	expect(await checkSponsorKey("lsk_nope", 0, [pub])).toEqual({
 		ok: false,
 		reason: "malformed",
 	});

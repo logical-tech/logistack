@@ -31,3 +31,5 @@ export const manageSponsorshipLink =
 /** The sponsors Worker (`sponsors/` in the repo): /thanks/ reads the new key from it. */
 export const sponsorsApi =
 	process.env.NEXT_PUBLIC_SPONSORS_API ?? "https://sponsors.logicaltech.it";
+/** Stripe sandbox payment links redirect to /thanks/?sandbox=1; their keys come from here. */
+export const sponsorsSandboxApi = "https://sponsors-sandbox.logicaltech.it";

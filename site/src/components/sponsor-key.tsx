@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { sponsorsApi } from "@/content/sponsor";
+import { sponsorsApi, sponsorsSandboxApi } from "@/content/sponsor";
 import { CopyCommand } from "./copy-command";
 
 type State =
@@ -18,7 +18,10 @@ export function SponsorKey() {
 	const [state, setState] = useState<State>({ kind: "loading" });
 
 	useEffect(() => {
-		const id = new URLSearchParams(location.search).get("session_id");
+		const params = new URLSearchParams(location.search);
+		const id = params.get("session_id");
+		const api =
+			params.get("sandbox") === "1" ? sponsorsSandboxApi : sponsorsApi;
 		if (!id?.startsWith("cs_")) {
 			setState({ kind: "none" });
 			return;
@@ -27,7 +30,7 @@ export function SponsorKey() {
 		(async () => {
 			for (let i = 0; i < 10 && !stopped; i++) {
 				try {
-					const res = await fetch(`${sponsorsApi}/v1/sessions/${id}`);
+					const res = await fetch(`${api}/v1/sessions/${id}`);
 					if (res.ok) {
 						const { key } = (await res.json()) as { key: string };
 						if (!stopped) setState({ kind: "ready", key });

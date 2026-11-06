@@ -1,5 +1,9 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { checkSponsorKey } from "@logistack/core";
+import {
+	checkSponsorKey,
+	SPONSOR_SANDBOX_PUBLIC_KEY,
+	sponsorKeys,
+} from "@logistack/core";
 import { instanceSettings } from "@logistack/db";
 import { eq } from "drizzle-orm";
 import type { Context } from "hono";
@@ -20,6 +24,8 @@ const SponsorStatus = z
 		currency: z.string().nullable(),
 		since: z.string().nullable(),
 		expiresAt: z.string().nullable(),
+		/** The key came from Stripe's sandbox; only test instances accept those. */
+		sandbox: z.boolean(),
 	})
 	.openapi("SponsorStatus");
 
@@ -32,13 +38,18 @@ const NONE: SponsorStatus = {
 	currency: null,
 	since: null,
 	expiresAt: null,
+	sandbox: false,
 };
 
+const trusted = (c: Context<Env>) =>
+	sponsorKeys(c.var.deps.config.LOGISTACK_SPONSOR_SANDBOX);
+
 async function statusOf(
+	c: Context<Env>,
 	key: string | null | undefined,
 ): Promise<SponsorStatus> {
 	if (!key) return NONE;
-	const r = await checkSponsorKey(key);
+	const r = await checkSponsorKey(key, Date.now(), trusted(c));
 	// A key that stopped verifying (rotated public key) reads as no sponsorship, never as an error.
 	if (!r.ok) return NONE;
 	return {
@@ -48,6 +59,7 @@ async function statusOf(
 		currency: r.claims.currency,
 		since: new Date(r.claims.iat * 1000).toISOString(),
 		expiresAt: new Date(r.claims.exp * 1000).toISOString(),
+		sandbox: r.sandbox,
 	};
 }
 
@@ -76,7 +88,7 @@ export const sponsor = router()
 			middleware: [requirePermission("read", inOrganization)],
 			responses: { 200: json(SponsorStatus, "Sponsor status"), ...errors },
 		}),
-		async (c) => c.json(await statusOf(await stored(c)), 200),
+		async (c) => c.json(await statusOf(c, await stored(c)), 200),
 	)
 	.openapi(
 		mutation(
@@ -95,7 +107,16 @@ export const sponsor = router()
 		),
 		async (c) => {
 			const key = c.req.valid("json").key.trim();
-			const r = await checkSponsorKey(key);
+			const r = await checkSponsorKey(key, Date.now(), trusted(c));
+			if (
+				!r.ok &&
+				(await checkSponsorKey(key, Date.now(), [SPONSOR_SANDBOX_PUBLIC_KEY]))
+					.ok
+			)
+				throw new Failure(
+					"bad_request",
+					"This is a sandbox key from a test payment. Only an instance started with LOGISTACK_SPONSOR_SANDBOX=1 accepts it.",
+				);
 			if (!r.ok)
 				throw new Failure(
 					"bad_request",
@@ -109,7 +130,7 @@ export const sponsor = router()
 					"This key has expired. Your latest key is in the most recent sponsorship email.",
 				);
 			await save(c, key);
-			return c.json(await statusOf(key), 200);
+			return c.json(await statusOf(c, key), 200);
 		},
 	)
 	.openapi(

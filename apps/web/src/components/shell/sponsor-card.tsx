@@ -101,7 +101,7 @@ export function SponsorBadge() {
 					className="t-press inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 text-2xs font-medium text-primary outline-none ring-1 ring-primary/20 transition-[background-color] duration-(--duration-quick) hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:hidden"
 				>
 					<Heart className="size-3 fill-current" aria-hidden />
-					Sponsor
+					{data.sandbox ? "Sandbox" : "Sponsor"}
 				</Link>
 			</TooltipTrigger>
 			<TooltipContent side="top">

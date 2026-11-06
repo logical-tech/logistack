@@ -8,6 +8,7 @@ const NONE: SponsorStatus = {
 	currency: null,
 	since: null,
 	expiresAt: null,
+	sandbox: false,
 };
 
 const DAY = 86_400_000;
@@ -18,6 +19,7 @@ const active = (): SponsorStatus => ({
 	currency: "eur",
 	since: new Date(Date.now() - 12 * DAY).toISOString(),
 	expiresAt: new Date(Date.now() + 25 * DAY).toISOString(),
+	sandbox: false,
 });
 
 /** `ls-mock-sponsor=1` starts the mock as a sponsor; any `lss_` key activates it. */
