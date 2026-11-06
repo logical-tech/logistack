@@ -18,6 +18,7 @@ import { mcpHandler } from "./mcp.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
 import { backups } from "./routes/backups.ts";
+import { buildPlatforms } from "./routes/build-platforms.ts";
 import { certificates } from "./routes/certificates.ts";
 import { containerFiles } from "./routes/container-files.ts";
 import { databases } from "./routes/databases.ts";
@@ -154,6 +155,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", sso)
 		.route("/api", serviceOps)
 		.route("/api", instance)
+		.route("/api", buildPlatforms)
 		.route("/api", updates)
 		.route("/api", git)
 		.route("/api", registries)

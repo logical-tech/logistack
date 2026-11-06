@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from "@hono/zod-openapi";
 import {
 	ApiError,
+	BuildPlatform,
 	DeploymentStatus,
 	DeploymentTrigger,
 	DesiredState,
@@ -150,6 +151,8 @@ export const Deployment = z
 		/** The tag a tag or release trigger deploys; null deploys the source branch. */
 		gitRef: z.string().nullable(),
 		imageRef: z.string().nullable(),
+		/** Platforms the image was built for; null for image sources and builds before multi-arch support. */
+		platforms: z.array(BuildPlatform).nullable(),
 		startedAt: Timestamp.nullable(),
 		finishedAt: Timestamp.nullable(),
 		error: z.string().nullable(),

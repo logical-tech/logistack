@@ -128,6 +128,7 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 			commitMessage: from?.commitMessage ?? null,
 			gitRef: null,
 			imageRef: from?.imageRef ?? null,
+			platforms: from?.platforms ?? null,
 			startedAt: iso(),
 			finishedAt: null,
 			error: null,

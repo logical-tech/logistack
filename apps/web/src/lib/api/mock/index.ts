@@ -294,6 +294,7 @@ export const mockAdapter: ApiAdapter = {
 				commitMessage: null,
 				gitRef: null,
 				imageRef: null,
+				platforms: null,
 				startedAt: null,
 				finishedAt: null,
 				error: null,

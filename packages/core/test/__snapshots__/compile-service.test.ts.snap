@@ -1027,3 +1027,17 @@ exports[`host-level application settings snapshot 1`] = `
   },
 }
 `;
+
+exports[`snapshots single-architecture image: placement keeps it on that architecture 1`] = `
+{
+  "Constraints": [
+    "node.labels.region==eu",
+  ],
+  "Platforms": [
+    {
+      "Architecture": "amd64",
+      "OS": "linux",
+    },
+  ],
+}
+`;

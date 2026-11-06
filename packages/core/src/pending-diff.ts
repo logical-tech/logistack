@@ -319,6 +319,7 @@ const otherLabels: Record<string, string> = {
 	"TaskTemplate.ContainerSpec.CapabilityAdd": "added capabilities",
 	"TaskTemplate.ContainerSpec.CapabilityDrop": "dropped capabilities",
 	"TaskTemplate.Placement.Constraints": "placement constraints",
+	"TaskTemplate.Placement.Platforms": "image platforms",
 	"TaskTemplate.RestartPolicy.Condition": "restart policy",
 	"UpdateConfig.Order": "update order",
 	"RollbackConfig.Order": "rollback order",

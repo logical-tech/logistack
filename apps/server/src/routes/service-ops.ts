@@ -436,6 +436,7 @@ export const serviceOps = router()
 				serviceId: id,
 				trigger: actorTrigger(requireActor(c)),
 				imageRef: current.imageRef,
+				platforms: current.platforms,
 				commitSha: current.commitSha,
 				commitMessage: current.commitMessage,
 			});
@@ -502,6 +503,7 @@ export const serviceOps = router()
 					serviceId: target.serviceId,
 					trigger: "rollback",
 					imageRef: target.imageRef,
+					platforms: target.platforms,
 					commitSha: target.commitSha,
 					commitMessage: target.commitMessage,
 				},

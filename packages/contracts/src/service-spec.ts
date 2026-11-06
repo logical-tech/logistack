@@ -44,6 +44,18 @@ export const ApplicationSource = z.discriminatedUnion("type", [
 ]);
 export type ApplicationSource = z.infer<typeof ApplicationSource>;
 
+export const BuildPlatform = z.enum(["linux/amd64", "linux/arm64"]);
+export type BuildPlatform = z.infer<typeof BuildPlatform>;
+
+/** Absent: the architectures of the swarm's nodes. */
+const platforms = (max: number) =>
+	z
+		.array(BuildPlatform)
+		.min(1)
+		.max(max)
+		.refine((p) => new Set(p).size === p.length, "duplicate platform")
+		.optional();
+
 export const BuildConfig = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal("dockerfile"),
@@ -51,8 +63,10 @@ export const BuildConfig = z.discriminatedUnion("type", [
 		context: z.string().min(1),
 		target: z.string().optional(),
 		buildArgs: z.record(z.string(), z.string()).optional(),
+		platforms: platforms(2),
 	}),
-	z.object({ type: z.literal("railpack") }),
+	/** The railpack frontend solves one platform per build, so it cannot produce a manifest list. */
+	z.object({ type: z.literal("railpack"), platforms: platforms(1) }),
 	z.object({ type: z.literal("static"), publishDir: z.string().min(1) }),
 	z.object({ type: z.literal("image") }),
 ]);

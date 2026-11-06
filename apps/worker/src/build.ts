@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
-import type { ApplicationSpec } from "@logistack/contracts";
+import type { ApplicationSpec, BuildPlatform } from "@logistack/contracts";
 import {
 	jsonLines,
 	managedLabels,
@@ -221,6 +221,11 @@ export type BuildPlan = {
 	env: Record<string, string>;
 	/** Runs before buildctl (railpack prepare). */
 	prepare?: string[];
+	/**
+	 * BuildKit pushes a manifest list to the registry itself. Otherwise the single-platform image
+	 * comes back on stdout as a docker tarball, which cannot hold a manifest list.
+	 */
+	pushes: boolean;
 };
 
 /**
@@ -236,9 +241,16 @@ export function buildPlan(o: {
 	context: Record<string, string>;
 	imageRef: string;
 	railpackFrontend: string;
+	platforms: BuildPlatform[];
 }): BuildPlan {
 	const app = inside(o.dir, o.appPath);
-	const output = ["--output", `type=docker,name=${o.imageRef}`];
+	const pushes = o.platforms.length > 1;
+	const output = [
+		"--output",
+		pushes
+			? `type=image,name=${o.imageRef},push=true`
+			: `type=docker,name=${o.imageRef}`,
+	];
 	const env: Record<string, string> = {};
 	const vars: string[] = [];
 	for (const v of [...o.buildEnv].sort((a, b) => (a.key < b.key ? -1 : 1))) {
@@ -247,7 +259,13 @@ export function buildPlan(o: {
 			vars.push("--secret", `id=${v.key},env=${v.key}`);
 		} else vars.push("--opt", `build-arg:${v.key}=${v.value}`);
 	}
-	const common = ["build", "--progress", "plain"];
+	const common = [
+		"build",
+		"--progress",
+		"plain",
+		"--opt",
+		`platform=${o.platforms.join(",")}`,
+	];
 	switch (o.build.type) {
 		case "dockerfile": {
 			const file = inside(app, o.build.dockerfilePath);
@@ -271,7 +289,7 @@ export function buildPlan(o: {
 					.flatMap(([k, v]) => ["--opt", `build-arg:${k}=${v}`]),
 				...output,
 			];
-			return { args, env };
+			return { args, env, pushes };
 		}
 		case "railpack": {
 			const plan = join(app, "railpack-plan.json");
@@ -293,6 +311,7 @@ export function buildPlan(o: {
 					...output,
 				],
 				env,
+				pushes,
 			};
 		}
 		default:
