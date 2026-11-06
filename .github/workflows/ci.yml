@@ -38,6 +38,15 @@ jobs:
       # Integration suites start Postgres and Redis containers and several expect an active
       # single-node Swarm; opt-in suites (WORKER_IT=1, TEST_DATABASE_URL) stay skipped.
       - run: docker swarm init
+      # The same AppArmor profile install.sh writes: Ubuntu 24.04 otherwise kills rootless BuildKit.
+      - name: Let rootless BuildKit create user namespaces
+        run: |
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile logistack-rootlesskit /usr/bin/rootlesskit flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/logistack-rootlesskit >/dev/null
+          sudo apparmor_parser -r /etc/apparmor.d/logistack-rootlesskit
+      # The drain and rolling-update suites use the dev Redis on 127.0.0.1:6380.
+      - run: docker compose -f docker-compose.dev.yml up -d --wait redis
       - run: bun test
       - name: vite build
         working-directory: apps/web
