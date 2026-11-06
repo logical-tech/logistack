@@ -1,7 +1,11 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { EnvironmentKind, ObservedState } from "@logistack/contracts";
+import {
+	EnvironmentColor,
+	EnvironmentKind,
+	ObservedState,
+} from "@logistack/contracts";
 import { environment, project, service, serviceStatus } from "@logistack/db";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import { one } from "../errors.ts";
@@ -19,6 +23,7 @@ import {
 	security,
 	slugify,
 } from "../openapi.ts";
+import { requestProxySync, requestReconcile } from "../redis.ts";
 import {
 	byParam,
 	check,
@@ -40,7 +45,9 @@ const ProjectInput = z.object({
  * Counts and the aggregate health derive from these.
  */
 const ProjectListItem = Project.extend({
-	environments: z.array(Environment.pick({ id: true, name: true, kind: true })),
+	environments: z.array(
+		Environment.pick({ id: true, name: true, kind: true, color: true }),
+	),
 	services: z.array(
 		z.object({
 			id: z.string(),
@@ -55,7 +62,40 @@ const EnvironmentInput = z.object({
 	name: Name,
 	slug: Slug.optional(),
 	kind: EnvironmentKind,
+	color: EnvironmentColor.nullable().optional(),
 });
+
+const EnvironmentPatch = patchOf(EnvironmentInput).extend({
+	/** Only `true`: making one environment the default unsets the previous one. */
+	isDefault: z.literal(true).optional(),
+});
+
+/** The periodic pass converges anyway; this only makes it immediate. */
+const converge = (redisUrl: string, reason: string) =>
+	Promise.all([
+		requestReconcile(redisUrl, reason),
+		requestProxySync(redisUrl, reason),
+	]).catch(() => {});
+
+const archiveRoute = <P extends string>(
+	path: P,
+	summary: string,
+	description: string,
+) =>
+	createRoute({
+		method: "post",
+		path,
+		tags: ["projects"],
+		security,
+		summary,
+		description,
+		middleware: [requirePermission("deploy", byParam("project"))],
+		request: { params: IdParam },
+		responses: { 200: json(Project, "Updated"), ...errors },
+	});
+
+const servicesOf = (projectId: string) =>
+	sql`${service.environmentId} in (select ${environment.id} from ${environment} where ${environment.projectId} = ${projectId})`;
 
 export const projects = router()
 	.openapi(
@@ -65,14 +105,22 @@ export const projects = router()
 			tags: ["projects"],
 			security,
 			middleware: [requirePermission("read", inOrganization)],
-			request: { query: z.object({ folderId: z.string().optional() }) },
+			summary: "List projects",
+			description:
+				"Active projects by default; `archived=true` lists the archived ones instead.",
+			request: {
+				query: z.object({
+					folderId: z.string().optional(),
+					archived: z.stringbool().default(false),
+				}),
+			},
 			responses: {
 				200: json(z.array(ProjectListItem), "Projects"),
 				...errors,
 			},
 		}),
 		async (c) => {
-			const { folderId } = c.req.valid("query");
+			const { folderId, archived } = c.req.valid("query");
 			const { db } = c.var.deps;
 			const rows = await db
 				.select()
@@ -81,6 +129,9 @@ export const projects = router()
 					and(
 						eq(project.organizationId, requireActor(c).organizationId),
 						folderId ? eq(project.folderId, folderId) : undefined,
+						archived
+							? isNotNull(project.archivedAt)
+							: isNull(project.archivedAt),
 					),
 				)
 				.orderBy(asc(project.name));
@@ -92,6 +143,7 @@ export const projects = router()
 								id: environment.id,
 								name: environment.name,
 								kind: environment.kind,
+								color: environment.color,
 								projectId: environment.projectId,
 							})
 							.from(environment)
@@ -203,6 +255,7 @@ export const projects = router()
 				tags: ["projects"],
 				security,
 				summary: "Rename, describe or move a project",
+				description: "Archiving has its own routes.",
 				middleware: [requirePermission("write", byParam("project"))],
 				request: { params: IdParam, ...body(patchOf(ProjectInput)) },
 				responses: { 200: json(Project, "Updated"), ...errors },
@@ -243,6 +296,64 @@ export const projects = router()
 				.delete(project)
 				.where(eq(project.id, c.req.valid("param").id));
 			return c.body(null, 204);
+		},
+	)
+	.openapi(
+		mutation(
+			"project.archive",
+			archiveRoute(
+				"/projects/{id}/archive",
+				"Archive a project: stop its services and hide it",
+				"Stops every running service (replicas to zero; data, configuration and replica counts stay), hides the project from the default list and refuses deploys until it is unarchived. Idempotent.",
+			),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { db, config } = c.var.deps;
+			const row = await db.transaction(async (tx) => {
+				await tx
+					.update(service)
+					.set({ desiredState: "stopped", stoppedByArchive: true })
+					.where(and(servicesOf(id), eq(service.desiredState, "running")));
+				return one(
+					await tx
+						.update(project)
+						.set({ archivedAt: sql`coalesce(${project.archivedAt}, now())` })
+						.where(eq(project.id, id))
+						.returning(),
+				);
+			});
+			await converge(config.REDIS_URL, "project archived");
+			return c.json(row, 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"project.unarchive",
+			archiveRoute(
+				"/projects/{id}/unarchive",
+				"Unarchive a project and restart what archiving stopped",
+				"Starts again exactly the services archiving stopped, at their configured replica counts; services that were already stopped stay stopped. Idempotent.",
+			),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { db, config } = c.var.deps;
+			const row = await db.transaction(async (tx) => {
+				await tx
+					.update(service)
+					.set({ desiredState: "running", stoppedByArchive: false })
+					.where(and(servicesOf(id), eq(service.stoppedByArchive, true)));
+				return one(
+					await tx
+						.update(project)
+						.set({ archivedAt: null })
+						.where(eq(project.id, id))
+						.returning(),
+				);
+			});
+			await converge(config.REDIS_URL, "project unarchived");
+			return c.json(row, 200);
 		},
 	)
 	.openapi(
@@ -287,6 +398,7 @@ export const projects = router()
 						name: input.name,
 						slug: input.slug ?? slugify(input.name),
 						kind: input.kind,
+						color: input.color ?? null,
 					})
 					.returning(),
 			);
@@ -302,19 +414,37 @@ export const projects = router()
 				path: "/environments/{id}",
 				tags: ["environments"],
 				security,
+				summary: "Rename, recolor or make an environment the project's default",
 				middleware: [requirePermission("write", byParam("environment"))],
-				request: { params: IdParam, ...body(patchOf(EnvironmentInput)) },
+				request: { params: IdParam, ...body(EnvironmentPatch) },
 				responses: { 200: json(Environment, "Updated"), ...errors },
 			}),
 		),
 		async (c) => {
-			const row = one(
-				await c.var.deps.db
-					.update(environment)
-					.set(c.req.valid("json"))
-					.where(eq(environment.id, c.req.valid("param").id))
-					.returning(),
-			);
+			const { id } = c.req.valid("param");
+			const input = c.req.valid("json");
+			const row = await c.var.deps.db.transaction(async (tx) => {
+				if (input.isDefault) {
+					const projectId = sql`(select ${environment.projectId} from ${environment} where ${environment.id} = ${id})`;
+					// One default per project (partial unique index): clear the old one first.
+					await tx
+						.update(environment)
+						.set({ isDefault: false })
+						.where(
+							and(
+								eq(environment.isDefault, true),
+								sql`${environment.projectId} = ${projectId}`,
+							),
+						);
+				}
+				return one(
+					await tx
+						.update(environment)
+						.set(input)
+						.where(eq(environment.id, id))
+						.returning(),
+				);
+			});
 			return c.json(row, 200);
 		},
 	)

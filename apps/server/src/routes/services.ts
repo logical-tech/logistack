@@ -46,7 +46,13 @@ import {
 	slugify,
 } from "../openapi.ts";
 import { checkGit, checkImage } from "../probe.ts";
-import { byParam, check, inOrganization, requirePermission } from "../scope.ts";
+import {
+	byParam,
+	check,
+	inOrganization,
+	refuseArchived,
+	requirePermission,
+} from "../scope.ts";
 import { hostPolicy } from "../ssrf.ts";
 import { ConfigContent, MountTarget } from "./files.ts";
 
@@ -540,6 +546,7 @@ export const services = router()
 		async (c) => {
 			const serviceId = c.req.valid("param").id;
 			const actor = requireActor(c);
+			await refuseArchived(c);
 			const row = one(
 				await c.var.deps.db
 					.insert(deployment)

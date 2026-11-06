@@ -58,7 +58,13 @@ import {
 	security,
 } from "../openapi.ts";
 import { requestProxySync } from "../redis.ts";
-import { actorCan, byParam, check, requirePermission } from "../scope.ts";
+import {
+	actorCan,
+	byParam,
+	check,
+	refuseArchived,
+	requirePermission,
+} from "../scope.ts";
 import { stackCompose } from "../stack-compose.ts";
 import { listServices, ServiceListItem } from "./services.ts";
 
@@ -250,6 +256,7 @@ export async function createStack(
 	},
 ) {
 	const actor = requireActor(c);
+	await refuseArchived(c);
 	const { db, masterKey, config } = c.var.deps;
 	const taken = await db
 		.select({ slug: service.slug })

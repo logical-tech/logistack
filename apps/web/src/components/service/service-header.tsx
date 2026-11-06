@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AnimatedNumber } from "@/components/animated-number";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { EnvDot } from "@/components/projects/env-color";
 import {
 	changeCount,
 	PendingChangesDialog,
@@ -13,6 +14,7 @@ import { ServiceGlyph } from "@/components/service/service-icon";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { projectQuery } from "@/lib/api/projects";
 import {
 	type DeploymentRow,
 	pendingDiffQuery,
@@ -65,6 +67,8 @@ export function ServiceHeader({
 	const stop = useServiceMutation(o.id, () => api.serviceOps.stop(o.id));
 	const start = useServiceMutation(o.id, () => api.serviceOps.start(o.id));
 	const { data: diff } = useQuery(pendingDiffQuery(o.id));
+	const { data: project } = useQuery(projectQuery(projectId));
+	const env = project?.environments.find((e) => e.id === o.environmentId);
 	const pending = diff?.baseline ? diff.changes.length : 0;
 	const runDeploy = () =>
 		deploy.mutate(undefined, {
@@ -105,7 +109,10 @@ export function ServiceHeader({
 								Part of a stack
 							</Link>
 						) : null}
-						<span>{o.environmentName}</span>
+						<span className="inline-flex items-center gap-1.5">
+							{env && <EnvDot env={env} />}
+							{o.environmentName}
+						</span>
 						<span className="min-w-0 truncate font-mono text-xs">
 							{sourceLabel(o)}
 						</span>
