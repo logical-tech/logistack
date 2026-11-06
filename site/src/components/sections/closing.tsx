@@ -36,10 +36,10 @@ const columns = [
 	[
 		"Product",
 		[
-			["Templates", "#templates"],
-			["Database editor", "#data"],
-			["Servers", "#servers"],
-			["FAQ", "#faq"],
+			["Templates", "/#templates"],
+			["Database editor", "/#data"],
+			["Servers", "/#servers"],
+			["FAQ", "/#faq"],
 		],
 	],
 	[
@@ -55,7 +55,7 @@ const columns = [
 		"Project",
 		[
 			["GitHub", site.github],
-			["Sponsor", "#sponsor"],
+			["Sponsor", "/#sponsor"],
 			["License", `${site.github}/blob/main/LICENSE`],
 			["Logical", site.company.url],
 		],

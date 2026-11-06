@@ -1,4 +1,3 @@
-import { site } from "@/content/site";
 import { Dither } from "../dither";
 import { SponsorPicker } from "../sponsor-picker";
 import { Section } from "../ui";
@@ -32,7 +31,7 @@ export function Sponsor() {
 						template catalog.
 					</p>
 					<div className="pt-3">
-						<SponsorPicker url={site.sponsor} />
+						<SponsorPicker />
 					</div>
 				</div>
 			</div>

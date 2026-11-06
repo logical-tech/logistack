@@ -3,10 +3,10 @@ import { site } from "@/content/site";
 import { LogoMark } from "../ui";
 
 const links = [
-	["Templates", "#templates"],
-	["Data", "#data"],
-	["Servers", "#servers"],
-	["FAQ", "#faq"],
+	["Templates", "/#templates"],
+	["Data", "/#data"],
+	["Servers", "/#servers"],
+	["FAQ", "/#faq"],
 	["Docs", `${site.github}#readme`],
 ] as const;
 
@@ -55,7 +55,7 @@ export function Nav() {
 						</svg>
 					</a>
 					<a
-						href="#sponsor"
+						href="/#sponsor"
 						className="pressable hidden h-10 items-center gap-2 rounded-full bg-tile px-4 text-sm font-medium hover:bg-raised sm:inline-flex"
 					>
 						<svg
@@ -73,7 +73,7 @@ export function Nav() {
 						Sponsor
 					</a>
 					<a
-						href="#install"
+						href="/#install"
 						className="pressable inline-flex h-10 items-center rounded-full bg-fg px-[18px] text-sm font-medium text-bg hover:bg-white"
 					>
 						Install

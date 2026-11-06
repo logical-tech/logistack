@@ -10,7 +10,6 @@ export const site = {
 	/** Served by the site itself: site/Dockerfile copies install/install.sh to /install.sh. */
 	install: `curl -fsSL ${url}/install.sh | sudo bash`,
 	github: "https://github.com/logical-tech/logistack",
-	sponsor: "https://github.com/sponsors/logical-tech",
 	docs: "/docs/",
 	company: { name: "Logical", url: "https://logicaltech.it", country: "IT" },
 	license: "Apache-2.0",
