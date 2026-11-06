@@ -34,6 +34,8 @@ When two levels define the same key, the picker marks the less specific one as s
 
 ![Settings › Secrets & variables, listing the organization secrets RESEND_API_KEY and SENTRY_AUTH_TOKEN with their version and usage](/screens/settings-variables.webp)
 
+![The Secrets & variables page of the Storefront project, Production selected, with the secret DATABASE_PASSWORD at version 2 used by 7 services](/screens/project-variables.webp)
+
 </Step>
 <Step>
 
@@ -48,7 +50,7 @@ On the **Secrets** tab, select **Add secret**. Enter the key, the value and, opt
 
 Open the service, select **Environment**, then **Add**. Type the name the container should see, select **Secret** and pick the secret from the list. The list groups secrets by where they are defined. The name in the container can differ from the secret's key: `DB_PASSWORD` can point at `PROD_PG_PASSWORD`.
 
-![The Environment tab of a service: SESSION_SECRET references a secret, SFTP_PASSWORD shows a broken reference, PORT is plain text](/screens/service-environment.webp)
+![The Environment tab of the web service: DB_PASSWORD references the Production secret DATABASE_PASSWORD, STRIPE_SECRET_KEY a project secret, SESSION_SECRET the service's own secret, and PORT is plain text](/screens/service-environment.webp)
 
 </Step>
 <Step>
