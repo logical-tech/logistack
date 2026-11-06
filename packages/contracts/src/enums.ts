@@ -11,6 +11,18 @@ export const environmentKinds = [
 export const EnvironmentKind = z.enum(environmentKinds);
 export type EnvironmentKind = z.infer<typeof EnvironmentKind>;
 
+/** A fixed palette so every color reads in both themes; null on a row falls back to the kind's. */
+export const environmentColors = [
+	"gray",
+	"blue",
+	"green",
+	"amber",
+	"red",
+	"violet",
+] as const;
+export const EnvironmentColor = z.enum(environmentColors);
+export type EnvironmentColor = z.infer<typeof EnvironmentColor>;
+
 export const serviceKinds = [
 	"application",
 	"database",

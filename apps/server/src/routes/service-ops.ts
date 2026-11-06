@@ -47,7 +47,12 @@ import {
 	security,
 } from "../openapi.ts";
 import { redisFor, requestProxySync, requestReconcile } from "../redis.ts";
-import { actorCan, byParam, requirePermission } from "../scope.ts";
+import {
+	actorCan,
+	byParam,
+	refuseArchived,
+	requirePermission,
+} from "../scope.ts";
 
 /** What the reconciler stores per running-desired task in `service_status.tasks`. */
 export const TaskView = z.object({
@@ -172,6 +177,7 @@ export async function queueDeployment(
 	payload: Record<string, unknown> = {},
 ) {
 	const actor = requireActor(c);
+	await refuseArchived(c);
 	const row = one(
 		await c.var.deps.db.insert(deployment).values(values).returning(),
 	);
@@ -192,6 +198,7 @@ async function setDesired(
 	desiredState: "running" | "stopped",
 ) {
 	const { db, config } = c.var.deps;
+	if (desiredState === "running") await refuseArchived(c);
 	const row = one(
 		await db
 			.update(service)

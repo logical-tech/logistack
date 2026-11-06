@@ -1,4 +1,8 @@
-import type { ServiceIcon, ServiceSpec } from "@logistack/contracts";
+import type {
+	EnvironmentColor,
+	ServiceIcon,
+	ServiceSpec,
+} from "@logistack/contracts";
 import { sql } from "drizzle-orm";
 import {
 	type AnyPgColumn,
@@ -13,7 +17,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
-import { id, timestamps } from "./columns.ts";
+import { id, timestamps, tstz } from "./columns.ts";
 import {
 	desiredState,
 	environmentKind,
@@ -61,6 +65,8 @@ export const project = pgTable(
 		name: text("name").notNull(),
 		slug: text("slug").notNull(),
 		description: text("description"),
+		/** Set while archived: its services are stopped and deploys are refused. */
+		archivedAt: tstz("archived_at"),
 		...timestamps,
 	},
 	(t) => [
@@ -80,6 +86,7 @@ export const environment = pgTable(
 		slug: text("slug").notNull(),
 		kind: environmentKind("kind").notNull(),
 		isDefault: boolean("is_default").notNull().default(false),
+		color: text("color").$type<EnvironmentColor>(),
 		...timestamps,
 	},
 	(t) => [
@@ -129,6 +136,8 @@ export const service = pgTable(
 		nodeId: text("node_id").references(() => node.id, { onDelete: "set null" }),
 		spec: jsonb("spec").$type<ServiceSpec>().notNull(),
 		desiredState: desiredState("desired_state").notNull().default("running"),
+		/** Stopped by archiving its project; unarchiving starts exactly these again. */
+		stoppedByArchive: boolean("stopped_by_archive").notNull().default(false),
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),

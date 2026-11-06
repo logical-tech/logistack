@@ -4,6 +4,7 @@ import {
 	DeploymentStatus,
 	DeploymentTrigger,
 	DesiredState,
+	EnvironmentColor,
 	EnvironmentKind,
 	ServiceIcon,
 	ServiceKind,
@@ -94,6 +95,8 @@ export const Project = z
 		name: z.string(),
 		slug: z.string(),
 		description: z.string().nullable(),
+		/** Set while archived: services stopped, deploys refused. */
+		archivedAt: Timestamp.nullable(),
 		createdAt: Timestamp,
 		updatedAt: Timestamp,
 	})
@@ -106,7 +109,10 @@ export const Environment = z
 		name: z.string(),
 		slug: z.string(),
 		kind: EnvironmentKind,
+		/** The environment opened when entering the project. */
 		isDefault: z.boolean(),
+		/** Null falls back to the kind's color. */
+		color: EnvironmentColor.nullable(),
 		createdAt: Timestamp,
 		updatedAt: Timestamp,
 	})
