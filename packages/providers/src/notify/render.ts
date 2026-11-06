@@ -16,6 +16,7 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 		severity: "warning",
 		what: "Service threshold crossed",
 	},
+	"service.scaled": { severity: "info", what: "Service scaled" },
 	"backup.succeeded": { severity: "success", what: "Backup succeeded" },
 	"backup.failed": { severity: "error", what: "Backup failed" },
 	"schedule.succeeded": {

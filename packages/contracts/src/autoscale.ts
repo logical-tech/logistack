@@ -30,3 +30,17 @@ export const AutoscaleSettings = z
 		path: ["maxReplicas"],
 	});
 export type AutoscaleSettings = z.infer<typeof AutoscaleSettings>;
+
+/** Payload of the `service.scaled` event; `cpu` and `memory` are percent of the limit. */
+export const ServiceScaledEventPayload = z.object({
+	serviceId: z.string(),
+	service: z.string(),
+	from: z.int(),
+	to: z.int(),
+	reason: z.string(),
+	cpu: z.number().nullable(),
+	memory: z.number().nullable(),
+});
+export type ServiceScaledEventPayload = z.infer<
+	typeof ServiceScaledEventPayload
+>;

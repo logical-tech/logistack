@@ -11,6 +11,8 @@ export const eventTypes = [
 	"service.crash_loop",
 	/** A per-service CPU or memory threshold crossed, either way (payload `state`). */
 	"service.threshold",
+	/** The autoscaler changed a service's replica count. */
+	"service.scaled",
 	"backup.succeeded",
 	"backup.failed",
 	"schedule.succeeded",
