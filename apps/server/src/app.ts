@@ -19,6 +19,7 @@ import { mcpHandler } from "./mcp.ts";
 import { ai } from "./routes/ai.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
+import { autoscale } from "./routes/autoscale.ts";
 import { backups } from "./routes/backups.ts";
 import { buildPlatforms } from "./routes/build-platforms.ts";
 import { certificates } from "./routes/certificates.ts";
@@ -156,6 +157,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", audit)
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
+		.route("/api", autoscale)
 		.route("/api", usage)
 		.route("/api", nodes)
 		.route("/api", networkMapRoutes)

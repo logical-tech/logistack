@@ -233,6 +233,17 @@ function planVariables(
 	);
 }
 
+/** Whether apply must save the manifest's autoscaling; a preset's own CPU target is not a change. */
+export function autoscaleChanged(have: ManifestService, want: ManifestService) {
+	if (!want.autoscale) return false;
+	const norm = (a: ManifestService["autoscale"]) =>
+		a && {
+			...a,
+			targetCpu: a.behavior === "custom" ? a.targetCpu : undefined,
+		};
+	return !same(norm(have.autoscale), norm(want.autoscale));
+}
+
 function serviceChanges(
 	ctx: Ctx,
 	have: ManifestService,
@@ -244,6 +255,7 @@ function serviceChanges(
 			for (const f of changedFields(have.spec, want.spec))
 				lines.push(`spec.${f} changed`);
 		else lines.push(`${k} changed`);
+	if (autoscaleChanged(have, want)) lines.push("autoscale changed");
 	lines.push(
 		...serviceVariables(have.variables, want.variables, ctx.prune).lines,
 	);

@@ -17,6 +17,7 @@ import {
 	type ServiceSpec,
 } from "@logistack/contracts";
 import {
+	autoscaleChanged,
 	changedConfigs,
 	changedServiceFields,
 	decrypt,
@@ -39,6 +40,7 @@ import {
 	project,
 	s3Destination,
 	service,
+	serviceAutoscale,
 	stack,
 } from "@logistack/db";
 import { and, asc, eq, inArray, or } from "drizzle-orm";
@@ -107,6 +109,21 @@ const withSource = (spec: ServiceSpec) =>
  * with `reveal` (to compare, never to return); generated domains, basic auth, domain access rules
  * and node pins stay out, since they belong to the instance, not to the project.
  */
+/** A preset's CPU target is implied, so only `custom` exports one. */
+function autoscaleOf(
+	a: typeof serviceAutoscale.$inferSelect | undefined,
+): ManifestService["autoscale"] {
+	if (!a) return undefined;
+	return {
+		enabled: a.enabled,
+		minReplicas: a.minReplicas,
+		maxReplicas: a.maxReplicas,
+		behavior: a.behavior,
+		...(a.behavior === "custom" && { targetCpu: a.targetCpu }),
+		targetMemory: a.targetMemory,
+	};
+}
+
 export async function snapshot(
 	deps: Deps,
 	organizationId: string,
@@ -144,7 +161,7 @@ export async function snapshot(
 	const svcIds = svcs.map((s) => s.id);
 	// No id is a dash: matches nothing when the list is empty.
 	const none = ["-"];
-	const [vars, mounts, domains, policies] = await Promise.all([
+	const [vars, mounts, domains, policies, autoscales] = await Promise.all([
 		db
 			.select()
 			.from(envVar)
@@ -182,6 +199,12 @@ export async function snapshot(
 			.from(backupPolicy)
 			.where(inArray(backupPolicy.serviceId, svcIds.length ? svcIds : none))
 			.orderBy(asc(backupPolicy.createdAt)),
+		db
+			.select()
+			.from(serviceAutoscale)
+			.where(
+				inArray(serviceAutoscale.serviceId, svcIds.length ? svcIds : none),
+			),
 	]);
 	const ids: Ids = new Map();
 	const variablesOf = async (
@@ -291,6 +314,7 @@ export async function snapshot(
 				),
 				domains: svcDomains,
 				backups,
+				autoscale: autoscaleOf(autoscales.find((a) => a.serviceId === s.id)),
 			});
 		}
 		const envStacks = stacks
@@ -660,6 +684,8 @@ async function run(
 				);
 				if (body.length || minted.length)
 					await call("PUT", `/services/${id}/env-vars`, { variables: body });
+				if (want.autoscale)
+					await call("PUT", `/services/${id}/autoscale`, want.autoscale);
 				return;
 			}
 			const have = step.have as ManifestService;
@@ -675,6 +701,8 @@ async function run(
 			const vars = serviceVariables(have.variables, want.variables, prune);
 			if (vars.lines.length)
 				await call("PUT", `/services/${id}/env-vars`, { variables: vars.body });
+			if (autoscaleChanged(have, want))
+				await call("PUT", `/services/${id}/autoscale`, want.autoscale);
 			for (const m of changedConfigs(have, want))
 				if (m.kind === "config")
 					await call(
