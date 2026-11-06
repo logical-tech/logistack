@@ -129,6 +129,9 @@ const KIND_LABEL: Record<DnsKind, string> = {
 	cloudflare: "Cloudflare",
 	route53: "Route 53",
 	hetzner: "Hetzner",
+	digitalocean: "DigitalOcean",
+	ovh: "OVHcloud",
+	porkbun: "Porkbun",
 };
 
 type Errors = Record<string, string>;
@@ -160,12 +163,13 @@ export function RecordEditor({
 	const uid = useId();
 	const cf = kind === "cloudflare";
 	const auto = dnsTtlRules[kind]?.auto;
+	const defaultTtl = auto ?? Math.max(300, dnsTtlRules[kind]?.min ?? 0);
 	const multi = !cf;
 
 	const [type, setType] = useState<DnsRecordType>("A");
 	const [name, setName] = useState("");
 	const [values, setValues] = useState<DnsValueParts[]>([blank("A")]);
-	const [ttl, setTtl] = useState(auto ?? 300);
+	const [ttl, setTtl] = useState(defaultTtl);
 	const [proxied, setProxied] = useState(false);
 	const [comment, setComment] = useState("");
 	const [errors, setErrors] = useState<Errors>({});
@@ -180,11 +184,11 @@ export function RecordEditor({
 		setValues(
 			record ? record.values.map((v) => parseDnsValue(t, v)) : [blank(t)],
 		);
-		setTtl(record?.ttl ?? auto ?? 300);
+		setTtl(record?.ttl ?? defaultTtl);
 		setProxied(record?.proxied ?? false);
 		setComment(record?.comment ?? "");
 		setErrors({});
-	}, [open, record, zone.name, auto]);
+	}, [open, record, zone.name, defaultTtl]);
 
 	const proxiable = cf && proxiableTypes.includes(type);
 	const isProxied = proxiable && proxied;
