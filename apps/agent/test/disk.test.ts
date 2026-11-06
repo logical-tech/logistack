@@ -134,6 +134,7 @@ describe("disk usage", () => {
 			["small", true, undefined],
 			["unmeasured", false, undefined],
 		]);
+		expect(u.allVolumes).toHaveLength(3);
 	});
 
 	test("counts current and rotated json logs only", () => {

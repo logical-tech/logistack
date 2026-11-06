@@ -72,6 +72,7 @@ export function summarizeDf(
 			),
 		},
 		topVolumes: volumeSizes.sort((a, b) => b.bytes - a.bytes).slice(0, 20),
+		allVolumes: volumeSizes,
 	};
 }
 
