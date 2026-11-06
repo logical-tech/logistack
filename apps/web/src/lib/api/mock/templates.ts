@@ -199,6 +199,7 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 					reason: null,
 					logPath: null,
 					supersededBy: null,
+					warning: null,
 					createdAt: at,
 					updatedAt: at,
 				};

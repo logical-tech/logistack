@@ -12,6 +12,7 @@ export type ManagedKind =
 	| "volume"
 	| "config"
 	| "secret"
+	| "release"
 	| "system";
 
 export interface ManagedRef {

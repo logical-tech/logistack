@@ -40,6 +40,7 @@ const CANCELLABLE = new Set([
 	"cloning",
 	"building",
 	"pushing",
+	"releasing",
 ]);
 
 function Duration({ d }: { d: DeploymentRow }) {

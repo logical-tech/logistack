@@ -134,6 +134,7 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 			reason: null,
 			logPath: null,
 			supersededBy: null,
+			warning: null,
 			createdAt: iso(),
 			updatedAt: iso(),
 		};
@@ -281,7 +282,9 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 			const d = db.deployments.find((x) => x.id === id);
 			if (
 				!d ||
-				!["queued", "cloning", "building", "pushing"].includes(d.status)
+				!["queued", "cloning", "building", "pushing", "releasing"].includes(
+					d.status,
+				)
 			)
 				throw new ApiError(409, "this deployment can no longer be cancelled");
 			Object.assign(d, { status: "cancelled", finishedAt: iso() });

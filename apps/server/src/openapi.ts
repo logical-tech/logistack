@@ -153,6 +153,8 @@ export const Deployment = z
 		startedAt: Timestamp.nullable(),
 		finishedAt: Timestamp.nullable(),
 		error: z.string().nullable(),
+		/** Set when the post-deploy command failed; the deployment still succeeded. */
+		warning: z.string().nullable(),
 		/** Why the deployment is awaiting checks or was skipped. */
 		reason: z.string().nullable(),
 		logPath: z.string().nullable(),

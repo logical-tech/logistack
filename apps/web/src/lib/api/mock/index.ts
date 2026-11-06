@@ -300,6 +300,7 @@ export const mockAdapter: ApiAdapter = {
 				reason: null,
 				logPath: null,
 				supersededBy: null,
+				warning: null,
 				createdAt: at,
 				updatedAt: at,
 			};

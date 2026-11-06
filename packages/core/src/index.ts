@@ -1,3 +1,4 @@
+export * from "./compile-release.ts";
 export * from "./compile-service.ts";
 export * from "./crypto.ts";
 export * from "./database-credentials.ts";

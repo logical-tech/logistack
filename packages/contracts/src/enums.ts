@@ -65,6 +65,7 @@ export const deploymentStatuses = [
 	"cloning",
 	"building",
 	"pushing",
+	"releasing",
 	"deploying",
 	"healthy",
 	"failed",
