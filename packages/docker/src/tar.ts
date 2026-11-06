@@ -177,7 +177,7 @@ export async function* readTar(
 	source: AsyncIterable<Uint8Array>,
 ): AsyncGenerator<TarEvent> {
 	const it = source[Symbol.asyncIterator]();
-	let buf = new Uint8Array(0);
+	let buf: Uint8Array = new Uint8Array(0);
 	const pull = async () => {
 		const r = await it.next();
 		if (r.done) return false;
