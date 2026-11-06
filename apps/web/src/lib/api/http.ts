@@ -122,11 +122,21 @@ export const httpAdapter: ApiAdapter = {
 			mounts,
 			importedFrom,
 			resourceProfile,
+			nodeId,
+			gameToken,
 		}) => {
 			const service = await ok(
 				api.environments[":id"].services.$post({
 					param: { id: environmentId },
-					json: { name, spec, mounts, importedFrom, resourceProfile },
+					json: {
+						name,
+						spec,
+						mounts,
+						importedFrom,
+						resourceProfile,
+						nodeId,
+						gameToken,
+					},
 				}),
 			);
 			const param = { param: { id: service.id } };
@@ -165,6 +175,10 @@ export const httpAdapter: ApiAdapter = {
 		disk: (id) => ok(api.nodes[":id"].disk.$get({ param: { id } })),
 		prune: (id, json) =>
 			ok(api.nodes[":id"].disk.prune.$post({ param: { id }, json })),
+		hostDirs: (id, path) =>
+			ok(
+				api.nodes[":id"]["host-dirs"].$get({ param: { id }, query: { path } }),
+			),
 	},
 	joins: {
 		create: (json) => ok(api.nodes.joins.$post({ json })),

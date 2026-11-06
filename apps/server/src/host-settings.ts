@@ -1,7 +1,11 @@
-import type { ServiceSpec } from "@logistack/contracts";
+import {
+	gamePorts,
+	type PortMapping,
+	type ServiceSpec,
+} from "@logistack/contracts";
 import { ingressPortHolder, publishedPortConflicts } from "@logistack/core";
 import { node, service } from "@logistack/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "./actor.ts";
 import type { Env } from "./env.ts";
@@ -64,9 +68,17 @@ async function pinNode(
 	if (only.length === 1) return only[0]?.id ?? null;
 	throw new Failure(
 		"bad_request",
-		"a service with bind mounts needs nodeId: the host paths exist on one node",
+		"this service needs nodeId: its host paths or ports exist on one node",
 	);
 }
+
+/** Ports a spec publishes on its node: an application's own, a game server's derived ones. */
+export const publishedPorts = (spec: ServiceSpec): PortMapping[] =>
+	spec.kind === "application"
+		? spec.ports
+		: spec.kind === "game"
+			? gamePorts(spec.settings, spec.port)
+			: [];
 
 /**
  * Checks bind mounts and non-default capabilities (admin only), the pinned node and published-port conflicts before a
@@ -82,6 +94,15 @@ export async function guardHostSettings(
 		requestedNodeId?: string;
 	},
 ): Promise<string | null | undefined> {
+	if (o.spec.kind === "game") {
+		// Players dial one node's address and the world lives there: a game server is always pinned.
+		const nodeId =
+			o.nodeId && !o.requestedNodeId
+				? o.nodeId
+				: await pinNode(c, requireActor(c).organizationId, o.requestedNodeId);
+		await checkPorts(c, o.serviceId, nodeId, publishedPorts(o.spec));
+		return nodeId === o.nodeId ? undefined : nodeId;
+	}
 	if (o.spec.kind !== "application") return undefined;
 	const resource = c.get("resource");
 	if (hostKey(o.spec) !== hostKey(o.before)) {
@@ -105,33 +126,45 @@ export async function guardHostSettings(
 		nodeId = pinned;
 	}
 
-	if (o.spec.ports.some((p) => p.published)) {
-		const rows = await c.var.deps.db
-			.select({ id: service.id, nodeId: service.nodeId, spec: service.spec })
-			.from(service)
-			.where(eq(service.kind, "application"));
-		const holders = rows.map((r) => ({
-			id: r.id,
-			nodeId: r.nodeId,
-			ports: r.spec.kind === "application" ? r.spec.ports : [],
-		}));
-		const [conflict] = publishedPortConflicts(
-			{ id: o.serviceId ?? "", nodeId, ports: o.spec.ports },
-			[...holders, ingressPortHolder],
-		);
-		if (conflict) {
-			const holder =
-				conflict.holderId === ingressPortHolder.id
-					? "the LogiStack ingress (Caddy)"
-					: conflict.holderId === o.serviceId || conflict.holderId === ""
-						? "this service twice"
-						: "another service";
-			throw new Failure(
-				"conflict",
-				`port ${conflict.port}/${conflict.protocol} is already published by ${holder}`,
-				{ port: conflict.port, protocol: conflict.protocol },
-			);
-		}
-	}
+	await checkPorts(c, o.serviceId, nodeId, o.spec.ports);
 	return pinned;
+}
+
+/** Every service publishing ports, as port holders: applications and game servers. */
+export async function portHolders(c: Context<Env>) {
+	const rows = await c.var.deps.db
+		.select({ id: service.id, nodeId: service.nodeId, spec: service.spec })
+		.from(service)
+		.where(inArray(service.kind, ["application", "game"]));
+	return rows.map((r) => ({
+		id: r.id,
+		nodeId: r.nodeId,
+		ports: publishedPorts(r.spec),
+	}));
+}
+
+/** Refuses ports another service (or Caddy) already publishes where this one would. */
+async function checkPorts(
+	c: Context<Env>,
+	serviceId: string | undefined,
+	nodeId: string | null,
+	ports: PortMapping[],
+) {
+	if (!ports.some((p) => p.published)) return;
+	const [conflict] = publishedPortConflicts(
+		{ id: serviceId ?? "", nodeId, ports },
+		[...(await portHolders(c)), ingressPortHolder],
+	);
+	if (!conflict) return;
+	const holder =
+		conflict.holderId === ingressPortHolder.id
+			? "the LogiStack ingress (Caddy)"
+			: conflict.holderId === serviceId || conflict.holderId === ""
+				? "this service twice"
+				: "another service";
+	throw new Failure(
+		"conflict",
+		`port ${conflict.port}/${conflict.protocol} is already published by ${holder}`,
+		{ port: conflict.port, protocol: conflict.protocol },
+	);
 }

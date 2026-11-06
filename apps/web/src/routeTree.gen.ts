@@ -89,6 +89,7 @@ import { Route as AppProjectsProjectIdServicesServiceIdDeploymentsRouteImport } 
 import { Route as AppProjectsProjectIdServicesServiceIdDomainsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/domains'
 import { Route as AppProjectsProjectIdServicesServiceIdEnvironmentRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/environment'
 import { Route as AppProjectsProjectIdServicesServiceIdFilesRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/files'
+import { Route as AppProjectsProjectIdServicesServiceIdGameRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/game'
 import { Route as AppProjectsProjectIdServicesServiceIdLogsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/logs'
 import { Route as AppProjectsProjectIdServicesServiceIdMetricsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/metrics'
 import { Route as AppProjectsProjectIdServicesServiceIdSettingsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/settings'
@@ -529,6 +530,12 @@ const AppProjectsProjectIdServicesServiceIdFilesRoute =
     path: '/files',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdServicesServiceIdGameRoute =
+  AppProjectsProjectIdServicesServiceIdGameRouteImport.update({
+    id: '/game',
+    path: '/game',
+    getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdLogsRoute =
   AppProjectsProjectIdServicesServiceIdLogsRouteImport.update({
     id: '/logs',
@@ -656,6 +663,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/projects/$projectId/services/$serviceId/files': typeof AppProjectsProjectIdServicesServiceIdFilesRoute
+  '/projects/$projectId/services/$serviceId/game': typeof AppProjectsProjectIdServicesServiceIdGameRoute
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -739,6 +747,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/projects/$projectId/services/$serviceId/files': typeof AppProjectsProjectIdServicesServiceIdFilesRoute
+  '/projects/$projectId/services/$serviceId/game': typeof AppProjectsProjectIdServicesServiceIdGameRoute
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -830,6 +839,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/$serviceId/domains': typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   '/_app/projects/$projectId/services/$serviceId/environment': typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
   '/_app/projects/$projectId/services/$serviceId/files': typeof AppProjectsProjectIdServicesServiceIdFilesRoute
+  '/_app/projects/$projectId/services/$serviceId/game': typeof AppProjectsProjectIdServicesServiceIdGameRoute
   '/_app/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/_app/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   '/_app/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -920,6 +930,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
     | '/projects/$projectId/services/$serviceId/files'
+    | '/projects/$projectId/services/$serviceId/game'
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
     | '/projects/$projectId/services/$serviceId/settings'
@@ -1003,6 +1014,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/domains'
     | '/projects/$projectId/services/$serviceId/environment'
     | '/projects/$projectId/services/$serviceId/files'
+    | '/projects/$projectId/services/$serviceId/game'
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
     | '/projects/$projectId/services/$serviceId/settings'
@@ -1093,6 +1105,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/$serviceId/domains'
     | '/_app/projects/$projectId/services/$serviceId/environment'
     | '/_app/projects/$projectId/services/$serviceId/files'
+    | '/_app/projects/$projectId/services/$serviceId/game'
     | '/_app/projects/$projectId/services/$serviceId/logs'
     | '/_app/projects/$projectId/services/$serviceId/metrics'
     | '/_app/projects/$projectId/services/$serviceId/settings'
@@ -1672,6 +1685,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdFilesRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/services/$serviceId/game': {
+      id: '/_app/projects/$projectId/services/$serviceId/game'
+      path: '/game'
+      fullPath: '/projects/$projectId/services/$serviceId/game'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdGameRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/logs': {
       id: '/_app/projects/$projectId/services/$serviceId/logs'
       path: '/logs'
@@ -1759,6 +1779,7 @@ interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
   AppProjectsProjectIdServicesServiceIdDomainsRoute: typeof AppProjectsProjectIdServicesServiceIdDomainsRoute
   AppProjectsProjectIdServicesServiceIdEnvironmentRoute: typeof AppProjectsProjectIdServicesServiceIdEnvironmentRoute
   AppProjectsProjectIdServicesServiceIdFilesRoute: typeof AppProjectsProjectIdServicesServiceIdFilesRoute
+  AppProjectsProjectIdServicesServiceIdGameRoute: typeof AppProjectsProjectIdServicesServiceIdGameRoute
   AppProjectsProjectIdServicesServiceIdLogsRoute: typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   AppProjectsProjectIdServicesServiceIdMetricsRoute: typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
   AppProjectsProjectIdServicesServiceIdSettingsRoute: typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
@@ -1781,6 +1802,8 @@ const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjec
       AppProjectsProjectIdServicesServiceIdEnvironmentRoute,
     AppProjectsProjectIdServicesServiceIdFilesRoute:
       AppProjectsProjectIdServicesServiceIdFilesRoute,
+    AppProjectsProjectIdServicesServiceIdGameRoute:
+      AppProjectsProjectIdServicesServiceIdGameRoute,
     AppProjectsProjectIdServicesServiceIdLogsRoute:
       AppProjectsProjectIdServicesServiceIdLogsRoute,
     AppProjectsProjectIdServicesServiceIdMetricsRoute:

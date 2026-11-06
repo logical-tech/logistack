@@ -21,6 +21,11 @@ export type Deps = {
 		serviceId: string,
 		port: number,
 	) => { host: string; port: number };
+	/** How the api dials a game server's container port; default its Swarm name on ls-game. */
+	gameEndpoint?: (
+		serviceId: string,
+		port: number,
+	) => { host: string; port: number };
 	/** Statement timeout of explorer queries; default 30 s. Tests shorten it. */
 	databaseStatementTimeoutMs?: number;
 };

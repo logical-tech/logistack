@@ -37,9 +37,10 @@ const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 const errorText = (e: unknown) =>
 	e instanceof Error ? e.message : "Something went wrong.";
-const join = (dir: string, name: string) =>
+export const join = (dir: string, name: string) =>
 	dir === "/" ? `/${name}` : `${dir}/${name}`;
-const parentOf = (path: string) => path.slice(0, path.lastIndexOf("/")) || "/";
+export const parentOf = (path: string) =>
+	path.slice(0, path.lastIndexOf("/")) || "/";
 const modified = (s: number) => relativeTime(new Date(s * 1000).toISOString());
 
 const ICONS = {
@@ -50,7 +51,7 @@ const ICONS = {
 } as const;
 
 /** Each ancestor of `path` as a button; the last one is where you are. */
-function Breadcrumbs({
+export function Breadcrumbs({
 	path,
 	onOpen,
 }: {

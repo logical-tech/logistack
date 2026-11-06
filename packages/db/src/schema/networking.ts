@@ -95,3 +95,30 @@ export const cloudflareTunnel = pgTable("cloudflare_tunnel", {
 	statusMessage: text("status_message"),
 	...timestamps,
 });
+
+/**
+ * A hostname players use for a game server: an A/AAAA at the node's address, plus the SRV that
+ * carries the port when the game reads one. Records are always DNS-only (Cloudflare's proxy
+ * cannot carry game traffic); the ids are the provider's, kept to update and delete them.
+ */
+export const gameEndpoint = pgTable(
+	"game_endpoint",
+	{
+		id: id("gep"),
+		serviceId: text("service_id")
+			.notNull()
+			.references(() => service.id, { onDelete: "cascade" }),
+		hostname: text("hostname").notNull().unique(),
+		dnsProviderId: text("dns_provider_id").references(() => dnsProvider.id, {
+			onDelete: "set null",
+		}),
+		addressRecordId: text("address_record_id"),
+		srvRecordId: text("srv_record_id"),
+		/** What the records point at when last written: `<address> <port>`; drift means a re-sync. */
+		syncedTarget: text("synced_target"),
+		status: domainStatus("status").notNull().default("pending"),
+		statusMessage: text("status_message"),
+		...timestamps,
+	},
+	(t) => [index("game_endpoint_service_id_idx").on(t.serviceId)],
+);

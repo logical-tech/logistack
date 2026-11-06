@@ -721,7 +721,12 @@ export function SettingsForm({
 						id="host"
 						description="Host directories mounted into the container, the user it runs as, its kernel capabilities, and when Swarm restarts it."
 					>
-						<MountRows value={app} onChange={patchApp} issues={issues} />
+						<MountRows
+							value={app}
+							onChange={patchApp}
+							issues={issues}
+							pinnedHost={pin || undefined}
+						/>
 						<ProcessFields
 							value={app}
 							onChange={patchApp}

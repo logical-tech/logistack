@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { DatabaseEngine } from "./enums.ts";
+import type { GameKind } from "./game.ts";
 import type { ServiceSpec } from "./service-spec.ts";
 import type { StorageEngine } from "./storage.ts";
 
@@ -93,6 +94,10 @@ export const serviceIcons = [
 	"penpot",
 	"excalidraw",
 	"odoo",
+	// Game and voice servers
+	"counterstrike",
+	"teamspeak",
+	"mumble",
 ] as const;
 
 export const ServiceIcon = z.enum(serviceIcons);
@@ -115,6 +120,15 @@ export const storageIcon: Record<StorageEngine, ServiceIcon> = {
 	rustfs: "rustfs",
 	garage: "garage",
 	seaweedfs: "seaweedfs",
+};
+
+/** No brand mark for Minecraft: simple-icons has none and drawing Mojang's would copy it. */
+export const gameIcon: Record<GameKind, ServiceIcon | null> = {
+	"minecraft-java": null,
+	"minecraft-bedrock": null,
+	cs2: "counterstrike",
+	teamspeak3: "teamspeak",
+	mumble: "mumble",
 };
 
 /** Image names that differ from their brand slug. */
@@ -146,6 +160,7 @@ export function imageIcon(image: string): ServiceIcon | null {
 export function defaultServiceIcon(spec: ServiceSpec): ServiceIcon | null {
 	if (spec.kind === "database") return databaseIcon[spec.engine];
 	if (spec.kind === "storage") return storageIcon[spec.engine];
+	if (spec.kind === "game") return gameIcon[spec.settings.game];
 	if (spec.kind !== "application" || spec.source.type !== "image") return null;
 	return imageIcon(spec.source.image);
 }

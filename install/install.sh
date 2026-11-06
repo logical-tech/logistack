@@ -420,7 +420,7 @@ cidr_overlap() {
 }
 
 # The stack pins ls-control to $CONTROL_SUBNET; an existing network on that range, or a foreign
-# network already named ls-control, ls-ingress, ls-storage or ls-db, makes `docker stack deploy` fail halfway.
+# network already named ls-control, ls-ingress, ls-storage, ls-db or ls-game, makes `docker stack deploy` fail halfway.
 check_networks() {
 	[ "$DOCKER_READY" = 1 ] || return 0
 	local listing name stack subnets subnet
@@ -428,7 +428,7 @@ check_networks() {
 		'{{.Name}} {{with index .Labels "com.docker.stack.namespace"}}{{.}}{{else}}-{{end}} {{range .IPAM.Config}}{{.Subnet}} {{end}}') ||
 		fail "Could not inspect the Docker networks"
 	while read -r name stack subnets; do
-		if [ "$name" = ls-control ] || [ "$name" = ls-ingress ] || [ "$name" = ls-storage ] || [ "$name" = ls-db ]; then
+		if [ "$name" = ls-control ] || [ "$name" = ls-ingress ] || [ "$name" = ls-storage ] || [ "$name" = ls-db ] || [ "$name" = ls-game ]; then
 			[ "$stack" = "$STACK_NAME" ] ||
 				fail "A network named $name exists outside the $STACK_NAME stack; remove or rename it and re-run"
 			continue

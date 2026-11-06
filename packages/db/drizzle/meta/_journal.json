@@ -253,6 +253,13 @@
       "when": 1793959420124,
       "tag": "0035_sponsor_key",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793976592992,
+      "tag": "0036_game_servers",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,7 @@ import type {
 	EnvironmentId,
 	Folder,
 	GitSource,
+	HostDirs,
 	HostMetrics,
 	ImageSource,
 	InstanceStatus,
@@ -96,6 +97,8 @@ export type ApiAdapter = {
 		/** Asks the node's agent; takes seconds on hosts with many volumes. */
 		disk(id: NodeId): Promise<DiskUsage>;
 		prune(id: NodeId, input: PruneInput): Promise<PruneResult>;
+		/** Directories under `path` on the node's own filesystem (admins only), to pick a bind mount. */
+		hostDirs(id: NodeId, path: string): Promise<HostDirs>;
 	};
 	joins: {
 		/** Creates the Add-server run and queues its SSH test. */

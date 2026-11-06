@@ -1,4 +1,5 @@
 import type { StorageEngine } from "@logistack/contracts";
+import { GAMES } from "@logistack/contracts";
 import { Link } from "@tanstack/react-router";
 import { Container, GitBranch, Globe } from "lucide-react";
 import { ServiceGlyph, StackGlyph } from "@/components/service/service-icon";
@@ -42,6 +43,8 @@ function Source({ service: s }: { service: Service }) {
 	}
 	if (spec.kind === "storage")
 		return <span className="truncate">{STORAGE_ENGINE[spec.engine]}</span>;
+	if (spec.kind === "game")
+		return <span className="truncate">{GAMES[spec.settings.game].label}</span>;
 	const source = spec.source;
 	if (source.type === "image") {
 		return (

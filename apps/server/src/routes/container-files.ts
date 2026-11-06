@@ -70,11 +70,12 @@ const failure = (e: unknown) =>
 			)
 		: e;
 
-type Op = ArchiveRequest extends infer R
-	? R extends unknown
-		? Omit<R, "target">
-		: never
-	: never;
+type Op =
+	Exclude<ArchiveRequest, { op: "host-dirs" }> extends infer R
+		? R extends unknown
+			? Omit<R, "target">
+			: never
+		: never;
 
 /** Runs `req` in the service's replica `taskId` (or its first one); a task of another service is never reached. */
 async function archive(c: Context<Env>, req: Op) {

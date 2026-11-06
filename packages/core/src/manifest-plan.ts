@@ -12,6 +12,7 @@ import {
 	type ServiceSpec,
 } from "@logistack/contracts";
 import { databaseCredentials } from "./database-credentials.ts";
+import { gameCredentials } from "./game.ts";
 import { storageCredentials } from "./storage.ts";
 
 type Step<R extends ManifestChange["resource"], T> = Omit<
@@ -88,7 +89,9 @@ const mintedKeys = (spec: ServiceSpec) =>
 			? databaseCredentials(spec.engine)
 			: spec.kind === "storage"
 				? storageCredentials(spec.engine)
-				: {},
+				: spec.kind === "game"
+					? gameCredentials(spec.settings)
+					: {},
 	);
 
 /**

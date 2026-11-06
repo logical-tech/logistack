@@ -1,4 +1,4 @@
-import type { ServiceSpec } from "@logistack/contracts";
+import { gamePorts, type ServiceSpec } from "@logistack/contracts";
 import { databaseImage } from "@logistack/core";
 
 export type ComposeViewService = {
@@ -39,6 +39,12 @@ export function stackCompose(services: ComposeViewService[]): string {
 		} else if (spec.kind === "database")
 			svc.image = databaseImage(spec.engine, spec.version);
 		else if (spec.kind === "storage") svc["x-storage"] = spec.engine;
+		else if (spec.kind === "game") {
+			svc["x-game"] = spec.settings.game;
+			svc.ports = gamePorts(spec.settings, spec.port).map(
+				(p) => `${p.published}:${p.target}/${p.protocol}`,
+			);
+		}
 		if (s.env.length)
 			svc.environment = Object.fromEntries(
 				s.env.map((e) => [e.key, e.value ?? MASKED]),

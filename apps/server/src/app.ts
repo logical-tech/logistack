@@ -28,6 +28,7 @@ import { domains } from "./routes/domains.ts";
 import { envVars } from "./routes/env-vars.ts";
 import { files } from "./routes/files.ts";
 import { folders } from "./routes/folders.ts";
+import { games } from "./routes/games.ts";
 import { git } from "./routes/git.ts";
 import { health } from "./routes/health.ts";
 import { instance } from "./routes/instance-settings.ts";
@@ -177,6 +178,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", files)
 		.route("/api", containerFiles)
 		.route("/api", storage)
+		.route("/api", games)
 		.route("/api", databases)
 		.route("/api", migrations)
 		.route("/", realtime)

@@ -373,6 +373,9 @@ export const serviceOps = router()
 							ingress: "ingress",
 							...(spec.kind === "storage" ? { storage: "storage" } : {}),
 							...(nets.some((n) => n.Target === "db") ? { db: "db" } : {}),
+							...(nets.some((n) => n.Target === "game")
+								? { game: "game" }
+								: {}),
 						},
 						// shortcut: a stateful service whose node row is gone diffs as re-pinned; rare, the worker logs it.
 						pinNodeId: sc.pinnedSwarmNodeId ?? "unpinned",

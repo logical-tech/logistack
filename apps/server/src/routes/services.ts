@@ -13,6 +13,8 @@ import {
 	databaseCredentials,
 	dataDirOf,
 	encrypt,
+	GAME_ENV,
+	gameCredentials,
 	postgresMajor,
 	storageCredentials,
 } from "@logistack/core";
@@ -98,7 +100,13 @@ const ServiceInput = z.object({
 	 * limits gets the organization's default profile; `null` keeps the spec's limits as sent.
 	 */
 	resourceProfile: z.string().nullable().optional(),
-	/** Node a service with bind mounts is pinned to; default the only node, else the only manager. */
+	/** Counter-Strike 2's Steam Game Server Login Token; stored as a secret service env var. */
+	gameToken: z
+		.string()
+		.trim()
+		.regex(/^[A-Za-z0-9]{16,64}$/)
+		.optional(),
+	/** Node a service with bind mounts, or a game server, is pinned to; default the only node, else the only manager. */
 	nodeId: z.string().optional(),
 	/** Set by importers, e.g. `dokploy:<appName>/<service>`; a re-import skips a service that has it. */
 	importedFrom: z.string().min(1).max(255).optional(),
@@ -247,6 +255,15 @@ export const services = router()
 				nodeId: null,
 				...(input.nodeId ? { requestedNodeId: input.nodeId } : {}),
 			});
+			if (
+				input.spec.kind === "game" &&
+				input.spec.settings.game === "cs2" &&
+				!input.gameToken
+			)
+				throw new Failure(
+					"bad_request",
+					"Counter-Strike 2 needs gameToken: a Steam Game Server Login Token for app 730",
+				);
 			const { db, masterKey } = c.var.deps;
 			let spec: ServiceSpec;
 			try {
@@ -312,7 +329,14 @@ export const services = router()
 						? storageCredentials(spec.engine)
 						: spec.kind === "database"
 							? databaseCredentials(spec.engine)
-							: undefined;
+							: spec.kind === "game"
+								? {
+										...gameCredentials(spec.settings),
+										...(input.gameToken
+											? { [GAME_ENV.gslt]: input.gameToken }
+											: {}),
+									}
+								: undefined;
 				const owners = new Map<string, string>();
 				for (const m of input.mounts ?? []) {
 					const [inserted] = await tx
@@ -336,7 +360,7 @@ export const services = router()
 						serviceId: created.id,
 						source: a.source,
 					});
-				if (minted)
+				if (minted && Object.keys(minted).length)
 					await tx.insert(envVar).values(
 						await Promise.all(
 							Object.entries(minted).map(async ([key, value]) => ({
@@ -431,6 +455,15 @@ export const services = router()
 				throw new Failure("bad_request", "spec.kind cannot change", {
 					kind: current?.kind,
 				});
+			if (
+				input.spec?.kind === "game" &&
+				current?.spec.kind === "game" &&
+				input.spec.settings.game !== current.spec.settings.game
+			)
+				throw new Failure(
+					"bad_request",
+					"spec.settings.game cannot change: the data volume belongs to the game",
+				);
 			if (
 				input.spec?.kind === "storage" &&
 				current?.spec.kind === "storage" &&

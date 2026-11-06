@@ -12,13 +12,13 @@ import { SlidingTabs } from "@/components/sliding-tabs";
 import { ApiError } from "@/lib/api";
 import { overviewQuery } from "@/lib/api/service-ops";
 import type { ServiceId } from "@/lib/api/types";
-import { webserverKind } from "@/lib/webservers";
 
 const BASE = "/projects/$projectId/services/$serviceId";
 
 /** Tabs are child routes; the id is the path segment after the service. */
 const TABS = [
 	{ id: "overview", label: "Overview", to: BASE },
+	{ id: "game", label: "Game", to: `${BASE}/game` },
 	{ id: "storage", label: "Storage", to: `${BASE}/storage` },
 	{ id: "database", label: "Database", to: `${BASE}/database` },
 	{ id: "files", label: "Files", to: `${BASE}/files` },
@@ -85,8 +85,9 @@ function ServiceLayout() {
 						(t) =>
 							(t.id !== "storage" || service.kind === "storage") &&
 							(t.id !== "database" || service.kind === "database") &&
-							(t.id !== "files" ||
-								Boolean(webserverKind(service.importedFrom))),
+							(t.id !== "game" || service.kind === "game") &&
+							// Game traffic is not HTTP: Caddy domains don't reach it.
+							(t.id !== "domains" || service.kind !== "game"),
 					).map((t) => ({ id: t.id, label: t.label }))}
 				/>
 			</div>

@@ -8,6 +8,7 @@ import {
 	Box,
 	ChevronsUpDown,
 	Database,
+	Gamepad2,
 	HardDrive,
 	Layers,
 	type LucideIcon,
@@ -46,6 +47,7 @@ const KIND_ICON: Record<ServiceSpec["kind"], LucideIcon> = {
 	database: Database,
 	compose: Layers,
 	storage: HardDrive,
+	game: Gamepad2,
 };
 
 /** The picked icon, else the engine's or image's, else none (the kind's glyph). */
