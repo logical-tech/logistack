@@ -9,6 +9,7 @@ export * from "./folders.ts";
 export * from "./git-trigger.ts";
 export * from "./ids.ts";
 export * from "./libsql.ts";
+export * from "./manifest-plan.ts";
 export * from "./migration.ts";
 export * from "./network-map.ts";
 export * from "./node-labels.ts";
