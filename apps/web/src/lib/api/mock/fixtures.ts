@@ -88,6 +88,7 @@ const environment = (
 	kind,
 	isDefault,
 	color: null,
+	preview: null,
 	createdAt: ago(60 * 24 * 90),
 	updatedAt: ago(60 * 24 * 90),
 });
@@ -299,7 +300,21 @@ export function createMockDb(): MockDb {
 	const environments: Environment[] = [
 		environment("storefront", "production"),
 		environment("storefront", "staging"),
-		environment("storefront", "preview"),
+		{
+			...environment("storefront", "preview"),
+			name: "PR #128",
+			slug: "pr-128",
+			preview: {
+				number: 128,
+				title: "Checkout: pay with saved cards",
+				url: "https://github.com/logical-tech/storefront/pull/128",
+				headBranch: "feat/saved-cards",
+				headSha: "9f2c4e1a7b3d5e6f8091a2b3c4d5e6f708192a3b",
+				author: "giulia",
+				urls: ["https://pr-128.preview.logical.it"],
+				expiresAt: ago(-60 * 48),
+			},
+		},
 		environment("backoffice", "production"),
 		environment("backoffice", "staging"),
 		environment("booking", "production"),

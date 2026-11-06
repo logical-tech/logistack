@@ -14,11 +14,12 @@ import {
 	serviceWatchPaths,
 } from "@logistack/db";
 import { type GitEvent, WebhookRejectedError } from "@logistack/providers";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { mutation } from "../audit.ts";
 import { envelope } from "../events.ts";
 import { client, loadProvider, providerState } from "../git/providers.ts";
 import { json, router } from "../openapi.ts";
+import { handlePullRequest } from "../previews.ts";
 import { syncGitStacks } from "./stacks.ts";
 
 const Outcome = z
@@ -27,12 +28,23 @@ const Outcome = z
 		 * `deployed`: at least one deployment queued or awaiting checks. `skipped`: services were addressed
 		 * but rules held every one back; each got a `skipped` deployment with its reason. `ignored`: nothing to do.
 		 */
-		outcome: z.enum(["deployed", "skipped", "ignored"]),
+		outcome: z.enum(["deployed", "skipped", "ignored", "removed"]),
 		reason: z.string().optional(),
 		/** Queued or awaiting-checks deployments. */
 		deployments: z.array(z.string()),
 		/** Deployments recorded as `skipped`. */
 		skipped: z.array(z.string()),
+		/** Pull request events: what each project with previews did. */
+		previews: z
+			.array(
+				z.object({
+					projectId: z.string(),
+					outcome: z.enum(["updated", "removed", "skipped"]),
+					reason: z.string().optional(),
+					deployments: z.array(z.string()),
+				}),
+			)
+			.optional(),
 	})
 	.openapi("WebhookOutcome");
 
@@ -57,7 +69,7 @@ export const webhooks = router().openapi(
 			tags: ["webhooks"],
 			summary: "Push and pull request events from a Git provider",
 			description:
-				"Public. Authenticated by the provider's signature (HMAC, or GitLab's secret token). Each service building from the repository applies its trigger rules (branch, tag pattern or release; skip markers; watch paths): a match queues a `git_push` deployment, or holds it in `awaiting_checks` when the service waits for CI; a rule that holds it back records a `skipped` deployment with the reason.",
+				"Public. Authenticated by the provider's signature (HMAC, or GitLab's secret token). Each service building from the repository applies its trigger rules (branch, tag pattern or release; skip markers; watch paths): a match queues a `git_push` deployment, or holds it in `awaiting_checks` when the service waits for CI; a rule that holds it back records a `skipped` deployment with the reason. A pull request event creates, updates or removes the `pr-<number>` preview environment of each project whose preview settings follow the repository.",
 			request: { params: z.object({ providerId: z.string() }) },
 			responses: {
 				200: json(Outcome, "Deployments queued"),
@@ -101,8 +113,42 @@ export const webhooks = router().openapi(
 			);
 		}
 		if (!event) return c.json(ignored("event not used by LogiStack"), 202);
-		if (event.kind !== "push")
-			return c.json(ignored("pull request previews are not enabled"), 202);
+		if (event.kind === "pull_request") {
+			const previews = await handlePullRequest(
+				c.var.deps,
+				{
+					id: row.id,
+					organizationId: row.organizationId,
+					...(providerState(row.kind, config) === "connected" && {
+						client: client(row.kind, config),
+					}),
+				},
+				event,
+			);
+			if (!previews.length)
+				return c.json(
+					{ ...ignored("no project previews this repository"), previews },
+					202,
+				);
+			const deployments = previews.flatMap((p) => p.deployments);
+			const reason = previews
+				.flatMap((p) => (p.reason ? [p.reason] : []))
+				.join("; ");
+			return c.json(
+				{
+					outcome: deployments.length
+						? ("deployed" as const)
+						: previews.some((p) => p.outcome === "removed")
+							? ("removed" as const)
+							: ("skipped" as const),
+					...(reason && { reason }),
+					deployments,
+					skipped: [],
+					previews,
+				},
+				deployments.length ? 200 : 202,
+			);
+		}
 
 		// Stacks first: their own deployments cover the services a sync changed.
 		const stacks = await syncGitStacks(c, row.id, row.organizationId, event);
@@ -123,6 +169,8 @@ export const webhooks = router().openapi(
 				and(
 					eq(project.organizationId, row.organizationId),
 					eq(service.desiredState, "running"),
+					// A managed preview follows its pull request's events, not pushes.
+					isNull(environment.preview),
 					sql`${service.spec}->'source'->>'type' = 'git'`,
 					sql`${service.spec}->'source'->>'gitProviderId' = ${row.id}`,
 				),

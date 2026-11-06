@@ -58,6 +58,7 @@ const prPayload = z.object({
 		author: z.object({ display_name: z.string() }).optional(),
 		source: z.object({
 			branch: z.object({ name: z.string() }),
+			repository: z.object({ full_name: z.string() }).nullish(),
 			// Bitbucket sends the 12-character short hash here.
 			commit: z.object({ hash: z.string() }),
 		}),
@@ -115,7 +116,14 @@ function normalize(event: string | null, body: unknown): GitEvent | null {
 			commitSha: pr.source.commit.hash,
 			commitMessage: pr.title,
 			author: pr.author?.display_name ?? "",
-			pr: { number: pr.id, action, headBranch: pr.source.branch.name },
+			pr: {
+				number: pr.id,
+				action,
+				headBranch: pr.source.branch.name,
+				fromFork:
+					pr.source.repository?.full_name.toLowerCase() !==
+					repository.full_name.toLowerCase(),
+			},
 		};
 	}
 	return null;

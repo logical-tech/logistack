@@ -7,6 +7,7 @@ import {
 	DesiredState,
 	EnvironmentColor,
 	EnvironmentKind,
+	PreviewInfo,
 	ServiceIcon,
 	ServiceKind,
 	ServiceSpec,
@@ -114,6 +115,8 @@ export const Environment = z
 		isDefault: z.boolean(),
 		/** Null falls back to the kind's color. */
 		color: EnvironmentColor.nullable(),
+		/** Set on the preview LogiStack runs for a pull request: removed when it closes. */
+		preview: PreviewInfo.nullable(),
 		createdAt: Timestamp,
 		updatedAt: Timestamp,
 	})

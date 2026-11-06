@@ -1,5 +1,6 @@
 import type {
 	EnvironmentColor,
+	PreviewInfo,
 	ServiceIcon,
 	ServiceSpec,
 	StackGitSource,
@@ -68,6 +69,8 @@ export const project = pgTable(
 		description: text("description"),
 		/** Set while archived: its services are stopped and deploys are refused. */
 		archivedAt: tstz("archived_at"),
+		/** `PreviewSettings` as JSON, encrypted: its variables may be secrets. Null until previews are set up. */
+		previewSettingsEncrypted: text("preview_settings_encrypted"),
 		...timestamps,
 	},
 	(t) => [
@@ -88,6 +91,8 @@ export const environment = pgTable(
 		kind: environmentKind("kind").notNull(),
 		isDefault: boolean("is_default").notNull().default(false),
 		color: text("color").$type<EnvironmentColor>(),
+		/** Set on the preview environments LogiStack creates for pull requests, which it alone updates and deletes. */
+		preview: jsonb("preview").$type<PreviewInfo>(),
 		...timestamps,
 	},
 	(t) => [
