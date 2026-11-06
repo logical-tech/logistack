@@ -16,7 +16,8 @@ Every variable also accepts `<NAME>_FILE`, which wins over the plain variable.
 | `HOST_PROC`, `HOST_SYS`        | `/proc`,`/sys` | Host `/proc` and `/sys` mounts.                       |
 | `HOST_ROOT`                    | `/`            | Host `/` mount, for statfs on host mount points.      |
 | `LOGISTACK_AGENT_METRICS_PORT` | `9469`         | Prometheus `/metrics` on 127.0.0.1. `0` turns it off. |
-| `LOGISTACK_AGENT_INTERVAL_MS`  | `10000`        | Heartbeat and metrics period.                         |
+| `LOGISTACK_AGENT_INTERVAL_MS`  | `10000`        | Heartbeat period.                                     |
+| `LOGISTACK_AGENT_METRICS_INTERVAL_MS` | `30000` | Metrics period (one Docker stats call per container). |
 
 ## Enrollment
 

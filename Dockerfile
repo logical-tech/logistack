@@ -59,8 +59,9 @@ COPY --from=tools /out/ /usr/local/bin/
 ENV ROLE=worker
 # Healthy once the worker has booted and keeps beating (apps/worker/src/index.ts), so a rolling
 # update only retires the old worker for one that came up.
-HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=3 \
-	CMD ["bun", "-e", "process.exit(Date.now()-require('fs').statSync('/tmp/logistack-worker.alive').mtimeMs<30000?0:1)"]
+# Plain sh + stat: booting a Bun runtime per probe cost more CPU than the worker at idle.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --start-interval=2s --retries=3 \
+	CMD ["sh", "-c", "test $(( $(date +%s) - $(stat -c %Y /tmp/logistack-worker.alive 2>/dev/null || echo 0) )) -lt 30"]
 # Last, so a new version rebuilds metadata only. Read by GET /api/version and the updater.
 ARG LOGISTACK_VERSION=dev
 ARG LOGISTACK_COMMIT=
@@ -70,7 +71,7 @@ ENV LOGISTACK_VERSION=$LOGISTACK_VERSION \
 FROM runtime AS api
 USER bun
 EXPOSE 3000
-HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --start-interval=2s --retries=3 \
 	CMD ["bun", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 ARG LOGISTACK_VERSION=dev
 ARG LOGISTACK_COMMIT=
