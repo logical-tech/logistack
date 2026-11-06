@@ -1,20 +1,37 @@
 "use client";
 
 import { useState } from "react";
+import {
+	customAmountLink,
+	type Frequency,
+	SPONSOR_AMOUNTS,
+	type SponsorAmount,
+	sponsorLinks,
+} from "@/content/sponsor";
 
-const AMOUNTS = [5, 15, 50] as const;
-type Frequency = "monthly" | "once";
+type Choice = SponsorAmount | "other";
 
-/** GitHub Sponsors takes the amount and frequency in the URL; "Other" lets the visitor type it there. */
-export function SponsorPicker({ url }: { url: string }) {
+function target(frequency: Frequency, choice: Choice) {
+	if (choice === "other")
+		return {
+			href: customAmountLink,
+			label: "Choose your amount",
+			note: "A one-time gift of any amount, through Stripe.",
+		};
+	const monthly = frequency === "monthly";
+	return {
+		href: sponsorLinks[frequency][choice],
+		label: `Sponsor €${choice}${monthly ? " a month" : " once"}`,
+		note: monthly
+			? "Billed monthly through Stripe until you cancel."
+			: "A one-time gift, paid through Stripe.",
+	};
+}
+
+export function SponsorPicker() {
 	const [frequency, setFrequency] = useState<Frequency>("monthly");
-	const [amount, setAmount] = useState<number | null>(15);
-	const href = amount
-		? `${url}/sponsorships?frequency=${frequency === "monthly" ? "recurring" : "one-time"}&amount=${amount}`
-		: url;
-	const label = amount
-		? `Sponsor €${amount}${frequency === "monthly" ? " a month" : " once"}`
-		: "Choose an amount on GitHub";
+	const [choice, setChoice] = useState<Choice>(15);
+	const { href, label, note } = target(frequency, choice);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -39,19 +56,19 @@ export function SponsorPicker({ url }: { url: string }) {
 			</fieldset>
 			<fieldset className="flex flex-wrap gap-2">
 				<legend className="sr-only">Amount</legend>
-				{[...AMOUNTS, null].map((a) => (
+				{[...SPONSOR_AMOUNTS, "other" as const].map((c) => (
 					<label
-						key={a ?? "other"}
-						className={`pressable flex h-[52px] w-[84px] cursor-pointer items-center justify-center rounded-[14px] text-base font-medium has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-brand ${amount === a ? "bg-pink/12 shadow-[inset_0_0_0_1.5px_var(--color-pink)]" : "bg-raised hover:bg-tile"}`}
+						key={c}
+						className={`pressable flex h-[52px] w-[84px] cursor-pointer items-center justify-center rounded-[14px] text-base font-medium has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-brand ${choice === c ? "bg-pink/12 shadow-[inset_0_0_0_1.5px_var(--color-pink)]" : "bg-raised hover:bg-tile"}`}
 					>
 						<input
 							type="radio"
 							name="amount"
-							checked={amount === a}
-							onChange={() => setAmount(a)}
+							checked={choice === c}
+							onChange={() => setChoice(c)}
 							className="sr-only"
 						/>
-						{a ? `€${a}` : "Other"}
+						{c === "other" ? "Other" : `€${c}`}
 					</label>
 				))}
 			</fieldset>
@@ -70,8 +87,8 @@ export function SponsorPicker({ url }: { url: string }) {
 					</svg>
 					<span className="tabular-nums">{label}</span>
 				</a>
-				<span className="text-sm text-muted">
-					Through GitHub Sponsors. Cancel any time.
+				<span aria-live="polite" className="text-sm text-muted">
+					{note}
 				</span>
 			</div>
 		</div>
