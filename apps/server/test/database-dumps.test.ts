@@ -96,6 +96,9 @@ describe.skipIf(!hasDocker)("database dump and restore API", () => {
 		disk: () => {
 			throw new Error("not used");
 		},
+		archive: () => {
+			throw new Error("not used");
+		},
 		close: () => {},
 	};
 

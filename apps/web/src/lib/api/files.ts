@@ -22,6 +22,10 @@ export type VolumeListing = Ok<
 	(typeof s)["volumes"][":mountId"]["files"]["$get"]
 >;
 export type VolumeFile = VolumeListing["files"][number];
+const cf = s["container-files"];
+export type ContainerListing = Ok<(typeof cf)["$get"]>;
+export type ContainerEntry = NonNullable<ContainerListing["entries"]>[number];
+export type ContainerFileContent = Ok<(typeof cf)["content"]["$get"]>;
 
 export type FilesApi = {
 	get(id: string): Promise<ServiceFiles>;
@@ -33,7 +37,23 @@ export type FilesApi = {
 	list(id: string, mountId: string): Promise<VolumeListing>;
 	remove(id: string, mountId: string, path: string): Promise<void>;
 	upload: typeof uploadToVolume;
+	/** A running replica's filesystem; an empty `taskId` means the first replica. */
+	container: {
+		list(id: string, taskId: string, path: string): Promise<ContainerListing>;
+		read(
+			id: string,
+			taskId: string,
+			path: string,
+		): Promise<ContainerFileContent>;
+		/** `path` is the file's absolute path in the container. */
+		upload: typeof uploadToVolume;
+	};
 };
+
+const containerQuery = (taskId: string, path: string) => ({
+	path,
+	...(taskId ? { taskId } : {}),
+});
 
 const http: FilesApi = {
 	get: (id) => ok(s.files.$get({ param: { id } })),
@@ -49,7 +69,39 @@ const http: FilesApi = {
 			}),
 		),
 	upload: (...args) => uploadToVolume(...args),
+	container: {
+		list: (id, taskId, path) =>
+			ok(cf.$get({ param: { id }, query: containerQuery(taskId, path) })),
+		read: (id, taskId, path) =>
+			ok(
+				cf.content.$get({ param: { id }, query: containerQuery(taskId, path) }),
+			),
+		upload: (id, taskId, path, file, onProgress) =>
+			put(
+				`/api/services/${encodeURIComponent(id)}/container-files/upload?${new URLSearchParams(containerQuery(taskId, path))}`,
+				file,
+				onProgress,
+			),
+	},
 };
+
+/** Where the browser downloads a container file from (cookie-authenticated). */
+export const containerDownloadUrl = (
+	id: string,
+	taskId: string,
+	path: string,
+) =>
+	`/api/services/${encodeURIComponent(id)}/container-files/download?${new URLSearchParams(containerQuery(taskId, path))}`;
+
+export const containerKey = (id: string, taskId: string) =>
+	["files", id, "container", taskId] as const;
+
+export const containerListQuery = (id: string, taskId: string, path: string) =>
+	queryOptions({
+		queryKey: [...containerKey(id, taskId), path],
+		queryFn: () => filesApi.container.list(id, taskId, path),
+		retry: false,
+	});
 
 export const filesApi: FilesApi = isMock
 	? (await import("./mock/files")).mockFiles
@@ -101,6 +153,19 @@ export function uploadToVolume(
 	file: File,
 	onProgress: (loaded: number) => void,
 ): UploadHandle {
+	return put(
+		`/api/services/${encodeURIComponent(id)}/volumes/${encodeURIComponent(mountId)}/upload?path=${encodeURIComponent(key)}`,
+		file,
+		onProgress,
+	);
+}
+
+/** A raw-body PUT with upload progress, which fetch cannot report. */
+function put(
+	url: string,
+	file: File,
+	onProgress: (loaded: number) => void,
+): UploadHandle {
 	const xhr = new XMLHttpRequest();
 	const finished = new Promise<void>((resolve, reject) => {
 		xhr.upload.onprogress = (e) => onProgress(e.loaded);
@@ -117,10 +182,7 @@ export function uploadToVolume(
 		xhr.onerror = () => reject(new Error("The connection dropped."));
 		xhr.onabort = () => reject(new DOMException("Cancelled", "AbortError"));
 	});
-	xhr.open(
-		"PUT",
-		`/api/services/${encodeURIComponent(id)}/volumes/${encodeURIComponent(mountId)}/upload?path=${encodeURIComponent(key)}`,
-	);
+	xhr.open("PUT", url);
 	xhr.withCredentials = true;
 	xhr.setRequestHeader("Content-Type", "application/octet-stream");
 	xhr.send(file);

@@ -3,6 +3,8 @@ import {
 	type AgentRpcErrorCode,
 	AgentRpcReply,
 	type AgentRpcRequest,
+	type ArchiveRequest,
+	type ArchiveResult,
 	agentRpcChannel,
 	agentRpcReplyChannel,
 	type DiskRequest,
@@ -58,6 +60,16 @@ export type NodeExec = NodeStream<OutputChunk, { code: number | null }> & {
 	/** Same as aborting: cancels the exec. */
 	close(): void;
 };
+
+/** Stdin of an exec, or the tar of an archive write. */
+type Stdin = {
+	write(data: string | Uint8Array): Promise<void>;
+	/** EOF. */
+	end(): Promise<void>;
+};
+
+/** An archive read yields the file's content; `result` is the path's stat and listing. */
+export type NodeArchive = NodeStream<Uint8Array, ArchiveResult> & Stdin;
 
 /** The last `n` characters, marked as cut. */
 export const tail = (s: string, n = 2000) =>
@@ -123,6 +135,8 @@ export type NodeRunner = {
 		req: DiskRequest,
 		opts?: RunOptions,
 	): Promise<DiskResult>;
+	/** A container filesystem operation through the engine's archive endpoint (contracts/agent.ts). */
+	archive(nodeId: string, req: ArchiveRequest, opts?: RunOptions): NodeArchive;
 	close(): void;
 };
 
@@ -130,7 +144,7 @@ export type DiskResult = { usage: DiskUsage; report: PruneReport | null };
 
 type Start = Extract<
 	AgentRpcRequest,
-	{ type: "job" | "exec" | "logs" | "disk" }
+	{ type: "job" | "exec" | "logs" | "disk" | "archive" }
 >;
 type Step<T, R> = { item: T } | { done: R } | undefined;
 
@@ -291,7 +305,29 @@ export async function createNodeRunner(
 				return { value: undefined, done: true };
 			},
 		};
-		return { iterator, control, fail };
+		const stdin = (data: Uint8Array, eof: boolean) =>
+			(async () => {
+				let at = 0;
+				do {
+					const chunk = data.subarray(at, at + MAX_CHUNK_BYTES);
+					at += MAX_CHUNK_BYTES;
+					await control({
+						type: "stdin",
+						id,
+						data: Buffer.from(chunk).toString("base64"),
+						eof: eof && at >= data.length,
+					});
+				} while (at < data.length);
+			})();
+		const writer: Stdin = {
+			write: (data) =>
+				stdin(
+					typeof data === "string" ? new TextEncoder().encode(data) : data,
+					false,
+				),
+			end: () => stdin(new Uint8Array(0), true),
+		};
+		return { iterator, control, fail, writer };
 	}
 
 	return {
@@ -331,7 +367,7 @@ export async function createNodeRunner(
 
 		exec(nodeId, req, run = {}) {
 			const id = crypto.randomUUID();
-			const { iterator, control, fail } = open<
+			const { iterator, control, fail, writer } = open<
 				OutputChunk,
 				{ code: number | null }
 			>(
@@ -345,32 +381,30 @@ export async function createNodeRunner(
 							: undefined,
 				run,
 			);
-			const stdin = async (data: Uint8Array, eof: boolean) => {
-				let at = 0;
-				do {
-					const chunk = data.subarray(at, at + MAX_CHUNK_BYTES);
-					at += MAX_CHUNK_BYTES;
-					await control({
-						type: "stdin",
-						id,
-						data: Buffer.from(chunk).toString("base64"),
-						eof: eof && at >= data.length,
-					});
-				} while (at < data.length);
-			};
 			return Object.assign(iterator, {
-				write: (data: string | Uint8Array) =>
-					stdin(
-						typeof data === "string" ? new TextEncoder().encode(data) : data,
-						false,
-					),
-				end: () => stdin(new Uint8Array(0), true),
+				...writer,
 				resize: async (rows: number, cols: number) => {
 					await control({ type: "resize", id, rows, cols });
 				},
 				close: () =>
 					fail(new NodeRunnerError("cancelled", "exec closed"), true),
 			});
+		},
+
+		archive(nodeId, req, run = {}) {
+			const { iterator, writer } = open<Uint8Array, ArchiveResult>(
+				nodeId,
+				{ type: "archive", id: crypto.randomUUID(), req },
+				(m) =>
+					m.type === "output"
+						? { item: decode(m.data) }
+						: m.type === "archive"
+							? { done: (({ type: _, ...r }) => r)(m) }
+							: undefined,
+				// A listing gives up at 15 s on the agent; a 50 MB transfer gets headroom.
+				{ timeoutMs: 5 * 60_000, ...run },
+			);
+			return Object.assign(iterator, writer);
 		},
 
 		followLogs(nodeId, req, run = {}) {
