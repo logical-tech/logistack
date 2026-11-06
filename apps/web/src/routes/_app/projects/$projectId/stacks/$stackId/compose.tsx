@@ -1,13 +1,18 @@
 import { StreamLanguage } from "@codemirror/language";
 import { yaml } from "@codemirror/legacy-modes/mode/yaml";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Lock } from "lucide-react";
+import { Lock, PenLine } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 import { ScriptEditor } from "@/components/backups/script-editor";
 import { CopyButton } from "@/components/copy-button";
 import { Segmented } from "@/components/segmented";
-import { stackQuery } from "@/lib/api/stacks";
+import { ComposeChangesDialog } from "@/components/stack/compose-changes";
+import { Button } from "@/components/ui/button";
+import { ApiError, api } from "@/lib/api";
+import { stackQuery, useApplyStackCompose } from "@/lib/api/stacks";
 
 const yamlLanguage = StreamLanguage.define(yaml);
 
@@ -22,21 +27,43 @@ export const Route = createFileRoute(
 
 const NOTE = {
 	source:
-		"The file as it was pasted. LogiStack read it once to create the containers; edit a container to change it.",
+		"The file last applied to this stack. Edit it to add, change or remove containers; you review what changes before anything deploys.",
 	effective:
 		"What LogiStack runs now, written as compose from each container's settings. Secrets show as <secret> unless you can read secrets.",
 };
+
+const errorText = (e: unknown) =>
+	e instanceof ApiError && Array.isArray(e.details)
+		? `${e.message}: ${e.details.join("; ")}`
+		: e instanceof Error
+			? e.message
+			: String(e);
 
 function StackCompose() {
 	const { stackId } = Route.useParams();
 	const search = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data: stack } = useQuery(stackQuery(stackId));
+	const [draft, setDraft] = useState<string | null>(null);
+	const preview = useMutation({
+		mutationFn: (yaml: string) => api.stacks.previewCompose(stackId, yaml),
+	});
+	const apply = useApplyStackCompose(stackId);
+	const [reviewing, setReviewing] = useState(false);
 	if (!stack) return null;
 	const hasSource = stack.source === "compose";
 	const view = hasSource ? (search.view ?? "source") : "effective";
 	const text =
 		view === "source" ? (stack.composeYaml ?? "") : stack.effectiveCompose;
+	const editing = draft !== null && view === "source";
+	const canEdit = hasSource && view === "source" && !stack.composeHidden;
+	const error = preview.error ?? apply.error;
+
+	const stopEditing = () => {
+		setDraft(null);
+		preview.reset();
+		apply.reset();
+	};
 
 	return (
 		<div className="grid gap-3">
@@ -56,7 +83,15 @@ function StackCompose() {
 						Effective compose
 					</h2>
 				)}
-				{text && <CopyButton value={text} label="Copy compose" />}
+				<div className="flex items-center gap-1">
+					{text && !editing && <CopyButton value={text} label="Copy compose" />}
+					{canEdit && !editing && (
+						<Button variant="outline" size="sm" onClick={() => setDraft(text)}>
+							<PenLine aria-hidden />
+							Edit
+						</Button>
+					)}
+				</div>
 			</div>
 			<p className="max-w-[75ch] text-sm text-pretty text-muted-foreground">
 				{NOTE[view]}
@@ -72,13 +107,70 @@ function StackCompose() {
 						who can read secrets. The effective view masks them.
 					</p>
 				</div>
+			) : editing ? (
+				<>
+					<ScriptEditor
+						key="draft"
+						id="stack-compose"
+						label="Compose file"
+						value={draft}
+						onChange={setDraft}
+						language={yamlLanguage}
+						hint=""
+						invalid={Boolean(error)}
+						describedBy={error ? "stack-compose-error" : undefined}
+						className="max-h-[70vh] overflow-auto"
+					/>
+					{error && (
+						<p
+							id="stack-compose-error"
+							role="alert"
+							className="text-sm text-pretty text-bad-text"
+						>
+							{errorText(error)}
+						</p>
+					)}
+					<div className="flex justify-end gap-2">
+						<Button variant="outline" onClick={stopEditing}>
+							Cancel
+						</Button>
+						<Button
+							disabled={preview.isPending || !draft.trim()}
+							onClick={() =>
+								preview.mutate(draft, { onSuccess: () => setReviewing(true) })
+							}
+						>
+							Review changes
+						</Button>
+					</div>
+					{preview.data && (
+						<ComposeChangesDialog
+							changes={preview.data.changes}
+							open={reviewing}
+							onOpenChange={setReviewing}
+							applying={apply.isPending}
+							onApply={() =>
+								apply.mutate(draft, {
+									onSuccess: (out) => {
+										setReviewing(false);
+										stopEditing();
+										toast.success(
+											out.services.length
+												? `Applied; deploying ${out.services.map((s) => s.name).join(", ")}`
+												: "Applied the compose file",
+										);
+									},
+									onError: () => setReviewing(false),
+								})
+							}
+						/>
+					)}
+				</>
 			) : (
 				<ScriptEditor
 					key={view}
 					id="stack-compose"
-					label={
-						view === "source" ? "Pasted compose file" : "Effective compose"
-					}
+					label={view === "source" ? "Compose file" : "Effective compose"}
 					value={text}
 					onChange={() => {}}
 					language={yamlLanguage}

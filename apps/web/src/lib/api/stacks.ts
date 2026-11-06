@@ -26,6 +26,16 @@ export type StackCreated = InferResponseType<
 	201
 >;
 
+export type StackChanges = InferResponseType<
+	Api["stacks"][":id"]["compose"]["preview"]["$post"],
+	200
+>;
+export type StackChange = StackChanges["changes"][number];
+export type StackUpdated = InferResponseType<
+	Api["stacks"][":id"]["compose"]["$put"],
+	200
+>;
+
 export type StacksApi = {
 	list(environmentId: EnvironmentId): Promise<Stack[]>;
 	get(id: StackId): Promise<StackDetail>;
@@ -34,6 +44,10 @@ export type StacksApi = {
 		environmentId: EnvironmentId,
 		input: { name: string; composeYaml: string },
 	): Promise<StackCreated>;
+	/** What applying `composeYaml` would create, change or remove; writes nothing. */
+	previewCompose(id: StackId, composeYaml: string): Promise<StackChanges>;
+	/** Converges the stack's services to `composeYaml` and redeploys the ones that changed. */
+	applyCompose(id: StackId, composeYaml: string): Promise<StackUpdated>;
 	/** Deletes the stack and every service in it. */
 	remove(id: StackId): Promise<void>;
 };
@@ -44,6 +58,20 @@ export const stacksHttp: StacksApi = {
 	get: (id) => ok(client.api.stacks[":id"].$get({ param: { id } })),
 	createFromCompose: (id, json) =>
 		ok(client.api.environments[":id"].stacks.$post({ param: { id }, json })),
+	previewCompose: (id, composeYaml) =>
+		ok(
+			client.api.stacks[":id"].compose.preview.$post({
+				param: { id },
+				json: { composeYaml },
+			}),
+		),
+	applyCompose: (id, composeYaml) =>
+		ok(
+			client.api.stacks[":id"].compose.$put({
+				param: { id },
+				json: { composeYaml },
+			}),
+		),
 	remove: (id) => done(client.api.stacks[":id"].$delete({ param: { id } })),
 };
 
@@ -74,6 +102,18 @@ export function useCreateComposeStack() {
 			name: string;
 			composeYaml: string;
 		}) => api.stacks.createFromCompose(environmentId, input),
+		onSuccess: () =>
+			Promise.all(
+				invalidated.map((queryKey) => qc.invalidateQueries({ queryKey })),
+			),
+	});
+}
+
+export function useApplyStackCompose(id: StackId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (composeYaml: string) =>
+			api.stacks.applyCompose(id, composeYaml),
 		onSuccess: () =>
 			Promise.all(
 				invalidated.map((queryKey) => qc.invalidateQueries({ queryKey })),

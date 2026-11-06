@@ -135,6 +135,98 @@ describe.skipIf(!hasDocker)("stacks API", () => {
 		expect(res.status).toBe(409);
 	});
 
+	test("editing the compose previews, then converges the services and redeploys what changed", async () => {
+		const detail = await h.call("GET", `/api/stacks/${stackId}`, as());
+		const web = detail.json.services.find(
+			(s: { slug: string }) => s.slug === "web",
+		);
+		// A setting made on the service after the stack was created.
+		const local = await h.call("POST", "/api/env-vars", {
+			...as(),
+			body: {
+				scope: "service",
+				scopeId: web.id,
+				key: "LOCAL_ONLY",
+				value: "kept",
+				isSecret: false,
+				isBuildTime: false,
+			},
+		});
+		expect(local.status).toBe(201);
+		const next = COMPOSE.replace("web:1.2", "web:1.3").replace(
+			"volumes:\n  pgdata",
+			"  cache:\n    image: redis:7.4\nvolumes:\n  pgdata",
+		);
+		const preview = await h.call(
+			"POST",
+			`/api/stacks/${stackId}/compose/preview`,
+			{ ...as(), body: { composeYaml: next } },
+		);
+		expect(preview.status).toBe(200);
+		expect(preview.json.changes).toEqual([
+			{
+				service: "web",
+				op: "update",
+				changes: ["image ghcr.io/acme/web:1.2 → ghcr.io/acme/web:1.3"],
+			},
+			{
+				service: "cache",
+				op: "create",
+				changes: ["new application from redis:7.4"],
+			},
+		]);
+		const unchanged = await h.call("GET", `/api/stacks/${stackId}`, as());
+		expect(unchanged.json.composeYaml).toBe(COMPOSE);
+
+		const applied = await h.call("PUT", `/api/stacks/${stackId}/compose`, {
+			...as(),
+			body: { composeYaml: next },
+		});
+		expect(applied.status).toBe(200);
+		expect(
+			applied.json.services.map((s: { name: string }) => s.name).sort(),
+		).toEqual(["cache", "web"]);
+		const after = await h.call("GET", `/api/stacks/${stackId}`, as());
+		expect(after.json.composeYaml).toBe(next);
+		expect(after.json.effectiveCompose).toContain("ghcr.io/acme/web:1.3");
+		expect(after.json.effectiveCompose).toContain("LOCAL_ONLY: kept");
+		expect(after.json.services).toHaveLength(3);
+
+		const again = await h.call("PUT", `/api/stacks/${stackId}/compose`, {
+			...as(),
+			body: { composeYaml: next },
+		});
+		expect(again.json).toEqual({ changes: [], services: [] });
+
+		const removed = await h.call("PUT", `/api/stacks/${stackId}/compose`, {
+			...as(),
+			body: { composeYaml: COMPOSE.replace("web:1.2", "web:1.3") },
+		});
+		expect(removed.json.changes).toEqual([
+			{
+				service: "cache",
+				op: "remove",
+				changes: ["removed; its volumes are kept"],
+			},
+		]);
+		const final = await h.call("GET", `/api/stacks/${stackId}`, as());
+		expect(final.json.services).toHaveLength(2);
+	});
+
+	test("a compose edit that turns the database into an application is a 400", async () => {
+		const res = await h.call("PUT", `/api/stacks/${stackId}/compose`, {
+			...as(),
+			body: {
+				composeYaml: COMPOSE.replace(
+					"image: postgres:17",
+					"image: postgres:17\n    command: [postgres, -c, fsync=off]",
+				),
+			},
+		});
+		expect(res.status).toBe(400);
+		expect(res.json.error.message).toContain("db would change from database");
+	});
+
 	test("deleting the stack deletes its services", async () => {
 		expect(
 			(await h.call("DELETE", `/api/stacks/${stackId}`, as())).status,
