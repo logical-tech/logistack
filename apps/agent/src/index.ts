@@ -240,6 +240,7 @@ async function main() {
 						"events",
 						"disk",
 						"archive",
+						"host-dirs",
 						"job-ack",
 					],
 					...swarm,

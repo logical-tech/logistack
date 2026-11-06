@@ -1,9 +1,10 @@
-import { expect, test } from "bun:test";
-import type { PortMapping } from "@logistack/contracts";
+import { describe, expect, test } from "bun:test";
+import { gamePorts, type PortMapping } from "@logistack/contracts";
 import {
 	ingressPortHolder,
 	type PortHolder,
 	publishedPortConflicts,
+	suggestGamePort,
 } from "../src/ports.ts";
 
 const udp = (published: number, mode?: "host" | "ingress"): PortMapping => ({
@@ -61,4 +62,37 @@ test("duplicates inside one service and the ingress ports are conflicts", () => 
 			[ingressPortHolder],
 		),
 	).toEqual([{ port: 443, protocol: "tcp", holderId: "ingress" }]);
+});
+
+describe("suggestGamePort", () => {
+	const ts = {
+		id: "svc_ts",
+		nodeId: "n1",
+		ports: gamePorts({ game: "teamspeak3" }, 9987),
+	};
+	test("the default port when the node has it free", () => {
+		expect(suggestGamePort({ game: "teamspeak3" }, "n1", [])).toBe(9987);
+		expect(suggestGamePort({ game: "teamspeak3" }, "n2", [ts])).toBe(9987);
+	});
+	test("the next port whose derived ports are free too", () => {
+		expect(suggestGamePort({ game: "teamspeak3" }, "n1", [ts])).toBe(9988);
+	});
+	test("a service does not conflict with itself", () => {
+		expect(suggestGamePort({ game: "teamspeak3" }, "n1", [ts], "svc_ts")).toBe(
+			9987,
+		);
+	});
+	test("skips a port another service holds", () => {
+		const web = {
+			id: "svc_web",
+			nodeId: "n1",
+			ports: [{ target: 80, published: 25565, protocol: "tcp" as const }],
+		};
+		expect(
+			suggestGamePort({ game: "minecraft-java" }, "n1", [
+				web,
+				ingressPortHolder,
+			]),
+		).toBe(25566);
+	});
 });

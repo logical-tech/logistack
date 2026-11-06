@@ -6,6 +6,7 @@ import {
 	domain,
 	environment,
 	folder,
+	gameEndpoint,
 	project,
 	service,
 	stack,
@@ -23,7 +24,8 @@ export type Locatable =
 	| "service"
 	| "stack"
 	| "deployment"
-	| "domain";
+	| "domain"
+	| "gameEndpoint";
 
 export const organizationResource = (organizationId: string): Resource => ({
 	type: "organization",
@@ -114,6 +116,17 @@ export async function locate(
 					throw notFound("stack");
 				},
 			);
+		}
+		case "gameEndpoint": {
+			const [row] = await db
+				.select({ serviceId: gameEndpoint.serviceId })
+				.from(gameEndpoint)
+				.where(eq(gameEndpoint.id, id));
+			if (!row) throw notFound("game endpoint");
+			// Permissions follow the game server; an endpoint is not a resource of its own.
+			return locate(db, organizationId, "service", row.serviceId).catch(() => {
+				throw notFound("game endpoint");
+			});
 		}
 		case "deployment":
 		case "domain": {

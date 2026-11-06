@@ -1,3 +1,4 @@
+import { lstat, readdir, readlink, stat } from "node:fs/promises";
 import { posix } from "node:path";
 import {
 	type ArchiveRequest,
@@ -146,7 +147,7 @@ async function read(
 export async function runArchive(
 	docker: DockerClient,
 	id: string,
-	req: ArchiveRequest,
+	req: Exclude<ArchiveRequest, { op: "host-dirs" }>,
 	io: {
 		signal: AbortSignal;
 		onData(chunk: Uint8Array): Promise<void>;
@@ -176,4 +177,90 @@ export async function runArchive(
 		throw new ArchiveRefused(`${path} is not a directory`);
 	await docker.containers.putArchive(id, path, await io.upload());
 	return { path, entry, entries: null, truncated: false };
+}
+
+const MAX_HOST_SYMLINKS = 40;
+
+/** `path` with every symlink resolved the way the host would, inside `root` (the host's `/`): `..` and absolute links stop at `root`. */
+export async function resolveHostPath(root: string, path: string) {
+	const todo = path.split("/").filter(Boolean);
+	const done: string[] = [];
+	let hops = 0;
+	while (todo.length) {
+		const part = todo.shift() as string;
+		if (part === ".") continue;
+		if (part === "..") {
+			done.pop();
+			continue;
+		}
+		done.push(part);
+		const at = posix.join(root, ...done);
+		if (!(await lstat(at)).isSymbolicLink()) continue;
+		if (++hops > MAX_HOST_SYMLINKS)
+			throw new ArchiveRefused(`too many levels of symbolic links at ${path}`);
+		const target = await readlink(at);
+		done.pop();
+		if (target.startsWith("/")) done.length = 0;
+		todo.unshift(...target.split("/").filter(Boolean));
+	}
+	return `/${done.join("/")}`;
+}
+
+const dirEntry = (
+	name: string,
+	s: { mode: number; mtimeMs: number },
+	linkTarget?: string,
+): FileEntry => ({
+	name,
+	type: linkTarget === undefined ? "dir" : "symlink",
+	size: 0,
+	mode: s.mode & 0o7777,
+	modifiedAt: Math.floor(s.mtimeMs / 1000),
+	...(linkTarget === undefined ? {} : { linkTarget: linkTarget.slice(0, 256) }),
+});
+
+/** The directories (and symlinks to directories) under `path` on the host mounted at `root`. */
+export async function listHostDirs(
+	root: string,
+	path: string,
+): Promise<ArchiveResult> {
+	const on = (p: string) => posix.join(root, p);
+	let real: string;
+	let self: Awaited<ReturnType<typeof stat>>;
+	try {
+		real = await resolveHostPath(root, path);
+		self = await stat(on(real));
+	} catch (e) {
+		if (e instanceof ArchiveRefused) throw e;
+		throw new ArchiveRefused(`no readable directory at ${path}`);
+	}
+	if (!self.isDirectory())
+		throw new ArchiveRefused(`${real} is not a directory`);
+	const entries: FileEntry[] = [];
+	let truncated = false;
+	for (const d of await readdir(on(real), { withFileTypes: true })) {
+		if (!d.isDirectory() && !d.isSymbolicLink()) continue;
+		const child = posix.join(real, d.name);
+		try {
+			const link = d.isSymbolicLink() ? await readlink(on(child)) : undefined;
+			const s = await stat(
+				on(link === undefined ? child : await resolveHostPath(root, child)),
+			);
+			if (!s.isDirectory()) continue;
+			if (entries.length === MAX_DIR_ENTRIES) {
+				truncated = true;
+				break;
+			}
+			entries.push(dirEntry(d.name, s, link));
+		} catch {
+			// A dangling link, or one that loops: nothing to pick.
+		}
+	}
+	entries.sort((a, b) => a.name.localeCompare(b.name));
+	return {
+		path: real,
+		entry: dirEntry(posix.basename(real) || "/", self),
+		entries,
+		truncated,
+	};
 }

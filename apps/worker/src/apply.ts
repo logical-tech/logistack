@@ -79,15 +79,18 @@ export async function ensureEnvNetwork(
 }
 
 /**
- * Installs from before the database explorer have no ls-db, and the in-app updater only swaps
- * images. On a stack install, create it as a stack network (so a later `docker stack deploy`
- * adopts it) and attach the api, then the worker itself; once attached this is a no-op.
+ * Installs from before the database explorer (ls-db) or game servers (ls-game) lack that network,
+ * and the in-app updater only swaps images. On a stack install, create it as a stack network (so a
+ * later `docker stack deploy` adopts it) and attach the api, then the worker itself; once attached
+ * this is a no-op.
  */
-export async function ensureStackDbNetwork(ctx: Ctx): Promise<void> {
+export async function ensureStackNetwork(
+	ctx: Ctx,
+	name: string,
+): Promise<void> {
 	const stack = ctx.cfg.LS_STACK_NAME;
 	const names = [`${stack}_logistack-api`, `${stack}_logistack-worker`];
 	if (!(await inspectService(ctx, names[0] as string))) return;
-	const name = ctx.cfg.LS_DB_NETWORK;
 	const net = await ensure(
 		() =>
 			ctx.docker.networks.inspect(name).catch((e) => {
@@ -108,7 +111,7 @@ export async function ensureStackDbNetwork(ctx: Ctx): Promise<void> {
 		const nets = svc?.Spec.TaskTemplate.Networks ?? [];
 		if (!svc || nets.some((n) => n.Target === net.Id || n.Target === name))
 			continue;
-		log("info", "attaching service to the database network", {
+		log("info", "attaching service to a shared network", {
 			service: svcName,
 			network: name,
 		});
@@ -174,6 +177,7 @@ async function resolvePin(
 	const stateful =
 		sc.service.spec.kind === "database" ||
 		sc.service.spec.kind === "storage" ||
+		sc.service.spec.kind === "game" ||
 		sc.mounts.some((m) => m.kind === "volume") ||
 		(sc.service.spec.kind === "application" &&
 			!!sc.service.spec.mounts?.length);
@@ -226,12 +230,19 @@ export async function desiredInput(
 			? await ctx.docker.networks.inspect(ctx.cfg.LS_STORAGE_NETWORK)
 			: undefined;
 	// Optional: without ls-db (dev machines, test harnesses) the database deploys, the explorer just can't reach it.
+	const optionalNetwork = (name: string) =>
+		ctx.docker.networks.inspect(name).catch((e) => {
+			if (notFound(e)) return undefined;
+			throw e;
+		});
 	const db =
 		sc.service.spec.kind === "database"
-			? await ctx.docker.networks.inspect(ctx.cfg.LS_DB_NETWORK).catch((e) => {
-					if (notFound(e)) return undefined;
-					throw e;
-				})
+			? await optionalNetwork(ctx.cfg.LS_DB_NETWORK)
+			: undefined;
+	// Optional too: without ls-game the server plays, only the panel's console and status can't reach it.
+	const game =
+		sc.service.spec.kind === "game"
+			? await optionalNetwork(ctx.cfg.LS_GAME_NETWORK)
 			: undefined;
 	// Until the source platform is decommissioned, its proxy and its remaining services reach a
 	// moved service by its old names on the source's network.
@@ -264,6 +275,7 @@ export async function desiredInput(
 			ingress: ingress.Id,
 			...(storage ? { storage: storage.Id } : {}),
 			...(db ? { db: db.Id } : {}),
+			...(game ? { game: game.Id } : {}),
 			...(bridge ? { bridge: bridge.Id } : {}),
 		},
 		...(bridge && moved && from

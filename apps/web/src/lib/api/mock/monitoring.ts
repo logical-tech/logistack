@@ -598,6 +598,36 @@ function findNode(id: string) {
 	return nodes.find((n) => n.id === id);
 }
 
+/** A small host filesystem for the bind mount picker; `/data` links to `/srv`. */
+const HOST_TREE: Record<string, string[]> = {
+	"/": ["boot", "data", "etc", "home", "opt", "root", "srv", "var"],
+	"/boot": [],
+	"/etc": ["caddy", "docker", "ssh", "systemd"],
+	"/home": ["deploy", "ubuntu"],
+	"/home/deploy": ["backups", "uploads"],
+	"/home/deploy/backups": [],
+	"/home/deploy/uploads": [],
+	"/home/ubuntu": [],
+	"/opt": ["factorio", "minecraft"],
+	"/opt/factorio": ["mods", "saves"],
+	"/opt/factorio/mods": [],
+	"/opt/factorio/saves": [],
+	"/opt/minecraft": ["world"],
+	"/opt/minecraft/world": [],
+	"/root": [],
+	"/srv": ["assets", "media", "shared"],
+	"/srv/assets": [],
+	"/srv/media": ["images", "video"],
+	"/srv/media/images": [],
+	"/srv/media/video": [],
+	"/srv/shared": [],
+	"/var": ["lib", "log", "www"],
+	"/var/lib": ["docker"],
+	"/var/log": [],
+	"/var/www": ["html"],
+	"/var/www/html": [],
+};
+
 export const monitoringAdapter: Pick<
 	ApiAdapter,
 	"nodes" | "joins" | "monitoring"
@@ -634,6 +664,34 @@ export const monitoringAdapter: Pick<
 			n.desired = "remove";
 			n.status = "draining";
 			return delay(view(n), 500);
+		},
+		hostDirs: (id, path) => {
+			if (!findNode(id)) return fail(404, "node not found");
+			const real = path.replace(/^\/data(?=\/|$)/, "/srv") || "/";
+			const parent = real.slice(0, real.lastIndexOf("/")) || "/";
+			const listed = HOST_TREE[parent]?.includes(real.split("/").pop() ?? "");
+			const children = HOST_TREE[real] ?? (listed ? [] : undefined);
+			if (!children) return fail(400, `no readable directory at ${path}`);
+			const at = Math.floor(Date.now() / 1000) - 86_400;
+			const dir = (name: string, linkTarget?: string) => ({
+				name,
+				type: linkTarget ? ("symlink" as const) : ("dir" as const),
+				size: 0,
+				mode: 0o755,
+				modifiedAt: at,
+				...(linkTarget ? { linkTarget } : {}),
+			});
+			return delay(
+				{
+					path: real,
+					entry: dir(real.split("/").pop() || "/"),
+					entries: children.map((n) =>
+						real === "/" && n === "data" ? dir(n, "/srv") : dir(n),
+					),
+					truncated: false,
+				},
+				250,
+			);
 		},
 		disk: (id) => {
 			if (!findNode(id)) return fail(404, "node not found");

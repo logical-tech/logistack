@@ -86,6 +86,10 @@ export type CreateServiceInput = {
 	importedFrom?: string;
 	/** Profile the spec's limits came from; null opts out of the organization default. */
 	resourceProfile?: string | null;
+	/** Node a game server (or a service with bind mounts) is pinned to. */
+	nodeId?: string;
+	/** Counter-Strike 2's Steam Game Server Login Token. */
+	gameToken?: string;
 };
 export type DomainInput =
 	| { kind: "generated"; port: number }
@@ -99,6 +103,7 @@ export type NodeId = ClusterNode["id"];
 export type NodeUpdate = Body<Api["nodes"][":id"]["$patch"]>;
 export type LiveHostSample = NonNullable<ClusterNode["live"]>;
 export type DiskUsage = Ok<Api["nodes"][":id"]["disk"]["$get"]>;
+export type HostDirs = Ok<Api["nodes"][":id"]["host-dirs"]["$get"]>;
 export type PruneInput = Body<Api["nodes"][":id"]["disk"]["prune"]["$post"]>;
 export type PruneResult = Ok<Api["nodes"][":id"]["disk"]["prune"]["$post"]>;
 export type PruneTarget = PruneInput["targets"][number];

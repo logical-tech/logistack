@@ -10,6 +10,7 @@ import { Plus, ShieldAlert, Trash2, TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
 import { Field } from "@/components/field";
 import { Segmented } from "@/components/segmented";
+import { HostFolderPicker } from "@/components/service/host-folder-picker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -21,6 +22,11 @@ import {
 	CommandList,
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "@/components/ui/input-group";
 import {
 	Popover,
 	PopoverContent,
@@ -205,12 +211,14 @@ function MountRow({
 	mount: m,
 	index: i,
 	issues,
+	pinnedHost,
 	onChange,
 	onRemove,
 }: {
 	mount: BindMount;
 	index: number;
 	issues: SpecIssues;
+	pinnedHost?: string;
 	onChange: (m: BindMount) => void;
 	onRemove: () => void;
 }) {
@@ -222,6 +230,11 @@ function MountRow({
 		: m.hostPath && issueAt(issues, "mounts", i, "hostPath");
 	const targetError = m.target && issueAt(issues, "mounts", i, "target");
 	const confirmId = `mount-${i}-sensitive`;
+	const setHostPath = (hostPath: string) => {
+		// A confirmation covers the exact path it was given for.
+		const { allowSensitiveHostPath: _, ...rest } = m;
+		onChange({ ...rest, hostPath });
+	};
 	return (
 		<div className="grid gap-1.5">
 			<div
@@ -230,24 +243,30 @@ function MountRow({
 					MOUNT_ROW,
 				)}
 			>
-				<Input
-					aria-label={`Host path ${i + 1}`}
-					aria-invalid={
-						hostError || (sensitive && !m.allowSensitiveHostPath)
-							? true
-							: undefined
-					}
-					placeholder="/srv/factorio"
-					spellCheck={false}
-					autoCapitalize="none"
-					className="font-mono"
-					value={m.hostPath}
-					onChange={(e) => {
-						// A confirmation covers the exact path it was given for.
-						const { allowSensitiveHostPath: _, ...rest } = m;
-						onChange({ ...rest, hostPath: e.target.value });
-					}}
-				/>
+				<InputGroup>
+					<InputGroupInput
+						aria-label={`Host path ${i + 1}`}
+						aria-invalid={
+							hostError || (sensitive && !m.allowSensitiveHostPath)
+								? true
+								: undefined
+						}
+						placeholder="/srv/factorio"
+						spellCheck={false}
+						autoCapitalize="none"
+						className="font-mono"
+						value={m.hostPath}
+						onChange={(e) => setHostPath(e.target.value)}
+					/>
+					<InputGroupAddon align="inline-end">
+						<HostFolderPicker
+							value={m.hostPath}
+							pinnedHost={pinnedHost}
+							label={`Browse host folders for bind mount ${i + 1}`}
+							onPick={setHostPath}
+						/>
+					</InputGroupAddon>
+				</InputGroup>
 				<Input
 					aria-label={`Container path ${i + 1}`}
 					aria-invalid={targetError ? true : undefined}
@@ -330,10 +349,13 @@ export function MountRows({
 	value,
 	onChange,
 	issues,
+	pinnedHost,
 }: {
 	value: HostSettings;
 	onChange: Patch;
 	issues: SpecIssues;
+	/** The node the service is pinned to; the folder picker browses it. */
+	pinnedHost?: string;
 }) {
 	const mounts = value.mounts ?? [];
 	const setMounts = (next: BindMount[]) =>
@@ -377,6 +399,7 @@ export function MountRows({
 					mount={m}
 					index={i}
 					issues={issues}
+					pinnedHost={pinnedHost}
 					onChange={(next) =>
 						setMounts(mounts.map((x, j) => (j === i ? next : x)))
 					}

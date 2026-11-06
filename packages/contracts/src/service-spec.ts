@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DatabaseEngine } from "./enums.ts";
+import { GameSettings } from "./game.ts";
 import { StorageEngine } from "./storage.ts";
 
 const Port = z.int().min(1).max(65535);
@@ -283,10 +284,20 @@ export const StorageSpec = z.object({
 });
 export type StorageSpec = z.infer<typeof StorageSpec>;
 
+/** A game or voice server; `port` publishes the primary port, the others shift with it (`gamePorts`). */
+export const GameSpec = z.object({
+	kind: z.literal("game"),
+	settings: GameSettings,
+	port: Port,
+	resources: Resources,
+});
+export type GameSpec = z.infer<typeof GameSpec>;
+
 export const ServiceSpec = z.discriminatedUnion("kind", [
 	ApplicationSpec,
 	DatabaseSpec,
 	ComposeSpec,
 	StorageSpec,
+	GameSpec,
 ]);
 export type ServiceSpec = z.infer<typeof ServiceSpec>;
