@@ -67,6 +67,10 @@ fi
 if [ "$(docker inspect logistack-api-tunnel --format '{{index .Config.Labels "logistack.managed"}}' 2>/dev/null)" = true ]; then
 	docker rm -f logistack-api-tunnel >/dev/null && ok "Container logistack-api-tunnel removed"
 fi
+# install.sh writes an SSH login banner pointing at the setup wizard.
+if [ -f /etc/update-motd.d/99-logistack ]; then
+	rm -f /etc/update-motd.d/99-logistack && ok "Login banner removed"
+fi
 for network in ls-control ls-ingress; do
 	if docker network inspect "$network" >/dev/null 2>&1; then
 		if docker network rm "$network" >/dev/null 2>&1; then

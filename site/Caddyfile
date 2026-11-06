@@ -1,0 +1,44 @@
+# TLS ends at the reverse proxy in front (Dokploy's Traefik); this container speaks plain HTTP.
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	root * /srv
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	@hashed path /_next/static/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@media path /shots/*
+	header @media Cache-Control "public, max-age=604800"
+	@pages not path /_next/static/* /shots/* /install.sh
+	header @pages Cache-Control "public, max-age=0, must-revalidate"
+
+	# Next writes the generated Open Graph image without an extension.
+	@og path /opengraph-image
+	header @og Content-Type image/png
+
+	@installer path /install.sh
+	header @installer {
+		Content-Type "text/plain; charset=utf-8"
+		Cache-Control "public, max-age=300"
+	}
+
+	try_files {path} {path}/index.html {path}.html
+	file_server
+
+	handle_errors 404 {
+		rewrite * /404.html
+		file_server
+	}
+}

@@ -48,6 +48,7 @@ PUBLIC_SETUP=0
 REGISTRY="ghcr.io/logical-tech"
 CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
+MOTD_FILE="/etc/update-motd.d/99-logistack"
 TUNNEL_PORT=${LOGISTACK_TUNNEL_PORT:-3000}
 MIGRATION_FILE="$CONF_DIR/migration"
 MIGRATION_ARCHIVE_DIR=/var/lib/logistack/migration
@@ -918,6 +919,39 @@ remove_tunnel() {
 	act "Remove the API tunnel $TUNNEL_NAME" docker rm -f "$TUNNEL_NAME"
 }
 
+# SSH login banner with the way into the setup wizard, for installs nobody watched (cloud-init,
+# provider images). It asks the api on each login and goes quiet once setup is done.
+write_motd() {
+	[ -d /etc/update-motd.d ] || return 0
+	local url
+	if [ "$PUBLIC_SETUP" = 1 ]; then
+		# Before setup Caddy's catch-all proxies :80 to the api; after setup it answers 404.
+		url="http://127.0.0.1/api/setup/status"
+	else
+		url="http://127.0.0.1:$TUNNEL_PORT/api/setup/status"
+	fi
+	cat >"$MOTD_FILE" <<EOF
+#!/bin/sh
+# Written by the LogiStack installer; uninstall.sh removes it.
+curl -fsS --max-time 2 "$url" 2>/dev/null | grep -q '"setupCompleted":false' || exit 0
+printf '\nLogiStack is installed. Finish the guided setup in your browser:\n'
+EOF
+	if [ "$PUBLIC_SETUP" = 1 ]; then
+		cat >>"$MOTD_FILE" <<EOF
+token=\$(sed -n 's/^LOGISTACK_SETUP_TOKEN=//p' "$CREDENTIALS_FILE" 2>/dev/null | head -n1)
+[ -n "\$token" ] || exit 0
+printf '  $PUBLIC_URL/setup#token=%s\n' "\$token"
+printf '  Until setup is done, anyone holding this link can claim the server.\n\n'
+EOF
+	else
+		cat >>"$MOTD_FILE" <<EOF
+printf '  From your machine: ssh -L $TUNNEL_PORT:127.0.0.1:$TUNNEL_PORT root@$PUBLIC_IP\n'
+printf '  then open http://localhost:$TUNNEL_PORT\n\n'
+EOF
+	fi
+	chmod 0755 "$MOTD_FILE"
+}
+
 tunnel_ready() {
 	local code
 	code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$TUNNEL_PORT/api/health" || true)
@@ -1022,6 +1056,7 @@ main() {
 	ensure_tunnel
 	wait_healthy
 	remove_tunnel
+	[ ! -d /etc/update-motd.d ] || act "Write the login banner $MOTD_FILE" write_motd
 
 	if [ "$DRY_RUN" = 1 ]; then
 		printf '\n%sDry run complete.%s Re-run without --dry-run to install.\n' "$BOLD" "$RESET"

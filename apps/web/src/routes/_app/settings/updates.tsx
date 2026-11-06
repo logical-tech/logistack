@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	ArrowRight,
+	ArrowUpRight,
 	ExternalLink,
+	Heart,
 	Loader2,
 	RefreshCw,
 	TriangleAlert,
@@ -16,6 +18,7 @@ import { StatusDot, StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { meQuery } from "@/lib/api/access";
+import { SPONSOR_URL, useIsSponsor } from "@/lib/api/sponsor";
 import {
 	isActive,
 	type UpdateRun,
@@ -341,6 +344,8 @@ function Updates() {
 						</div>
 					)}
 				</Panel>
+
+				<SponsorNote />
 			</div>
 
 			{target && (
@@ -362,6 +367,27 @@ function Updates() {
 				</ConfirmDialog>
 			)}
 		</Page>
+	);
+}
+
+/** One quiet line under the release settings; sponsors never see it. */
+function SponsorNote() {
+	const { loaded, sponsor } = useIsSponsor();
+	if (!loaded || sponsor) return null;
+	return (
+		<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t pt-5 text-sm text-pretty text-muted-foreground">
+			<Heart className="size-3.5 text-primary" aria-hidden />
+			Every release is free and complete. Sponsors pay for the work behind it.
+			<a
+				href={SPONSOR_URL}
+				target="_blank"
+				rel="noreferrer"
+				className="inline-flex items-center gap-0.5 rounded-sm font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+			>
+				Sponsor LogiStack
+				<ArrowUpRight className="size-3.5" aria-hidden />
+			</a>
+		</p>
 	);
 }
 

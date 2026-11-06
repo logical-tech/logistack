@@ -20,6 +20,7 @@ export * from "./permissions.ts";
 export * from "./ports.ts";
 export * from "./preview.ts";
 export * from "./resource-profiles.ts";
+export * from "./sponsor.ts";
 export * from "./sql.ts";
 export * from "./stack-update.ts";
 export * from "./storage.ts";

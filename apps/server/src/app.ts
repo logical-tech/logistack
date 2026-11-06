@@ -49,6 +49,7 @@ import { serviceAuth } from "./routes/service-auth.ts";
 import { serviceOps } from "./routes/service-ops.ts";
 import { services } from "./routes/services.ts";
 import { setup } from "./routes/setup.ts";
+import { sponsor } from "./routes/sponsor.ts";
 import { sshKeys } from "./routes/ssh-keys.ts";
 import { sso } from "./routes/sso.ts";
 import { stacks } from "./routes/stacks.ts";
@@ -161,6 +162,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", sso)
 		.route("/api", serviceOps)
 		.route("/api", instance)
+		.route("/api", sponsor)
 		.route("/api", buildPlatforms)
 		.route("/api", updates)
 		.route("/api", git)

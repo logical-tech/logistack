@@ -1,0 +1,10 @@
+*
+!site
+!packages/templates/catalog
+!install/install.sh
+site/node_modules
+site/.next
+site/out
+site/.taste-skill
+site/next-env.d.ts
+packages/templates/catalog/logos

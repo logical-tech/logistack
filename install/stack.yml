@@ -38,6 +38,8 @@ x-app-env: &app-env
   BETTER_AUTH_URL: ${LOGISTACK_PUBLIC_URL:?set LOGISTACK_PUBLIC_URL}
   WEB_ORIGIN: ${LOGISTACK_WEB_ORIGIN:?set LOGISTACK_WEB_ORIGIN}
   LOGISTACK_PUBLIC_URL: ${LOGISTACK_PUBLIC_URL:?set LOGISTACK_PUBLIC_URL}
+  # "1" only on test instances: trusts sponsor keys from Stripe's sandbox.
+  LOGISTACK_SPONSOR_SANDBOX: ${LOGISTACK_SPONSOR_SANDBOX:-}
 
 x-app-secrets: &app-secrets
   - source: logistack-master-key
