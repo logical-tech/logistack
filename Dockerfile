@@ -57,6 +57,10 @@ COPY --from=tools /out/ /usr/local/bin/
 # Starts as root only so the entrypoint can read the socket's group, then drops to bun with it:
 # the docker group id differs per host and `docker stack deploy` has no group_add.
 ENV ROLE=worker
+# Healthy once the worker has booted and keeps beating (apps/worker/src/index.ts), so a rolling
+# update only retires the old worker for one that came up.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=3 \
+	CMD ["bun", "-e", "process.exit(Date.now()-require('fs').statSync('/tmp/logistack-worker.alive').mtimeMs<30000?0:1)"]
 # Last, so a new version rebuilds metadata only. Read by GET /api/version and the updater.
 ARG LOGISTACK_VERSION=dev
 ARG LOGISTACK_COMMIT=

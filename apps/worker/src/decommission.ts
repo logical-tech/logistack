@@ -34,6 +34,7 @@ import type { Ctx } from "./ctx.ts";
 import { scope } from "./ctx.ts";
 import { svcName } from "./load.ts";
 import { sourceSettings } from "./migration-source.ts";
+import { waitForJob } from "./swarm-job.ts";
 
 const ARCHIVE_TIMEOUT_MS = 30 * 60_000;
 
@@ -58,41 +59,6 @@ const envOf = (s: Service) =>
 			return [e.slice(0, i), e.slice(i + 1)];
 		}),
 	);
-
-/** Ids, of tasks or containers, still in a non-final state. */
-const live = [
-	"new",
-	"pending",
-	"assigned",
-	"accepted",
-	"preparing",
-	"starting",
-	"running",
-];
-
-async function waitForJob(ctx: Ctx, name: string) {
-	const deadline = Date.now() + ARCHIVE_TIMEOUT_MS;
-	for (;;) {
-		const [task] = await ctx.docker.tasks.list({ service: [name] });
-		const state = task?.Status?.State;
-		if (state === "complete") return;
-		if (state && !live.includes(state)) {
-			let logs = "";
-			try {
-				const dec = new TextDecoder();
-				for await (const f of await ctx.docker.services.logs(name, {
-					tail: 20,
-				}))
-					logs += dec.decode(f.data);
-			} catch {}
-			throw new Error(
-				`archive job ${state}${task?.Status?.Err ? `: ${task.Status.Err}` : ""}${logs.trim() ? `\n${logs.replace(/[^\x20-\x7e\n]/g, "").trim()}` : ""}`,
-			);
-		}
-		if (Date.now() > deadline) throw new Error("archive job timed out");
-		await Bun.sleep(1_000);
-	}
-}
 
 /** What the archive job dumps and packs, per source. */
 type ArchiveSource = {
@@ -286,7 +252,10 @@ async function archive(
 				Networks: [{ Target: src.networkId }],
 			},
 		});
-		await waitForJob(ctx, name);
+		await waitForJob(ctx.docker, name, {
+			what: "archive job",
+			timeoutMs: ARCHIVE_TIMEOUT_MS,
+		});
 	} finally {
 		await ctx.docker.services.remove(name).catch(() => {});
 		// Swarm frees a config only once the task using it is gone.

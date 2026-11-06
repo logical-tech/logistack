@@ -74,7 +74,7 @@ const SERVICES: [UpdateStep, string][] = [
 	["logistack-worker", "logistack_logistack-worker"],
 ];
 
-/** Plays the run the updater would: pull, then each service. `ls-mock-update-fail=1` fails Caddy. */
+/** Plays the run the updater would: pull, drain, migrate, then each service. `ls-mock-update-fail=1` fails Caddy. */
 async function play(run: UpdateRun) {
 	const tick = (ms = 1_100) => new Promise((r) => setTimeout(r, ms));
 	const set = (step: UpdateStep, s: UpdateStepState, line?: string) => {
@@ -94,6 +94,25 @@ async function play(run: UpdateRun) {
 		emit(run, `Pulling ghcr.io/logical-tech/${name}:0.2.0`);
 	}
 	set("pull", "done");
+	set(
+		"drain",
+		"running",
+		"Paused new deployments, backups and migration steps",
+	);
+	await tick(400);
+	emit(run, "Waiting for 2 deployments and 1 backup");
+	await tick(1_600);
+	emit(run, "Waiting for 1 deployment");
+	await tick(1_600);
+	set("drain", "done", "Nothing is running");
+	await tick(300);
+	set(
+		"migrate",
+		"running",
+		"Migrating the database with ghcr.io/logical-tech/logistack:0.2.0",
+	);
+	await tick(1_400);
+	set("migrate", "done", "Database migrated");
 	const done: UpdateStep[] = [];
 	for (const [step, service] of SERVICES) {
 		await tick(300);
@@ -108,12 +127,14 @@ async function play(run: UpdateRun) {
 			run.state = "failed";
 			run.error =
 				"caddy did not become healthy (task exited with code 1). Rolled back logistack-agent, logistack-api.";
+			emit(run, "Deployments, backups and migrations resumed");
 			emit(run, run.error);
 			return;
 		}
 		set(step, "done", `${service} is healthy`);
 		done.push(step);
 	}
+	emit(run, "Deployments, backups and migrations resumed");
 	run.state = "succeeded";
 	state.current = { version: run.toVersion, commit: "4f1c2a9" };
 	state.updateAvailable = false;
@@ -138,6 +159,8 @@ export const mockUpdates: UpdatesApi = {
 			state: "queued",
 			steps: {
 				pull: "pending",
+				drain: "pending",
+				migrate: "pending",
 				"logistack-api": "pending",
 				"logistack-agent": "pending",
 				caddy: "pending",

@@ -131,6 +131,8 @@ const ConfigSchema = z.object({
 	/** Where in-app updates take images from. `localhost` uses images already on this engine (tests). */
 	LS_UPDATE_REGISTRY: z.string().default(RELEASE_REGISTRY),
 	LS_UPDATE_TIMEOUT_MS: ms(10 * 60_000),
+	/** How long an update waits for running deployments, backups and migration steps. */
+	LS_UPDATE_DRAIN_TIMEOUT_MS: ms(30 * 60_000),
 	LOG_LEVEL: z.enum(["info", "silent"]).default("info"),
 });
 

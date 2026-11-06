@@ -1,13 +1,25 @@
 import { UPDATE_TARGETS } from "@logistack/contracts";
 import { compareVersions } from "@logistack/core";
 import { instanceSettings, instanceUpdate, organization } from "@logistack/db";
-import { LABEL_KIND, managedLabels, type ServiceSpec } from "@logistack/docker";
+import {
+	type DockerClient,
+	LABEL_KIND,
+	managedLabels,
+	type ServiceSpec,
+} from "@logistack/docker";
 import { type Deps, latestRelease } from "@logistack/providers";
-import { eq, sql } from "drizzle-orm";
-import { log } from "./bus.ts";
+import { eq, inArray, sql } from "drizzle-orm";
+import { type Bus, log } from "./bus.ts";
 import type { Config } from "./config.ts";
 import { type Ctx, scope } from "./ctx.ts";
-import { pendingSteps, type UpdateTarget } from "./update.ts";
+import { resume } from "./drain.ts";
+import { waitForJob } from "./swarm-job.ts";
+import {
+	pendingSteps,
+	type UpdateReport,
+	type UpdateResult,
+	type UpdateTarget,
+} from "./update.ts";
 
 type Row = typeof instanceUpdate.$inferSelect;
 
@@ -22,7 +34,14 @@ export const stackTargets = (cfg: Config, version: string): UpdateTarget[] =>
 		image: `${cfg.LS_UPDATE_REGISTRY}/${t.image}:${version}`,
 	}));
 
-const updaterPrefix = (ctx: Ctx) => `${scope(ctx).namePrefix}ls-update-`;
+const updaterPrefix = (ctx: Pick<Ctx, "cfg">) =>
+	`${scope(ctx).namePrefix}ls-update-`;
+const shortId = (updateId: string) => updateId.slice(updateId.indexOf("_") + 1);
+const jobLabels = (ctx: Pick<Ctx, "cfg">, updateId: string) => ({
+	...managedLabels({ resource: updateId, kind: "system", org: "system" }),
+	...scope(ctx).labels,
+});
+const jobMode = { ReplicatedJob: { MaxConcurrent: 1, TotalCompletions: 1 } };
 
 /** Takes the oldest queued run; replicas never both take one. Fails runs whose updater went quiet. */
 async function claim(ctx: Ctx): Promise<Row | undefined> {
@@ -56,13 +75,10 @@ export function updaterSpec(
 	updateId: string,
 	nodeId: string,
 ): ServiceSpec {
-	const labels = {
-		...managedLabels({ resource: updateId, kind: "system", org: "system" }),
-		...scope(ctx).labels,
-	};
+	const labels = jobLabels(ctx, updateId);
 	const { Command: _, ...container } = worker.TaskTemplate.ContainerSpec;
 	return {
-		Name: `${updaterPrefix(ctx)}${updateId.slice(updateId.indexOf("_") + 1)}`,
+		Name: `${updaterPrefix(ctx)}${shortId(updateId)}`,
 		Labels: labels,
 		TaskTemplate: {
 			...worker.TaskTemplate,
@@ -71,16 +87,116 @@ export function updaterSpec(
 				Labels: labels,
 				// The image's entrypoint loads the secrets into the environment, then runs this.
 				Args: ["bun", "apps/worker/src/update-runner.ts", updateId],
+				// The worker's check reads a heartbeat that only the worker writes.
+				Healthcheck: { Test: ["NONE"] },
 			},
 			RestartPolicy: { Condition: "none" },
 			Placement: { Constraints: [`node.id==${nodeId}`] },
 		},
-		Mode: { ReplicatedJob: { MaxConcurrent: 1, TotalCompletions: 1 } },
+		Mode: jobMode,
 	};
+}
+
+/**
+ * The migration job: the new release's api image, with the api service's secrets and networks,
+ * running only `install/migrate.ts`. Pinned to the updater's node, where the image was fetched.
+ */
+export function migrateSpec(
+	ctx: Pick<Ctx, "cfg">,
+	api: ServiceSpec,
+	image: string,
+	updateId: string,
+	nodeId: string,
+): ServiceSpec {
+	const labels = jobLabels(ctx, updateId);
+	const { Command: _, ...container } = api.TaskTemplate.ContainerSpec;
+	return {
+		Name: `${updaterPrefix(ctx)}migrate-${shortId(updateId)}`,
+		Labels: labels,
+		TaskTemplate: {
+			...api.TaskTemplate,
+			ContainerSpec: {
+				...container,
+				Image: image,
+				Labels: labels,
+				Args: ["bun", "install/migrate.ts"],
+				// The api image's check asks a server this job never starts.
+				Healthcheck: { Test: ["NONE"] },
+			},
+			RestartPolicy: { Condition: "none" },
+			Placement: { Constraints: [`node.id==${nodeId}`] },
+		},
+		Mode: jobMode,
+	};
+}
+
+/** Runs the migration job to completion. Migrations apply in one transaction, so a failure leaves the old schema. */
+export async function migrate(
+	ctx: Pick<Ctx, "cfg">,
+	docker: Pick<DockerClient, "services" | "tasks" | "info">,
+	updateId: string,
+	image: string,
+	report: UpdateReport,
+): Promise<UpdateResult> {
+	const api = await docker.services.inspect(
+		`${ctx.cfg.LS_STACK_NAME}_logistack-api`,
+	);
+	const spec = migrateSpec(
+		ctx,
+		api.Spec,
+		image,
+		updateId,
+		(await docker.info()).Swarm.NodeID,
+	);
+	await docker.services.remove(spec.Name).catch(() => {});
+	await report.line(`Migrating the database with ${image}`);
+	await docker.services.create(spec);
+	try {
+		await waitForJob(docker, spec.Name, {
+			what: "the migration job",
+			timeoutMs: ctx.cfg.LS_UPDATE_TIMEOUT_MS,
+		});
+	} catch (e) {
+		return {
+			ok: false,
+			error: `${e instanceof Error ? e.message : String(e)}\nNo service was changed.`,
+		};
+	}
+	await report.line("Database migrated");
+	return { ok: true };
+}
+
+/** Tells every organization how an update ended. */
+export async function notifyOutcome(
+	db: Ctx["db"],
+	bus: Pick<Bus, "publish">,
+	run: { id: string; fromVersion: string; toVersion: string },
+	result: UpdateResult,
+	publicUrl: string | null,
+): Promise<void> {
+	const url = publicUrl
+		? `${publicUrl.replace(/\/$/, "")}/settings/updates`
+		: undefined;
+	for (const org of await db.select({ id: organization.id }).from(organization))
+		await bus.publish(
+			result.ok ? "instance.update_succeeded" : "instance.update_failed",
+			org.id,
+			{ type: "instance", id: run.id },
+			{
+				name: `v${run.toVersion}`,
+				version: run.toVersion,
+				current: result.ok ? run.toVersion : run.fromVersion,
+				message: result.ok
+					? `Every service runs ${run.toVersion}.`
+					: `Still on ${run.fromVersion}: ${result.error}`,
+				...(url ? { url } : {}),
+			},
+		);
 }
 
 /** Starts the updater for each queued run. A run that cannot start fails with the reason. */
 export async function startQueuedUpdates(ctx: Ctx): Promise<void> {
+	await resumeIfIdle(ctx);
 	for (let row = await claim(ctx); row; row = await claim(ctx)) {
 		try {
 			const worker = await ctx.docker.services.inspect(
@@ -113,6 +229,18 @@ export async function startQueuedUpdates(ctx: Ctx): Promise<void> {
 			log("error", "updater not started", { id: row.id, error });
 		}
 	}
+}
+
+/**
+ * An updater that died while draining leaves the queues paused. With no run active, nothing
+ * should hold them, so the worker resumes them on every tick; resuming a running queue is a no-op.
+ */
+async function resumeIfIdle(ctx: Ctx) {
+	const active = await ctx.db.$count(
+		instanceUpdate,
+		inArray(instanceUpdate.state, ["queued", "running"]),
+	);
+	if (!active) await resume(ctx.queues);
 }
 
 /** Daily: tells every organization once per release that a newer one is out. */

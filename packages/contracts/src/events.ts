@@ -25,6 +25,8 @@ export const eventTypes = [
 	"domain.active",
 	"domain.error",
 	"instance.update_available",
+	"instance.update_succeeded",
+	"instance.update_failed",
 	/** A migration item changed status; resource `migration:<id>`, payload names the item. */
 	"migration.item_changed",
 ] as const;

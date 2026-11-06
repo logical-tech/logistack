@@ -6,8 +6,9 @@ export const RELEASES_REPO = "logical-tech/logistack";
 export const RELEASE_REGISTRY = "ghcr.io/logical-tech";
 
 /**
- * The stack services an update replaces, in the order it replaces them. The api goes first: its
- * entrypoint migrates under the advisory lock, and everything after it runs against that schema.
+ * The stack services an update replaces, in the order it replaces them, after the `migrate` step
+ * has applied the new schema. The api goes first so agents and the worker meet a server that
+ * already speaks their version; the worker goes last, once nothing runs on it.
  */
 export const UPDATE_TARGETS = [
 	{ step: "logistack-api", image: "logistack" },
@@ -16,8 +17,14 @@ export const UPDATE_TARGETS = [
 	{ step: "logistack-worker", image: "logistack-worker" },
 ] as const;
 
+/**
+ * `drain` pauses the deploy, backup and migration queues and waits for running jobs to finish;
+ * `migrate` runs the new release's migrations once, from its api image, before any of it serves.
+ */
 export const updateSteps = [
 	"pull",
+	"drain",
+	"migrate",
 	...UPDATE_TARGETS.map((t) => t.step),
 ] as const;
 export const UpdateStep = z.enum(updateSteps);
