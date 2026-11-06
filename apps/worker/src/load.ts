@@ -13,6 +13,7 @@ import {
 	dockerName,
 	type ResolvedEnvVar,
 	resolveEnv,
+	scaledReplicas,
 } from "@logistack/core";
 import {
 	adoptedVolume,
@@ -25,6 +26,7 @@ import {
 	project,
 	registry,
 	service,
+	serviceAutoscale,
 	sshKey,
 } from "@logistack/db";
 import type { RegistryAuth } from "@logistack/docker";
@@ -59,6 +61,8 @@ export type ServiceContext = {
 	git?: GitAuth;
 	/** Swarm id of the node the service is pinned to, when the row names one. */
 	pinnedSwarmNodeId?: string;
+	/** The autoscaler's replica count while it is enabled. */
+	scaledReplicas?: number;
 };
 
 export const svcName = (ctx: Ctx, serviceId: string) =>
@@ -142,10 +146,12 @@ export async function loadService(
 			project,
 			environmentName: environment.name,
 			preview: environment.preview,
+			autoscale: serviceAutoscale,
 		})
 		.from(service)
 		.innerJoin(environment, eq(environment.id, service.environmentId))
 		.innerJoin(project, eq(project.id, environment.projectId))
+		.leftJoin(serviceAutoscale, eq(serviceAutoscale.serviceId, service.id))
 		.where(eq(service.id, serviceId));
 	if (!row) return null;
 	const svc = row.service;
@@ -260,6 +266,7 @@ export async function loadService(
 		pinnedSwarmNodeId = n?.swarmNodeId;
 	}
 
+	const scaled = scaledReplicas(row.autoscale);
 	return {
 		service: { ...svc, spec },
 		organizationId: orgId,
@@ -280,6 +287,7 @@ export async function loadService(
 			: null,
 		...(git ? { git } : {}),
 		...(pinnedSwarmNodeId ? { pinnedSwarmNodeId } : {}),
+		...(scaled !== undefined && { scaledReplicas: scaled }),
 	};
 }
 
@@ -343,6 +351,9 @@ export function compileInput(
 			slug: sc.service.slug,
 			desiredState: sc.service.desiredState,
 			spec: sc.service.spec,
+			...(sc.scaledReplicas !== undefined && {
+				scaledReplicas: sc.scaledReplicas,
+			}),
 		},
 		deploymentId: deployment.id,
 		...(deployment.imageRef ? { image: deployment.imageRef } : {}),

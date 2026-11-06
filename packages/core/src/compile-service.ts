@@ -55,6 +55,8 @@ export type CompileServiceInput = {
 		slug: string;
 		desiredState: DesiredState;
 		spec: ApplicationSpec | DatabaseSpec | StorageSpec | GameSpec;
+		/** The autoscaler's count; replaces `spec.replicas` of an application. */
+		scaledReplicas?: number;
 	};
 	/** Rolls the tasks even when nothing else changed, so every deployment is a real update. */
 	deploymentId: string;
@@ -432,7 +434,13 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	const order = stateful || holdsHostPort ? "stop-first" : "start-first";
 	const resources = spec.resources;
 	const replicas =
-		service.desiredState === "stopped" ? 0 : isDb ? 1 : (app?.replicas ?? 1);
+		service.desiredState === "stopped"
+			? 0
+			: isDb
+				? 1
+				: app
+					? (service.scaledReplicas ?? app.replicas)
+					: 1;
 	const env = Object.entries({
 		...input.env,
 		...store?.env(input.env),

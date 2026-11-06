@@ -1,4 +1,5 @@
 import type {
+	AutoscaleBehavior,
 	CleanupRun,
 	NodeJoinState,
 	NodeJoinStep,
@@ -103,6 +104,36 @@ export const serviceThreshold = pgTable(
 		...timestamps,
 	},
 	(t) => [index("service_threshold_service_idx").on(t.serviceId)],
+);
+
+/**
+ * Autoscaling of one application service. While enabled, `replicas` replaces `spec.replicas`
+ * as the desired count; the reconciler converges Swarm to it like any other drift.
+ */
+export const serviceAutoscale = pgTable(
+	"service_autoscale",
+	{
+		serviceId: text("service_id")
+			.primaryKey()
+			.references(() => service.id, { onDelete: "cascade" }),
+		enabled: boolean("enabled").notNull().default(true),
+		minReplicas: integer("min_replicas").notNull(),
+		maxReplicas: integer("max_replicas").notNull(),
+		behavior: text("behavior").$type<AutoscaleBehavior>().notNull(),
+		targetCpu: integer("target_cpu").notNull(),
+		targetMemory: integer("target_memory"),
+		/** The autoscaler's last decision; null until its first pass. */
+		replicas: integer("replicas"),
+		lastScaledAt: tstz("last_scaled_at"),
+		lastReason: text("last_reason"),
+		...timestamps,
+	},
+	(t) => [
+		check(
+			"service_autoscale_range_check",
+			sql`${t.minReplicas} >= 1 and ${t.minReplicas} <= ${t.maxReplicas}`,
+		),
+	],
 );
 
 /** Rollup watermarks: buckets before `through` are final. */
