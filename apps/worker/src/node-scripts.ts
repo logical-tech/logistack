@@ -73,12 +73,6 @@ else
 	echo "Docker $($SUDO docker version --format '{{.Server.Version}}') is installed"
 fi
 if command -v systemctl >/dev/null 2>&1; then $SUDO systemctl enable --now docker >/dev/null 2>&1 || true; fi
-# BuildKit may land on this node: Ubuntu 23.10+ needs a profile before rootlesskit may create a user namespace.
-if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ] && [ ! -f /etc/apparmor.d/logistack-rootlesskit ]; then
-	echo "Letting rootless BuildKit create user namespaces (AppArmor profile)"
-	printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' 'profile logistack-rootlesskit /usr/bin/rootlesskit flags=(unconfined) {' '  userns,' '}' | $SUDO tee /etc/apparmor.d/logistack-rootlesskit >/dev/null
-	$SUDO apparmor_parser -r /etc/apparmor.d/logistack-rootlesskit
-fi
 STATE=$($SUDO docker info --format '{{.Swarm.LocalNodeState}}')
 if [ "$STATE" = active ]; then
 	echo "Already part of a swarm; leaving membership as it is"
