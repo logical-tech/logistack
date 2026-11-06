@@ -1,0 +1,143 @@
+---
+title: Complete the setup wizard
+description: Create the owner account, name your organization, choose the instance URL and domain, check DNS and turn on the local registry in LogiStack's setup wizard.
+---
+
+The setup wizard runs once, right after you [install LogiStack](./install.mdx). It creates the owner account and the first organization, and sets the domain your dashboard and services use. It takes about two minutes. Everything except the owner account can change later in **Settings**.
+
+## Before you start
+
+- Open the wizard as the installer told you: through the SSH tunnel at `http://localhost:3000`, or through the `/setup#token=...` link if you installed with `--public-setup`.
+- Decide which domain to use. You have two options:
+  - **Your own wildcard domain**, such as `*.srv1.example.com`. Recommended for real use. Have access to the domain's DNS, or an API token for Cloudflare, Amazon Route 53 or Hetzner DNS.
+  - **sslip.io or nip.io**. Works right away with no DNS change. Good for trying LogiStack.
+
+![The setup wizard on its first step, Create the owner account, with the seven steps listed on the left](/screens/setup.webp)
+
+The steps are listed on the left. Select **Continue** (or press Enter) to move forward, and **Back** (or Option+Left) to return. The wizard keeps your answers if you reload the page, except passwords and tokens.
+
+## Run the wizard
+
+<Steps>
+<Step>
+
+### Create the owner account
+
+Fill in:
+
+- **Name**: your name, for example `Simone Rossi`.
+- **Email**: the address you sign in with, for example `simone@acme.com`.
+- **Password**: at least 12 characters.
+
+If you installed with `--public-setup`, a **Setup token** field comes first. The link the installer printed fills it in; otherwise paste the token from `/etc/logistack/credentials`.
+
+The owner can do everything, including adding people and changing these settings later. You can add a passkey and two-factor authentication after setup.
+
+</Step>
+<Step>
+
+### Name your organization
+
+Enter the **Organization name**, usually your company or team, for example `Acme`. The field shows the slug it derives (`acme`). Projects, members and integrations belong to the organization.
+
+</Step>
+<Step>
+
+### Choose the instance URL and domain
+
+Under **Domain**, choose one:
+
+| Choice | What it does |
+| --- | --- |
+| **Your own wildcard domain** (Recommended) | Services get hostnames under a base you own, like `web.srv1.example.com`. |
+| **sslip.io** (Quick start) | Hostnames like `app.203-0-113-7.sslip.io` resolve to the server's IP with no setup. |
+| **nip.io** (Quick start) | The same idea on another resolver: `app.203-0-113-7.nip.io`. |
+
+For **Your own wildcard domain**, also fill in:
+
+1. **Wildcard base**: the domain under the `*.`, for example `srv1.example.com`. Do not type `*.` or `https://`.
+2. **DNS provider for certificates**: **Cloudflare**, **Amazon Route 53**, **Hetzner DNS**, or **None, I'll manage records myself**. For a provider, enter its credentials. The hint under the fields says where to create them, for example for Cloudflare: My Profile → API Tokens → Create Token → "Edit zone DNS".
+3. Check the **DNS records** table. It lists the two records the domain needs:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | A | `*.srv1.example.com` | `203.0.113.7` |
+   | A | `srv1.example.com` | `203.0.113.7` |
+
+   With a DNS provider, LogiStack creates both records when you finish and issues one wildcard certificate over DNS-01. With **None, I'll manage records myself**, create them at your DNS host now; certificates are then issued per hostname over HTTP-01.
+
+Finally, **Instance URL** (optional) is where you and your team open LogiStack. Leave it empty to use the suggestion, `https://logistack.srv1.example.com` (or `https://logistack.203-0-113-7.sslip.io`). It must start with `https://`.
+
+<Callout type="info">
+sslip.io and nip.io are not on the Public Suffix List, so every instance that uses them shares one Let's Encrypt limit of 50 certificates a week. Issuance can stall when that budget runs out. Use them to try LogiStack, then move to your own domain in **Settings > General**.
+</Callout>
+
+</Step>
+<Step>
+
+### Check DNS
+
+This step appears only for **Your own wildcard domain**. It shows the DNS records again and a test button. You must pass the test to continue.
+
+- With a DNS provider, select **Check credentials**. LogiStack signs in to the provider and finds the zone that holds your wildcard base. Nothing is written yet. A pass reads, for example, `Cloudflare manages example.com`.
+- With **None, I'll manage records myself**, select **Check DNS**. LogiStack looks up `ls-check.srv1.example.com` and compares it with the server's IP. A pass reads `ls-check.srv1.example.com resolves to 203.0.113.7`.
+
+If the test fails, fix the problem and select **Test again**. New records can take a few minutes to propagate.
+
+</Step>
+<Step>
+
+### Enter the Let's Encrypt email
+
+Enter **Email for certificate notices**. Let's Encrypt writes here only about expiring certificates and changes to its terms. A shared ops inbox, such as `ops@acme.com`, works better than a personal one.
+
+</Step>
+<Step>
+
+### Choose the local registry
+
+**Run a registry on this server** is on by default. LogiStack deploys a private image registry at `registry.srv1.example.com` with HTTPS and generated credentials. Images built from your repositories are pushed there, and old images are cleaned up while the last few are kept for rollbacks.
+
+- Keep it on if you will add more servers: other nodes pull images from it instead of rebuilding.
+- Turn it off if you prefer GHCR or Docker Hub, and add one later under **Integrations > Registries**. See [Registries](../deploy/registries.mdx).
+
+</Step>
+<Step>
+
+### Review and finish
+
+The last step summarizes your answers: owner, organization, instance URL, service hostnames (`*.srv1.example.com`), certificates, Let's Encrypt email and registry. Select **Edit** next to a section to go back to it.
+
+Select **Finish setup**. LogiStack creates the owner and organization, saves the instance settings, creates DNS records if you chose a provider, and signs you in. A "LogiStack is ready" notice appears and the Home page opens.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+1. Open the instance URL you chose, for example `https://logistack.srv1.example.com`. The certificate can take up to a minute on first use.
+2. The sign-in page opens. Sign in with the owner email and password.
+
+![The Sign in to LogiStack page, with passkey, GitHub and SSO buttons above the email and password form](/screens/sign-in.webp)
+
+From now on, use this URL instead of the SSH tunnel. The tunnel on `127.0.0.1:3000` stays available as a way back in.
+
+## Add more people
+
+Invite people from **Settings > Members**: they receive a link and create their account. People can also open **Create an account** on the sign-in page; a new account joins the organizations it was invited to.
+
+![The Create your account page, with Name, Work email and Password fields](/screens/sign-up.webp)
+
+See [Members and invitations](../team/members-and-invitations.mdx) and [Single sign-on](../team/sso.mdx).
+
+## Common problems
+
+**The wizard is not reachable on `http://localhost:3000`.** Check that the SSH session with `-L 3000:127.0.0.1:3000` is still open, and that nothing else on your computer uses port 3000. Use another local port if needed: `ssh -L 8080:127.0.0.1:3000 root@203.0.113.7`, then open `http://localhost:8080`.
+
+**"Enter the setup token install.sh printed."** The server was installed with `--public-setup`. Paste `LOGISTACK_SETUP_TOKEN` from `/etc/logistack/credentials`.
+
+**The DNS check fails with "doesn't resolve to ... yet".** The A records are missing or point elsewhere. The message lists what the name resolves to. Fix the records and select **Test again** after a few minutes.
+
+**The DNS provider check fails.** The token cannot read the zone, or the zone does not contain your wildcard base. For Cloudflare, make sure the token has "Edit zone DNS" on that zone.
+
+**The instance URL shows a certificate error after setup.** Let's Encrypt may still be issuing it. Wait a minute and reload. If it persists, check that ports 80 and 443 are open in your provider's firewall, then see [HTTPS certificates](../networking/https-certificates.mdx).

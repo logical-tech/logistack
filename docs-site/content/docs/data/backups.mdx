@@ -1,0 +1,161 @@
+---
+title: Back up a database or volume to S3
+description: Create a backup policy that dumps a database or archives a volume to an S3 bucket on a cron, with retention, age encryption, scheduled verifies and run history.
+---
+
+A backup policy copies one thing from a service to an S3 bucket on a schedule: a dump of the database, or an archive of one volume. It deletes old copies by your retention rules, can encrypt every backup before it leaves the server, and can test the newest backup on its own schedule. Set one up on every service whose data you can't rebuild, before you go to production.
+
+## Before you start
+
+- Add at least one [S3 destination](./s3-destinations.mdx). Pick a bucket that doesn't live on the same server: a backup on the machine you lose doesn't help.
+- You need write access to the service.
+
+## What a policy backs up
+
+| Target | What is written | File |
+| --- | --- | --- |
+| PostgreSQL database | `pg_dump` in custom format, compressed | `.dump` |
+| MySQL database | `mysqldump --single-transaction`, all databases | `.sql` |
+| MariaDB database | `mariadb-dump --single-transaction`, all databases | `.sql` |
+| MongoDB database | `mongodump --archive` | `.archive` |
+| Redis database | an RDB snapshot | `.rdb` |
+| libSQL database | an SQL dump from sqld | `.sql` |
+| A volume | the volume's files as a compressed tar | `.tar.zst` |
+
+A dump is small and restores anywhere. A volume archive is a byte-for-byte copy of the files. Each policy covers one target; add a second policy for a volume, or for another volume.
+
+Backups are written to `<bucket>/<prefix>/backups/<policy-id>/<timestamp>-<run-id>.<ext>`, with `.age` added when encryption is on. For example:
+
+```text
+acme-backups/logistack/backups/bkp_7f3a/2026-11-06T03-00-00-000Z-bkr_91c2.dump.age
+```
+
+## Create a backup policy
+
+<Steps>
+<Step>
+
+### Open the Backups tab
+
+Open the service and select **Backups**. On a service without backups, select **Set up backups**. Otherwise select **Add policy**.
+
+</Step>
+<Step>
+
+### Choose what to back up
+
+In **What to back up**, pick the database (marked **Recommended**) or one of the volumes. Select **Continue**.
+
+![The new backup policy wizard for a PostgreSQL service](/screens/backup-new.webp)
+
+</Step>
+<Step>
+
+### Choose where it goes
+
+In **Where it goes**, pick a destination. If there is none, select **Add an S3 destination**; the wizard keeps your answers, so come back when it's saved.
+
+</Step>
+<Step>
+
+### Set the schedule
+
+In **When it runs**, set when it runs, and the **Time zone**. Use the **Simple** editor (**Minutes**, **Hourly**, **Daily**, **Weekly**, **Monthly**) or switch to **Cron** and type an expression. The default is `0 3 * * *`, every day at 03:00. The **Next 5 runs** preview shows when it fires in the chosen zone.
+
+</Step>
+<Step>
+
+### Set retention
+
+In **How long to keep them**, fill in **Keep the newest** (default 14) backups, **Delete after** a number of days, or both. Retention runs after every backup.
+
+</Step>
+<Step>
+
+### Test restores (databases)
+
+In **Test restores**, keep **Verify on a schedule** on and set when it runs. The default is `0 5 * * 0`, Sundays at 05:00. A verify restores the newest backup into a throwaway container and runs a sanity query; the live database is never touched.
+
+</Step>
+<Step>
+
+### Choose consistency (volumes)
+
+For a volume, **Consistency** offers **Stop &lt;service&gt; while archiving**. The service is scaled to zero for the copy, then back. Turn it on when the service writes to the volume all the time, such as SQLite or a file-based queue.
+
+</Step>
+<Step>
+
+### Choose encryption
+
+In **Encryption**, keep **Encrypt before upload** on. Each backup is encrypted with age on the server, so the bucket only ever holds ciphertext.
+
+</Step>
+<Step>
+
+### Review and start
+
+Check the summary and select **Start backing up**. With encryption on, the next page is **Save the backup key**. Select **Download key file** or copy the key, store it outside the server (a password manager works), then select **I've saved the key**.
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+The backup key is shown once. LogiStack keeps a sealed copy to restore, but if the server is lost, the key is the only way to read your backups. Lose both and the backups are gone. Encryption can't be turned off later.
+</Callout>
+
+## How retention works
+
+A backup is kept if either rule keeps it. With **Keep the newest** `14` and **Delete after** `30` days, the policy keeps the 14 newest backups plus any backup up to 30 days old. With only a count, it keeps exactly that many. Deleted backups show **Pruned by retention** in the run history and can't be restored.
+
+Some providers bill deleted objects for a minimum period (Wasabi bills 90 days), so short retention there costs the same as the minimum.
+
+## Read the Backups tab
+
+![The Backups tab of a PostgreSQL service, with a database dump policy, a volume policy and the recent runs](/screens/service-backups.webp)
+
+Each policy under **Policies** shows:
+
+- Its title, such as **Database dump (pg_dump)** or **Volume /var/lib/postgresql/data**, the schedule in words, the time zone and the destination.
+- **Next run**, **Retention**, **Verify** (databases) or **While archiving** (volumes), and **Last run**.
+- **Encrypted with age** with a **Decrypt without LogiStack** section, or **Stored unencrypted in the bucket** with an **Encrypt backups** link.
+
+**Recent runs** lists backups, verifies and restores, newest first, with their **Status**, **Size**, how long they **Took** and the **SHA-256** checksum of the file. A running backup shows its phase and bytes so far. Finished backups that retention still keeps have a **Restore** button. See [Restore a backup](./restore.mdx).
+
+## Run a backup now
+
+Select **Run now** on a policy. The run appears under **Recent runs** and writes to the policy's destination. Select **Verify now** on a database policy to test the newest backup right away.
+
+## Pause, resume or delete a policy
+
+- Use the switch on a policy to pause it. **Next run** then shows **Paused**. Turn it back on to resume.
+- Select the trash icon to delete a policy. The policy and its run history are removed. Backups already in the bucket stay there and can be restored by hand.
+
+## Turn on encryption later
+
+On an unencrypted policy, select **Encrypt backups**, then **Encrypt and show the key**. Backups from then on are encrypted; earlier ones stay as they are and still restore. Save the key as described above.
+
+If you turned encryption on but didn't save the key, and no encrypted backup exists yet, select **Generate a new key** under **Encrypted with age**. The old key stops working. Once an encrypted backup exists, the key can't be replaced or removed.
+
+## Decrypt a backup without LogiStack
+
+Under **Encrypted with age**, open **Decrypt without LogiStack**. It shows a ready command for the newest backup, built from the destination's bucket, prefix and endpoint:
+
+```bash title="Decrypt the newest backup"
+aws s3 cp "s3://acme-backups/logistack/backups/bkp_7f3a/2026-11-06T03-00-00-000Z-bkr_91c2.dump.age" - \
+  --endpoint-url https://7c2f9e0a41b84d0f.r2.cloudflarestorage.com \
+  | age -d -i backup-key.txt > "2026-11-06T03-00-00-000Z-bkr_91c2.dump"
+```
+
+Save the key as `backup-key.txt`, and run the command with the [age](https://age-encryption.org) CLI and the AWS CLI. See [Restore a backup](./restore.mdx#decrypt-and-restore-a-backup-by-hand) for the rest.
+
+## Alerts
+
+Failed backups and failed verifies are sent to the channels whose rules include them. See [Alerts and notifications](../operations/alerts-and-notifications.mdx).
+
+## Troubleshooting
+
+- **No S3 destination yet** in the wizard: add one first under [S3 destinations](./s3-destinations.mdx).
+- A run fails with an access error: the destination's keys lost a permission. Backups need put, get, delete and list on the bucket. Run the destination's test again.
+- A volume backup of a busy service restores with half-written files: turn on **Stop &lt;service&gt; while archiving**, or back up the database with a dump instead.
+- A backup you want is missing: check the run's status for **Pruned by retention**, and raise **Keep the newest**.

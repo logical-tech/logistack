@@ -1,0 +1,101 @@
+---
+title: SSH keys
+description: Generate or import ed25519 SSH keys in LogiStack for private Git repositories over SSH and for bootstrapping new servers, and copy their public keys.
+---
+
+LogiStack keeps a set of SSH keys for your organization. It uses them for two jobs: reading private Git repositories over SSH (as a deploy key), and connecting to a new server to [add it as a node](../operations/nodes.mdx). The private half is encrypted at rest and never leaves the LogiStack server; you only ever copy the public half.
+
+Everyone in the organization can see the keys and copy public keys. Only **Owners** and **Admins** can add or delete them.
+
+## Open SSH keys
+
+In the sidebar, under **Settings**, select **SSH keys**.
+
+![The SSH keys page listing two ed25519 keys, Git deploy key and Server bootstrap, each with its public key, SHA256 fingerprint and a Copy public key button](/screens/settings-ssh-keys.webp)
+
+Each row shows the name, when it was added, the start and end of the public key (`ssh-ed25519 AAAAC3Nz…`) and its SHA256 fingerprint.
+
+## Add a key
+
+<Steps>
+<Step>
+### Open the dialog
+
+Select **Add SSH key**.
+</Step>
+<Step>
+### Choose how to add it
+
+Under **How to add the key**, pick:
+
+- **Generate**: a new ed25519 key, made on the server. Recommended.
+- **Import**: an OpenSSH private key you already have.
+</Step>
+<Step>
+### Name it
+
+In **Name**, say what it opens, for example `Git deploy key` or `Server bootstrap`.
+</Step>
+<Step>
+### Paste the private key (import only)
+
+For **Import**, paste the key into **Private key**, starting with `-----BEGIN OPENSSH PRIVATE KEY-----`. It must have no passphrase. Remove one with:
+
+```bash
+ssh-keygen -p -N '' -f ~/.ssh/id_ed25519
+```
+</Step>
+<Step>
+### Create it
+
+Select **Generate key** or **Import key**. The dialog shows "Git deploy key is ready" with the public key and its fingerprint.
+</Step>
+<Step>
+### Copy the public key
+
+Copy the public key and add it where it should be trusted: a GitHub or GitLab deploy key, or a server's `authorized_keys`. Select **Done**.
+</Step>
+</Steps>
+
+You can copy the public key again any time with **Copy public key** on the key's row.
+
+## Use a key for a private Git repository
+
+For a Git host that LogiStack doesn't integrate with, or when you prefer a deploy key to an app or token, connect the repository over SSH:
+
+1. Add an SSH key as above, for example `Git deploy key`.
+2. Add its public key as a read-only deploy key on the repository. On GitHub: the repository's **Settings › Deploy keys › Add deploy key**. On GitLab: **Settings › Repository › Deploy keys**.
+3. In LogiStack, go to **Integrations › Git providers**, add a provider and choose **Any Git host over SSH**.
+4. Enter the **Repository URL** in SSH form, for example `git@github.com:acme/storefront.git` or `ssh://git@git.example.com:2222/acme/web.git`, and pick your key in **SSH key**.
+5. Optional but recommended: paste the host's keys into **known_hosts**. Get them with:
+
+```bash
+ssh-keyscan github.com
+```
+
+Without `known_hosts`, LogiStack accepts whatever key the host presents. See [Deploy from Git](../deploy/from-git.mdx) for the whole flow.
+
+## Use a key to add a server
+
+When you select **Add server** under **Monitoring**, the wizard asks for an **SSH key** that LogiStack uses to connect and join the server to the cluster. Pick an existing key or generate one there. The wizard shows the command that installs the public key on the server, like:
+
+```bash title="On the new server"
+mkdir -p ~/.ssh && echo 'ssh-ed25519 AAAAC3Nz... ' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+```
+
+See [Nodes](../operations/nodes.mdx) for the rest of the steps.
+
+## Delete a key
+
+1. Select the trash button on the key's row.
+2. Confirm the deletion.
+
+<Callout type="warn">
+Repositories and servers that trust this key stop accepting it from LogiStack, so deploys from those repositories fail. The private key is erased and can't be recovered. Switch Git providers and servers to another key first.
+</Callout>
+
+## Troubleshooting
+
+- **Import fails.** The key has a passphrase, or isn't an OpenSSH private key. Remove the passphrase with `ssh-keygen -p -N '' -f <file>`.
+- **"Permission denied (publickey)" when cloning.** The public key isn't on the repository, or it was added to a different repository. Copy it again with **Copy public key**.
+- **"Host key verification failed".** The `known_hosts` you pasted doesn't match the host. Run `ssh-keyscan` again for the exact host and port.

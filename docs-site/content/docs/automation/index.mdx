@@ -1,0 +1,40 @@
+---
+title: Automate LogiStack
+description: Drive LogiStack from scripts, CI pipelines and AI agents with the REST API, the built-in MCP server, project manifests and git webhooks.
+---
+
+Everything you can do in the dashboard is also an HTTP call. Use the automation surfaces when you deploy from CI, keep a project's configuration in git, or let an AI coding agent operate your services. They all share one model: an [API key](../team/api-keys.mdx) authenticates the call, the key's permissions decide what it may do, and every change lands in the [audit log](../team/audit-log.mdx).
+
+<Cards>
+  <Card title="REST API" href="/automation/rest-api/">
+    Authenticate with an `lsk_` key, browse the OpenAPI reference at `/api/docs` and call any route with curl.
+  </Card>
+  <Card title="MCP server" href="/automation/mcp-server/">
+    Connect Claude Code, Claude Desktop, Cursor or VS Code to `/mcp`. Every REST operation is a tool.
+  </Card>
+  <Card title="Project manifests" href="/automation/project-manifests/">
+    Export a project or environment as YAML, keep it in git and apply it with a dry run first.
+  </Card>
+  <Card title="Git webhooks and CI" href="/automation/git-webhooks/">
+    Deploy on push, on tags or on releases, wait for CI checks, or trigger a deploy from GitHub Actions.
+  </Card>
+  <Card title="AI coding agents" href="/automation/ai-agents/">
+    Give an agent the MCP server, the `llms.txt` docs index and a ready-made instruction snippet.
+  </Card>
+</Cards>
+
+## Which one to use
+
+| You want to | Use |
+| --- | --- |
+| Deploy every push to a branch | [Git webhooks](./git-webhooks.mdx) with a connected Git provider |
+| Deploy a new image tag after your own CI builds it | [REST API](./rest-api.mdx) from a CI job, see [Deploy from CI](./git-webhooks.mdx#deploy-from-ci) |
+| Recreate a project on another server, or review config changes in pull requests | [Project manifests](./project-manifests.mdx) |
+| Ask an agent to "add a Redis to staging and redeploy the API" | [MCP server](./mcp-server.mdx) |
+| Write your own tooling | [REST API](./rest-api.mdx) and its OpenAPI document |
+
+## Before you start
+
+1. Create an API key in **Settings > API keys**. For CI, create it for a [service account](../team/service-accounts.mdx) so it does not depend on a person.
+2. Limit the key to the folder, project, environment or service it needs, with the role it needs. A key that only deploys one service needs the `developer` role on that service.
+3. Store the key as a secret in your CI system or agent configuration. LogiStack shows it once.

@@ -1,0 +1,82 @@
+---
+title: Network map
+description: See how traffic reaches each LogiStack service, from the internet through Caddy or a Cloudflare Tunnel to every domain, service and running task.
+---
+
+The network map draws how requests reach every service you can see: from the internet, through the Caddy proxy or a Cloudflare Tunnel, to each domain, then to the service and the tasks running it on each node. Use it to answer "where does this hostname go?", to spot a service that publishes a port and bypasses the proxy, or to find which node runs a failing replica.
+
+## Open the map
+
+Select **Network** in the sidebar. The map fills the page, with services grouped by environment.
+
+![The Network page showing the full map of 34 services, 16 domains and 33 tasks, with the legend for proxy, tunnel and published-port edges](/screens/network.webp)
+
+The toolbar above the map shows how many services, domains and tasks are on screen, for example `34 services · 16 domains · 33 tasks`.
+
+## Read the map
+
+The map flows from left to right. Each card is one of these:
+
+| Card | Shows | Opens |
+| --- | --- | --- |
+| **Internet** | Public traffic, the entry point | |
+| **Caddy** | The proxy, on ports 80 and 443 | The **Domains** page |
+| **Cloudflare Tunnel** | A tunnel, named after its Cloudflare provider | **Cloudflare Tunnels** |
+| Domain | The hostname and path prefix, its status dot, **Public** or **Tunnel**, and the TLS mode: `HTTPS · DNS-01`, `HTTPS · HTTP-01`, `HTTPS · custom cert` or `HTTP only` | The service's **Domains** tab |
+| Service | Name, status, running and desired replicas such as `Running 3/3`, published ports such as `:25565→25565`, and the number of mounts | The service |
+| Task | The node it runs on, its slot such as `#2`, and its state: **Running**, **Complete**, **Shut down** or the failure state | The node |
+
+The arrow on a card opens the page in the last column. It appears when you hover or select the card.
+
+A domain or service in error has a red outline, so failures stand out at any zoom level.
+
+### Edges
+
+The legend in the lower left explains the three kinds of line:
+
+- **Through the proxy**: a solid line from Caddy to a domain and on to its service.
+- **Through a Cloudflare Tunnel**: a dashed line from a tunnel to a domain and on to its service.
+- **Published port, bypasses the proxy**: a dotted line from the internet straight to a service with a published port. No domain, certificate or [access rule](./access-control.mdx) sits on that path.
+
+A service with no domain and no published port has no line from the internet. Only other services in its environment reach it.
+
+## Focus on part of the map
+
+<Steps>
+<Step>
+
+### Pick a project
+
+Open **All projects** and pick a project. The map keeps that project's services and everything that reaches or runs them.
+
+</Step>
+<Step>
+
+### Pick an environment
+
+When the project has more than one environment, a second picker appears. Pick one, or keep **All environments**.
+
+</Step>
+<Step>
+
+### Search
+
+Type in **Service, domain or node**. The search matches service, project and environment names, domain hostnames and node hostnames. Searching `shop.acme-retail.it` keeps that domain's service; searching `fra1` keeps every service with a task on that node.
+
+</Step>
+</Steps>
+
+The project, environment and search are part of the page address, so you can share a link to a filtered map. When nothing matches, the map says `Nothing matches. Clear the search or pick another project.`
+
+## Move around
+
+- Drag the background to pan and scroll to zoom.
+- Use the zoom buttons in the toolbar: **Zoom out**, **Zoom in** and **Fit to view**.
+
+## Common questions
+
+**A service I expect is missing.** The map shows only services you have permission to read. Also check the project and environment pickers and clear the search.
+
+**The map is empty.** No service is deployed yet, or none is visible to you. The page says `Nothing to map yet`.
+
+**A domain has no line from Caddy.** It goes through a Cloudflare Tunnel instead; look for the dashed line from the tunnel card.

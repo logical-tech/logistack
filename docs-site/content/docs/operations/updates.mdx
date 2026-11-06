@@ -1,0 +1,108 @@
+---
+title: Update LogiStack
+description: Update LogiStack from the dashboard or the installer, check daily for new releases, opt in to beta builds, and learn what an update does and how it rolls back.
+---
+
+LogiStack publishes releases on GitHub. You update an instance from **Settings** › **Updates** with one click, or from the server with the installer. An update replaces LogiStack's own services (the API, the worker, the agents and Caddy) one at a time, waits for each to be healthy, and rolls back on its own if one is not. Your apps, databases and volumes keep running.
+
+## See which version you run
+
+Select **Settings** › **Updates**.
+
+![The Updates page: this instance runs v0.1.0, the latest release is v0.2.0, with an Update to v0.2.0 button and the release notes](/screens/settings-updates.webp)
+
+The **Version** panel shows:
+
+- **This instance**: the running release, for example `v0.1.0`, and its commit.
+- **Latest release** (or **Latest beta** with beta updates on): the newest release on GitHub, when it was published, and a **GitHub** link.
+- A status: **v0.2.0 is available**, **Up to date**, **No release published yet**, or **Couldn't reach GitHub**, with when it last checked.
+
+Below it, **What's new in v0.2.0** shows the release notes. Select **Check now** to ask GitHub again.
+
+When an update is available, the sidebar also shows a card such as **v0.2.0 available** with **Update** and **What's new**.
+
+## Update from the dashboard
+
+Only an admin can start an update. Other members see **An admin can update this instance.**
+
+<Steps>
+<Step>
+### Read the release notes
+
+On **Settings** › **Updates**, read **What's new in …**. A release that changes the installer's stack file (a new service or variable) says so in its notes; it needs the [installer](#update-from-the-server) instead.
+</Step>
+<Step>
+### Start the update
+
+Select **Update to v0.2.0**.
+</Step>
+<Step>
+### Confirm
+
+Read the dialog and select **Update to v0.2.0**. The dashboard stays up while the API rolls over. New deployments wait in the queue until the update ends. Sites pause for a few seconds while Caddy restarts.
+</Step>
+<Step>
+### Follow the steps
+
+A panel titled `v0.1.0 to v0.2.0` lists each step with its state: **Waiting**, **In progress**, **Done**, **Failed** or **Rolled back**.
+</Step>
+</Steps>
+
+### What an update does
+
+| Step | What happens |
+| --- | --- |
+| **Pull images** | Pulls all four images (API, worker, agent, Caddy) before any service changes. If one is missing, the update stops and nothing changes. |
+| **Finish running work** | Pauses new deployments, backups and migration steps and waits for running ones to finish, for example "Waiting for 2 deployments and 1 backup". After 30 minutes it stops with nothing changed. |
+| **Migrate the database** | Applies the new release's database migrations once, in one transaction, before any new code serves. A failure leaves the old schema and stops the update. |
+| **API** | Replaces the API. The old one serves until the new one is healthy. |
+| **Agents** | Replaces the agent, one node at a time. |
+| **Caddy** | Replaces the ingress. Sites pause for a few seconds. |
+| **Worker** | Replaced last, by an updater task that outlives it. |
+
+At the end, queued work resumes, and LogiStack sends **Update succeeded** or **Update failed** to the [notification rules](./alerts-and-notifications.mdx) that include them.
+
+### How rollback works
+
+If a service does not turn healthy after its update, Swarm rolls it back, and LogiStack then restores every service it already updated in this run, newest first. The panel marks them **Rolled back** and the run as failed. Your instance is back on the release it ran before.
+
+The database stays migrated after a rollback. LogiStack releases only add to the schema, so the previous release keeps working on it.
+
+### Check that it worked
+
+The **Version** panel shows the new release under **This instance** and the status **Up to date**. **Settings** › **Updates** keeps the run's panel with every step **Done**.
+
+## Check for updates automatically
+
+Under **Automatic checks**, **Check daily** is on by default. Once a day LogiStack asks GitHub for the latest release and, when it is newer, sends `instance.update_available` to the notification rules that include **Update available**. Nothing updates until an admin chooses to.
+
+To get an email for each new release, add a rule with **Update available** sent to an email channel. See [Alerts and notifications](./alerts-and-notifications.mdx).
+
+## Get beta releases
+
+Under **Release channel**, turn on **Beta updates** to be offered builds of the staging branch ahead of the stable release they lead to. The latest version then reads **Latest beta**.
+
+<Callout type="warn">
+Betas aren't ready for production. They pass the build but not the full test suite, and a migration they bring can't be undone. Keep this off on servers that host anything you depend on.
+</Callout>
+
+Turning **Beta updates** off does not roll back. The instance stays on its beta until a newer stable release is out.
+
+## Update from the server
+
+Run the installer with the release you want, as root on the LogiStack server:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.2.0
+```
+
+`--version` takes `0.2.0`, `v0.2.0` or `latest`. The installer redeploys the stack with the new images; the API and worker roll with start-first updates and roll back on failure. Use this path when a release's notes say it changes the stack file, or when the dashboard is not reachable.
+
+The same command moves an install built with `--local-build` to the published images: leave out `--local-build` and name the release. See the [installer reference](../reference/installer.mdx) for every flag.
+
+## Common problems
+
+- **Couldn't reach GitHub.** The server cannot reach `api.github.com`. Check its outbound HTTPS access; updates need it to read releases and pull images from `ghcr.io`.
+- **The update stopped at Pull images.** An image for that release is not published yet, or `ghcr.io` is unreachable. Nothing changed; try again later.
+- **The update stopped at Finish running work.** A deployment or backup ran for more than 30 minutes. Wait for it, or cancel it, then start the update again.
+- **The update failed and rolled back.** Open the run's panel to see which step failed, and report it with the release number.

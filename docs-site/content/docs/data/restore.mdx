@@ -1,0 +1,165 @@
+---
+title: Restore a database or volume from a backup
+description: Restore an S3 backup into the service or into a new copy beside it with the restore wizard, or decrypt and restore a backup by hand with age and the AWS CLI.
+---
+
+The restore wizard brings back a backup made by a [backup policy](./backups.mdx). You can restore into a new service beside the original, which is the safe default, or overwrite the original. Use it after a bad migration, an accidental delete, or to check what the data looked like on a given day. When LogiStack itself is gone, you can still decrypt and restore a backup by hand.
+
+## What you can restore
+
+- Finished backups that retention hasn't deleted. Running, failed and pruned backups can't be restored.
+- Database dumps of PostgreSQL, MySQL, MariaDB and MongoDB. Redis and libSQL dumps come back through a volume backup instead.
+- Volume archives of any service.
+
+The wizard lists the 10 newest restorable backups.
+
+## Restore with the wizard
+
+<Steps>
+<Step>
+
+### Start from a backup
+
+Open the service, select **Backups**, and select **Restore** on a row under **Recent runs**. The wizard opens with that backup selected.
+
+</Step>
+<Step>
+
+### Pick a backup
+
+In **Pick a backup**, each backup shows its date, size, what it contains (such as **Database dump (pg_dump)** or a volume) and the start of its SHA-256 checksum. Choose one and select **Continue**.
+
+![The restore wizard for a PostgreSQL service, listing backups by date with size, type and checksum](/screens/backup-restore.webp)
+
+</Step>
+<Step>
+
+### Choose where it goes
+
+In **Restore into**, pick one:
+
+- **A new service beside it** (marked **Safe**) for a database: same engine, version and credentials as the original, in the same environment. LogiStack deploys it, then restores into it. Enter its **Service name**; the default is `<service>-restore-<date>`, such as `postgres-restore-06-nov`.
+- **A new volume** for a volume backup: restored into a fresh volume next to the current one. Enter a **Name for the copy**.
+- **Overwrite &lt;service&gt;**: for a database, objects are dropped and recreated from the dump. For a volume, the volume is emptied and filled from the archive. Anything written since the backup is lost.
+
+</Step>
+<Step>
+
+### Confirm
+
+Read the summary, then type the name shown in **Type &lt;name&gt; to confirm**: the copy's name, or the service's own name when you overwrite. Select **Restore now**.
+
+</Step>
+<Step>
+
+### Follow the progress
+
+The page shows each phase, the bytes restored and the time so far. You can leave; the restore keeps going and shows under **Recent runs** as a **Restore** run. When it finishes, select **Open &lt;project&gt;** to find the copy, or **Back to backups**. If it fails, the error is shown, and **Try again** reopens the wizard on the same backup.
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+Overwriting has no undo. Select **Run now** on the policy first, so the current state is backed up too.
+</Callout>
+
+## Check the result
+
+- For a copy, open the new service's [Database tab](./database-editor.mdx) and compare it with the original, for example with `select count(*) from orders;` in both.
+- When the copy is right, point your app at it, or restore into the original. Then delete the copy: it is billed and backed up like any other service.
+
+## Restore into another service
+
+The wizard restores into the original or a new copy. To load a database backup into a different existing service, for example production data into a staging database of the same engine:
+
+1. Get the backup file from the bucket and decrypt it, as shown below.
+2. Open the target service, select **Database**, then **Dump & restore** > **Restore from file…**.
+3. Choose the file and type the target service's name to confirm.
+
+Backups and the explorer's dumps use the same format, so a `.dump` from a PostgreSQL backup, an `.sql` from MySQL or MariaDB, or an `.archive` from MongoDB restores this way. See [Dump and restore](./database-editor.mdx#dump-and-restore).
+
+## Decrypt and restore a backup by hand
+
+You need the backup key you saved when you turned on encryption, the [age](https://age-encryption.org) CLI and the AWS CLI configured with keys that can read the bucket. This works with no LogiStack server at all.
+
+<Steps>
+<Step>
+
+### Save the key
+
+Save the key as `backup-key.txt`. The file you downloaded with **Download key file** works as is.
+
+</Step>
+<Step>
+
+### Find the file
+
+Backups live under `<bucket>/<prefix>/backups/<policy-id>/`. List them:
+
+```bash
+aws s3 ls s3://acme-backups/logistack/backups/bkp_7f3a/ \
+  --endpoint-url https://7c2f9e0a41b84d0f.r2.cloudflarestorage.com
+```
+
+On a policy's **Backups** tab, **Decrypt without LogiStack** shows the exact command for the newest backup.
+
+</Step>
+<Step>
+
+### Download and decrypt
+
+```bash
+aws s3 cp "s3://acme-backups/logistack/backups/bkp_7f3a/2026-11-06T03-00-00-000Z-bkr_91c2.dump.age" - \
+  --endpoint-url https://7c2f9e0a41b84d0f.r2.cloudflarestorage.com \
+  | age -d -i backup-key.txt > backup.dump
+```
+
+Leave out `--endpoint-url` for AWS S3. For an unencrypted backup, drop the `age` step.
+
+</Step>
+<Step>
+
+### Restore with the engine's tool
+
+<Tabs items={["PostgreSQL", "MySQL / MariaDB", "MongoDB", "Volume"]}>
+<Tab value="PostgreSQL">
+
+```bash
+pg_restore --clean --if-exists --no-owner \
+  -d "postgres://app:secret@db.example.com:5432/storefront" backup.dump
+```
+
+</Tab>
+<Tab value="MySQL / MariaDB">
+
+```bash
+mysql -h db.example.com -u root -p < backup.sql
+```
+
+</Tab>
+<Tab value="MongoDB">
+
+```bash
+mongorestore --uri "mongodb://root:secret@db.example.com:27017" --archive=backup.archive
+```
+
+</Tab>
+<Tab value="Volume">
+
+```bash
+mkdir restored
+tar --zstd -xf backup.tar.zst -C restored
+```
+
+</Tab>
+</Tabs>
+
+</Step>
+</Steps>
+
+## Troubleshooting
+
+- **No backup to restore yet**: run a backup first, or wait for the first scheduled one.
+- A backup has no **Restore** button: it failed, is still running, or was pruned by retention. Redis and libSQL database dumps also have none; restore their volume backup.
+- age reports that no identity matched: the key file belongs to another policy, or the key was replaced before this backup was made.
+- The restore fails on a copy: check the copy's [logs](../operations/logs-and-terminal.mdx), then select **Try again**.

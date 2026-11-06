@@ -1,0 +1,14 @@
+{
+	"title": "Data",
+	"icon": "Database",
+	"pages": [
+		"index",
+		"database-editor",
+		"backups",
+		"restore",
+		"s3-destinations",
+		"object-storage",
+		"volumes-and-files",
+		"schedules"
+	]
+}

@@ -1,0 +1,266 @@
+---
+title: Add and manage servers (nodes)
+description: Grow your LogiStack cluster by joining Linux servers to Docker Swarm over SSH, place services with node labels, free disk space, drain and remove nodes.
+---
+
+LogiStack runs on Docker Swarm, so one installation can spread services over several servers. Each server in the swarm is a node. You add a node from the dashboard: LogiStack connects over SSH once, checks the server, installs Docker, joins it to the swarm and starts the LogiStack agent, which reports metrics and runs node tasks from then on. Add a node when one server runs out of CPU, memory or disk, or when you want builds or databases on their own machine.
+
+## Before you start
+
+- A Linux server reachable from your LogiStack server over SSH. Ubuntu and Debian are supported by the Docker install script; on other systems install Docker yourself first.
+- At least 2 GiB of memory and 20 GiB free on `/` are recommended. Less than 1 GiB of memory or 5 GiB of disk fails the checks.
+- An SSH user that is `root` or has passwordless `sudo`.
+- These ports open between your servers:
+
+| Port | Protocol | Direction | Purpose |
+| --- | --- | --- | --- |
+| 2377 | TCP | new node → manager | Swarm cluster management |
+| 7946 | TCP and UDP | between all nodes | Node discovery |
+| 4789 | UDP | between all nodes | Overlay network traffic |
+
+## Add a server
+
+<Steps>
+<Step>
+### Open the Add server wizard
+
+Select **Monitoring** › **Nodes** and select **Add server**. The wizard has five steps: **Server**, **Test SSH**, **Preflight**, **Bootstrap** and **Done**.
+
+![The Add server wizard on its Server step, with name, address, port, SSH user, SSH key, and role and labels](/screens/node-new.webp)
+</Step>
+<Step>
+### Describe the connection
+
+Under **Connection**, fill in:
+
+- **Name**: how LogiStack shows the server, for example `fra-5`. The server's own hostname stays as it is.
+- **IP address or hostname**: for example `49.12.88.52`. It must be reachable from the LogiStack server on the SSH port.
+- **Port**: `22` unless your SSH daemon listens elsewhere.
+- **SSH user**: `root`, or a user with passwordless sudo.
+</Step>
+<Step>
+### Choose or generate an SSH key
+
+Under **Access**, open **SSH key** and pick a saved key, or pick **Generate a new key**, keep or change the name (`LogiStack cluster`) and select **Generate**. LogiStack creates an ed25519 key and keeps the private half encrypted on its server; it never leaves it.
+
+The panel shows the **Public key** and the command to authorize it. On the new server, as the SSH user, run the command it shows (select **Copy command**). It looks like this:
+
+```bash title="On the new server"
+mkdir -p ~/.ssh && echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... LogiStack cluster' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+```
+
+Saved keys are managed in **Settings** › **SSH keys**, see [SSH keys](../team/ssh-keys.mdx).
+</Step>
+<Step>
+### Pick the role and labels
+
+Under **Role and labels**, choose the **Swarm role**:
+
+- **Worker** runs services. It is the right choice for almost every server.
+- **Manager** also keeps the swarm state. Keep an odd number of managers in the cluster, 3 or 5, so it survives the loss of one.
+
+Optionally add labels now. They decide which services may run on the node; see [Place services with labels](#place-services-with-labels). Select **Continue**.
+</Step>
+<Step>
+### Test SSH
+
+Select **Test connection**. LogiStack connects to `root@49.12.88.52:22`, runs nothing but a handshake, and records the server's host key, so later steps cannot be redirected to another machine. On success you see `Connected to root@49.12.88.52`.
+
+If it fails with **Couldn't connect over SSH**, check the address, the port, and that the public key is in `~/.ssh/authorized_keys` for that user.
+</Step>
+<Step>
+### Run the preflight checks
+
+Select **Run checks**. LogiStack reads the system over SSH; nothing is installed or changed. Each check reads **Passed**, **Warning** or **Failed**. Warnings let you continue; a failed check does not.
+
+| Check | Fails or warns when |
+| --- | --- |
+| **Operating system** | Warns when the Docker install script does not support it. Install Docker yourself first. |
+| **Architecture** | Warns on anything other than x86_64 or arm64. |
+| **Memory** | Warns under 2 GiB, fails under 1 GiB. |
+| **Free disk on /** | Warns under 20 GiB, fails under 5 GiB. |
+| **Root access** | Fails when the user is neither root nor has passwordless sudo. |
+| **Docker** | Informational: installed version, or **Will be installed**. |
+| **Swarm membership** | Warns when the server is already in a swarm; joining is then skipped. |
+| **Port 2377**, **Port 7946** | Warns when something already listens there. |
+| **Reaches the manager on 2377/tcp** | Fails when the firewall blocks it. Open 2377/tcp from this server to the manager. |
+| **Overlay ports 7946 and 4789/udp** | Always a warning: it cannot be tested over SSH. Make sure your firewall allows them between all nodes. |
+
+Fix what failed on the server, then select **Run checks** again.
+</Step>
+<Step>
+### Bootstrap the server
+
+Select **Start bootstrap**. LogiStack installs Docker if it is missing, joins the swarm with the role you chose, applies the labels and starts the LogiStack agent. On a fresh server this takes a minute or two, and the log streams below the button.
+
+If it stops with **Bootstrap stopped**, read the last lines of the log, fix the cause and select **Run again**. Every step is safe to repeat.
+</Step>
+<Step>
+### Open the node
+
+On **Done**, select **Open node**. Its charts fill in as the agent reports, within a minute.
+</Step>
+</Steps>
+
+### Check that it worked
+
+On **Monitoring** › **Nodes** the new server reads **Ready**, shows `Agent <version> seen just now`, and its CPU, memory and disk bars fill in. A node that is still joining reads **Joining**.
+
+![The Nodes list with five servers: three ready, one draining and one down](/screens/nodes.webp)
+
+## Read a node's details
+
+Select a node in the list. The node page shows its state, address, role and agent version, **Usage** charts (see [Metrics](./metrics.mdx)), a **Right now** panel, and **Details**:
+
+| Field | Meaning |
+| --- | --- |
+| **Address** | The node's IP address. |
+| **Role** | **Worker**, or **Manager**. The manager that runs LogiStack is marked **leader**. |
+| **Availability** | **Active**, **Drained** or **Removing**. |
+| **Resources** | Cores and memory, as Swarm reports them. |
+| **Docker** | Docker Engine version. |
+| **Agent** | LogiStack agent version, or **Not installed**. |
+| **Last seen** | When the agent last reported. |
+| **Labels** | The node's placement labels. |
+
+![The fra-1 node page with usage charts, the Right now panel and its details](/screens/node.webp)
+
+A node that misses heartbeats for 30 seconds reads **Down** and emits a `node.down` event. See [Alerts and notifications](./alerts-and-notifications.mdx).
+
+## Place services with labels
+
+Swarm places services by node labels. LogiStack offers three role labels and any custom `key=value` pair:
+
+| Label | Meaning |
+| --- | --- |
+| `ingress` | Runs the Caddy ingress and takes public traffic on ports 80 and 443. |
+| `build` | Runs image builds. |
+| `data` | Hosts databases and other stateful services. |
+
+### Edit a node's labels
+
+<Steps>
+<Step>
+### Open the labels dialog
+
+Open the node and select **Labels**.
+</Step>
+<Step>
+### Change the labels
+
+Select a role chip (**ingress**, **build**, **data**) to add it. To add a custom label, type a **Key** and a **Value**, for example `zone` and `fsn1-dc14`, and press <kbd>Enter</kbd>. Keys allow letters, digits and `. _ / -`; values are 256 characters at most. Remove a label with its **×**.
+</Step>
+<Step>
+### Save
+
+Select **Save labels**.
+</Step>
+</Steps>
+
+<Callout type="warn">
+Changing labels can move running tasks to or from the node. A service pinned to a label that no node carries any more waits until one does.
+</Callout>
+
+### Pin a service to nodes
+
+In the service's **Settings** tab, the **Placement** section decides where its replicas may run:
+
+- **Node**: **Any node**, or **Pin to fra-4-data** to keep a service with local data on one node.
+- **Constraints**: Swarm constraints, one per line. For example, to run only on nodes labelled `zone=fsn1-dc14`:
+
+```text
+node.labels.zone==fsn1-dc14
+```
+
+See [Service settings](../deploy/service-settings.mdx).
+
+## Free disk space
+
+Builds and deploys leave old images, build cache and stopped containers behind. The node page's **Disk** panel shows what uses the disk holding `/var/lib/docker`: **Images**, **Volumes**, **Build cache**, **Containers**, **Container logs** and **Everything else**, with what is reclaimable and the **Largest volumes**. Select the refresh button (**Measure again**) for a fresh reading.
+
+### Clean up a node now
+
+<Steps>
+<Step>
+### Open the node
+
+Select **Monitoring** › **Nodes** and the node.
+</Step>
+<Step>
+### Clean up
+
+In the **Disk** panel, select **Clean up**. The dialog says roughly how much it frees.
+</Step>
+<Step>
+### Confirm
+
+Select **Clean up**. LogiStack removes every unused image, the build cache and stopped LogiStack containers. Running services keep everything, volumes are never touched, and an older image comes back with a pull if you roll back. A message reports what was freed, for example `Freed 18.4 GiB on fra-3-build`.
+</Step>
+</Steps>
+
+### Clean up every node on a schedule
+
+<Steps>
+<Step>
+### Open Automatic cleanup
+
+Select **Monitoring** › **Settings** and scroll to **Automatic cleanup**. Turn on the switch.
+</Step>
+<Step>
+### Choose when it runs
+
+Under **Runs**, pick **Every day** or **Every Sunday** and a time, or **Custom (cron)** and a cron expression, for example `30 4 * * 1-5` for 04:30 on weekdays.
+</Step>
+<Step>
+### Adjust what it deletes
+
+Open **Advanced options** to set the **Time zone**, and under **What to delete** tick any of:
+
+- **Unused images**: images no running app uses. They download again if needed.
+- **Build cache**: leftovers from builds. The next build may take a bit longer.
+- **Stopped containers**: old copies of your apps that are no longer running.
+
+**Skip anything newer than** (in hours) keeps recent items, for example `48`, so the last deploy's image stays and a quick rollback needs no download.
+</Step>
+<Step>
+### Save
+
+Select **Save changes**. After a run, the panel shows the result, for example `Last run 6 hours ago: freed 12.1 GiB on 4 nodes`.
+</Step>
+</Steps>
+
+## Drain a node
+
+Draining moves every task to other nodes and places nothing new on the node. Do it before maintenance such as a kernel upgrade.
+
+1. Open the node and select **Drain**. Its availability becomes **Drained** and the list shows **Draining**.
+2. Do your maintenance.
+3. Select **Activate**. Swarm can schedule new tasks on it again. Running tasks do not move back on their own; they rebalance on the next deployment.
+
+## Remove a node
+
+<Steps>
+<Step>
+### Start the removal
+
+Open the node and select **Remove**. The leader manager runs LogiStack and cannot be removed.
+</Step>
+<Step>
+### Confirm
+
+Read the three steps in the dialog and select **Remove node**:
+
+1. **Drain.** Swarm moves every task to the other nodes; a manager is demoted to worker first. Services pinned to the node by a label wait until another node carries it.
+2. **Leave.** Once its tasks have moved, LogiStack connects over SSH and the server leaves the swarm.
+3. **Delete.** The node is removed from the swarm and from the list. Docker stays installed on the server.
+</Step>
+</Steps>
+
+The node disappears from **Monitoring** › **Nodes** when it has left.
+
+## Common problems
+
+- **Reaches the manager on 2377/tcp fails.** A firewall between the servers blocks the swarm port. Open 2377/tcp from the new server to the manager, plus 7946 and 4789/udp both ways.
+- **The node joined but services on it are unreachable.** The overlay ports 7946/tcp+udp and 4789/udp are blocked between nodes. Cloud firewalls often block UDP by default.
+- **The node reads Down.** The agent has not reported for 30 seconds. Check that the server is up and that Docker runs (`systemctl status docker`).
+- **The Disk panel says the agent is not connected.** The breakdown comes from the agent on the node. It shows once the node is **Ready** again.

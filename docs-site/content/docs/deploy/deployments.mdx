@@ -1,0 +1,183 @@
+---
+title: Deployments, rollbacks and live logs
+description: How a LogiStack deployment goes from queued to ready, with live build logs, rolling updates, release commands, cancel, rollback and Review changes.
+---
+
+A deployment is one attempt to bring a service to a new version: it clones and builds the source (or pulls the image), runs any release command, and rolls the new image out replica by replica. Every deployment keeps its log, so you can follow a build live, see why one failed, and roll back to an earlier image without rebuilding.
+
+## Start a deployment
+
+Deployments start from:
+
+| Trigger | When |
+|---|---|
+| **Manual** | You select **Deploy** in the service header |
+| **Push** | A Git push, tag or release matches the service's [deploy triggers](./from-git.mdx#deploy-triggers) |
+| **Webhook** | Your CI calls the deploy webhook. See [Git webhooks](../automation/git-webhooks.mdx) |
+| **Rollback** | You select **Roll back to this** on an earlier deployment |
+| **Schedule** | A schedule runs a deploy. See [Schedules](../data/schedules.mdx) |
+| **API** | The REST API or MCP server. See [REST API](../automation/rest-api.mdx) |
+
+<Steps>
+<Step>
+
+### Open the service
+
+Open the project and select the service.
+
+</Step>
+<Step>
+
+### Select Deploy
+
+Select **Deploy** in the header. The **Deployments** tab opens on the new deployment and follows its log.
+
+![The Deployments tab of the web service: a list of deployments on the left and the live build log of the selected one on the right](/screens/service-deployments.webp)
+
+</Step>
+</Steps>
+
+## Deployment statuses
+
+A deployment moves through these statuses. The list on the left of the **Deployments** tab shows each one with its commit, trigger, reason and duration; **Current** marks the one that is live.
+
+| Status | Meaning |
+|---|---|
+| **Waiting for checks** | Held until the commit's CI checks pass |
+| **Queued** | Waiting for the worker |
+| **Cloning** | Checking out the exact commit |
+| **Building** | BuildKit builds the image |
+| **Pushing** | The image goes to the registry |
+| **Releasing** | The pre-deploy command runs |
+| **Deploying** | Swarm replaces the replicas |
+| **Ready** | Every new replica is healthy |
+| **Failed** | A step failed; the error shows above the log |
+| **Cancelled** | You cancelled it |
+| **Superseded** | A newer deployment was queued before this one started |
+| **Skipped** | A trigger held it back, for example `[skip ci]` or failed checks |
+
+One deployment runs per service at a time. When several are queued, only the newest runs and the older ones become **Superseded**, so a burst of pushes builds once.
+
+## Follow the live log
+
+The log on the right streams as the deployment runs. While it runs, the footer reads **Replayed from the start, following live**; once it ends, **Complete log**.
+
+- **Search output** filters the lines.
+- **Follow** keeps the view at the newest line.
+- The copy button copies the whole log.
+
+Lines starting with `==>` are LogiStack's own steps, for example:
+
+```text
+==> cloning https://github.com/acme-retail/storefront#main
+==> commit 8f3c2a1 Gift card balance on checkout summary
+==> building registry.example.com/acme/web:dep_rtstor for linux/amd64 (dockerfile)
+==> pushing registry.example.com/acme/web:dep_rtstor
+==> deploying registry.example.com/acme/web:dep_rtstor
+==> healthy
+```
+
+For the runtime output of the running containers, use the **Logs** tab. See [Logs and terminal](../operations/logs-and-terminal.mdx).
+
+## How a rollout works
+
+LogiStack replaces replicas one at a time:
+
+1. **Start-first** for stateless services: the new replica starts, passes its health check, takes traffic, then the old one stops. No request is dropped.
+2. **Stop-first** for services with a volume or a port published on the node: the old replica stops before the new one starts, because they can't share the data or the port. Expect a short gap.
+3. Swarm watches each new replica for 30 seconds. If one fails, the rollout rolls back automatically and the deployment is **Failed**; the previous version keeps running.
+4. A replica being replaced gets the **Drain timeout** (10 seconds by default) after `SIGTERM` to finish in-flight requests.
+
+Set the health check and drain timeout under **Settings** › **Healthcheck and drain**. See [Service settings](./service-settings.mdx#healthcheck-and-drain).
+
+## Release commands
+
+Release commands run once on the new image, with the service's variables and networks, around each rollout. Set them under **Settings** › **Release commands**, or when you create the service.
+
+- **Pre-deploy command**: runs before any replica is replaced. If it fails, the deployment fails and the current version keeps running. Use it for database migrations.
+- **Post-deploy command**: runs once the new replicas are healthy. If it fails, the deployment shows a warning and stays live.
+- **Timeout**: seconds, 10 to 7200. Default 600.
+
+Write one argument per line. The command runs without a shell:
+
+```text title="Pre-deploy command"
+bun
+run
+db:migrate
+```
+
+To use a shell, write `sh`, `-c` and the script on three lines:
+
+```text title="Pre-deploy command with a shell"
+sh
+-c
+npx prisma migrate deploy && npx prisma db seed
+```
+
+## Review changes before deploying
+
+When you change settings, variables, domains or the image, the service doesn't change until the next deployment. The header then shows **Review changes**, and **Deploy** shows the number of pending changes.
+
+<Steps>
+<Step>
+
+### Open the diff
+
+Select **Review changes**. The dialog compares what the next deploy applies with the newest healthy deployment.
+
+</Step>
+<Step>
+
+### Read each change
+
+Each line is **Added**, **Removed** or **Changed**: the image, an environment variable, a domain, CPU or memory, replicas, a mount, a config file, a port, the health check, a network or another Swarm setting. Secret values are never shown. Switch to **JSON** for the raw diff, and copy it with **Copy the JSON diff**.
+
+</Step>
+<Step>
+
+### Deploy
+
+Select **Deploy changes**, or **Close** to keep editing.
+
+</Step>
+</Steps>
+
+## Cancel a deployment
+
+Select the deployment and select **Cancel**. You can cancel while it is **Waiting for checks**, **Queued**, **Cloning**, **Building**, **Pushing** or **Releasing**. Once it reaches **Deploying**, Swarm owns the rollout and it can't be cancelled; it either finishes or rolls back on its own.
+
+## Roll back
+
+<Steps>
+<Step>
+
+### Pick an earlier deployment
+
+On the **Deployments** tab, select a **Ready** deployment that isn't **Current**.
+
+</Step>
+<Step>
+
+### Roll back
+
+Select **Roll back to this**, then **Roll back** in the dialog. A new **Rollback** deployment runs that deployment's image again, with no build. The current variables and settings apply.
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+A rollback restores the image, not the data. If a pre-deploy migration changed the database schema, roll the schema back yourself first. Rollbacks to images built on the local registry stop working if you delete its images. See [Registries](./registries.mdx).
+</Callout>
+
+## Restart, stop and start
+
+- **Restart** replaces each replica on the current image, one at a time, with the new one started first. No build runs. It needs one healthy deployment first.
+- **Stop** scales the service to zero replicas and removes its domains from the proxy. Data, volumes and configuration stay.
+- **Start** brings a stopped service back.
+
+## Common problems
+
+- **Failed in Building**: read the log above the error. A missing file usually means a wrong **Build context** or **Root directory**.
+- **Failed in Deploying with a health check error**: the app didn't answer on the check's port or path in time. Check the **Container port** and the health check path.
+- **Skipped: "Commit message contains [skip ci]"**: expected. Push another commit, or select **Deploy**.
+- **Deployed, but … The new version stays live**: the post-deploy command failed. The new version is live; fix the command and redeploy if needed.

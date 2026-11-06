@@ -1,0 +1,279 @@
+---
+title: Browse and edit a database
+description: Use the Database tab to browse tables, filter and edit rows, run SQL, view the schema diagram, manage roles, dump and restore, and edit Redis keys or MongoDB documents.
+---
+
+Every database service has a **Database** tab: an explorer built into the dashboard. Use it to look at data, fix a row, run a query, create a role for a new app, or take a dump, without installing a client or opening a port. It works with PostgreSQL, MySQL, MariaDB and libSQL tables, MongoDB collections and Redis keys. Every operation goes through LogiStack's permission checks, and writes are recorded in the [audit log](../team/audit-log.mdx).
+
+![The Database tab of a PostgreSQL service, with the schema tree on the left and the rows of public.customers in the grid](/screens/database-postgres.webp)
+
+## Open the explorer
+
+<Steps>
+<Step>
+
+### Open the service
+
+Open the project, then select the database service.
+
+</Step>
+<Step>
+
+### Select the Database tab
+
+Select **Database**. For SQL engines the explorer opens on **Data**, with the views **Data**, **Diagram**, **SQL** and **Roles** at the top. libSQL has no **Roles** view. MongoDB shows collections and documents. Redis shows **Keys** and **Command**.
+
+</Step>
+</Steps>
+
+Select the expand icon at the top right to show the explorer full screen. Press **Esc** to leave.
+
+<Callout type="info">
+A database deployed before the explorer existed isn't on the explorer's private network yet. The tab then shows **Redeploy to open the explorer**. Select **Redeploy**. The data stays on its volume, and the explorer connects as soon as the new deployment is healthy.
+</Callout>
+
+## Browse tables
+
+The left panel is the schema tree. It lists every schema with its tables, views, materialized views and foreign tables, plus groups for **Enums**, **Sequences** and **Functions**. The number next to each table is its approximate row count.
+
+- Type in **Filter tables** to narrow the tree.
+- Use the database picker at the top of the tree to switch database on a PostgreSQL, MySQL or MariaDB instance. The **+** button next to it creates a database.
+- Open a schema's menu to create a **Table…**, **View**, **Enum** or **Function** in it. A table's menu has **Copy name** and **Drop table…**.
+- The tree works with the keyboard: arrow keys move, **Enter** opens, **Delete** drops the selected object after a confirmation.
+
+### Create a table
+
+<Steps>
+<Step>
+
+### Start a new table
+
+Open the schema's menu and select **Table…**, or select **Create table** when the database is empty.
+
+</Step>
+<Step>
+
+### Name the table and its columns
+
+Enter a **Table name**, such as `orders`. For each column set **Name**, **Type**, **Default**, whether it can be **Null** and whether it is part of the primary **Key**. Select **Add column** for more.
+
+</Step>
+<Step>
+
+### Review the statement
+
+Select **Review**. The dialog shows the exact `CREATE TABLE` statement that runs. Select **Create table**.
+
+</Step>
+</Steps>
+
+## Read and edit rows
+
+Select a table to open its rows in the grid. Rows load as you scroll. The header shows `schema.table` and the approximate row count.
+
+### Sort and filter
+
+- Select a column header to sort by it. **Shift**-click another header to add a second sort.
+- Select **Filter**, pick a column and an operator, enter a **Value**, then select **Add filter**. Operators are `=`, `≠`, `<`, `>`, `≤`, `≥`, **contains**, **starts with**, **is null** and **is not null**.
+- Filters show as chips above the grid. Remove one with its **×**, or select **Clear filters**.
+
+Sort and filters are part of the page URL, so you can bookmark or share a filtered view. For example, `country = IT` and `created_at > 2026-10-01` on `public.customers`.
+
+### Edit, add and delete rows
+
+<Steps>
+<Step>
+
+### Stage your changes
+
+Double-click a cell, or move to it and press **Enter** or **F2**, to edit it. **Enter** keeps the value, **Tab** keeps it and moves right, **Esc** drops it. Nullable columns offer a Null value. Select **Add row** for a new row. Select rows with their checkboxes and select **Delete** to mark them for deletion.
+
+</Step>
+<Step>
+
+### Save in one transaction
+
+The footer counts the unsaved changes. Select **Save changes** to apply them all in one transaction, or **Discard** to drop them. When the batch deletes rows, LogiStack asks you to confirm with **Save and delete**.
+
+</Step>
+</Steps>
+
+If someone else changed or deleted one of your rows since you loaded it, nothing is saved. Select **Reload rows** to see the current data; your edits stay staged.
+
+<Callout type="info">
+A table without a primary key is read-only, because a single row can't be addressed. Views are read-only too.
+</Callout>
+
+### Generate test rows
+
+Select **Generate** above a table to fill it with fake rows. Choose how many **Rows**, a **Locale**, and a generator for each column (LogiStack suggests one from the column's name and type, such as Email or City). Preview, then insert.
+
+## Run SQL
+
+Select **SQL** to open the editor. It completes table and column names for the engine's dialect.
+
+1. Write one or more statements.
+2. Press **Cmd+Enter** (**Ctrl+Enter** on Windows and Linux), or select **Run**, to run the selection or the statement at the cursor.
+3. Press **Shift+Cmd+Enter**, or select **Run all**, to run the whole script.
+
+```sql title="Find the best customers this month"
+select c.email, count(*) as orders, sum(o.total_cents) / 100.0 as revenue
+from public.orders o
+join public.customers c on c.id = o.customer_id
+where o.created_at >= date_trunc('month', now())
+group by c.email
+order by revenue desc
+limit 20;
+```
+
+Results appear below, one tab per statement, with typed columns. Copy a result as **CSV** or **JSON**.
+
+- **Read only** is on by default. Statements then run in a read-only transaction. Turn it off to let writes commit; the toggle then reads **Writes commit**.
+- Each run is one transaction, stops after 30 seconds and returns up to 1,000 rows per statement.
+- Select **Cancel** to stop a long query.
+- On an instance with several databases, the editor shows which database the run goes to.
+
+## View the schema diagram
+
+Select **Diagram** to see the tables and the foreign keys between them. Pick one schema or **All schemas**, use **Zoom in**, **Zoom out** and **Fit to view**, and select a table to open its rows.
+
+## Manage roles
+
+Select **Roles** to list PostgreSQL roles, or MySQL and MariaDB accounts. Select a role to edit it:
+
+- **Can log in**, **Create databases**, **Create roles** and **Superuser** for PostgreSQL.
+- Group membership, with **Add to role…**.
+- Access per schema: no access, read, or read and write on every table. Select **Review SQL** to see the statements before you save.
+- Set a new password. LogiStack generates one and doesn't store it, so copy it before you close the dialog.
+- Drop the role, after typing its name.
+
+The role the explorer itself signs in as is marked. Its password lives in the service's environment.
+
+### Create a role for an app
+
+<Steps>
+<Step>
+
+### Start the wizard
+
+In **Roles**, select **+** (**New role**).
+
+</Step>
+<Step>
+
+### Name the role
+
+Enter a **Name**, such as `storefront_web`. For PostgreSQL pick **Login role** (signs in with a password) or **Group role** (others inherit its privileges). For MySQL and MariaDB set the **Host**; `%` allows any host and is usually right, because services reach the database over its private network.
+
+</Step>
+<Step>
+
+### Set the password and access
+
+Copy the generated **Password**. Then choose the access for each schema.
+
+</Step>
+<Step>
+
+### Review and create
+
+Check the summary and select **Create role** (or **Create account**).
+
+</Step>
+</Steps>
+
+## Dump and restore
+
+Use the **Dump & restore** menu at the top right.
+
+**Download dump** streams a full dump straight to your downloads:
+
+| Engine | File | Tool |
+| --- | --- | --- |
+| PostgreSQL | `.dump` | `pg_dump` custom format |
+| MySQL | `.sql` | `mysqldump`, all databases |
+| MariaDB | `.sql` | `mariadb-dump`, all databases |
+| MongoDB | `.archive` | `mongodump` archive |
+| Redis | `.rdb` | RDB snapshot |
+| libSQL | `.sql` | SQL dump from sqld |
+
+**Restore from file…** replaces everything the database holds with a dump file:
+
+<Steps>
+<Step>
+
+### Download a dump first
+
+Select **Download dump**, so you can go back if the restore isn't what you wanted.
+
+</Step>
+<Step>
+
+### Choose the file
+
+Select **Restore from file…**, then **Choose a dump file**.
+
+</Step>
+<Step>
+
+### Confirm
+
+Type the service name, for example `postgres`, and start the restore. The dialog shows the upload, then the restore tool's progress.
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+A restore from file can't be undone. Redis and libSQL dumps can't be restored here; restore them from a [volume backup](./restore.mdx).
+</Callout>
+
+## Add a sample dataset
+
+On PostgreSQL, MySQL, MariaDB and libSQL, select **Sample dataset** to create demo tables filled with realistic fake data, foreign keys included. Pick a **Dataset** (**Users**, **E-commerce**, **Blog**, **Projects and tasks** or **Analytics events**), a **Table prefix** such as `demo_`, and a **Size** (**Small**, **Normal** or **Large**), then select **Create dataset**. Use it to try queries or a new app without touching real data.
+
+## Browse Redis keys
+
+![The Database tab of a Redis service, listing keys like user:269 and cart:1004 with their type and size](/screens/database-redis.webp)
+
+1. Pick the logical database, such as `db0`.
+2. Type a pattern, such as `session:*` or `cart:*`, and select **Scan**.
+3. Select a key. Its value opens on the right, paged by type: strings, hashes, lists, sets, sorted sets and streams.
+
+From the key view you can edit the value, set or remove fields and members, rename the key, set an expiry in seconds, or delete it. Streams are read-only here. Binary values show as base64 and are read-only.
+
+Select **Command** to run one Redis command against the current database, such as `HGETALL session:42`. Reads and key writes are allowed; `FLUSHALL`, `CONFIG`, `KEYS`, `EVAL` and other server commands are refused.
+
+## Browse MongoDB documents
+
+Select a collection to list its documents as Extended JSON. Use the find bar to query:
+
+| Field | Example |
+| --- | --- |
+| **Filter** | `{ "status": "paid" }` |
+| **Sort** | `{ "_id": -1 }` |
+| **Fields** | `{ "name": 1 }` |
+
+Select **Find** to run it and **Reset** to clear it. `$where`, `$function` and `$accumulator` are not allowed.
+
+Select **Insert** to add a document, or the edit icon on a document to replace it. Saving replaces the whole document, so clear **Fields** before you edit. Views are read-only.
+
+## Permissions
+
+What you can do depends on your role on the service. See [Roles and permissions](../team/roles-and-permissions.mdx).
+
+| Action | Permission |
+| --- | --- |
+| Browse schema, rows, documents and keys | `read` |
+| Edit rows, documents and keys; create a database | `write` |
+| Run SQL or a Redis command, read-only included | `write` |
+| Download a dump | `read:secrets` |
+| Restore from a file, create roles, set passwords, drop a database | `admin` |
+
+With read access only, the grid and editors are read-only and say so. SQL writes, row changes and restores appear in the audit log; a SQL write records the statement text.
+
+## Troubleshooting
+
+- **Couldn't read the schema**: the service may be starting or unhealthy. Check its status and [logs](../operations/logs-and-terminal.mdx).
+- **Redeploy to open the explorer**: the database predates the explorer. Redeploy it once.
+- **Roles aren't readable** on MySQL: the explorer's login needs `SELECT` on `mysql.user`.
+- A query stops after 30 seconds. Run long maintenance from a [schedule](./schedules.mdx) instead.

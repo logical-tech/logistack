@@ -1,0 +1,131 @@
+---
+title: Service and node metrics
+description: Read CPU, memory, network and disk I/O charts for a service, a node or the whole cluster over 1 hour to 30 days, and set how long LogiStack keeps samples.
+---
+
+LogiStack collects CPU, memory, disk and network figures from every server and every container, without any setup. The LogiStack agent on each node samples them every 10 seconds. Use the charts to see whether a service needs more memory, which node is full, or what changed when a site got slow.
+
+## How metrics are collected
+
+- The agent runs on every node of the cluster and reports host figures (CPU, memory, disk, network) and per-container figures (CPU, memory, network, block I/O) every 10 seconds.
+- LogiStack keeps the raw samples for a short time and rolls them up into 1-minute and 1-hour buckets, so a 30-day chart loads as fast as a 1-hour one.
+- Each chart picks the tier that covers its range: raw samples up to **1h**, 1-minute rollups for **6h** to **7d**, 1-hour rollups for **30d**.
+
+## Read a service's metrics
+
+<Steps>
+<Step>
+### Open the Metrics tab
+
+Open the project, select the service, and select **Metrics**. The figures are **Summed across every replica**, on every node.
+
+![The Metrics tab of the web service over 24 hours, with CPU, memory against its limit, network, block I/O and replicas reporting](/screens/service-metrics.webp)
+</Step>
+<Step>
+### Pick the range
+
+Select **1h**, **6h**, **24h**, **7d** or **30d**. The default is **24h**.
+</Step>
+<Step>
+### Read the charts
+
+Hover a chart to read the value at a point in time.
+</Step>
+</Steps>
+
+| Chart | What it shows |
+| --- | --- |
+| **CPU** | CPU used by all replicas. **100% is one core**, so a service that keeps two cores busy reads 200%. |
+| **Memory** | **Used** memory, and the **Limit** as a dashed line when the service has a memory limit. |
+| **Network** | Traffic **In** and **Out** of the containers, in bytes per second. |
+| **Block I/O** | Disk **Read** and **Write** by the containers, in bytes per second. |
+| **Replicas reporting** | How many containers sent samples. A dip means a replica restarted or was replaced. |
+
+**No samples yet: no container of this service has reported.** The service has not run since the agent started, or it is stopped. Deploy it and wait a minute.
+
+### Example: size a memory limit
+
+Your `api` service has a 512 MB limit and restarts a few times a day. On **7d**, the **Memory** chart shows **Used** climbing to the **Limit** line just before each dip in **Replicas reporting**. The container runs out of memory and is killed. Raise the limit in the service's **Settings** tab (see [Service settings](../deploy/service-settings.mdx)), then set a memory threshold so you hear about it next time (see [Alerts and notifications](./alerts-and-notifications.mdx)).
+
+## Read the cluster's metrics
+
+<Steps>
+<Step>
+### Open Monitoring
+
+Select **Monitoring** in the sidebar. **Overview** opens with the **Cluster** heading, a count of nodes by state (for example `5 nodes · 3 ready · 1 draining · 1 down`) and four charts.
+
+![The Monitoring overview, with a 5-node cluster and its CPU, memory, disk and network charts over 24 hours](/screens/monitoring.webp)
+</Step>
+<Step>
+### Choose cluster totals or one line per node
+
+Select **Cluster** for one line that sums memory, disk and network and averages CPU across nodes. Select **Per node** for one line per node. The first four nodes by name get a colour; the rest share grey. Open a node for its own charts.
+</Step>
+<Step>
+### Pick the range
+
+Select **1h**, **6h**, **24h**, **7d** or **30d**.
+</Step>
+</Steps>
+
+| Chart | What it shows |
+| --- | --- |
+| **CPU** | Percent of all cores in use. |
+| **Memory** | Percent of memory used, with used and total, for example `74.4 GiB of 144 GiB`. |
+| **Disk** | Percent of disk used, with used and total. |
+| **Network** | Traffic **In** and **Out** of the nodes, in bytes per second. |
+
+Below the charts, **Nodes** lists one card per server with its state, labels and current CPU, memory and disk. Select a card to open the node, or **Manage nodes** for the list. See [Nodes](./nodes.mdx).
+
+If you see **Metrics start with the first agent report**, no node has reported yet. The agent starts with LogiStack; give it a minute after install, or add a server with **Add server**.
+
+## Read one node's metrics
+
+Select **Monitoring** › **Nodes**, then a node. The node page shows **Usage** charts (CPU, memory, disk, network) with the same range picker, a **Right now** panel, and the node's **Details**.
+
+![The fra-1 node page, with CPU, memory, disk and network charts and its details](/screens/node.webp)
+
+## Read one container's metrics through the API
+
+The dashboard sums a service's replicas. To chart a single container, call the API with its Docker container ID and a range:
+
+```bash
+curl -H "Authorization: Bearer $LOGISTACK_API_KEY" \
+  "https://logistack.example.com/api/metrics/containers/3f2a9c1e7b44?range=6h"
+```
+
+The response holds one point per bucket with `cpu` (100 per fully used core), `memUsed`, `memLimit`, `rx`, `tx`, `read`, `write` and `containers`. The same shape for a whole service comes from `/api/metrics/services/{id}`, and for nodes from `/api/metrics/hosts`. See the [REST API](../automation/rest-api.mdx).
+
+## Change how long metrics are kept
+
+<Steps>
+<Step>
+### Open the monitoring settings
+
+Select **Monitoring** › **Settings** and scroll to **Retention**.
+</Step>
+<Step>
+### Set each tier
+
+| Field | Unit | Allowed | Used by |
+| --- | --- | --- | --- |
+| **Raw samples** | hours | 1 to 168 | Charts up to 1 hour |
+| **1-minute rollups** | days | 1 to 90 | 6 hours to 7 days |
+| **1-hour rollups** | days | 1 to 3650 | 30 days and beyond |
+
+For example, keep **1-hour rollups** for 365 days to compare this month with last year.
+</Step>
+<Step>
+### Save
+
+Select **Save changes**. Select **Discard** to drop your edits.
+</Step>
+</Steps>
+
+LogiStack deletes samples older than each tier's retention, so a chart only reaches back as far as its tier keeps data.
+
+## Related
+
+- [Usage](./usage.mdx) for averages per project and service.
+- [Alerts and notifications](./alerts-and-notifications.mdx) to be told when a figure crosses a limit.

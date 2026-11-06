@@ -1,0 +1,135 @@
+---
+title: Cloudflare Tunnels
+description: Publish LogiStack services through a Cloudflare Tunnel with no open inbound ports, for a homelab or a server behind NAT, and pick per domain what goes through it.
+---
+
+A Cloudflare Tunnel publishes services without opening ports on your server. LogiStack runs `cloudflared` in the swarm; it dials out to Cloudflare and keeps the connection open. Visitors reach Cloudflare's edge, which sends each request down the tunnel to the LogiStack proxy, which forwards it to the service. Cloudflare serves the hostname and its certificate. Use a tunnel for a homelab, a server behind NAT, or a provider that blocks inbound ports 80 and 443.
+
+You choose per domain what goes through the tunnel. Other domains on the same server can keep using the public proxy.
+
+## Before you start
+
+- The zone is on Cloudflare and connected as a [Cloudflare DNS provider](./dns-providers.mdx).
+- The provider's API token has, on top of **Zone › DNS › Edit**:
+  - **Account › Cloudflare Tunnel › Edit**
+  - **Account › Account Settings › Read**
+
+Edit the token at Cloudflare to add them. You do not need to reconnect the provider: LogiStack reads the token each time.
+
+Each Cloudflare provider can have one tunnel. It serves hostnames in that provider's zones.
+
+## Create a tunnel
+
+<Steps>
+<Step>
+
+### Open Cloudflare Tunnels
+
+Select **Cloudflare Tunnels** in the sidebar, under **Integrations**.
+
+![The Cloudflare Tunnels page with no tunnels yet and a Create tunnel button](/screens/tunnels.webp)
+
+</Step>
+<Step>
+
+### Select Create tunnel
+
+Select **Create tunnel**. The **Create a Cloudflare Tunnel** wizard opens.
+
+![The first step of the Create a Cloudflare Tunnel wizard, Cloudflare provider, with a Provider selector](/screens/tunnel-new.webp)
+
+</Step>
+<Step>
+
+### Pick the Cloudflare provider
+
+On **Cloudflare provider**, pick the **Provider**. Each option lists its zones, for example `Cloudflare · Acme · acme-retail.it, logical.it`. The tunnel reuses that provider's token. If no Cloudflare provider is connected, the step links to **Connect Cloudflare**.
+
+</Step>
+<Step>
+
+### Pick the account
+
+On **Account**, pick the Cloudflare **Account** the tunnel belongs to. Tunnels belong to an account, not to a zone. When the token sees only one account, it is picked for you.
+
+If the step shows an error, the token lacks the account permissions listed above.
+
+</Step>
+<Step>
+
+### Name the tunnel
+
+On **Name**, enter a **Name**, for example `homelab`. It appears here and in Cloudflare's dashboard.
+
+</Step>
+<Step>
+
+### Create
+
+Review the summary and select **Create tunnel**. LogiStack creates the tunnel at Cloudflare and starts `cloudflared` in the swarm. The tunnel shows **Starting**, then **Connected** within a few seconds.
+
+</Step>
+</Steps>
+
+## Route a domain through the tunnel
+
+A tunnel serves nothing until you send a domain through it.
+
+<Tabs items={["From the service", "With the wizard"]}>
+<Tab value="From the service">
+
+1. Open the service and select the **Domains** tab, then **Add domain**.
+2. Enter a **Hostname** in one of the provider's zones, for example `grafana.example.com`, and the **Port**.
+3. Under **Exposure**, pick **Cloudflare Tunnel**.
+4. Select **Add domain**.
+
+</Tab>
+<Tab value="With the wizard">
+
+1. On **Domains**, select **Add domain**, pick the service, and enter the hostname and **Container port**.
+2. On **DNS record**, pick **Through the Cloudflare Tunnel**.
+3. The wizard skips **Propagation** and **HTTPS**. The review shows `Proxied CNAME to the tunnel at Cloudflare · Acme` and `Cloudflare's edge certificate`.
+4. Select **Add domain**.
+
+</Tab>
+</Tabs>
+
+LogiStack creates the proxied CNAME at Cloudflare and adds the hostname to the tunnel. The tunnel picks it up within a few seconds. On the Domains page, the domain's **TLS** column shows **Tunnel** and its **Certificate** column shows **Cloudflare edge**.
+
+Between `cloudflared` and the proxy the traffic is plain HTTP inside your server, so the domain itself has no certificate in LogiStack.
+
+## Check that it works
+
+1. On **Cloudflare Tunnels**, the tunnel shows **Connected** and counts the domains it serves, for example `2 domains`.
+2. Open the hostname in a browser. It loads over HTTPS with a certificate from Cloudflare.
+3. From outside your network, `dig +short grafana.example.com` returns Cloudflare addresses, not your server's.
+
+## Protect a tunnel domain
+
+[Basic auth](./access-control.mdx) and a [sign-in gateway](./access-control.mdx#require-a-sign-in-gateway) work on tunnel domains. The IP allowlist does not: through a tunnel every request comes from `cloudflared`, not from the visitor, so LogiStack hides it for tunnel domains.
+
+## Tunnel status
+
+| Status | Meaning |
+| --- | --- |
+| **Connected** | `cloudflared` is connected to Cloudflare's edge. |
+| **Degraded** | Connected, but Cloudflare reports some connections unhealthy. |
+| **Starting** | Created; `cloudflared` has not connected yet. |
+| **Down** | `cloudflared` is not connected. |
+| Unreachable | LogiStack could not ask Cloudflare for the status. |
+
+A message under the tunnel's name explains a problem when there is one.
+
+## Delete a tunnel
+
+Select the bin on the tunnel's row and confirm. LogiStack stops `cloudflared` and deletes the tunnel at Cloudflare. A tunnel that domains still use can't be deleted: delete those domains, or edit them to go through the public proxy, first.
+
+## Common problems
+
+**The tunnel stays at Starting or shows Down.** The server cannot reach Cloudflare on outbound connections, or `cloudflared` is not running. Check the server's outbound firewall and the node's status on [Nodes](../operations/nodes.mdx).
+
+**`this provider already has a tunnel`.** Each Cloudflare provider has one tunnel. Use the existing one; it serves every zone of the provider.
+
+**Cloudflare Tunnel is not offered when adding a domain.** The hostname is not in a zone of a provider that has a tunnel, or the zone is not selected on the provider.
+
+**`tunnels need a Cloudflare provider`.** Tunnels work only with Cloudflare providers, not Route 53 or Hetzner DNS.

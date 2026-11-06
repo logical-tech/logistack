@@ -1,0 +1,53 @@
+# TLS ends at the reverse proxy in front (Dokploy's Traefik). Traefik sends /docs/* here
+# with the prefix intact; the export in /srv has no prefix, so handle_path strips it.
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	redir /docs /docs/ 308
+
+	handle_path /docs/* {
+		root * /srv
+
+		@hashed path /_next/static/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@pages not path /_next/static/*
+		header @pages Cache-Control "public, max-age=0, must-revalidate"
+
+		# Next writes these without a useful extension.
+		@og path /og/*
+		header @og Content-Type image/png
+		@search path /api/search
+		header @search Content-Type "application/json; charset=utf-8"
+		@md path *.md
+		header @md Content-Type "text/markdown; charset=utf-8"
+		@txt path *.txt
+		header @txt Content-Type "text/plain; charset=utf-8"
+
+		try_files {path} {path}/index.html {path}.html
+		file_server
+	}
+
+	handle_errors 404 {
+		root * /srv
+		rewrite * /404.html
+		file_server
+	}
+
+	handle {
+		respond "Not found" 404
+	}
+}

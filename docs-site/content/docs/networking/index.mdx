@@ -1,0 +1,70 @@
+---
+title: How traffic reaches your services
+description: How requests reach a LogiStack service through the Caddy proxy on ports 80 and 443, published ports, or a Cloudflare Tunnel, and which one to pick.
+---
+
+A service in LogiStack has no public address until you give it one. Read this page to understand the three ways a request can reach a service: through the Caddy proxy with a domain, through a port you publish on the node, or through a Cloudflare Tunnel. Most web apps need only the first.
+
+## The Caddy proxy
+
+LogiStack runs Caddy as the single entry point for HTTP and HTTPS. Caddy holds ports 80 and 443 on the server. Every [domain](./domains.mdx) you attach to a service becomes a route in Caddy's configuration: a hostname, an optional path prefix, and the container port it forwards to.
+
+A request for `shop.example.com` takes this path:
+
+1. The visitor's resolver looks up `shop.example.com` and gets your server's IP address.
+2. The browser connects to port 443 on that address. Caddy answers with the certificate for `shop.example.com`.
+3. Caddy matches the hostname (and the path prefix, if you set one) and runs any [access rules](./access-control.mdx) on the domain.
+4. Caddy forwards the request to the service's container port over the internal Docker network. The service never needs a published port.
+
+Caddy also does the following for every domain with HTTPS:
+
+- It redirects plain HTTP requests on port 80 to HTTPS with a `308` status, keeping the path and query.
+- It gets and renews the certificate on its own. See [HTTPS certificates](./https-certificates.mdx).
+- It answers unknown hostnames with a 404 page.
+
+You never edit Caddy's configuration by hand. The desired state lives in the LogiStack database, and the worker compiles it into a Caddy configuration and loads it. A change you save in the dashboard reaches the proxy within a few seconds. The domain shows **Pending** until then, and **Active** once the proxy has loaded it.
+
+<Callout type="info">
+Ports 80/tcp, 443/tcp and 443/udp must be free on the server and open in your provider's firewall. See [Install LogiStack](../getting-started/install.mdx).
+</Callout>
+
+## Published ports
+
+Some services do not speak HTTP: a game server, an SMTP relay, a database you want to reach from your laptop. For those, publish a port in the service's **Settings** tab, section **Command and ports**. Each row has a **Container port**, a **Published** port, a **Protocol** (TCP or UDP) and **Bind on**:
+
+- **Its node** binds the port only on the node that runs the replica.
+- **Every node** binds it on all nodes through the Swarm routing mesh.
+
+A published port bypasses Caddy. There is no hostname routing, no certificate and no access rule on it.
+
+<Callout type="warn">
+Docker opens published ports through iptables, which bypasses UFW and firewalld. A published database port is reachable from the internet even when UFW says otherwise. Publish one only when you mean it to be public.
+</Callout>
+
+## Cloudflare Tunnels
+
+A [Cloudflare Tunnel](./cloudflare-tunnels.mdx) serves a domain without any open inbound port. A `cloudflared` container on your server dials out to Cloudflare. Visitors reach Cloudflare's edge, which sends the request down the tunnel to Caddy, which forwards it to the service. Cloudflare issues and serves the certificate.
+
+Use a tunnel for a server behind NAT, a homelab, or a host whose provider blocks inbound ports. You choose per domain whether it goes through the tunnel or through the public proxy.
+
+## Which one to use
+
+| You want to | Use |
+| --- | --- |
+| Serve a website or API on your own domain with HTTPS | A [domain](./domains.mdx) through the Caddy proxy |
+| Try a service right away, without DNS | A generated hostname such as `web-a1b2c3.203-0-113-10.sslip.io` (see [Generated domains](./domains.mdx#generated-domains)) |
+| Expose a non-HTTP protocol (TCP or UDP) | A published port |
+| Serve a domain from a server with no open ports | A [Cloudflare Tunnel](./cloudflare-tunnels.mdx) |
+| Keep a service private to other services | Nothing. Services in the same environment reach each other on the internal network by default |
+
+## In this section
+
+<Cards>
+  <Card title="Domains" href="/networking/domains" description="Attach a hostname to a service, create its DNS record and pick how it gets a certificate." />
+  <Card title="HTTPS certificates" href="/networking/https-certificates" description="Automatic Let's Encrypt certificates, uploaded certificates and Cloudflare Origin certificates." />
+  <Card title="Wildcard DNS" href="/networking/wildcard-dns" description="One wildcard certificate per server, and why sslip.io hostnames share a rate limit." />
+  <Card title="DNS providers" href="/networking/dns-providers" description="Connect Cloudflare, Route 53 or Hetzner DNS and edit zone records from the dashboard." />
+  <Card title="Cloudflare Tunnels" href="/networking/cloudflare-tunnels" description="Publish services through Cloudflare without opening ports on the server." />
+  <Card title="Access control" href="/networking/access-control" description="Password protection, a sign-in gateway and IP allowlists in front of a domain." />
+  <Card title="Network map" href="/networking/network-map" description="See how traffic flows from the internet to every service, domain and task." />
+</Cards>

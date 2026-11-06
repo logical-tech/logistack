@@ -1,0 +1,214 @@
+---
+title: Migrate from Coolify
+description: Move Coolify v4 applications, databases, one-click services, domains and settings to LogiStack on the same server, one service at a time, with a rollback for each.
+---
+
+If a server runs Coolify v4, you can turn it into a LogiStack server without a maintenance window. You install LogiStack next to Coolify, and a wizard in **Settings** › **Migrate** reads Coolify, imports everything, moves your services over one at a time, hands ports 80 and 443 from Coolify's proxy to LogiStack, and finally removes Coolify. Coolify's proxy keeps serving every site until you switch traffic, and each step is reversible until then.
+
+## How the migration works
+
+1. **Read.** LogiStack reads Coolify's database, read-only, and decrypts its secrets (variables, database passwords, keys) with Coolify's own `APP_KEY`.
+2. **Import.** It creates each project, service, domain and setting in LogiStack. Nothing is deployed.
+3. **Move.** One service at a time, databases first, LogiStack starts the service and stops Coolify's containers. If the new one is not healthy, Coolify's containers come back on their own.
+4. **Switch traffic.** Coolify's proxy stops and LogiStack's Caddy takes ports 80 and 443, with the proxy's certificates already in place.
+5. **Remove.** LogiStack archives Coolify's database and `/data/coolify`, then removes Coolify.
+
+Databases keep their data in place: LogiStack adopts the same Docker volume Coolify used, so nothing is copied.
+
+### How names and sites keep working during the move
+
+Coolify runs plain containers on local networks, while LogiStack runs Swarm services. To connect the two, LogiStack creates an overlay network, `ls-coolify-bridge`, and attaches Coolify's proxy and the containers still on Coolify to it.
+
+- A moved service also answers under its old Coolify container name: a database under its uuid (for example `vg4kk0s8wc0ok8sg`), a part of a one-click service under `<name>-<uuid>`. Connection strings such as `postgres://postgres:…@vg4kk0s8wc0ok8sg:5432/postgres` keep working.
+- Coolify's proxy routes your domains to the moved service until you switch traffic, so a site keeps answering while it moves.
+
+### Coolify pauses while services move
+
+From the first move, LogiStack pauses Coolify's control plane: it stops the `coolify` container and sets its restart policy to `no`. Otherwise Coolify would restart its proxy after the switch and redeploy moved apps on a git push, giving two copies of one app. Your sites keep running, and `coolify-db` and `coolify-redis` stay up.
+
+While Coolify is paused, the **Move services** step shows **Paused** with **Start Coolify**. Select it to bring Coolify back, for example to change something there; the next move pauses it again.
+
+## Before you start
+
+- Take a backup of anything you cannot lose. The migration never deletes a volume, but a backup is your safety net.
+- Coolify is a stable v4 release, 4.0.0 or later. Versions 4.0.0, 4.5.3 and 4.6.0 are tested; betas are refused.
+- Your resources run on Coolify's localhost server, with Traefik as its proxy. With Caddy as Coolify's proxy the switch still works, and LogiStack issues fresh certificates.
+- You are an admin in LogiStack. The wizard is admin only.
+
+## Install LogiStack on the Coolify server
+
+<Steps>
+<Step>
+### Run the installer
+
+On the Coolify server, run the installer as for any install:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
+```
+
+It finds Coolify from the running `coolify` container, explains the plan, and asks before it changes anything. It needs `coolify-db` running and `/data/coolify/source/.env` readable; otherwise it stops and says why.
+</Step>
+<Step>
+### Know what the installer does next to Coolify
+
+- Ingress stays off: Coolify's proxy (`coolify-proxy`) keeps ports 80 and 443.
+- Setup is private, through a tunnel on `127.0.0.1:3000`.
+- Coolify uses no Swarm. The installer starts one with an address pool that overlaps none of the server's networks, because Coolify gives Docker `10.0.0.0/8`. If a Swarm already runs and one of its overlay networks overlaps a local network, the installer stops with the reason.
+- It copies `DB_PASSWORD` and `APP_KEY` from `/data/coolify/source/.env` into Swarm secrets. Neither appears in the installer's output, its log, `/etc/logistack`, or the API's service settings.
+- It creates the `ls-coolify-bridge` overlay and connects `coolify-db` to it, so LogiStack can read Coolify's database, read-only.
+</Step>
+<Step>
+### Open the setup wizard through an SSH tunnel
+
+From your computer:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 root@49.12.88.7
+```
+
+Then open `http://localhost:3000` and finish the [setup wizard](../getting-started/setup-wizard.mdx).
+</Step>
+</Steps>
+
+## Run the migration
+
+Home shows **Coolify runs on this server** with **Start migration**. Select it, or select **Settings** › **Migrate**. The wizard, **Migrate from Coolify**, has five steps: **Review what moves**, **Import into LogiStack**, **Move services**, **Switch traffic** and **Done**. You can leave at any time; Home then reads **Continue migration** and the wizard resumes where you left it.
+
+![The Home page with a migration panel and its Start migration button](/screens/home.webp)
+
+<Steps>
+<Step>
+### Read Coolify
+
+On **Review what moves**, select **Read Coolify**. LogiStack lists your organization's settings first (S3 destinations, notifications, SSH keys, GitHub Apps), then each Coolify project and environment with its resources.
+
+![The migration wizard on its first step, Review what moves, shown here for Dokploy; for Coolify the button reads Read Coolify](/screens/settings-migrate.webp)
+</Step>
+<Step>
+### Review each item
+
+Each item shows its kind (**App**, **Compose**, **One-click service**, **PostgreSQL**, …), its domains, and **Full**, **Partial** or **Not supported**. Open the notes of a **Partial** item to see what does not carry over. Turn off the switch on any item you want to leave on Coolify. Select **Continue**.
+</Step>
+<Step>
+### Import into LogiStack
+
+Select **Import 12 items** (the count is yours). When it is done you see **Everything is imported. Nothing runs on LogiStack yet.** If an item fails, select **Retry 1 failed item**, or **Leave on Coolify**. Select **Continue**.
+</Step>
+<Step>
+### Move services
+
+Select **Move 8 services in order**. The dialog says Coolify pauses first. Select **Move services**. LogiStack moves them one at a time, databases first, or select **Move** on one row.
+
+- **No downtime**: a service without volumes starts on LogiStack before Coolify's container stops.
+- **Pauses while its volumes move**: Coolify's container stops first, then the service starts on LogiStack, after a few seconds.
+- **Stopped on Coolify: moves without starting**: it was stopped on Coolify, so it is imported stopped.
+
+Settings move with **Move the settings**. When you see **Every service you chose runs on LogiStack.**, select **Continue**.
+</Step>
+<Step>
+### Switch traffic
+
+Select **Switch traffic**, read the dialog and select **Switch traffic**. Coolify's proxy stops and LogiStack takes ports 80 and 443, usually within seconds. If LogiStack does not come up within 90 seconds, the proxy starts again on its own.
+
+The wizard then lists **Certificates** (**Imported from Traefik**, or **Issued fresh** with the reason), an HTTPS check under **Domains**, and under **GitHub** a **Move webhook** button for each GitHub App. Select **Move webhook** for each one so pushes reach LogiStack, then **Continue**.
+</Step>
+<Step>
+### Review what moved
+
+**Done** lists **On LogiStack** and **Still on Coolify**, each with a count, and the notes for the items that stay.
+</Step>
+</Steps>
+
+### Check that it worked
+
+- Every moved service reads **Running** on its project page.
+- Every row under **Domains** on **Switch traffic** passes.
+- An app that connects to a moved database by its old Coolify name still works.
+
+## Move a service back
+
+Until you remove Coolify:
+
+- Select **Move back** on a moved service. LogiStack stops its service and starts Coolify's containers again.
+- A move that fails goes back to Coolify on its own and shows the cause. Select **Try again**, or **Leave on Coolify**.
+
+## Remove Coolify
+
+Once every item is on LogiStack or staying on Coolify, and traffic is switched, **Remove Coolify** unlocks on **Done**. Until then the wizard says what is missing after **Not yet:**.
+
+<Callout type="warn">
+Removing Coolify cannot be undone from LogiStack. After it, services cannot be moved back, and anything you left on Coolify keeps running without Coolify to manage it.
+</Callout>
+
+<Steps>
+<Step>
+### Start the removal
+
+On **Done**, select **Remove Coolify**.
+</Step>
+<Step>
+### Confirm
+
+Type `coolify` and select **Remove Coolify**.
+</Step>
+<Step>
+### Read the report
+
+The panel **Coolify removed** shows the archive path, what was removed and what was kept.
+</Step>
+</Steps>
+
+LogiStack first archives Coolify under `/var/lib/logistack/migration/<timestamp>/`, readable by root only:
+
+<Files>
+  <Folder name="/var/lib/logistack/migration/20261106-0941" defaultOpen>
+    <File name="coolify.dump" />
+    <File name="data-coolify.tar.gz" />
+    <File name="inventory.json" />
+  </Folder>
+</Files>
+
+- `coolify.dump`: a dump of Coolify's database.
+- `data-coolify.tar.gz`: `/data/coolify` without its `backups/` folder.
+- `inventory.json`: what was migrated, without any secret values.
+
+It then disconnects everything from `ls-coolify-bridge`, removes `coolify`, `coolify-db`, `coolify-redis`, `coolify-realtime`, `coolify-sentinel` and `coolify-proxy`, and the Coolify containers of the services you moved. Volumes and anything you left on Coolify stay.
+
+## What carries over
+
+| From Coolify | In LogiStack |
+| --- | --- |
+| Projects and environments | Projects and environments with the same names. |
+| Applications | Services from a Docker image (a digest stays a digest), a GitHub App or a public GitHub repository. Dockerfile and static builds; Nixpacks and Railpack builds become Railpack. |
+| App settings | Domains with their path and port, port mappings, HTTP health check, memory and CPU limits, basic auth, persistent volumes and file mounts. |
+| Environment variables | The resource's variables, with `{{team.KEY}}`, `{{project.KEY}}`, `{{environment.KEY}}` and `{{server.KEY}}` references resolved. Literal variables stay as written. |
+| Docker Compose apps | Each compose service becomes a LogiStack service. |
+| One-click services | Each part becomes a LogiStack service in the same environment, with its generated `SERVICE_PASSWORD_*` values and named volumes. |
+| Databases | PostgreSQL, MySQL, MariaDB, MongoDB and Redis on their official image, with their version, credentials and data volume. The database keeps its uuid as its name. |
+| Database backups | S3 backup policies with their schedule and retention. |
+| S3 storages, deploy keys | S3 destinations and SSH keys. |
+| Notifications | Discord, Slack, Telegram, Pushover and email (SMTP or Resend) channels, plus one rule for the events you had switched on. |
+| GitHub Apps | The app with its key and installation. Its webhook moves on **Switch traffic**. |
+
+### What does not carry over
+
+Listed in the item's notes, or the item is **Not supported**:
+
+- Resources on remote servers and Swarm destinations.
+- KeyDB, Dragonfly and ClickHouse databases, databases with SSL turned on, on a custom image, or without a data volume.
+- Dockerfiles written in Coolify (inline Dockerfiles).
+- Deploy keys used as a Git source, and GitLab and Gitea sources.
+- Preview deployments, GPU settings, pre- and post-deploy commands, custom run options and labels you added.
+- GitLab apps, GitHub Enterprise apps, apps that were never installed, and the generic notification webhook.
+- Scheduled tasks and volume backups. Set them up again with [schedules](../data/schedules.mdx) and [backups](../data/backups.mdx).
+
+A variable whose value Coolify's key cannot decrypt is skipped and named in the notes.
+
+## Common problems
+
+- **The installer stops with an overlap error.** A Swarm already runs on the server and one of its overlay networks overlaps a network next to Coolify. The message names it. Remove or recreate that overlay, then run the installer again.
+- **No Dokploy or Coolify on this server.** The installer did not find a running `coolify` container. Start Coolify, then run the installer again.
+- **A move rolled back.** The new service did not turn healthy. Read its [deployment log](../deploy/deployments.mdx) and [logs](./logs-and-terminal.mdx), fix the cause, then select **Try again**.
+- **You need to change something in Coolify mid-migration.** Select **Start Coolify** on **Move services**. The next move pauses it again.
+- **Switch traffic fell back.** Caddy did not start within 90 seconds and Coolify's proxy runs again. Read the error the wizard shows, check the `caddy` service, then try again.

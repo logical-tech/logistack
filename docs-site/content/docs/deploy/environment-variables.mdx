@@ -1,0 +1,144 @@
+---
+title: Environment variables and secrets
+description: Set environment variables and secrets on LogiStack services, share them across a project or environment, pass them to builds, and read deployment variables.
+---
+
+Environment variables configure a service without changing its image: database URLs, API keys, feature flags. LogiStack stores every value encrypted, masks secrets from people who can't read them, and applies changes on the next deployment. Variables can be set once for the whole organization, a project or an environment, and overridden per service.
+
+## Scopes and precedence
+
+A variable can live at four scopes. When the same key is set at more than one, the most specific wins:
+
+1. **Organization**: every service in the organization.
+2. **Project**: every service in the project.
+3. **Environment**: every service in one environment, like `DATABASE_URL` for Production.
+4. **Service**: one service. Wins over all the others.
+
+For example, with `LOG_LEVEL=info` at the organization and `LOG_LEVEL=warn` on the Production environment, every Production service gets `warn` and every other service gets `info`.
+
+## Set service variables
+
+<Steps>
+<Step>
+
+### Open the Environment tab
+
+Open the service and select **Environment**.
+
+![The Environment tab of the web service: service variables PORT and SESSION_SECRET, inherited variables with their scope, and the variables set on every deployment](/screens/service-environment.webp)
+
+</Step>
+<Step>
+
+### Add a variable
+
+Under **Service variables**, select **Add**. Type the name in **NAME** and the value next to it. Names use letters, digits and `_`, and don't start with a digit, such as `STRIPE_SECRET_KEY`.
+
+To add many at once, paste `KEY=value` into an empty name field, or select **Paste .env**, paste the file and select **Add N variables**. Comments, quotes and `export` are handled, and keys that already exist take the pasted value.
+
+```bash title=".env"
+# Payments
+STRIPE_SECRET_KEY=sk_live_51H...
+export PUBLIC_URL="https://shop.example.com"
+LOG_LEVEL=warn
+```
+
+</Step>
+<Step>
+
+### Mark secrets and build variables
+
+- **Secret**: the value is hidden in the dashboard, the API and the [Review changes](./deployments.mdx#review-changes-before-deploying) diff. Members without permission to read secrets see **Hidden** and can only replace the value.
+- **Build**: the variable is also passed to the build. Non-secret build variables become Dockerfile build arguments; secret ones become BuildKit secrets. See [Build types](./build-types.mdx#build-time-variables-and-secrets).
+
+</Step>
+<Step>
+
+### Save
+
+Select **Save and redeploy** to apply at once, or **Save** to apply on the next deployment. **Discard** drops the edits.
+
+</Step>
+</Steps>
+
+## Inherited variables
+
+The **Inherited** panel lists the variables the service gets from the organization, project and environment, each with its scope. A crossed-out row is overridden by a more specific one. To change one for this service only, select **Override for this service**: it copies the key and value into **Service variables** for you to edit.
+
+## Set organization, project and environment variables
+
+The dashboard edits service variables. Set the shared scopes through the API, the MCP server, or a [project manifest](../automation/project-manifests.mdx).
+
+```bash title="Create a secret DATABASE_URL for one environment"
+curl -fsS -X POST "https://stack.example.com/api/env-vars" \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "scope": "environment",
+    "scopeId": "env_storefront_production",
+    "key": "DATABASE_URL",
+    "value": "postgres://app:s3cret@postgres:5432/shop",
+    "isSecret": true,
+    "isBuildTime": false
+  }'
+```
+
+`scope` is `organization`, `project`, `environment` or `service`, and `scopeId` is that resource's id. Over MCP, the same call is the `env_var_create` tool.
+
+In a manifest, project variables go under the project's `variables` and environment variables under each environment's `variables`:
+
+```yaml title="storefront.logistack.yaml (excerpt)"
+version: 1
+kind: environment
+environment:
+  name: Production
+  slug: production
+  kind: production
+  variables:
+    - key: LOG_LEVEL
+      value: warn
+    - key: DATABASE_URL
+      secret: true
+```
+
+A secret without a value keeps the stored one when you apply.
+
+## Variables set on every deployment
+
+LogiStack sets these on every container. They are read-only, and names starting with `LOGISTACK_` are reserved for them.
+
+| Variable | Value |
+|---|---|
+| `LOGISTACK_DEPLOYMENT_ID` | The deployment that started this container |
+| `LOGISTACK_COMMIT_SHA` | Full hash of the deployed commit. Git sources only |
+| `LOGISTACK_COMMIT_MESSAGE` | First line of the commit message, up to 200 characters. Git sources only |
+| `LOGISTACK_BRANCH` | Branch the commit was built from. Git sources only |
+| `LOGISTACK_ENVIRONMENT` | Name of the environment |
+| `LOGISTACK_PROJECT` | Name of the project |
+| `LOGISTACK_SERVICE` | Name of the service |
+| `LOGISTACK_URL` | Primary domain with its scheme, such as `https://app.example.com`. Unset without a domain |
+| `LOGISTACK_FQDN` | Every hostname the service answers on, comma-separated. Unset without a domain |
+
+A Dockerfile build gets the ones it declares with `ARG`:
+
+```dockerfile
+ARG LOGISTACK_COMMIT_SHA
+ENV SENTRY_RELEASE=$LOGISTACK_COMMIT_SHA
+```
+
+## Check that it worked
+
+Open the **Terminal** tab and print the variable:
+
+```bash
+printenv LOG_LEVEL
+```
+
+If it shows the old value, the service hasn't been redeployed since the change. Select **Deploy**.
+
+## Common problems
+
+- **"Enter a value: the stored one is hidden from you"**: you added a key that exists as a secret you can't read. Type a new value or remove the row.
+- **"Defined twice"**: the same name appears on two rows. Keep one.
+- **A reserved name is refused**: names starting with `LOGISTACK_` belong to the deployment context variables. Rename yours.
+- **A build can't see a variable**: check its **Build** box and declare it with `ARG` in the Dockerfile.

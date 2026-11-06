@@ -1,0 +1,180 @@
+---
+title: Invite members and manage roles
+description: Invite teammates to your LogiStack organization with a one-time link, accept an invitation, change a member's role, add scoped access or remove them.
+---
+
+Members are the people who can sign in to your organization. You add them with an invitation link, give them a role on the whole organization, and optionally grant more on a single folder, project, environment or service. Use this page when someone joins or leaves the team, or needs more or less access.
+
+You need the **Owner** or **Admin** role to invite, change or remove members. Everyone else sees the member list read-only.
+
+## Invite a member
+
+LogiStack doesn't send email. Creating an invitation gives you a link that you share yourself, for example in Slack or your own email.
+
+<Steps>
+<Step>
+### Open Members
+
+In the sidebar, under **Settings**, select **Members**.
+
+![The Members page listing five people with their roles, 2FA status and scoped access chips, and one pending invitation for luca@logical.it](/screens/settings-members.webp)
+</Step>
+<Step>
+### Start the invitation
+
+Select **Invite member**.
+</Step>
+<Step>
+### Enter the email and role
+
+![The Invite member dialog with Email and Role fields](/screens/invite-dialog.webp)
+
+In **Email**, type the address the person will sign up with, for example `luca@logical.it`. In **Role**, pick the role they get on the whole organization. The default is **Developer**.
+
+Pick the smallest role that works. **Viewer** reads everything; **Developer** also deploys and edits. You can add narrower access afterwards.
+</Step>
+<Step>
+### Create the invitation
+
+Select **Create invitation**. The **Invitation ready** dialog shows the link.
+</Step>
+<Step>
+### Share the link
+
+Select the copy button next to the link and send it to the person. The link works once and expires in 7 days.
+</Step>
+</Steps>
+
+If your organization [requires two-factor authentication](./two-factor-and-passkeys.mdx#require-two-factor-for-the-whole-organization), the dialog also says how many days the new member has to add an authenticator app or a passkey.
+
+### Check it worked
+
+The invitation appears under **Pending invitations** with its role and the days left, for example `Developer · expires in 5 days`. From there you can:
+
+- Select **Copy link** to copy the link again.
+- Select **Cancel** to withdraw it. The link stops working.
+
+When the person accepts, they move from **Pending invitations** to **People**.
+
+### Common problems
+
+- **"Enter the address the invitation is for."** The email field is empty or not a valid address.
+- **The invitee lost the link.** Select **Copy link** on the pending invitation and send it again.
+- **The invitation expired.** Expired invitations disappear from the list. Create a new one.
+
+## Accept an invitation
+
+This is what the invited person does.
+
+<Steps>
+<Step>
+### Open the link
+
+Open the invitation link, which looks like `https://stack.example.com/accept-invitation/<id>`. The page says **You're invited**.
+</Step>
+<Step>
+### Sign in or create an account
+
+- Already have an account on this LogiStack instance? Select **Sign in to accept** and sign in with the invited address.
+- New here? Select **Create an account**, sign up with the invited email address, then open the invitation link again.
+</Step>
+<Step>
+### Accept
+
+The page now says **Join the organization** and shows the address you're signed in as. Select **Accept invitation**. LogiStack switches to the new organization and opens its home page.
+</Step>
+</Steps>
+
+Signed in with the wrong account? Select **Sign in as someone else** on the same page.
+
+<Callout type="info">
+If your company uses an identity provider, you may not need invitations at all. With [single sign-on](./sso.mdx), people from your email domain join on their first sign-in with the role you chose.
+</Callout>
+
+## Change a member's role
+
+The role in the member's row is their **organization role**: it applies to everything in the organization.
+
+1. Open **Settings › Members**.
+2. In the member's row, open the role menu (for example **Viewer**) and pick the new role. Custom roles are listed with a **Custom** tag.
+
+The change applies at once, and a message confirms it, for example "Marco Bassi is now Developer". You can't change your own role from this list.
+
+Ownership has extra rules:
+
+- Only an **Owner** can make someone an Owner, or change an Owner's role.
+- An organization always keeps at least one Owner. Make someone else Owner before you step down.
+
+## Add access on one folder, project, environment or service
+
+Use this when someone needs more on part of the tree, for example deploy rights on one client's projects while staying a Viewer elsewhere.
+
+<Steps>
+<Step>
+### Open the member's actions
+
+In the member's row, select the **⋯** button, then **Add access**.
+</Step>
+<Step>
+### Pick the role
+
+In **Role**, pick a built-in or custom role. **Owner** is not offered: ownership is organization-wide.
+</Step>
+<Step>
+### Pick where it applies
+
+In **Applies to**, choose the kind of scope (**Folder**, **Project**, **Environment**, **Service** or **Whole organization**), then the target. Targets show their path, for example `Clients / Acme` for a subfolder or `Storefront · Production` for an environment.
+
+The box below the fields reads back the result, for example "Marco Bassi becomes Developer on folder Clients, and everything inside it."
+</Step>
+<Step>
+### Grant it
+
+Select **Grant access**.
+</Step>
+</Steps>
+
+The grant shows as a chip under the member's email, for example **Developer on folder Clients**. To take it away, select the **×** on the chip. See [Roles and permissions](./roles-and-permissions.mdx) for how grants combine.
+
+## Read the member list
+
+Each row shows:
+
+- Name, email, and **You** next to yourself.
+- Second factor: **2FA** (authenticator app), **Passkey**, or **No 2FA**. When the organization requires two-factor, missing ones read **No 2FA, required**.
+- Scoped access chips, such as **Viewer on environment Storefront · Production**.
+- The organization role and when they joined.
+
+## Remove a member
+
+<Steps>
+<Step>
+### Open the member's actions
+
+In the member's row, select **⋯**, then **Remove from organization**.
+</Step>
+<Step>
+### Confirm
+
+Read the dialog and select **Remove member**.
+</Step>
+</Steps>
+
+<Callout type="warn">
+Removing a member takes away access to every project at once, along with all their scoped grants. Their API keys stop working, so anything that uses those keys (a CI pipeline, an agent) fails until it gets a new key. Move automation to a [service account](./service-accounts.mdx) first.
+</Callout>
+
+You can invite the same person again later. You can't remove yourself, and you can't remove the last Owner.
+
+## Do it from the API
+
+The same actions are available over the [REST API](../automation/rest-api.mdx) with an Admin key:
+
+```bash title="Create an invitation"
+curl -X POST https://stack.example.com/api/invitations \
+  -H "Authorization: Bearer $LOGISTACK_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "luca@logical.it", "role": "developer"}'
+```
+
+The response includes the `url` to share. `GET /api/members`, `PATCH /api/members/{id}` with `{"role": "viewer"}` and `DELETE /api/members/{id}` cover the rest.

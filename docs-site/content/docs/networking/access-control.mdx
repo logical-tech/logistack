@@ -1,0 +1,165 @@
+---
+title: Protect a domain with access rules
+description: Put a password, a sign-in gateway such as Authelia or Authentik, or an IP allowlist in front of a LogiStack domain, checked by the proxy before the service.
+---
+
+Access rules are checks the Caddy proxy runs before a request reaches your service. Use them for apps that ship without a login, admin panels, staging sites, or internal tools that only your office should reach. Saving a rule reloads the proxy only; the service is not redeployed.
+
+LogiStack has two levels:
+
+| Level | Where | Applies to | Kinds |
+| --- | --- | --- | --- |
+| Service | The **Basic auth** panel on the service's **Domains** tab | Every domain of the service, tunnel domains included | Username and password |
+| Domain | The shield button on a domain's row | That one hostname (and path prefix) | **IP allowlist**, **Sign-in gateway**, **Password** |
+
+A domain can have at most one rule of each kind. The proxy checks them in a fixed order, whatever order you added them in:
+
+1. **IP allowlist**: a request from an address not on the list gets `403`.
+2. **Sign-in gateway**: an external service decides each request.
+3. **Password**: the browser asks for a username and password.
+
+The service's own basic auth, if set, still applies after these.
+
+## Basic auth for a whole service
+
+<Steps>
+<Step>
+
+### Open the service's Domains tab
+
+Open the service and select the **Domains** tab. The **Basic auth** panel sits under the list of domains.
+
+![The Domains tab of the web service with the Basic auth panel switched off below the domain list](/screens/service-domains.webp)
+
+</Step>
+<Step>
+
+### Turn it on
+
+Turn on the switch next to **Basic auth**. An empty user row appears.
+
+</Step>
+<Step>
+
+### Add users
+
+Enter a username and a password of 8 or more characters. Select **Add user** for more rows. Saved users show their name read-only, and their password field says `unchanged`; type a new password only to change it.
+
+</Step>
+<Step>
+
+### Save
+
+Select **Save**. The proxy applies it within a few seconds.
+
+</Step>
+</Steps>
+
+To turn it off, switch it off and select **Save**.
+
+## Add a rule to one domain
+
+<Steps>
+<Step>
+
+### Open the access sheet
+
+On **Domains** (or the service's **Domains** tab), select the shield on the domain's row. A plain shield means the domain is open to anyone; a green shield with a check means it has rules. The **Access** sheet opens and lists the current rules, or says `Anyone who knows the address can reach it.`
+
+</Step>
+<Step>
+
+### Select Add rule
+
+Select **Add rule**. The flow has three steps: **Kind**, **Details**, **Check**.
+
+</Step>
+<Step>
+
+### Pick the kind
+
+Under **Kind of rule**, pick **IP allowlist**, **Sign-in gateway** or **Password**. Kinds the domain already has are not offered. Select **Continue**.
+
+</Step>
+<Step>
+
+### Fill in the details
+
+Fill in the fields for the kind. See the sections below. Select **Continue**.
+
+</Step>
+<Step>
+
+### Check and save
+
+**Check** summarizes what the rule does. For a sign-in gateway, test the endpoint first. Select **Save rule**. The proxy applies it within a few seconds.
+
+</Step>
+</Steps>
+
+To change a rule, select **Edit** on it; the flow opens on **Details**. To remove one, select the bin next to it.
+
+### Require a password
+
+**Password** asks the browser for a username and password, like the service-level basic auth but on one domain only.
+
+Add one row per user: a username of 1 to 64 characters without colons or spaces, and a password of 8 or more characters. Usernames must be unique. Passwords are stored as bcrypt hashes; nobody can read one back.
+
+```bash
+curl -u ana:correct-horse-battery https://staging.example.com
+```
+
+A request without valid credentials gets `401`.
+
+### Allow only some IP addresses
+
+**IP allowlist** lets through only the listed addresses. Everyone else gets `403`.
+
+- **Allowed addresses**: one per line, an address or a CIDR range, IPv4 or IPv6. Up to 100 entries.
+- **Trusted proxies** (optional): only if a load balancer or CDN sits in front of this server. Their `X-Forwarded-For` header is believed; every other request is judged by its own address.
+
+```txt title="Allowed addresses"
+203.0.113.7
+198.51.100.0/24
+2001:db8::/32
+```
+
+<Callout type="warn">
+If the domain's record is proxied by Cloudflare, every request arrives from a Cloudflare address. Without Cloudflare's ranges under **Trusted proxies**, an allowlist of your office's address blocks everyone, and an allowlist of Cloudflare's ranges lets everyone in.
+</Callout>
+
+The IP allowlist is not available on a [Cloudflare Tunnel](./cloudflare-tunnels.mdx) domain: through a tunnel every request comes from `cloudflared`, not from the visitor.
+
+### Require a sign-in gateway
+
+**Sign-in gateway** hands each request to an authentication service such as Authelia, Authentik or oauth2-proxy (forward auth). Run the gateway as a service in LogiStack or anywhere the proxy can reach.
+
+- **Auth endpoint**: the URL the proxy asks first, with the request's headers. A `2xx` answer lets the request through. Anything else, such as a redirect to the login page, goes back to the visitor. Example for Authelia: `http://authelia:9091/api/authz/forward-auth`.
+- **Headers passed to the service** (optional): headers copied from the gateway's `2xx` answer, so the service knows who signed in. Prefilled with `Remote-User, Remote-Groups, Remote-Email, Remote-Name`. A visitor cannot forge them.
+
+On **Check**, select **Send a test request**. The server asks the endpoint about a visitor who has not signed in:
+
+| Answer | Result |
+| --- | --- |
+| `401`, `403` or a redirect | Passes: `It refused an anonymous request with 302. Visitors it signs in get through once it answers 2xx.` |
+| `2xx` | Fails: every visitor would get through. Check the endpoint path. |
+| Any other status | Fails: nobody would get in. |
+| No answer | Fails with `The server could not reach it`. A name that resolves only on the proxy's network can still work for the proxy, so you can save anyway. |
+
+## Check that it works
+
+Open the domain in a private browser window. Depending on the rules, you should see a password prompt, the gateway's login page, or a `403` from an address not on the allowlist. On the Domains page, the domain's shield turns green.
+
+## Limits
+
+- A domain that redirects to another hostname sends visitors on before any check. The **Access** sheet says so and accepts no rules; protect the target domain instead.
+- Rules protect the domain, not the service. A [published port](./index.mdx#published-ports) bypasses the proxy and every rule on it.
+- There is no rule kind for the LogiStack dashboard itself. To keep the dashboard off the public internet, put it behind your own VPN or firewall.
+
+## Common problems
+
+**Everyone gets 403 behind Cloudflare or a load balancer.** Add the proxy's ranges to **Trusted proxies**.
+
+**The gateway login loops.** The gateway must know the protected domain and allow its cookie domain. Configure the gateway for `staging.example.com`, then test again.
+
+**`A redirect domain sends visitors on before any check`.** The domain has a redirect. Add the rule to the domain it redirects to.

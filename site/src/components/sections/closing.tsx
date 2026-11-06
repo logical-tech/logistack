@@ -45,8 +45,9 @@ const columns = [
 	[
 		"Docs",
 		[
-			["Install", `${site.github}#quick-start`],
-			["Migrate", `${site.github}#migrate-from-dokploy`],
+			["Documentation", site.docs],
+			["Install", `${site.docs}getting-started/install/`],
+			["Migrate", `${site.docs}operations/migrate-from-dokploy/`],
 			["Releases", `${site.github}/releases`],
 			["Security", `${site.github}/security`],
 		],

@@ -1,0 +1,121 @@
+---
+title: Concepts
+description: How LogiStack organizes your work into organizations, folders, projects, environments and services, and how it converges Docker Swarm and Caddy.
+---
+
+This page explains the objects you work with in LogiStack and how the platform turns them into running containers. Read it before your first deploy, or when a term in the dashboard is unclear.
+
+## The hierarchy
+
+Everything you create belongs to one tree:
+
+```text
+Organization: Logical
+├── Folder: Clients
+│   └── Folder: Acme Retail
+│       └── Project: Storefront
+│           ├── Environment: Production
+│           │   ├── Service: web       (application, from Git)
+│           │   ├── Service: postgres  (database)
+│           │   └── Service: media     (object storage)
+│           └── Environment: Staging
+│               └── Service: web
+└── Project: Status page   (no folder)
+    └── Environment: Production
+        └── Service: uptime
+```
+
+### Organization
+
+The top level. Members, roles, integrations (Git providers, registries, DNS providers, S3 destinations, notification channels) and API keys belong to an organization. The setup wizard creates the first one. See [Members and invitations](../team/members-and-invitations.mdx).
+
+### Folder
+
+An optional way to group projects, usually by client or team. Folders nest one level deep: a top-level folder can hold subfolders, and a subfolder cannot. A project can also sit at the top level with no folder. Permissions granted on a folder apply to every project inside it.
+
+### Project
+
+A project is one product or app, such as a shop, an API or an analytics install. It holds environments. A new project starts with a **Production** environment.
+
+### Environment
+
+An environment is an isolated set of services, variables and domains inside a project. Each environment has a kind:
+
+| Kind | Use it for |
+| --- | --- |
+| `production` | What your users see. |
+| `staging` | A copy for testing before release. |
+| `preview` | A short-lived environment for one pull request. LogiStack creates and removes these for you. See [Preview environments](../deploy/preview-environments.mdx). |
+| `custom` | Anything else, such as `qa` or `demo`. |
+
+Services in one environment reach each other by name on a private network (`postgres:5432` from `web`). Services in different environments cannot reach each other. See [Environments](../deploy/environments.mdx).
+
+### Service
+
+A service is one thing that runs: an app, a database, a storage server or a game server. Every service has a kind:
+
+| Kind | What it is |
+| --- | --- |
+| `application` | Your code, built from a Git repository with a Dockerfile, Railpack or as a static site, or a published Docker image. Web servers (Nginx, Caddy, Apache, a load balancer) are applications too. |
+| `database` | A managed PostgreSQL, MySQL, MariaDB, MongoDB, Redis or libSQL instance with generated credentials, backups and the [database editor](../data/database-editor.mdx). |
+| `compose` | A container that belongs to a compose stack (see below). |
+| `storage` | S3-compatible object storage: MinIO, RustFS, Garage or SeaweedFS. See [Object storage](../data/object-storage.mdx). |
+| `game` | A Minecraft, Counter-Strike 2, TeamSpeak or Mumble server with a console. See [Game servers](../deploy/game-servers.mdx). |
+
+A service has a **desired state** (`running` or `stopped`) that you set with **Deploy**, **Stop** and **Restart**, and an **observed state** that LogiStack reads from Docker: `running`, `starting`, `unhealthy`, `stopped`, `failed` or `unknown`. The dashboard shows both, for example "Running 2/3" when two of three replicas are up.
+
+### Stack
+
+A stack is a group of services created together from one compose file. It comes from a template in the catalog, a `docker-compose.yml` you paste, or a compose file in a Git repository. Each compose service becomes a LogiStack service in the same environment, and official database images become managed databases. See [Compose stacks](../deploy/compose-stacks.mdx) and [Templates](../deploy/templates.mdx).
+
+## Deployments
+
+A deployment is one attempt to release a new version of a service. It records who or what started it (`manual`, `git_push`, `webhook`, `rollback`, `schedule` or `api`), the commit, the image and the full log. It moves through these states:
+
+```text
+queued → cloning → building → pushing → deploying → healthy
+```
+
+- `cloning`, `building` and `pushing` apply to Git sources only. An image source goes straight from `queued` to `deploying`.
+- `awaiting_checks` holds a push until the commit's CI checks pass. `releasing` runs a pre-deploy command on the new image while the old version keeps serving.
+- A deployment ends `healthy`, `failed`, `cancelled`, `superseded` (a newer deployment replaced it) or `skipped` (for example, the commit message contains `[skip ci]`).
+
+The old version serves traffic until the new one passes its health check. If the new tasks fail, Docker Swarm rolls the service back. See [Deployments and rollbacks](../deploy/deployments.mdx).
+
+## Domains
+
+A domain routes a hostname to a port of a service, for example `shop.acme-retail.it` to port `3000` of `web`. A domain can be:
+
+- **Generated**: a hostname under the instance's base domain, such as `web-x7k2p9.srv1.example.com` or `web-x7k2p9.203-0-113-7.sslip.io`. It works without any DNS change.
+- **Custom**: your own hostname. You point a DNS record at the server, or a connected DNS provider creates it.
+
+HTTPS certificates come from Let's Encrypt. See [Domains](../networking/domains.mdx) and [HTTPS certificates](../networking/https-certificates.mdx).
+
+## Nodes
+
+A node is a server in the cluster. The server you install on is the first node and a Swarm manager. You can add more servers from **Monitoring**. Each node runs the LogiStack agent, which reports metrics and streams logs. A node is `pending`, `ready`, `draining` or `down`. A service with a volume is pinned to the node that holds the volume. See [Nodes](../operations/nodes.mdx).
+
+## How LogiStack applies changes
+
+LogiStack keeps the **desired state** of every resource in its Postgres database: which services should run, with which image, replicas, variables and domains. A **reconciler** in the worker compares that with what Docker Swarm and the Caddy proxy actually run, and changes only the difference. It runs when you change something, and again every 30 seconds as a safety net.
+
+This has practical effects:
+
+- **Every operation is safe to repeat.** If a server restarts in the middle of a deploy, the next reconcile pass finishes the job instead of leaving a half-applied change.
+- **Drift is repaired.** If someone removes a LogiStack service by hand with `docker service rm`, the reconciler creates it again.
+- **LogiStack only touches its own objects.** Every Docker service, network and volume it creates carries the label `logistack.managed=true` and a `logistack.resource` label with the resource ID. Docker names derive from IDs (`ls-svc-<id>`), never from the names you type, so renaming a service never breaks it. Containers you run yourself on the same server are left alone.
+- **The proxy never restarts to pick up a route.** The worker compiles every active domain into one Caddy configuration and loads it through Caddy's admin API. If the new configuration is invalid, Caddy keeps the old one and the domain shows the error.
+
+### Immutable image tags
+
+Each build is pushed with the deployment ID as its tag:
+
+```text
+registry.srv1.example.com/<organization>/<service>:dep_k3m9x2
+```
+
+LogiStack never deploys a moving tag such as `:latest` for code it builds. A rollback points the service back at an earlier tag that still exists in the registry, so it does not rebuild anything. For image sources, pin a version yourself (`ghcr.io/acme/api:1.4.2`) for the same reason.
+
+## Permissions
+
+Access follows the same tree. A role granted on an organization applies to every folder, project, environment and service below it; a grant on a project applies only to that project. The built-in roles are owner, admin, developer and viewer, and you can create custom roles. See [Roles and permissions](../team/roles-and-permissions.mdx).

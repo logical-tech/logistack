@@ -1,0 +1,15 @@
+{
+	"title": "Operate",
+	"icon": "Activity",
+	"pages": [
+		"index",
+		"logs-and-terminal",
+		"metrics",
+		"nodes",
+		"alerts-and-notifications",
+		"usage",
+		"updates",
+		"migrate-from-dokploy",
+		"migrate-from-coolify"
+	]
+}

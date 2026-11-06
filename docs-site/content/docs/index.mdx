@@ -1,0 +1,63 @@
+---
+title: Introduction
+description: LogiStack is a self-hosted platform that deploys apps, databases and compose stacks to your own servers with HTTPS, backups, metrics and a REST API.
+---
+
+LogiStack is a self-hosted platform as a service. You install it on your own Linux server, and it turns that server, or a Docker Swarm cluster of several servers, into a place where you deploy apps from Git, run databases with backups, and route domains over HTTPS from one dashboard. Read this page to learn what LogiStack does and where to start.
+
+![The LogiStack Home page, with service health across 8 projects, recent failures and nodes](/screens/home.webp)
+
+## Install in one command
+
+On a fresh Ubuntu 22.04+ or Debian 12+ server with at least 2 GB of RAM, run:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
+```
+
+The installer sets up Docker and Swarm, deploys LogiStack, and prints how to open the setup wizard in your browser. See [Install LogiStack](./getting-started/install.mdx) for requirements, flags and a dry run.
+
+## Who it is for
+
+- **Agencies and freelancers** who host many client projects on a few servers and want them grouped by client, with folders, roles and per-project usage.
+- **Small product teams** who want the "push to deploy" experience of Heroku or Vercel, but on servers they rent and control, with no per-seat or per-app pricing.
+- **Self-hosters** who run open-source apps (n8n, Plausible, Umami, Minecraft) and want backups, HTTPS and updates handled for them.
+
+LogiStack has no paid edition. Every feature in these docs ships in the same open build.
+
+## What it does
+
+| Area | What you get |
+| --- | --- |
+| Deploy | Apps from a Git repository (Dockerfile, Railpack or static site), from a published Docker image, from a `docker-compose.yml`, or from a catalog of ready-made templates. |
+| Releases | Zero-downtime rolling updates, automatic rollback when a new version fails its health check, and one-click rollback to any earlier deployment. Every build gets an immutable image tag. |
+| Environments | Production, staging, custom environments and pull request previews, each with its own variables, network and domains. |
+| Domains and HTTPS | Generated hostnames that work right away, your own domains, wildcard certificates over DNS-01 through Cloudflare, Route 53 or Hetzner DNS, and Cloudflare Tunnels. |
+| Databases | PostgreSQL, MySQL, MariaDB, MongoDB, Redis and libSQL, with a database editor in the browser. |
+| Backups | Scheduled database and volume backups to any S3-compatible bucket, with retention and restore. |
+| Object storage | S3-compatible storage (MinIO, RustFS, Garage, SeaweedFS) with buckets, scoped keys and share links. |
+| Observability | Live logs, a terminal into running containers, CPU, memory, disk and network metrics, alert thresholds and notifications to Slack, Discord, email and more. |
+| Cluster | Add servers from the dashboard. LogiStack runs on Docker Swarm, so services spread across nodes. |
+| Team | Organizations, folders, built-in and custom roles, invitations, SSO over OIDC or SAML, two-factor and passkeys, and an audit log. |
+| Automation | A REST API with an OpenAPI description, an MCP server for AI agents, project manifests and Git webhooks. |
+
+## How it compares
+
+LogiStack sits in the same space as Heroku, Render or Vercel: you describe what to run, and the platform builds it, deploys it, gives it a URL and keeps it running. The difference is where it runs. LogiStack runs on your own servers, so your data, logs and backups stay with you, and the cost is the cost of the servers.
+
+Under the hood LogiStack keeps the state you ask for in Postgres and a reconciler converges Docker Swarm and the Caddy proxy to it. A crashed step or a restarted server does not leave things half done: the next pass fixes the difference. [Concepts](./getting-started/concepts.mdx) explains the model.
+
+If you already run Dokploy or Coolify, LogiStack can move your projects, databases and domains over one service at a time while the old platform keeps serving traffic. See [Migrate from Dokploy](./operations/migrate-from-dokploy.mdx) and [Migrate from Coolify](./operations/migrate-from-coolify.mdx).
+
+## Start here
+
+<Cards>
+  <Card title="Install LogiStack" href="/getting-started/install" description="Requirements, the one-line installer, flags and firewall ports." />
+  <Card title="Deploy your first app" href="/getting-started/first-deploy" description="Create a project, add a service, attach a domain and open it over HTTPS." />
+  <Card title="Deploy from Git" href="/deploy/from-git" description="Connect GitHub, GitLab, Gitea or Bitbucket and deploy on every push." />
+  <Card title="Domains" href="/networking/domains" description="Generated hostnames, your own domains and automatic certificates." />
+  <Card title="Backups" href="/data/backups" description="Scheduled database and volume backups to S3-compatible storage." />
+  <Card title="MCP server" href="/automation/mcp-server" description="Let an AI agent deploy and inspect services through MCP." />
+  <Card title="Concepts" href="/getting-started/concepts" description="Organizations, projects, environments, services and how they converge." />
+  <Card title="Dashboard tour" href="/getting-started/dashboard-tour" description="Where everything lives in the sidebar, and the command menu." />
+</Cards>

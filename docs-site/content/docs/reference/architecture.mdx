@@ -1,0 +1,120 @@
+---
+title: Architecture
+description: How LogiStack works inside. The api, worker, agent, Postgres, Redis, Caddy and BuildKit, the reconciler, Docker labels, immutable image tags and networks.
+---
+
+LogiStack is a control plane that runs as one Docker Swarm stack on your servers. You describe what should run, LogiStack stores that in Postgres, and a reconciler makes Docker and the Caddy proxy match it. Read this page when you need to understand what runs where, debug a deployment at the Docker level, or plan a multi-server setup.
+
+## Components
+
+```txt
+                  browser, CLI, CI, AI agent (REST, /mcp, /ws)
+                                  │
+                                  ▼  :80 / :443
+ ┌──────────────────────────── caddy (global, ingress nodes) ─────────────────────────┐
+ │  dashboard domain ─────────► logistack-api        app domains ─► ls-svc-<id>:port  │
+ └─────────────────────────────────────────────────────────────────────────────────────┘
+          │                         │                 ▲
+          │ ls-control              │ ls-control      │ admin API /load (ls-control)
+          ▼                         ▼                 │
+   ┌──────────────┐   jobs    ┌──────────────────┐────┘
+   │ logistack-api │ ───────► │ logistack-worker │ ── Docker Engine API (Unix socket)
+   │ REST, /mcp,   │  Redis   │ deploys, builds, │ ── buildctl ─► ls-buildkit
+   │ /ws, web UI   │ ◄─────── │ reconciler, jobs │ ── push ─────► registry (local or external)
+   └──────┬───────┘  events   └────────┬─────────┘
+          │                            │
+          ▼                            ▼
+     ┌──────────┐               ┌──────────┐
+     │ postgres │               │  redis   │
+     │ desired  │               │ queues,  │
+     │ state    │               │ pub/sub, │
+     └──────────┘               │ certs    │
+                                └──────────┘
+          ▲
+          │ WebSocket (/api/agent/ws), opened by each agent
+   ┌──────┴─────────────┐
+   │ logistack-agent    │  one per node (global)
+   │ metrics, events,   │
+   │ logs, terminal,    │
+   │ files, backups     │
+   └────────────────────┘
+```
+
+| Component | Runs as | Does |
+| --- | --- | --- |
+| `logistack-api` | Stack service, 1 replica | The REST API (OpenAPI at `/api/openapi.json`), the [MCP server](../automation/mcp-server.mdx) at `/mcp`, the realtime WebSocket at `/ws`, and the dashboard's static files. Writes desired state to Postgres and queues jobs. Never runs builds. |
+| `logistack-worker` | Stack service, 1 replica | Processes the queues: deployments, builds, backups, schedules, migrations, updates. Runs the reconciler and the proxy sync. Talks to Docker through the Engine API on the Unix socket. |
+| `logistack-agent` | Stack service, global (one per node) | Opens a WebSocket to the api and keeps it open. Reports host and container metrics and Docker events, streams logs, runs terminal sessions, reads and writes files in volumes, and archives volumes for backups on its own node. |
+| `postgres` | Stack service, Postgres 17, 1 replica on the `logistack.data=true` node | The desired state of everything, the audit log and aggregated metrics. |
+| `redis` | Stack service, Redis 7, 1 replica on the `logistack.data=true` node | Job queues (BullMQ), realtime pub/sub between api and worker, and Caddy's shared certificate storage. |
+| `caddy` | Stack service, global on nodes labelled `logistack.ingress=true` | The only thing listening on ports 80 and 443. Terminates TLS, obtains certificates, routes each hostname to its service. Configured through its admin API, never by files or labels. |
+| `ls-buildkit` | Service the worker creates on the first build | Rootless BuildKit. Builds images from Dockerfiles, Railpack and static sites. Keeps its cache in the `ls-buildkit-cache` volume. |
+| `ls-registry` | Service the worker creates when you turn on the local registry | A Zot OCI registry with garbage collection. Required for builds on more than one node, unless you use an [external registry](../deploy/registries.mdx). |
+
+The agent connects to the api, not the other way round. Nodes need no inbound port for LogiStack's own traffic beyond the Swarm ports, and SSH is used only once, to bootstrap a new node.
+
+## Desired state and the reconciler
+
+Every resource (service, domain, variable, volume, schedule) is a row in Postgres that describes what should exist. The dashboard, the API, manifests and the MCP server only ever change those rows. The worker then converges reality to them:
+
+1. **Deploy jobs.** A deployment moves through `queued`, `cloning`, `building` and `pushing` (git sources only), `releasing` (when a pre-deploy command is set), `deploying`, and ends `healthy`, `failed`, `cancelled`, `superseded` or `skipped`. Each transition emits an event that feeds the dashboard, notifications and the audit log.
+2. **The reconciler** runs every 30 seconds as a safety net. It compares each service's desired state with what Docker reports, records the observed state (`running`, `starting`, `unhealthy`, `stopped`, `failed`), detects crash loops, and removes orphaned objects that carry LogiStack's labels but no longer have a row.
+3. **The proxy sync** compiles every active domain into one Caddy JSON configuration and loads it into each Caddy instance. If Caddy rejects it, Caddy keeps the previous configuration and the error is shown on the domain.
+
+Every operation is idempotent. If the worker stops halfway through a deploy, the next attempt finds the half-applied state and finishes it instead of starting over. The compilers that turn a row into a Docker service spec or a Caddy config are pure functions with no I/O.
+
+Rollouts are done by Swarm itself: each service updates start-first, monitors new tasks, and rolls back automatically when they fail. A service with a domain and no health check of its own gets a TCP check on its port, so a rollout only completes once the new replicas listen.
+
+## Labels and names
+
+Every Docker object LogiStack creates carries these labels:
+
+| Label | Value |
+| --- | --- |
+| `logistack.managed` | `true` |
+| `logistack.resource` | The ID of the row it belongs to, such as `svc_m2h5j8k1l4z9` |
+| `logistack.kind` | The kind of object, such as a service, database, network or volume |
+| `logistack.org` | The organization ID |
+
+Cleanup only ever touches objects with `logistack.managed=true`. Containers, services, networks and volumes you create yourself on the same Swarm are never removed.
+
+Docker names derive from IDs, never from names you type: a service with ID `svc_m2h5j8k1l4z9` runs as the Swarm service `ls-svc-m2h5j8k1l4z9`, and an environment's network is `ls-env-<id>`. Renaming a service in the dashboard changes nothing in Docker. To find a service's Docker objects:
+
+```sh
+docker service ls --filter label=logistack.resource=svc_m2h5j8k1l4z9
+docker service ps ls-svc-m2h5j8k1l4z9 --no-trunc
+```
+
+## Immutable image tags
+
+A git build is tagged with the deployment's ID, never `:latest`:
+
+```txt
+<registry>/<org>/<service>:<deploymentId>
+```
+
+Each deployment therefore points at exactly one image. A [rollback](../deploy/deployments.mdx) updates the service to the image of the deployment you pick, without rebuilding. On a single node without a registry, the image stays local to that node. Services that run a prebuilt image keep the reference you gave them; pin a version tag such as `ghcr.io/acme/api:1.4.2` for the same guarantee.
+
+## Networks
+
+| Network | Members | Purpose |
+| --- | --- | --- |
+| `ls-control` | api, worker, agents, Caddy's admin API, Postgres, Redis | The control plane. Apps never join it. |
+| `ls-ingress` | Caddy and only the services that have a domain | Incoming HTTP traffic. Databases never join it. |
+| `ls-env-<id>` | Every service of one environment | Services reach each other by name inside an environment. Environments are isolated from each other by default. |
+| `ls-db` | Database services, the api and the worker | Lets the [database editor](../data/database-editor.mdx) reach databases. Apps never join it. |
+| `ls-storage` | Object storage services, the api and the worker | The object browser and backups to LogiStack storage. Apps never join it. |
+| `ls-game` | Game servers, the api and the worker | RCON and ServerQuery for game panels. Apps never join it. |
+
+Caddy and the api join fixed networks, so adding an environment never restarts them. The trade-off is that services with a domain can reach each other on `ls-ingress`.
+
+Ports 80 and 443 are published in host mode on each ingress node, so Caddy sees the real client IP. Ports you publish for a service also default to host mode, on the node the task runs on.
+
+## Data and nodes
+
+- Named volumes are local to a node. A service with a volume, a database or a bind mount is pinned to the node that holds its data.
+- Config files you mount are stored encrypted in Postgres and delivered as Swarm configs, available on every node.
+- Variables and secrets are encrypted at rest with AES-256-GCM under the master key, a Docker secret created by the installer.
+- Postgres and Redis run on the node labelled `logistack.data=true`; Caddy on nodes labelled `logistack.ingress=true`.
+
+See [Nodes](../operations/nodes.mdx) for adding servers.

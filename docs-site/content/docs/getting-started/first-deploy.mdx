@@ -1,0 +1,237 @@
+---
+title: Deploy your first app
+description: Create a project, add a service from a Git repository or a Docker image, give it an HTTPS domain, deploy it and follow its build and logs in LogiStack.
+---
+
+This tutorial takes you from an empty LogiStack to an app running on its own HTTPS URL. You create a project, add a service, give it a domain, deploy it and read its logs. It takes about five minutes. You need a finished [setup wizard](./setup-wizard.mdx) and the owner account, or any account with the developer role or higher.
+
+You can follow it with one of three sources:
+
+- **A Docker image**: the quickest path. The example uses `nginxdemos/hello`, a tiny web server that shows a page with its hostname.
+- **A Git repository**: LogiStack builds your code. A public repository works without any setup; a private one needs a [Git provider](../deploy/from-git.mdx).
+- **A template**: a ready-made app such as n8n or Umami, with its database. See [Templates](../deploy/templates.mdx).
+
+## Create a project
+
+<Steps>
+<Step>
+
+### Open Projects
+
+In the sidebar, select **Projects**.
+
+![The Projects page, with folders on the left and project cards grouped by folder](/screens/projects.webp)
+
+</Step>
+<Step>
+
+### Create the project
+
+Select **New project**. In the dialog, fill in:
+
+![The New project dialog with Name, Description and Folder fields](/screens/project-new-dialog.webp)
+
+- **Name**: `Hello`.
+- **Description** (optional): `My first LogiStack app`.
+- **Folder**: leave **No folder**.
+
+Select **Create project**. The project opens with one environment, **Production**.
+
+</Step>
+</Steps>
+
+![A project page with environment tabs for Production, Staging and a pull request preview, listing each service with its source, domain and status](/screens/project.webp)
+
+The project page lists its environments as tabs and the services of the selected environment as rows. Your new project has no services yet.
+
+## Add a service
+
+<Steps>
+<Step>
+
+### Start the New service wizard
+
+On the project page, with **Production** selected, select **New service**.
+
+![The New service wizard on its first step, Choose a source, with Git repository, Docker image, Database, Docker Compose, Object storage, Game server, Web server and Templates](/screens/service-new.webp)
+
+</Step>
+<Step>
+
+### Choose a source
+
+<Tabs items={["Docker image", "Git repository", "Template"]}>
+<Tab value="Docker image">
+
+Select **Docker image**, then **Continue**.
+
+</Tab>
+<Tab value="Git repository">
+
+Select **Git repository**, then **Continue**.
+
+</Tab>
+<Tab value="Template">
+
+Select **Templates** at the bottom of the list. The template catalog opens. Pick an app, fill in the few fields it asks for, and deploy it. LogiStack creates the app, its database and generated secrets as one stack. Then skip to [Watch the deployment](#watch-the-deployment). See [Templates](../deploy/templates.mdx) for details.
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### Configure the service
+
+<Tabs items={["Docker image", "Git repository"]}>
+<Tab value="Docker image">
+
+Fill in:
+
+- **Image**: `nginxdemos/hello:latest`. For your own apps, pin a version tag or digest, such as `ghcr.io/acme/web:2.4.1`: `:latest` makes rollbacks unpredictable.
+- **Container port**: `80`, the port the image listens on.
+- **Service name**: `hello`. If you leave it empty, LogiStack uses the image name.
+
+Leave **Resources** and **Advanced** as they are. Select **Continue**.
+
+</Tab>
+<Tab value="Git repository">
+
+Fill in:
+
+- **Git provider**: shown only when you have connected one. Choose it to pick a private repository from a list, or keep **Public repository over HTTPS**.
+- **Repository**: for a public repository, its URL without `https://`, for example `github.com/acme/storefront`.
+- **Branch**: `main`.
+- **Root directory**: `/`, or the app's folder in a monorepo, such as `/apps/web`.
+- **Watch paths** (optional): leave empty to build on every push.
+- **Build with**: **Dockerfile** if the repository has one, **Railpack (no Dockerfile needed)** to detect the language and build without one, or **Static site** for plain HTML or a built site.
+- **Container port**: the port your app listens on, for example `3000` for a Node.js app.
+- **Service name**: `web`. If you leave it empty, LogiStack uses the repository name.
+
+Select **Continue**. See [Build types](../deploy/build-types.mdx) for how each builder works.
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### Test the source
+
+LogiStack checks it can reach the source before it creates anything. For an image it fetches the image manifest; for a repository it reads the branch.
+
+Select **Test connection**. When the test passes, select **Continue**. If it fails, the message says why, for example a misspelled image name or a branch that does not exist. Select **Back**, fix the field, and test again.
+
+</Step>
+<Step>
+
+### Choose a domain
+
+Under **Domain**, choose **Generated hostname**. The description shows the hostname you will get, for example `hello-xxxxxx.srv1.example.com`, where `xxxxxx` is filled in when the service is created. It works without any DNS change.
+
+To use your own hostname instead, choose **Custom hostname** and enter it in **Hostname**, for example `hello.example.com`. Point an A record for that name at your server's IP first.
+
+Keep **HTTPS** on: LogiStack requests a certificate from Let's Encrypt and redirects HTTP to HTTPS. Select **Continue**.
+
+</Step>
+<Step>
+
+### Review and create
+
+Check the summary: source, port, service name, environment and hostname. Select **Create and deploy**.
+
+A notice says "hello is deploying", and you return to the project page. The new service appears in the list.
+
+</Step>
+</Steps>
+
+## Watch the deployment
+
+<Steps>
+<Step>
+
+### Open the service
+
+On the project page, select the `hello` row. The service opens on its **Overview** tab.
+
+</Step>
+<Step>
+
+### Open Deployments
+
+Select the **Deployments** tab. The list on the left shows each deployment with its status, commit (for Git) and trigger. The panel on the right streams the selected deployment's log live.
+
+![The Deployments tab of a service, with a deployment in progress and its build log streaming on the right](/screens/service-deployments.webp)
+
+An image deployment goes from **Queued** to **Deploying** to **Ready** in a few seconds. A Git deployment also passes through **Cloning**, **Building** and **Pushing**; the first build of a project usually takes one to three minutes. Use **Search output** to filter the log, and **Follow** to keep the newest lines in view.
+
+</Step>
+</Steps>
+
+While the new version starts, the previous one keeps serving traffic. LogiStack switches over only when the new container passes its health check. If it never does, the deployment fails and the previous version keeps running.
+
+## Read the logs
+
+Select the **Logs** tab. It shows the output of the running containers, not the build.
+
+![The Logs tab, streaming request lines from three replicas with replica numbers, a time range picker and a search box](/screens/service-logs.webp)
+
+- **All replicas** filters to one replica when the service runs several.
+- **5m**, **1h**, **24h** and **All** set the time range, and **Last 500** sets how many lines to load.
+- **Search output** filters lines as you type. **Follow** keeps streaming new lines.
+
+For `nginxdemos/hello`, each request you make in the next step adds one access log line here.
+
+## Open the app
+
+<Steps>
+<Step>
+
+### Find the URL
+
+Select the **Domains** tab. The table lists each hostname with its **Status**, **TLS** method and **Certificate** expiry.
+
+![The Domains tab of a service, listing shop.acme-retail.it as Active with a DNS-01 certificate valid for 61 days](/screens/service-domains.webp)
+
+Wait until the status is **Active**. The first certificate usually takes under a minute.
+
+</Step>
+<Step>
+
+### Visit it
+
+Select the hostname, or copy it into your browser: `https://hello-xxxxxx.srv1.example.com`. The nginx demo page shows the server address and container name.
+
+</Step>
+</Steps>
+
+## Check that it worked
+
+Select the **Overview** tab.
+
+![The Overview tab of a service, showing three running replicas on nodes fra-1 and fra-2, the desired and observed state, and its active domain](/screens/service-overview.webp)
+
+- **Replicas** lists each running container, the node it runs on and since when.
+- **State** shows **Desired** `Running` and **Observed** `Running`, with **Replicas** `1 of 1 running`.
+- **Domains** shows your hostname as **Active**.
+
+The header shows the same status next to the service name, for example **Running 1/1**, and the buttons **Stop**, **Restart** and **Deploy**.
+
+## Next steps
+
+- Push a change: for a Git service, every push to the branch deploys it, when the repository's webhook is set up. See [Deploy from Git](../deploy/from-git.mdx).
+- Add configuration: set variables in the **Environment** tab. See [Environment variables](../deploy/environment-variables.mdx).
+- Add a database: select **New service** again and choose **Database**. Apps reach it by its service name. See [Databases](../deploy/databases.mdx).
+- Roll back: in **Deployments**, select an earlier ready deployment and choose **Roll back to this**. See [Deployments and rollbacks](../deploy/deployments.mdx).
+
+## Common problems
+
+**The test step fails for an image.** The image name or tag is wrong, or the image is private. For a private registry, add it under **Integrations > Registries** first. See [Deploy a Docker image](../deploy/from-image.mdx).
+
+**The test step fails for a repository.** The repository is private, or the branch does not exist. Connect a Git provider and choose it in **Git provider**.
+
+**The deployment stays in Deploying, then fails.** The container did not pass its health check. The usual cause is a wrong **Container port**: the app listens on a different port than the one you entered. Open **Logs** to see what the app printed ("listening on 8080", for example), then open the **Domains** tab, select the edit (pencil) icon on the domain, and set **Port** to the port the app listens on.
+
+**The build fails.** Open the failed deployment in **Deployments** and read the last lines of the log. Common causes are a missing `Dockerfile` with **Build with** set to **Dockerfile**, or a missing build script. Try **Railpack (no Dockerfile needed)** for a repository without a Dockerfile.
+
+**The domain stays Pending or shows an error.** For a custom hostname, check that its A record points at the server and that ports 80 and 443 are open. See [Domains](../networking/domains.mdx).

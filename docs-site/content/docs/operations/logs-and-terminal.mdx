@@ -1,0 +1,146 @@
+---
+title: View logs and open a terminal
+description: Follow a service's live logs across replicas, search and filter them, read a compose stack's logs on one timeline, and open a shell in a running container.
+---
+
+Every service has a **Logs** tab that streams what its containers print to stdout and stderr, and a **Terminal** tab that opens a shell inside a running container. Use them when a deployment comes up but misbehaves, when a request fails, or when you need to run a one-off command such as a database migration. Compose stacks have a **Logs** tab too, with every container on one timeline.
+
+## Follow a service's logs
+
+<Steps>
+<Step>
+### Open the Logs tab
+
+Open the project, select the service, and select **Logs**. The stream starts right away with the last 500 lines from the past hour, from every running replica, and keeps following new output.
+
+![The Logs tab of the web service, following 3 replicas, with each line tagged #1 or #2 by replica](/screens/service-logs.webp)
+</Step>
+<Step>
+### Pick the replicas
+
+The first menu reads **All replicas**. When a service runs more than one replica, each line starts with its replica number (`#1`, `#2`). To read one replica alone, open the menu and pick it, for example **Replica #2 on fra-2**.
+</Step>
+<Step>
+### Set the time window
+
+Select **5m**, **1h**, **24h** or **All** (since the replica started). The default is **1h**.
+</Step>
+<Step>
+### Set how many lines to load
+
+Open the lines menu and pick **Last 100**, **Last 500**, **Last 2000** or **Every line**. The count applies per replica.
+</Step>
+</Steps>
+
+The bar at the bottom says what the viewer follows, for example `Following 3 replicas`, and counts the lines loaded.
+
+When a deployment replaces the replicas, the viewer switches to the new ones on its own. You do not need to reload the page.
+
+### Search the output
+
+Select **Search output** (or press <kbd>Cmd</kbd>+<kbd>F</kbd> on macOS, <kbd>Ctrl</kbd>+<kbd>F</kbd> elsewhere, while the viewer has focus) and type, for example `timed out`. Matches are highlighted.
+
+- Press <kbd>Enter</kbd> for the next match and <kbd>Shift</kbd>+<kbd>Enter</kbd> for the previous one, or use **Next match** and **Previous match**.
+- Press <kbd>Esc</kbd> or select **Clear search** to clear it.
+
+Jumping to a match stops following, so the view stays on the match.
+
+### Follow, pause and copy
+
+- **Follow** keeps the newest line in view. Scroll up to read older lines and following stops; select **Follow** to resume.
+- **Copy all output** copies every loaded line to the clipboard, ready to paste into an issue.
+
+### Share a filtered view
+
+The filters live in the page address, so you can send a link to exactly what you see. For example:
+
+```text title="Last 24 hours of one replica, every line"
+https://logistack.example.com/projects/prj_storefront/services/svc_web/logs?since=24h&tail=all&replica=<task-id>
+```
+
+### When there is nothing to show
+
+- **No replica is running, so there is nothing to follow.** The service is stopped or every replica crashed. Start or deploy the service, then come back. The [Deployments](../deploy/deployments.mdx) tab shows the build and deploy log of the last attempt.
+- **No output in this window.** The containers run but printed nothing in the chosen window. Select **All** or a longer window.
+- **Stream ended: …** The connection dropped, for example because the node went down. Reload the page to reconnect.
+
+## Read a compose stack's logs
+
+A [compose stack](../deploy/compose-stacks.mdx) runs several containers. Its **Logs** tab merges them into one timeline, with each line tagged by its container name in its own colour.
+
+<Steps>
+<Step>
+### Open the stack's Logs tab
+
+Open the project, select the stack, and select **Logs**.
+
+![The Logs tab of the plausible stack, following 3 of 3 containers, each line tagged plausible, plausible-db or clickhouse](/screens/stack-logs.webp)
+</Step>
+<Step>
+### Filter by container
+
+The first menu reads **All containers**. Pick one container, for example `clickhouse`, to read it alone. Containers that are not running are greyed out.
+</Step>
+<Step>
+### Set the time window
+
+Select **5m**, **1h** or **24h**. The viewer loads the last 500 lines of each container in that window, then follows.
+</Step>
+</Steps>
+
+Search, **Follow** and **Copy all output** work as on a service. The bottom bar shows how many containers you follow, for example `Following 3 of 3 containers`.
+
+## Open a terminal in a container
+
+The **Terminal** tab opens an interactive shell inside one running container of the service, as the container's own user. Use it to inspect files, run a migration (`bun run db:migrate`, `php artisan migrate`) or check connectivity to another service.
+
+<Callout type="warn">
+Commands you run in the terminal change the running container directly. They are not part of the service's configuration, so a redeploy or a restart discards file changes made outside a volume.
+</Callout>
+
+<Steps>
+<Step>
+### Open the Terminal tab
+
+Open the service and select **Terminal**. LogiStack connects to the first running replica with `sh`. The status next to the controls goes from **Connecting** to **Connected** and names the replica, for example `Replica #1 on fra-1`.
+
+If you see **The terminal needs the Terminal permission**, your role does not include it. A shell runs commands inside the container, so the permission is granted on its own, apart from deploy and write. Ask an admin to add **Terminal** to your role for this service or a scope above it. See [Roles and permissions](../team/roles-and-permissions.mdx).
+
+![The Terminal tab of the web service, showing that the Terminal permission is needed to open a shell](/screens/service-terminal.webp)
+</Step>
+<Step>
+### Pick the replica
+
+Open the **Replica** menu and pick a replica, for example **Replica #2 on fra-2**, or keep **First running replica**. Changing it opens a new session.
+</Step>
+<Step>
+### Pick the shell
+
+Select **sh** or **bash**. Slim images such as Alpine or distroless ship no bash. If bash fails to start, the status says the image may not include bash; select **sh**.
+</Step>
+<Step>
+### Run your command
+
+Type in the terminal as you would over SSH:
+
+```sh
+env | grep DATABASE_URL
+wget -qO- http://api:3000/healthz
+```
+</Step>
+</Steps>
+
+### End or restart a session
+
+Type `exit` to end the shell. The status shows **Exited** with the exit code. Select **Restart session** (while connected) or **Reconnect** (after it ended) for a fresh shell.
+
+### Common problems
+
+- **No replica is running.** A shell needs a running container. Start or deploy the service, then select **Reconnect**.
+- **Disconnected.** The connection closed, for example because the replica was replaced by a deployment. Select **Reconnect**; you land on a current replica.
+- **The command is not found.** The image does not include the tool. Install it for the session (`apk add curl`, `apt-get install -y curl`) or add it to your Dockerfile.
+
+## Related
+
+- [Metrics](./metrics.mdx) for CPU and memory over time.
+- [Alerts and notifications](./alerts-and-notifications.mdx) to hear about crash loops without watching the logs.
