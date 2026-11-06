@@ -1,0 +1,265 @@
+---
+title: Alerts and notifications
+description: Send deployment, backup, certificate, node and threshold events to Slack, Discord, email, Telegram, Teams, ntfy or a signed webhook, and set CPU, memory and disk alerts.
+---
+
+LogiStack emits an event whenever something worth knowing happens: a deployment fails, a backup succeeds, a certificate is about to expire, a node goes down, or a service runs hot. Notifications decide where those events go. You add a **channel** for each destination (a Slack channel, an email inbox, a webhook) and **rules** that say which events reach which channel. Thresholds add your own alerts on CPU, memory and disk.
+
+## How it fits together
+
+1. A **channel** is one destination with its credentials, for example `#ops-alerts` on Slack.
+2. A **rule** picks events (`Deployment failed`, `Node down`), optionally narrows them to one project or service, and sends them to one channel.
+3. **Thresholds** emit `metric.threshold` (nodes) and `service.threshold` (services) events, which rules route like any other event.
+
+## Channel kinds
+
+| Kind | What you need |
+| --- | --- |
+| **Slack** | An incoming webhook URL for one channel: Slack › Apps › Incoming Webhooks › Add to a channel. |
+| **Discord** | A channel webhook URL: Channel settings › Integrations › Webhooks › Copy URL. Messages arrive as an embed coloured by severity. |
+| **Email** | SMTP (host, port, username, password) or a Resend API key, a sender like `LogiStack <ops@example.com>`, and one or more recipients separated by commas. |
+| **Telegram** | A bot token from @BotFather after `/newbot`, and the chat or group ID. Add the bot to the group first. |
+| **Microsoft Teams** | A Workflows incoming webhook URL: the channel's Workflows › "Post to a channel when a webhook request is received". |
+| **Mattermost** | An incoming webhook URL on your Mattermost server. |
+| **ntfy** | A topic (letters, digits, dashes and underscores) on `https://ntfy.sh` or your own server, plus an access token for protected topics. |
+| **Gotify** | Your Gotify server URL and an app token. |
+| **Pushover** | An app token and your user key. |
+| **Signed webhook** | Your receiver's URL and a secret of at least 16 characters. LogiStack sends a JSON POST signed with HMAC-SHA256. |
+
+## Add a channel
+
+<Steps>
+<Step>
+### Open Notifications
+
+Select **Integrations** › **Notifications** in the sidebar.
+
+![The Notifications page with three channels (Slack, email and a signed webhook) and four rules](/screens/notifications.webp)
+</Step>
+<Step>
+### Start the wizard
+
+Select **Add channel**. The wizard has five steps: **Where should alerts go?**, **Connect it**, **Send a test**, **Name it** and **Review and add**.
+
+![The Add a notification channel wizard on its first step, listing Slack, Discord, Email, Telegram, Microsoft Teams, Mattermost, ntfy, Gotify, Pushover and Signed webhook](/screens/notification-new.webp)
+</Step>
+<Step>
+### Pick the kind
+
+Select the destination, for example **Slack**, and select **Continue**.
+</Step>
+<Step>
+### Connect it
+
+Fill in the fields for that kind, for example the Slack **Webhook URL** `https://hooks.slack.com/services/T0000/B0000/XXXXXXXX`. Masked fields are credentials: they are encrypted at rest and never shown again.
+</Step>
+<Step>
+### Send a test
+
+Select **Send test**. LogiStack sends "LogiStack test notification" through the channel right away. Check that it arrived and how it looks. If it reports **The message didn't go out**, read the error, go back and fix the field it names.
+</Step>
+<Step>
+### Name it
+
+Enter a **Name** that rules and delivery errors refer to, for example `#ops-alerts` or `On-call inbox`.
+</Step>
+<Step>
+### Review and add
+
+Check the summary and select **Add channel**. LogiStack opens a new rule for the channel so you can choose which events it receives.
+</Step>
+</Steps>
+
+## Add a rule
+
+<Steps>
+<Step>
+### Open the rule editor
+
+On **Integrations** › **Notifications**, select **New rule**. After you add a channel, the editor opens on its own.
+</Step>
+<Step>
+### Pick the events
+
+Under **When**, select each event that should reach the channel. Selected events turn solid. See the [event list](#events) below.
+</Step>
+<Step>
+### Narrow the scope
+
+**In** defaults to **All projects**. Pick a project, for example `Storefront`, to receive only its events. Then **Service** can narrow it to one service; **Every service** keeps the whole project.
+</Step>
+<Step>
+### Pick the channel
+
+Under **Send to**, pick the channel, for example `#ops-alerts · Slack`.
+</Step>
+<Step>
+### Save
+
+Select **Save rule**.
+</Step>
+</Steps>
+
+The rule appears as a sentence, for example **Deployment failed, Node down, Backup failed** in every project go to **#ops-alerts**.
+
+### Pause, edit or delete a rule
+
+- Use the switch at the start of a rule to pause or resume it. A paused rule sends nothing.
+- Select the pencil (**Edit rule**) to change it, then **Save rule**.
+- Select the bin (**Delete rule**) to delete it. Its events stop reaching the channel; the channel stays.
+
+### A starting set of rules
+
+| Rule | Send to |
+| --- | --- |
+| **Deployment failed**, **Service crash-looping**, **Node down**, **Backup failed** in all projects | Your team chat |
+| **Certificate expiring**, **Certificate failed**, **Domain error** in all projects | Your team chat |
+| **Node threshold crossed**, **Service threshold crossed** in all projects | An on-call push (ntfy, Pushover) |
+| **Update available** | The admins' email |
+
+## Events
+
+| Group | Event | Type |
+| --- | --- | --- |
+| Deployments | Failed, Succeeded, Started, Cancelled, Queued | `deployment.failed`, `deployment.succeeded`, `deployment.started`, `deployment.cancelled`, `deployment.queued` |
+| Certificates and domains | Certificate expiring | `certificate.expiring` |
+| | Certificate failed, Certificate issued | `certificate.failed`, `certificate.issued` |
+| | Domain error, Domain active | `domain.error`, `domain.active` |
+| Nodes and services | Node down, Node recovered, Node joined | `node.down`, `node.recovered`, `node.joined` |
+| | Service status changed | `service.status_changed` |
+| | Service crash-looping | `service.crash_loop`, when tasks keep failing, and again when it settles |
+| | Service threshold crossed | `service.threshold` |
+| | Node threshold crossed | `metric.threshold` |
+| Backups and schedules | Backup failed, Backup succeeded | `backup.failed`, `backup.succeeded` |
+| | Schedule failed, Schedule succeeded | `schedule.failed`, `schedule.succeeded` |
+| Instance | Update available, Update succeeded, Update failed | `instance.update_available`, `instance.update_succeeded`, `instance.update_failed` |
+
+## Set node thresholds
+
+A node threshold fires when a node's average CPU, memory or disk over a window crosses a limit, and again when it falls back under. Both send `metric.threshold`.
+
+<Steps>
+<Step>
+### Open the monitoring settings
+
+Select **Monitoring** › **Settings**. **Thresholds** lists the built-in **Node down** alert (always on, for every node: it fires `node.down` when a node's agent misses heartbeats for 30 seconds) and your thresholds.
+
+![The Monitoring settings with node thresholds for CPU, disk and memory, and a service memory threshold over its limit](/screens/monitoring-alerts.webp)
+</Step>
+<Step>
+### Add a threshold
+
+Select **Add threshold**. A row appears with CPU, 90% over 5 min, on every node.
+</Step>
+<Step>
+### Set the limit
+
+Pick the metric (**CPU**, **Memory** or **Disk**), the limit in percent (1 to 100), the window it is averaged over (**1 min**, **5 min**, **10 min**, **15 min**, **30 min** or **1 h**), and where it applies: **Every node** or one node such as `fra-4-data`. For example: **Disk**, `85` % over **10 min**, **Every node**.
+</Step>
+<Step>
+### Save
+
+Select **Save changes**.
+</Step>
+</Steps>
+
+Turn a threshold off with its switch, or remove it with **×**. Then route `Node threshold crossed` with a [rule](#add-a-rule).
+
+## Set service thresholds
+
+A service threshold watches one service's CPU or memory, read per replica, and sends `service.threshold` when it crosses the limit and when it falls back.
+
+<Steps>
+<Step>
+### Open the service's settings
+
+Open the service, select **Settings**, and find the **Alerts** section.
+</Step>
+<Step>
+### Add a threshold
+
+Select **Add threshold**.
+</Step>
+<Step>
+### Set the limit
+
+Pick the metric and its limit:
+
+- **CPU**: percent of one core, for example `80` % CPU.
+- **Memory, % of limit**: when the service has a memory limit, for example `90` % of a 512 MB limit.
+- **Memory, MB**: an absolute figure, for example `768` MB, when the service has no memory limit.
+
+Then pick the window (**1 min** to **1 h**).
+</Step>
+<Step>
+### Save
+
+Select **Save alerts**.
+</Step>
+</Steps>
+
+Every service threshold also shows under **Service thresholds** on **Monitoring** › **Settings**, with **Over limit** while it fires. A crash loop sends `service.crash_loop` without any threshold.
+
+## Receive a signed webhook
+
+A **Signed webhook** channel POSTs JSON to your URL:
+
+```json title="Request body"
+{
+  "event": {
+    "id": "evt_01JC9V6Q2W4N8Z",
+    "type": "deployment.failed",
+    "organizationId": "org_logical",
+    "resource": { "type": "service", "id": "svc_storefront_production_web" },
+    "payload": {},
+    "at": "2026-11-06T09:41:12.000Z"
+  },
+  "rendered": {
+    "title": "Deployment failed",
+    "body": "Storefront / web: health check failed",
+    "severity": "error"
+  }
+}
+```
+
+Each request carries these headers:
+
+| Header | Value |
+| --- | --- |
+| `X-LogiStack-Event` | The event type, for example `deployment.failed`. |
+| `X-LogiStack-Timestamp` | Unix seconds when it was sent. |
+| `X-LogiStack-Signature` | `sha256=<hex>`, the HMAC-SHA256 of `<timestamp>.<raw body>` with your secret. |
+
+Verify both the signature and the timestamp, and reject a timestamp more than 5 minutes from your clock, so a captured request cannot be replayed:
+
+```ts title="verify.ts"
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+export function verify(secret: string, headers: Headers, rawBody: string): boolean {
+  const sig = headers.get("x-logistack-signature") ?? "";
+  const ts = Number(headers.get("x-logistack-timestamp"));
+  if (!Number.isInteger(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false;
+  const expected = `sha256=${createHmac("sha256", secret).update(`${ts}.${rawBody}`).digest("hex")}`;
+  return sig.length === expected.length && timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
+```
+
+Sign over the raw body as received, before you parse it.
+
+## Check delivery
+
+Each channel on the Notifications page shows its state:
+
+- **Delivering**, with when it last sent.
+- **No deliveries yet**: no rule has sent anything through it.
+- **Last delivery failed**, or **Failing, 3 in a row**, with the error, for example `smtp send: Invalid login: 535 5.7.8 Authentication failed`.
+
+Select **Send test** on a channel at any time to send the test message again.
+
+## Common problems
+
+- **Slack or Discord answers 404.** The webhook was deleted or the channel archived. Create a new webhook, delete the channel in LogiStack and add it again with the new URL.
+- **Telegram sends nothing.** The bot is not in the group, or the chat ID is wrong. Group IDs start with `-`.
+- **Email fails with an authentication error.** Check the SMTP username and password, and use the port your provider documents (587 for STARTTLS, 465 with secure on).
+- **A channel works but nothing arrives.** No rule sends to it, the rule is paused, or the rule is scoped to another project.
+- **Deleting a channel** deletes its credentials and its rules.

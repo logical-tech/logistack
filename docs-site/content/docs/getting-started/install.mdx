@@ -1,0 +1,252 @@
+---
+title: Install LogiStack on your server
+description: Install LogiStack on Ubuntu or Debian with one command, preview it with a dry run, choose installer flags and reach the setup wizard.
+---
+
+The installer turns a fresh Linux server into a LogiStack instance. It installs Docker if needed, starts a Docker Swarm, creates the secrets, deploys LogiStack as one Swarm stack, and tells you how to open the setup wizard. Use this page for your first server; add more servers later from the dashboard.
+
+## Requirements
+
+| Requirement | Details |
+| --- | --- |
+| Operating system | Ubuntu 22.04 or later, or Debian 12 or later. Other distributions work if Docker 26 or later is already installed, but the installer warns that they are untested. |
+| Architecture | amd64 (x86_64) or arm64 (aarch64). |
+| Memory | At least 2 GB of RAM. |
+| Disk | At least 10 GB free under `/var/lib/docker`. |
+| Ports | 80/tcp, 443/tcp and 443/udp free on the server and open in your provider's firewall. |
+| Access | Root, or a user with `sudo`. |
+
+A small cloud server (2 vCPU, 4 GB RAM) from Hetzner, DigitalOcean, Vultr or similar is a good start. Builds from Git use more memory than running apps, so give the server headroom if you build large projects.
+
+## Install
+
+<Steps>
+<Step>
+
+### Connect to the server
+
+Open an SSH session as root, or as a user who can run `sudo`:
+
+```bash
+ssh root@203.0.113.7
+```
+
+</Step>
+<Step>
+
+### Preview the plan (optional)
+
+Run the installer with `--dry-run`. It runs every check and prints what it would do, without changing anything:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --dry-run
+```
+
+The output lists the checks (operating system, architecture, RAM and disk, Docker, ports) and then each action, such as "Initialise Swarm on 203.0.113.7". It ends with `Dry run complete. Re-run without --dry-run to install.`
+
+</Step>
+<Step>
+
+### Run the installer
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
+```
+
+The installer runs its checks, shows the plan, and asks `Install LogiStack 0.2.0 on 203.0.113.7? [Y/n]`. Press Enter to continue. A fresh install takes a few minutes, most of it pulling images.
+
+</Step>
+<Step>
+
+### Note the next step it prints
+
+When it finishes, the installer prints something like this:
+
+```text
+LogiStack 0.2.0 is running.
+  Until setup is done the dashboard is reachable only on 127.0.0.1:3000. From your machine: ssh -L 3000:127.0.0.1:3000 root@203.0.113.7
+  then open http://localhost:3000 to finish the guided setup.
+  After setup the dashboard is served over https on the domain you choose there.
+  Back up /etc/logistack/credentials: it holds the master key that encrypts your secrets.
+```
+
+It also writes a login banner (`/etc/update-motd.d/99-logistack`) that repeats these instructions on every SSH login until setup is done.
+
+</Step>
+<Step>
+
+### Back up the credentials file
+
+Copy `/etc/logistack/credentials` somewhere safe, such as a password manager:
+
+```bash
+sudo cat /etc/logistack/credentials
+```
+
+<Callout type="warn">
+This file holds the master key that encrypts every secret stored in LogiStack: environment variables, database passwords and integration tokens. Docker secrets cannot be read back, so if you lose the server and this file, you cannot decrypt a restored database.
+</Callout>
+
+</Step>
+</Steps>
+
+## Reach the setup wizard
+
+Bots scan new servers for unclaimed setup pages within minutes. For that reason the dashboard is not public until you finish setup: the proxy answers every request with 404, and the API listens only on `127.0.0.1:3000` of the server.
+
+<Tabs items={["SSH tunnel (default)", "Public setup with a token"]}>
+<Tab value="SSH tunnel (default)">
+
+From your own computer, open an SSH tunnel to the server:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 root@203.0.113.7
+```
+
+Keep that session open and go to `http://localhost:3000` in your browser. The setup wizard opens.
+
+If port 3000 is taken on the server, the installer stops with `Port 3000 is taken`. Pick another port and tunnel that one instead:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo LOGISTACK_TUNNEL_PORT=3100 bash
+ssh -L 3100:127.0.0.1:3100 root@203.0.113.7
+```
+
+</Tab>
+<Tab value="Public setup with a token">
+
+If you cannot open an SSH tunnel, install with `--public-setup`:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --public-setup
+```
+
+The installer generates a one-time setup token and prints a link like this:
+
+```text
+http://203-0-113-7.sslip.io/setup#token=Qm9yZWQ...
+```
+
+Open the link. The token sits in the URL fragment, so your browser never sends it to a server or its logs. The wizard fills it in for you; if you open the page without it, the first step asks for the **Setup token**. Anyone who holds the token can claim the server until setup is done, and it stops working afterwards.
+
+The token is also stored as `LOGISTACK_SETUP_TOKEN` in `/etc/logistack/credentials`. `--public-setup` is not remembered: a later run without it makes setup private again.
+
+</Tab>
+</Tabs>
+
+Continue with [the setup wizard](./setup-wizard.mdx). When setup completes, LogiStack routes the instance URL you chose over HTTPS, and that is how you reach the dashboard from then on.
+
+## Installer flags
+
+Pass flags after `bash -s --`:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.2.0 --yes
+```
+
+| Flag | What it does |
+| --- | --- |
+| `--version X` | Release to install or upgrade to: `0.2.0`, `v0.2.0` or `latest`. Defaults to the release already running, else the release the installer belongs to, else the latest release on GitHub. |
+| `--advertise-addr IP` | IPv4 address other Swarm nodes use to reach this one. Defaults to the address of the interface with the default route. Cannot be a loopback address. Set it when the server has several interfaces, for example a private network for node-to-node traffic. |
+| `--yes`, `-y` | Skip the confirmation prompt. Required when no terminal is attached, such as in cloud-init. |
+| `--dry-run` | Run the checks, print the plan, change nothing. |
+| `--public-setup` | Serve the setup wizard on the server's public address before setup, protected by a one-time token. Not remembered between runs. Cannot be combined with `--no-ingress`. |
+| `--no-ingress` | Leave LogiStack's proxy (Caddy) off and ports 80 and 443 to another proxy. Setup is then reachable only through the SSH tunnel. Kept on re-runs until you pass `--enable-ingress`. |
+| `--enable-ingress` | Turn Caddy on after an install with `--no-ingress`. Ports 80 and 443 must be free by then. |
+| `--local-build` | Build the images from a LogiStack checkout instead of pulling them. For development; single node only. |
+| `--help`, `-h` | Show the usage text. |
+
+The full reference, including environment variables, is in [Installer reference](../reference/installer.mdx).
+
+## Install while creating the server
+
+Most providers (Hetzner, DigitalOcean, Akamai/Linode, Vultr) accept cloud-init user data when you create a server. Paste this into the **Cloud config** or **User data** field, and LogiStack installs during the first boot:
+
+```yaml title="cloud-config"
+#cloud-config
+runcmd:
+  - curl -fsSL https://stack.logicaltech.it/install.sh | bash -s -- --yes
+```
+
+The install finishes a few minutes after the server is up. Follow it with `tail -f /var/log/cloud-init-output.log`. Then SSH in: the login banner shows how to reach the setup wizard.
+
+## Open the firewall
+
+The installer does not change your firewall. Open these ports in your provider's firewall:
+
+| Port | Open to | Purpose |
+| --- | --- | --- |
+| 22/tcp | Your IP | SSH, and the tunnel to the setup wizard. |
+| 80/tcp | Everyone | HTTP, and Let's Encrypt HTTP-01 challenges. |
+| 443/tcp | Everyone | HTTPS. |
+| 443/udp | Everyone | HTTP/3. |
+
+Before you add a second server, open the Swarm ports **only between LogiStack nodes**:
+
+| Port | Purpose |
+| --- | --- |
+| 2377/tcp | Swarm management |
+| 7946/tcp and 7946/udp | Node discovery |
+| 4789/udp | Overlay network traffic |
+
+With UFW, for each other node:
+
+```bash
+ufw allow from 198.51.100.20 to any port 2377 proto tcp
+ufw allow from 198.51.100.20 to any port 7946
+ufw allow from 198.51.100.20 to any port 4789 proto udp
+```
+
+<Callout type="warn">
+Docker publishes ports through iptables, which bypasses UFW and firewalld. A port a container publishes is open to the internet even if UFW says it is closed. Never publish a database port unless you mean it to be public; use the provider's firewall for anything you must block.
+</Callout>
+
+## What the installer creates
+
+| Object | Details |
+| --- | --- |
+| Docker | Installed from `download.docker.com` when missing (Ubuntu and Debian only). |
+| Swarm | `docker swarm init` on the advertise address, unless the server is already a Swarm manager. |
+| Stack `logistack` | `postgres`, `redis`, `logistack-api`, `logistack-worker`, `logistack-agent` (one per node) and `caddy` (one per ingress node). |
+| Networks | `ls-control` (control plane, never reachable from apps), `ls-ingress` (Caddy and services with a domain), `ls-storage`, `ls-db` and `ls-game` (used by the API and worker to reach storage, databases and game servers; apps never join them). |
+| Volumes | `logistack_pgdata` and `logistack_redisdata` for LogiStack's own data, `logistack_workerdata` for clones and build logs, `ls-buildkit-cache` for the build cache. |
+| Secrets | `logistack-master-key`, `logistack-postgres-password`, `logistack-better-auth-secret`, `logistack-redis-password`, `logistack-agent-token`, `logistack-setup-token`. Created only when absent. |
+| `/etc/logistack/credentials` | The generated secret values, readable only by root. |
+| `/etc/logistack/stack.yml` | The deployed stack file. |
+| `/var/log/logistack-install.log` | Full output of every command the installer ran, readable only by root. |
+| `logistack-api-tunnel` container | The API on `127.0.0.1:3000` only, for the SSH tunnel. Absent with `--public-setup`. |
+| Service `ls-buildkit` | Rootless BuildKit for Git builds, created by the worker on the first build. |
+
+On Ubuntu 23.10 and later the installer also writes `/etc/sysctl.d/60-logistack-userns.conf`, because rootless BuildKit needs unprivileged user namespaces.
+
+## Run it again
+
+The installer is safe to re-run. It repairs a broken install, restarts nothing that already matches, and never rotates existing secrets. Re-running it also re-creates the `127.0.0.1:3000` tunnel, which is how you get back in if the dashboard's domain stops working.
+
+To upgrade from the command line, re-run it with a version:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.2.0
+```
+
+Most updates are one click in the dashboard instead. See [Updates](../operations/updates.mdx).
+
+## Servers that already run Dokploy or Coolify
+
+Run the same command on a Dokploy or Coolify server. The installer detects the other platform, explains its plan and asks before it changes anything. It leaves ports 80 and 443 to the existing proxy, keeps setup private, and gives the migration wizard read-only access to the old platform's database. Your sites keep running. See [Migrate from Dokploy](../operations/migrate-from-dokploy.mdx) and [Migrate from Coolify](../operations/migrate-from-coolify.mdx).
+
+## Troubleshooting
+
+**`Unknown option: ...`.** The flag is misspelled or does not exist. Check it against `--help`. When you pipe the installer into bash, put flags after `bash -s --`.
+
+**`No terminal to confirm on; re-run with --yes`.** The installer was started without a terminal, for example from cloud-init or a CI job. Add `--yes`.
+
+**`Could not detect this server's address; pass --advertise-addr <ip>`.** The server has no default route, or the detected address is a loopback address. Pass the server's IPv4 address with `--advertise-addr`.
+
+**`... MB of RAM; LogiStack needs at least 2 GB`.** Resize the server. LogiStack's own services and builds do not fit in less.
+
+**`Ports in use: 80/tcp 443/tcp. Stop the web server holding them and re-run.`** Another web server, often Nginx or Apache preinstalled on the image, holds the ports. Stop and disable it (`systemctl disable --now nginx`), or install with `--no-ingress` and switch later with `--enable-ingress`.
+
+**`ls-buildkit` restarts with `fork/exec /proc/self/exe: permission denied`.** The kernel blocks unprivileged user namespaces. Re-run the installer, which writes the sysctl file above.
+
+For anything else, read `/var/log/logistack-install.log` and see [Troubleshooting](../reference/troubleshooting.mdx).

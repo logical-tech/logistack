@@ -1,0 +1,105 @@
+---
+title: Frequently asked questions
+description: Answers about LogiStack. Pricing and license, server requirements, multi-server clusters, databases, migrating from Dokploy or Coolify, security and AI agents.
+---
+
+Short answers to the questions people ask before and after installing LogiStack, with links to the page that covers each topic in full.
+
+## About LogiStack
+
+<Accordions>
+<Accordion title="What is a self-hosted PaaS?">
+A platform as a service you run on your own servers. You push code or pick an app, and it handles the build, the container, the domain, HTTPS, backups and logs, the way a hosted platform does, but on machines you control and pay for directly.
+</Accordion>
+<Accordion title="Is LogiStack free?">
+Yes. LogiStack is open source under the Apache 2.0 license, and every feature is in the build you install: SSO, custom roles, the audit log and multi-node clusters included. There is no paid edition. Sponsors fund development.
+</Accordion>
+<Accordion title="How is it different from Dokploy or Coolify?">
+LogiStack keeps the desired state in Postgres and lets a reconciler make Docker Swarm and the Caddy proxy match it, so every operation can be re-run safely. It talks to Docker through the Engine API instead of shell commands, tags every build immutably so rollbacks never rebuild, and drives Caddy through its admin API, so certificates are shared across ingress nodes. Every setup flow is a guided wizard. See [Architecture](./architecture.mdx).
+</Accordion>
+</Accordions>
+
+## Requirements and installation
+
+<Accordions>
+<Accordion title="What do I need to run it?">
+One Linux server with Ubuntu 22.04 or later or Debian 12 or later, amd64 or arm64, 2 GB of RAM, 10 GB of free disk and ports 80 and 443 open. The installer sets up Docker and Swarm if they are missing. See [Install LogiStack](../getting-started/install.mdx).
+</Accordion>
+<Accordion title="Can I install it on a server that already runs other things?">
+Yes, if ports 80 and 443 are free, because LogiStack's Caddy must own them. If another proxy must keep them for now, install with `--no-ingress` and turn ingress on later. LogiStack never removes Docker objects it did not create. See the [installer reference](./installer.mdx).
+</Accordion>
+<Accordion title="Why can't I open the dashboard right after installing?">
+The dashboard is private until you finish setup, because bots look for unclaimed setup pages within minutes. Open an SSH tunnel (`ssh -L 3000:127.0.0.1:3000 root@<server>`) and go to `http://localhost:3000`, or install with `--public-setup` to use a one-time token link. See [Troubleshooting](./troubleshooting.mdx#installation-and-setup).
+</Accordion>
+<Accordion title="Do I need a domain name?">
+No. LogiStack can give each service a generated hostname on sslip.io or nip.io that points at your server's IP. For HTTPS you should use your own domain or a wildcard: generated domains share a Let's Encrypt limit with every other user of those services. See [Wildcard DNS](../networking/wildcard-dns.mdx).
+</Accordion>
+<Accordion title="How do I update LogiStack?">
+An admin opens **Settings > Updates** and selects **Update to vX**. The update drains running deployments and backups, migrates the database, rolls each component and rolls back if one fails. You can also re-run the installer with `--version`. See [Updates](../operations/updates.mdx).
+</Accordion>
+</Accordions>
+
+## Running apps
+
+<Accordions>
+<Accordion title="Can it run my apps across more than one server?">
+Yes. LogiStack runs on Docker Swarm. Add a node from the dashboard and its agent connects back over one outbound WebSocket, so metrics, logs, backups and schedules work on every machine. With more than one node, builds push to a registry so every node can pull. See [Nodes](../operations/nodes.mdx).
+</Accordion>
+<Accordion title="What can I deploy?">
+A Git repository built with a Dockerfile, Railpack or as a static site; a prebuilt Docker image; a Docker Compose file; one of the catalog templates; databases; S3-compatible object storage; and game servers. See [Deploy](../deploy/index.mdx).
+</Accordion>
+<Accordion title="Which databases can I deploy?">
+Postgres, MySQL, MariaDB, MongoDB, Redis and libSQL in one click, each with a built-in editor for tables, keys and documents, scheduled encrypted backups and restore. See [Databases](../deploy/databases.mdx).
+</Accordion>
+<Accordion title="Are deploys zero-downtime?">
+For services with more than one replica or a health check, yes. Swarm starts the new tasks before stopping the old ones, waits for them to pass their health check, and rolls back on its own if they fail. Services with a volume, and services that publish a host port, stop the old task first, so they have a short gap.
+</Accordion>
+<Accordion title="How do I roll back?">
+Open the service's **Deployments** tab and roll back to an earlier deployment. Each deployment has its own image tag, so a rollback reuses that exact image without rebuilding. See [Deployments](../deploy/deployments.mdx).
+</Accordion>
+<Accordion title="Where are my files and data stored?">
+Databases and volumes are Docker volumes on the node that runs the service, and the service is pinned to that node. Back them up to any S3-compatible destination with scheduled, optionally encrypted backups. See [Backups](../data/backups.mdx).
+</Accordion>
+</Accordions>
+
+## Migrating
+
+<Accordions>
+<Accordion title="Can I move from another self-hosted PaaS?">
+Yes. The importer reads existing projects, env vars and domains, freezes the old setup and moves services one at a time. Each service can be rolled back until you switch the old platform off. See [Migrate from Dokploy](../operations/migrate-from-dokploy.mdx) and [Migrate from Coolify](../operations/migrate-from-coolify.mdx).
+</Accordion>
+<Accordion title="Do my sites go down while I migrate?">
+No. The old platform's proxy keeps ports 80 and 443 and keeps serving your sites until you switch traffic to LogiStack in the migration wizard.
+</Accordion>
+</Accordions>
+
+## Security and access
+
+<Accordions>
+<Accordion title="How are secrets stored?">
+Environment variables, registry passwords, SSH keys and provider tokens are encrypted at rest with AES-256-GCM under a master key that the installer creates as a Docker secret and writes to `/etc/logistack/credentials`. Back that file up: without the master key, a restored database cannot decrypt them.
+</Accordion>
+<Accordion title="Can I limit what a teammate or a CI job can do?">
+Yes. Grant roles on the whole organization, a folder, a project, an environment or a single service. Built-in roles are owner, admin, developer and viewer, and you can define custom roles. API keys can be narrowed to scopes and given an expiry. See [Roles and permissions](../team/roles-and-permissions.mdx) and [API keys](../team/api-keys.mdx).
+</Accordion>
+<Accordion title="Does it support SSO and two-factor authentication?">
+Yes. OIDC and SAML sign-in, passkeys, and two-factor authentication that the organization can require for every member. See [SSO](../team/sso.mdx) and [Two-factor and passkeys](../team/two-factor-and-passkeys.mdx).
+</Accordion>
+<Accordion title="Can I see who changed what?">
+Every change made from the dashboard, the API or the MCP server is recorded in the audit log, with the person or key, the IP, and the before and after values with secrets redacted. See [Audit log](../team/audit-log.mdx).
+</Accordion>
+</Accordions>
+
+## Automation
+
+<Accordions>
+<Accordion title="Does it work with AI coding agents?">
+LogiStack ships an MCP server that mirrors its REST API, so an agent such as Claude can create services, read logs and deploy with your permissions. Destructive tools ask for confirmation first. See [MCP server](../automation/mcp-server.mdx) and [AI coding agents](../automation/ai-agents.mdx).
+</Accordion>
+<Accordion title="Is there an API?">
+Yes. Everything the dashboard does goes through a REST API, documented as OpenAPI at `/api/openapi.json` with an interactive reference at `/api/docs` on your server. Authenticate with an `lsk_` API key. See [REST API](../automation/rest-api.mdx).
+</Accordion>
+<Accordion title="Can I keep my configuration in git?">
+Yes. Export a project or environment as a YAML manifest, commit it, and apply it from CI with a dry run first. See [Project manifests](../automation/project-manifests.mdx).
+</Accordion>
+</Accordions>

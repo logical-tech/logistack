@@ -1,0 +1,91 @@
+---
+title: Resource usage by project and service
+description: See the CPU, memory, network and volume space each project, environment and service uses over 24 hours or 7 days, against your cluster's capacity.
+---
+
+Usage answers "who uses what" on your servers. It adds up what your services consume, per project and then per environment and service, and compares the total with the capacity of every node. Use it to find the project that fills a server, to check what a client's projects cost you in resources before you price them, or to decide whether you need another node.
+
+## What the figures mean
+
+| Figure | Meaning |
+| --- | --- |
+| **CPU, average** | Average cores in use over the whole range. A service that ran for half the range counts half. |
+| **Memory, average** | Average memory in use over the whole range. |
+| **Network** | Bytes transferred in and out over the range. |
+| **Volumes, now** | The current size of the service's volumes, as the nodes report it. |
+
+The range is **24h** (last 24 hours) or **7d** (last 7 days). Averages cover the whole range, so a short spike barely moves them; use [Metrics](./metrics.mdx) to see spikes.
+
+Usage covers only the projects you can read. A member with access to one client's folder sees that client's projects.
+
+## See usage for the organization
+
+<Steps>
+<Step>
+### Open Usage
+
+Select **Monitoring** › **Usage**.
+
+![The organization Usage page: tiles for average CPU, average memory, network and volumes, three trend charts, and a table of projects](/screens/monitoring-usage.webp)
+</Step>
+<Step>
+### Pick the range
+
+Select **24h** or **7d**.
+</Step>
+<Step>
+### Read the tiles
+
+The four tiles under **Organization** compare the total with the cluster. For example, **CPU, average** `17.72 cores`, `44% of 40 cores`, and **Memory, average** `9.43 GiB`, `6% of 160 GiB`. **Volumes, now** says **No node reported volume sizes** until the agents have measured them.
+</Step>
+<Step>
+### Read the trend
+
+**CPU (cores)**, **Memory** and **Network** chart the summed usage over the range, so you see when the load peaks.
+</Step>
+<Step>
+### Compare projects
+
+The **Projects** table lists **Name**, **CPU, avg**, **Memory, avg**, **Network in / out** and **Volumes**. Select a column heading to sort by it; the table opens sorted by CPU. Select a project's name to open its usage.
+</Step>
+</Steps>
+
+## See usage for one project
+
+<Steps>
+<Step>
+### Open the project's usage
+
+Open the project and select **Usage** in its header, or select the project's name on **Monitoring** › **Usage**. The page is titled after the project, for example **Storefront usage**.
+
+![Storefront usage: tiles, trend charts and a table of environments with their services](/screens/project-usage.webp)
+</Step>
+<Step>
+### Pick the range
+
+Select **24h** or **7d**.
+</Step>
+<Step>
+### Read environments and services
+
+**Environments and services** lists each environment, for example `Staging` and `Production`, with its totals, and its services underneath. Select a service's name to open its [Metrics](./metrics.mdx) tab.
+</Step>
+</Steps>
+
+## Example: find what fills a node
+
+The **Disk** chart on **Monitoring** shows a node at 85%. On **Monitoring** › **Usage**, sort by **Volumes**: `Storefront` holds 32.7 GiB. Open it: the `postgres` service in `Production` holds 22.6 GiB of it. From there you can move the database to a node with more disk by [pinning it](./nodes.mdx#pin-a-service-to-nodes), or clean up old data.
+
+## Get usage from the API
+
+The same figures are available as JSON:
+
+```bash
+curl -H "Authorization: Bearer $LOGISTACK_API_KEY" \
+  "https://logistack.example.com/api/usage?range=7d"
+
+curl -H "Authorization: Bearer $LOGISTACK_API_KEY" \
+  "https://logistack.example.com/api/projects/prj_storefront/usage?range=24h"
+```
+
+In the response, `cpu` is average cores, `memUsed` average bytes, `rx` and `tx` bytes transferred, and `disk` the current volume size in bytes (`null` when no node reported it). See the [REST API](../automation/rest-api.mdx).

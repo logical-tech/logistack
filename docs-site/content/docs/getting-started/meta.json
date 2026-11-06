@@ -1,0 +1,12 @@
+{
+	"title": "Get started",
+	"icon": "Flag",
+	"defaultOpen": true,
+	"pages": [
+		"concepts",
+		"install",
+		"setup-wizard",
+		"first-deploy",
+		"dashboard-tour"
+	]
+}

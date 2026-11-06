@@ -1,0 +1,16 @@
+{
+	"title": "Team and security",
+	"icon": "Users",
+	"pages": [
+		"index",
+		"members-and-invitations",
+		"roles-and-permissions",
+		"sso",
+		"two-factor-and-passkeys",
+		"api-keys",
+		"service-accounts",
+		"audit-log",
+		"ssh-keys",
+		"appearance"
+	]
+}

@@ -1,0 +1,217 @@
+---
+title: HTTPS certificates
+description: How LogiStack gets Let's Encrypt certificates over HTTP-01 or DNS-01, how to upload your own or issue a Cloudflare Origin certificate, and how to track expiry.
+---
+
+Every domain with HTTPS needs a certificate. In most cases you do nothing: the Caddy proxy asks Let's Encrypt for one the first time it routes the domain and renews it before it expires. Read this page when you need to understand which method a domain uses, upload a certificate a client gave you, issue a Cloudflare Origin certificate, or change the certificate authority.
+
+## Certificate modes
+
+You pick the mode on the **HTTPS** step of the [domain wizard](./domains.mdx#add-a-domain-with-the-wizard). The **TLS** column on the Domains page shows the short name.
+
+| Mode in the wizard | TLS column | How it works | Use it when |
+| --- | --- | --- | --- |
+| **Automatic, HTTP-01** | HTTP-01 | Let's Encrypt connects to the server on port 80 to check you control the name. | You manage the DNS record yourself and it already points at the server. |
+| **Automatic, DNS-01** | DNS-01 | LogiStack writes a TXT record through a [DNS provider](./dns-providers.mdx) to prove control of the zone. | The zone is on a connected provider. Required for wildcards and for records proxied by Cloudflare. Works before the record propagates. |
+| **Uploaded certificate** | Uploaded | The proxy serves a certificate you uploaded. No automatic renewal. | A client or a commercial CA gave you the certificate, or you use a Cloudflare Origin certificate. |
+| **HTTP only** | None | No certificate. The domain answers plain HTTP on port 80. | An internal tool behind another proxy that terminates TLS. |
+
+A domain served through a [Cloudflare Tunnel](./cloudflare-tunnels.mdx) shows **Tunnel**: Cloudflare's edge holds the certificate, and the **Certificate** column says **Cloudflare edge**.
+
+For every mode except **HTTP only**, the proxy redirects HTTP requests to HTTPS.
+
+## Automatic certificates
+
+Caddy issues a certificate the first time a domain with automatic HTTPS is routed, then renews it about 30 days before it expires. Certificates are stored in Redis, so every Caddy instance in the cluster serves the same certificate and none of them asks for its own.
+
+To see them, select **Settings** > **Certificates** in the sidebar. The **Issued automatically** table lists the **Names** each certificate covers, the **Issuer** (Let's Encrypt's intermediate, such as `E6` or `R11`) and when it **Expires**.
+
+![The Certificates settings page with six automatically issued certificates, including *.acme-retail.it and *.srv1.logical.it, and two uploaded certificates with issuer, expiry and usage](/screens/settings-certificates.webp)
+
+A domain covered by a wildcard certificate, such as `shop.acme-retail.it` under `*.acme-retail.it`, has no certificate of its own. See [Wildcard DNS](./wildcard-dns.mdx).
+
+### Change the certificate authority
+
+By default every automatic certificate comes from Let's Encrypt. To use another authority:
+
+<Steps>
+<Step>
+
+### Open the authority settings
+
+On **Settings** > **Certificates**, expand **Certificate authority** at the bottom of the page.
+
+![The Certificates settings page with issued and uploaded certificates and the Certificate authority section](/screens/certificate-authority.webp)
+
+</Step>
+<Step>
+
+### Pick an authority
+
+Under **Certificate authority**, pick one:
+
+- **Let's Encrypt**: trusted everywhere. The default for production.
+- **Let's Encrypt staging**: untrusted test certificates with generous rate limits. Use it while you try domains out.
+- **ZeroSSL**: trusted, with its own rate limits. Caddy registers with your Let's Encrypt email.
+- **Caddy's internal CA**: self-signed, never leaves the server. For air-gapped installs and tests; browsers will warn.
+
+The current one carries a **Current** badge.
+
+</Step>
+<Step>
+
+### Save
+
+Select **Save authority**. The change applies at the next proxy sync. Certificates already issued are kept until they renew, so a switch back from staging takes effect as each certificate renews. When the authority is not Let's Encrypt, its name shows next to **Certificate authority** as a reminder.
+
+</Step>
+</Steps>
+
+## Upload a certificate
+
+Upload a certificate when a client or a CA gave you one, for example an EV certificate or a wildcard bought for `*.nordwind.de`. You need the certificate chain and its unencrypted private key, both in PEM form.
+
+<Steps>
+<Step>
+
+### Start the upload
+
+On **Settings** > **Certificates**, select **Upload certificate**. The **Upload a certificate** wizard opens.
+
+![The first step of the Upload a certificate wizard, Certificate and key, with fields for the certificate chain and the private key](/screens/certificate-new.webp)
+
+</Step>
+<Step>
+
+### Paste the certificate and key
+
+On **Certificate and key**:
+
+- **Certificate chain**: the leaf certificate first, then any intermediates. It starts with `-----BEGIN CERTIFICATE-----`.
+- **Private key**: RSA or ECDSA, in PKCS#1, PKCS#8 or SEC1 form, with no passphrase.
+
+```txt title="Certificate chain"
+-----BEGIN CERTIFICATE-----
+MIIF...leaf certificate for *.nordwind.de...
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIE...intermediate certificate...
+-----END CERTIFICATE-----
+```
+
+The key is encrypted at rest and never shown again.
+
+</Step>
+<Step>
+
+### Check the pair
+
+On **Check the pair**, select **Check certificate**. LogiStack parses both, confirms the key belongs to the certificate, and shows the names, the issuer and the expiry date, for example `Valid for 2 names`. Nothing is saved yet. An expired certificate fails with `This certificate has expired`.
+
+</Step>
+<Step>
+
+### Name it
+
+On **Name it**, enter a **Name**, for example `Nordwind wildcard 2027`. You pick the certificate by this name in the domain wizard.
+
+</Step>
+<Step>
+
+### Upload
+
+Review the summary and select **Upload certificate**.
+
+</Step>
+</Steps>
+
+To use it, open the domain in the [domain wizard](./domains.mdx#add-a-domain-with-the-wizard) and pick **Uploaded certificate** on the **HTTPS** step, then pick the certificate under **Certificate**. Only certificates whose names cover the hostname are listed: `*.nordwind.de` covers `booking.nordwind.de` but not `nordwind.de` or `a.b.nordwind.de`.
+
+The **Uploaded** table lists each certificate with its names, issuer, expiry and **Used by**, the number of domains that serve it.
+
+To delete one, select the bin on its row and confirm. The certificate and its private key are erased. Domains using it must switch to another certificate first.
+
+## Issue a Cloudflare Origin certificate
+
+When a domain's record is proxied by Cloudflare (the orange cloud), Cloudflare can issue a free Origin certificate for the server, valid for up to 15 years. Only Cloudflare trusts it, which is exactly what the **Full (strict)** SSL/TLS mode needs.
+
+Before you start, the domain must exist in LogiStack, its zone must be on a [Cloudflare DNS provider](./dns-providers.mdx), and the provider's API token needs **Zone › SSL and Certificates › Edit** on the zone, next to its DNS permission.
+
+<Steps>
+<Step>
+
+### Start the wizard
+
+On **Settings** > **Certificates**, select **Cloudflare Origin certificate**. The **Issue a Cloudflare Origin certificate** wizard opens.
+
+![The first step of the Issue a Cloudflare Origin certificate wizard, Domain, with a Choose a domain selector](/screens/certificate-origin.webp)
+
+</Step>
+<Step>
+
+### Pick the domain
+
+On **Domain**, open **Choose a domain** and pick the hostname, for example `shop.acme-retail.it`. The certificate names exactly this hostname. Tunnel domains and wildcards are not listed.
+
+</Step>
+<Step>
+
+### Check Cloudflare access
+
+On **Check Cloudflare access**, select **Check access**. LogiStack finds the Cloudflare provider that manages the zone and asks Origin CA, with that provider's token, to list the zone's origin certificates. On success it shows `Ready to issue through Cloudflare · Acme`. Nothing is issued yet.
+
+</Step>
+<Step>
+
+### Pick the key and validity
+
+On **Key and validity**:
+
+- **Key type**: **ECDSA P-256** (Recommended), or **RSA 2048** for tooling that only reads RSA keys.
+- **Valid for**: from **7 days** to **15 years**. The default is 15 years.
+
+The private key is generated on the server and encrypted at rest. Only the signing request goes to Cloudflare.
+
+</Step>
+<Step>
+
+### Issue
+
+Review the summary and select **Issue certificate**. The domain switches to the new certificate right away, and it appears under **Uploaded**.
+
+</Step>
+<Step>
+
+### Set Full (strict) in Cloudflare
+
+In the Cloudflare dashboard, set the zone's SSL/TLS encryption mode to **Full (strict)** and keep the DNS record **proxied**.
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+Browsers do not trust Cloudflare Origin certificates. A visitor who reaches the server directly, past Cloudflare, gets a certificate warning. Keep the record proxied.
+</Callout>
+
+## Expiry and renewal
+
+- **Automatic certificates** renew on their own about 30 days before expiry. You only need to act when one keeps failing.
+- **Uploaded certificates** and **Cloudflare Origin certificates** never renew on their own. Cloudflare sends no expiry reminders either. Before the date, upload a new certificate (or issue a new Origin certificate), switch each domain to it, then delete the old one.
+
+The dashboard warns you in three places:
+
+- The **Expires** and **Certificate** columns turn amber when 14 days or fewer are left, and red at 3 days or fewer.
+- The Domains page summary counts certificates expiring within 14 days.
+- LogiStack sends a `certificate.expiring` event 14, 7 and 3 days before expiry, once per threshold. Route it to Slack, email or another channel in [Alerts and notifications](../operations/alerts-and-notifications.mdx).
+
+## Common problems
+
+**`too many certificates already issued for "sslip.io"`.** Generated sslip.io and nip.io hostnames share one Let's Encrypt budget with every other user of those services. Set up a [per-server wildcard](./wildcard-dns.mdx), or switch the authority to **ZeroSSL** while you test.
+
+**A domain stays at Waiting for issuance with HTTP-01.** Let's Encrypt cannot reach the server on port 80. Check that the record points at the server and that port 80 is open in your provider's firewall.
+
+**DNS-01 fails with a provider error.** The provider's token lost access to the zone or lacks DNS edit permission. Open [DNS providers](./dns-providers.mdx) and reconnect it with a token that can edit the zone.
+
+**A CAA record blocks issuance.** If the zone has CAA records, one must allow your authority, for example `0 issue "letsencrypt.org"`. You can add it from the [zone records page](./dns-providers.mdx#manage-zone-records).
+
+**`The certificate does not cover <hostname>`.** The uploaded certificate does not name the hostname. A wildcard covers one level only.

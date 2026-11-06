@@ -1,0 +1,159 @@
+---
+title: Service settings
+description: Change a LogiStack service's source, build, replicas, CPU and memory limits, health check, ports, placement and command, and stop, restart or delete it.
+---
+
+The **Settings** tab holds everything that defines how a service builds and runs: its source, build, resources, health check, ports, host access and placement. Most changes apply on the next deployment, so you can edit several settings, review the diff and roll them out together. Use this page when a service needs more memory, more replicas, a health check, or a different branch.
+
+## The Overview tab
+
+Open a service to land on **Overview**. It shows each replica with its node and container, the **State** (**Desired**, **Observed**, **Replicas**, **Last observed**), the **Running image** with the latest deployment, and the service's **Domains**.
+
+![The Overview tab of the web service: three running replicas on nodes fra-1 and fra-2, the state panel, and the domain shop.acme-retail.it](/screens/service-overview.webp)
+
+## Edit settings
+
+<Steps>
+<Step>
+
+### Open Settings
+
+Open the service and select **Settings**.
+
+![The Settings tab of the web service, with the General section and the Source and build section](/screens/service-settings.webp)
+
+</Step>
+<Step>
+
+### Change the fields
+
+Edit any section described below. A bar appears at the bottom with **Unsaved changes**, or the first problem to fix.
+
+</Step>
+<Step>
+
+### Save
+
+Select **Save**, or **Discard** to drop the edits. The header then shows **Review changes** and a count on **Deploy**.
+
+</Step>
+<Step>
+
+### Deploy
+
+Select **Review changes** to check the diff, then **Deploy changes**. See [Deployments](./deployments.mdx#review-changes-before-deploying).
+
+</Step>
+</Steps>
+
+## General
+
+- **Name**: shown across the dashboard. Docker objects are named from the service id, so renaming moves nothing.
+- **Icon**: the logo shown for the service. It is saved as soon as you pick one. The default follows the engine or image.
+
+## Source and build
+
+Applies from the next deployment.
+
+- For a Git service: **Repository**, **Branch**, **Root directory** and **Builder** (**Railpack (detect)**, **Dockerfile** or **Static site**). With **Dockerfile**, also **Dockerfile**, **Build context** and **Target stage**. See [Build types](./build-types.mdx).
+- For an image service: **Image**, pulled at each deploy. Pin a tag or digest to keep deploys reproducible.
+- **Architectures**: **Automatic**, **amd64 only**, **arm64 only**, or **amd64 and arm64** for a Dockerfile. See [Build platforms](./build-platforms.mdx).
+
+Git services also have **Deploy triggers** here. See [Deploy from Git](./from-git.mdx#deploy-triggers).
+
+## Resources
+
+Limits per replica. Swarm only schedules a replica on a node with this much to spare.
+
+- **Profile**: copies a resource profile's limits. Editing the profile later leaves this service as it is.
+- **Replicas**: how many copies run. Applications only; a database runs one.
+- **CPU**: cores; `0.5` is half a core. Empty is unlimited.
+- **Memory**: megabytes, such as `512`. Empty is unlimited. A replica that goes over the limit is stopped.
+
+```text title="Example: scale an API"
+Replicas:  3
+CPU:       0.5
+Memory:    512
+```
+
+<Callout>
+More than one replica needs a stateless app: no volume and no published host port. Keep sessions and uploads in a database, Redis or [object storage](../data/object-storage.mdx).
+</Callout>
+
+## Healthcheck and drain
+
+A new replica takes traffic, and a rollout continues, only once the check passes.
+
+- **Check**: **None**, **HTTP request** (a **Port** and a **Path**, such as `3000` and `/healthz`), **TCP connect** (a **Port**) or **Command** (one argument per line; exit 0 is healthy).
+- **Drain timeout**: seconds a replica being replaced gets after `SIGTERM` to finish its requests. 10 when empty, up to 3600.
+
+```text title="Example: HTTP health check"
+Check:  HTTP request
+Port:   3000
+Path:   /healthz
+```
+
+## Release commands
+
+One-off runs of the new image around each rollout, like database migrations. See [Deployments](./deployments.mdx#release-commands).
+
+## Command and ports
+
+- **Command**: one argument per line, run without a shell. Leave it empty to run the image's own command.
+- **Published ports**: for traffic outside the proxy. A published port binds on the node running the replica (**Its node**), or on every node through the routing mesh (**Every node**). Domains don't need one.
+
+```text title="Command"
+node
+server.js
+--port
+3000
+```
+
+## Host access
+
+Host directories mounted into the container, the user it runs as, its kernel capabilities, and when Swarm restarts it.
+
+- **Bind mounts**: **Host path** to **Container path**, optionally read-only. They pin the service to the node that holds them and aren't backed up. Only admins can save them; paths like `/etc` or the Docker socket need explicit admin confirmation.
+- **Run as**: numeric `uid` or `uid:gid`, such as `1000:1000`.
+- **Restart**: **Always**, **On failure** or **Never**.
+- **Add capabilities** and **Drop capabilities**: Linux capabilities without the `CAP_` prefix.
+
+## Placement
+
+Where replicas may run. Pinning keeps a service with local data on one node.
+
+- **Node**: **Any node**, or one node by hostname.
+- **Constraints**: Swarm constraints, one per line.
+
+```text title="Constraints"
+node.labels.region==eu
+node.role==worker
+```
+
+Add labels to nodes from **Monitoring** › **Nodes**. See [Nodes](../operations/nodes.mdx).
+
+## Alerts
+
+Under **Alerts**, add thresholds for CPU or memory (as a percentage of the limit, or in MB when no memory limit is set). Crossing a limit emits a `service.threshold` event that your notification rules can send to Slack, email or another channel. See [Alerts and notifications](../operations/alerts-and-notifications.mdx).
+
+## Stop, restart and start
+
+These are in the service header and apply at once:
+
+- **Stop**: scales to zero replicas and removes the domains from the proxy. Data, volumes and configuration stay. Confirm with **Stop service**.
+- **Start**: brings a stopped service back.
+- **Restart**: replaces each replica on the current image, one at a time, new one first. No build runs. It needs one healthy deployment first.
+
+## Delete a service
+
+At the bottom of **Settings**, under **Delete this service**, select **Delete service**, type the service name and confirm. Its replicas, domains, variables and deployment history go. Named volumes are kept until you remove them.
+
+<Callout type="warn">
+Deleting a service cannot be undone. Back up a database first. See [Backups](../data/backups.mdx).
+</Callout>
+
+## Common problems
+
+- **"Needs one healthy deployment first"** on **Restart**: the service never reached **Ready**. Select **Deploy** instead.
+- **A replica stays pending**: no node has the CPU or memory the limits ask for, or the constraints match no node. Lower the limits or fix the constraints.
+- **The save bar shows a field error**: the message names the field, for example `user: must be uid or uid:gid`. Fix it and save again.

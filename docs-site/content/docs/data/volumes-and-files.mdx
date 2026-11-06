@@ -1,0 +1,112 @@
+---
+title: Manage volumes and files of a service
+description: Use the Files tab to edit mounted config files, upload and delete files in named volumes, and browse, view, download or upload files in a running container.
+---
+
+A service keeps data that must survive a redeploy in named volumes, and can mount config files that LogiStack stores for it. The **Files** tab shows both, and lets you browse the running container's whole filesystem. Use it to change an `nginx.conf`, upload a build of a static site, pull a log file out of a container, or drop a file into place without a shell.
+
+## Volumes, config files and bind mounts
+
+- A **named volume** is Docker storage that outlives containers. Database services keep their data directory on one, and templates and static sites create their own. Volumes live on the node that runs the service. Deleting a service keeps its named volumes until you remove them.
+- A **config file** is a file LogiStack stores encrypted and mounts into the container. Editing it rolls out a new deployment.
+- A **bind mount** maps a host directory into the container. Set bind mounts in **Settings** > **Host access** > **Add bind mount**. Host paths bypass LogiStack's volumes, so they aren't listed in the Files tab or archived by volume backups. See [Service settings](../deploy/service-settings.mdx).
+
+To back up a volume, create a [backup policy](./backups.mdx) for it.
+
+## Open the Files tab
+
+Open the service and select **Files**. At the top, **Files from** switches between:
+
+- **Volumes**: the service's config files, each in an editor, then each named volume's files. This is the default when the service has any.
+- **Container**: the running replica's filesystem.
+
+## Edit a config file
+
+<Steps>
+<Step>
+
+### Find the file
+
+In **Volumes**, each config file has its own **Configuration** panel, titled with its path in the container, such as `/etc/nginx/conf.d/default.conf`, and when it was last saved.
+
+</Step>
+<Step>
+
+### Edit it
+
+Change the text in the editor. For an imported HAProxy load balancer, the panel is called **Load balancer** and also offers **Form** next to **Raw config**.
+
+</Step>
+<Step>
+
+### Save and deploy
+
+Select **Save and deploy**, or press **Cmd+S** (**Ctrl+S**). LogiStack stores the file and deploys the service with it; the new config rolls out with a fresh replica. Select **Discard changes** to drop your edits instead.
+
+</Step>
+</Steps>
+
+If the server in the container rejects the config, the deployment fails and Swarm keeps the running replica. Check the deployment's [logs](../deploy/deployments.mdx).
+
+## Upload files to a volume
+
+Each named volume has a panel with its mount path, such as `/usr/share/nginx/html`.
+
+<Steps>
+<Step>
+
+### Make sure a replica runs
+
+Files are read and written through a running replica, so the service must be running.
+
+</Step>
+<Step>
+
+### Upload
+
+Select **Upload files** to pick files, or **Upload folder** to pick a folder. You can also drag files or a folder onto the panel. A dropped folder uploads what is inside it, so dropping a `dist/` folder puts `index.html` at the volume root.
+
+</Step>
+<Step>
+
+### Check the result
+
+The panel lists each file's **Path**, **Size** and when it was **Modified**, and a total at the bottom. Static sites serve the files as soon as they land.
+
+</Step>
+</Steps>
+
+Each file can be up to 50 MB. An existing file at the same path is replaced, and missing folders are created. To delete a file, select its trash icon, then **Delete file**. It is removed from the volume right away; there is no undo.
+
+The list shows the first 1,000 files.
+
+## Browse a running container
+
+Select **Container** to open the **Filesystem** panel.
+
+- Select folders to move down, and use the breadcrumbs to go back up. Folders come first.
+- Select a text file to view it. The first 1 MB is shown; binary files aren't shown.
+- Select the download icon next to a file to download it. Downloads are limited to 50 MB.
+- Select **Upload here** to write files into the current folder. Each file can be up to 50 MB. An existing file is replaced; a folder never is.
+- With several replicas, pick one in the replica menu, or keep **First running replica**.
+
+Files you write into the container's own layer disappear on the next deploy. Write into a folder that is a mounted volume to keep them.
+
+<Callout type="info">
+Browsing the container needs the **Terminal** permission on the service. Files are read and written by the Docker daemon as root, so this is as powerful as a shell and is granted the same way. Downloads and uploads are recorded in the [audit log](../team/audit-log.mdx).
+</Callout>
+
+## Examples
+
+**Replace a static site's build.** Run `npm run build` locally, open the static site's **Files** tab, and drop the `dist` folder on its volume panel.
+
+**Grab a log file.** Select **Container**, open `/var/log/nginx`, and download `error.log`.
+
+**Put a license file in place.** Select **Container**, open the folder that the app's volume is mounted on, such as `/data`, and select **Upload here**.
+
+## Troubleshooting
+
+- **No files**: the service mounts no config files or volumes. Switch to **Container**.
+- **Files show here once a replica is running**: start the service, or wait for the deploy to finish.
+- **Browsing the container needs the Terminal permission**: ask an admin to add Terminal to your role for this service. See [Roles and permissions](../team/roles-and-permissions.mdx).
+- An upload is skipped with **Files are limited to 50 MB each**: copy large files with a [schedule](./schedules.mdx) or from inside the container instead.

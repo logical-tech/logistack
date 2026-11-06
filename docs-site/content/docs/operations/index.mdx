@@ -1,0 +1,35 @@
+---
+title: Operate LogiStack
+description: Watch logs and metrics, open a shell in a container, add servers, send alerts, track usage, update LogiStack and migrate from Dokploy or Coolify.
+---
+
+Once your services run, this section covers the day-to-day work: reading what they print, seeing how much CPU, memory, disk and network they use, growing the cluster with more servers, getting told when something breaks, and keeping LogiStack itself up to date. It also covers moving an existing Dokploy or Coolify server to LogiStack.
+
+![The Monitoring page, with cluster CPU, memory, disk and network charts over the last 24 hours](/screens/monitoring.webp)
+
+## Where things live
+
+| You want to | Go to |
+| --- | --- |
+| Read a service's output, or run a command inside it | The service's **Logs** and **Terminal** tabs |
+| See one service's CPU, memory, network and disk I/O | The service's **Metrics** tab |
+| See every server's CPU, memory, disk and network | **Monitoring** › **Overview** |
+| Add, label, drain or remove a server | **Monitoring** › **Nodes** |
+| Set alert thresholds and metric retention | **Monitoring** › **Settings** |
+| Send events to Slack, email, Telegram and others | **Integrations** › **Notifications** |
+| See what each project consumes | **Monitoring** › **Usage**, or **Usage** on a project |
+| Update LogiStack | **Settings** › **Updates** |
+| Move from Dokploy or Coolify | **Settings** › **Migrate** |
+
+## Guides
+
+<Cards>
+  <Card title="Logs and terminal" href="/operations/logs-and-terminal" description="Follow live logs per replica, search them, and open a shell inside a running container." />
+  <Card title="Metrics" href="/operations/metrics" description="CPU, memory, network and disk charts for services and nodes, from 1 hour to 30 days." />
+  <Card title="Nodes" href="/operations/nodes" description="Add servers over SSH, place services with labels, free disk space, drain and remove nodes." />
+  <Card title="Alerts and notifications" href="/operations/alerts-and-notifications" description="Thresholds, crash loops and deploy events, delivered to Slack, Discord, email and more." />
+  <Card title="Usage" href="/operations/usage" description="What each project, environment and service consumes against your cluster's capacity." />
+  <Card title="Updates" href="/operations/updates" description="Update LogiStack from the dashboard, check daily for releases, and opt in to betas." />
+  <Card title="Migrate from Dokploy" href="/operations/migrate-from-dokploy" description="Move projects, databases and domains from Dokploy one service at a time." />
+  <Card title="Migrate from Coolify" href="/operations/migrate-from-coolify" description="Move applications, databases and one-click services from Coolify v4." />
+</Cards>

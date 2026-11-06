@@ -1,0 +1,154 @@
+---
+title: Container registries
+description: Use LogiStack's built-in registry or connect GHCR, Docker Hub or any OCI registry for built images, with retention, a default registry and private image pulls.
+---
+
+A registry is where LogiStack pushes the images it builds and where every node pulls them from. A single server can build and run without one, but a swarm with more than one node, and any multi-architecture build, needs a registry. LogiStack can run its own registry on your server, or push to GitHub Container Registry, Docker Hub or any OCI registry.
+
+## How LogiStack uses registries
+
+- Builds push to the **default** registry, as `<registry>/<org>/<service>:<deploymentId>`. Tags are immutable, so a rollback pulls exactly the image it names.
+- Nodes pull with the default registry's credentials.
+- An [image service](./from-image.mdx) gets those credentials only when its image lives on the default registry's host. Pulls from any other host are anonymous.
+- Each registry keeps the newest N images of each service. Older ones are deleted by an hourly prune, so rollbacks reach that far back.
+
+![The Registries page: the local registry turned on as the default with its address, and a GHCR registry below it under Push to](/screens/registries.webp)
+
+## Use the local registry
+
+The local registry runs on your own server, behind the proxy, with generated credentials. Images never leave your servers.
+
+<Steps>
+<Step>
+
+### Open Registries
+
+Select **Registries** under **Integrations** in the sidebar.
+
+</Step>
+<Step>
+
+### Turn it on
+
+Under **Local registry**, turn on **Registry on this server**. Turning it on makes it the default. The worker brings it up within about 30 seconds.
+
+It needs the instance domain from setup, because it is served on `registry.<domain>`, for example `registry.srv1.example.com`.
+
+</Step>
+<Step>
+
+### Log in from your machine (optional)
+
+Select **Show credentials for docker login** to copy the username, the password, or the whole `docker login` command. Docker asks for the password; it never goes on the command line.
+
+```bash
+docker login registry.srv1.example.com
+```
+
+</Step>
+</Steps>
+
+To turn it off, switch the toggle off and choose:
+
+- **Keep images**: turn it back on later and every image and credential is still there.
+- **Delete images and credentials**: frees the disk. Rollbacks to images built here stop working. This can't be undone.
+
+Running services keep running either way. Choose another default before the next build.
+
+## Add an external registry
+
+<Steps>
+<Step>
+
+### Start the wizard
+
+On **Registries**, select **Add registry**.
+
+![The Add a registry wizard on its Choose a registry step: GitHub Container Registry, Docker Hub and Any OCI registry](/screens/registry-new.webp)
+
+</Step>
+<Step>
+
+### Choose a registry
+
+Pick **GitHub Container Registry**, **Docker Hub** or **Any OCI registry** (GitLab, Harbor, Zot, ECR behind a proxy, or your own `registry:2`). Select **Continue**.
+
+</Step>
+<Step>
+
+### Enter credentials
+
+Credentials are stored encrypted. Nodes use them to pull, builds to push.
+
+<Tabs items={["GHCR", "Docker Hub", "Any OCI registry"]}>
+<Tab value="GHCR">
+
+1. Select **Create a token on GitHub** and create a **classic** personal access token with **write:packages**. Add **read:packages** to pull private images from other accounts, and **delete:packages** so retention can remove old images.
+2. Enter your **GitHub username** and paste the **Personal access token** (`ghp_…`).
+3. Optionally set **Namespace**: your user or an organization, such as `acme-retail`. Images go to `ghcr.io/acme-retail/<service>`.
+
+</Tab>
+<Tab value="Docker Hub">
+
+1. Select **Create a token on Docker Hub** and create a personal access token with **Read & Write**. Use **Read, Write & Delete** if retention should remove old images.
+2. Enter your Docker ID and paste the **Access token**.
+3. Set **Namespace** to your Docker ID or an organization, such as `acmeretail`. Images go to `docker.io/acmeretail/<service>`.
+
+</Tab>
+<Tab value="Any OCI registry">
+
+1. Enter the **Address**: host, optional port and namespace, like `registry.example.com:5000/acme`. HTTPS is required.
+2. Enter a username and a **Password or token**, or leave both empty for an open registry.
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### Test push and pull
+
+On **Test push and pull**, LogiStack logs in, pushes a test image and pulls it back. Nothing is saved until the test passes and you confirm.
+
+</Step>
+<Step>
+
+### Set options
+
+On **Options**:
+
+- **Make it the default**: new builds push here instead of the current default.
+- **Images to keep**: keep last N images per service, 1 to 500. The newest images of each service survive the hourly prune.
+
+</Step>
+<Step>
+
+### Add it
+
+On **Review**, select **Add registry**.
+
+</Step>
+</Steps>
+
+## Change the default or retention
+
+Under **Push to**, select the radio next to a registry to make it the default (builds push to the default). Change **Keep last … images per service** next to any registry.
+
+## Remove a registry
+
+Select the trash icon next to the registry, then **Remove registry**. Images already pushed stay in the registry. Builds stop pushing to it, and if it was the default there is no default until you choose one.
+
+## Check that it worked
+
+Deploy a Git service. The log shows the push to the new registry:
+
+```text
+==> pushing ghcr.io/acme-retail/web:dep_8k2p1q
+```
+
+## Common problems
+
+- **The test fails with "denied"**: the token lacks write access (`write:packages` on GHCR, **Read & Write** on Docker Hub), or the namespace belongs to someone else.
+- **Old images aren't deleted**: the token can't delete. Use `delete:packages` on GHCR or **Read, Write & Delete** on Docker Hub.
+- **`a multi-node swarm needs a registry`**: turn on the local registry or add one and make it the default.
+- **The local registry can't be turned on**: it needs the instance domain from setup. See [Setup wizard](../getting-started/setup-wizard.mdx).

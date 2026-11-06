@@ -1,0 +1,88 @@
+---
+title: Glossary
+description: Definitions of the terms used across LogiStack and its docs, from agent, environment and manifest to reconciler, scope, stack and watch paths.
+---
+
+The terms LogiStack uses in the dashboard, the API and these docs, in alphabetical order. Each entry links to the page that covers it.
+
+**Agent.** The `logistack-agent` service, one per node. It connects to the api over a WebSocket and reports metrics and Docker events, streams logs, runs terminal sessions and handles files and backups on its node. See [Architecture](./architecture.mdx).
+
+**API key.** A credential starting with `lsk_` for the [REST API](../automation/rest-api.mdx) and the [MCP server](../automation/mcp-server.mdx). It acts as its owner, optionally narrowed to scopes, and can expire. See [API keys](../team/api-keys.mdx).
+
+**Apply.** Converging a project or environment to a manifest. Idempotent, deletes nothing without prune, and does not deploy. See [Project manifests](../automation/project-manifests.mdx).
+
+**Audit log.** The append-only record of every change, with the actor, IP, and before and after values with secrets redacted. See [Audit log](../team/audit-log.mdx).
+
+**Awaiting checks.** A deployment status: the deployment waits for the commit's CI checks to pass before it starts. See [Git webhooks](../automation/git-webhooks.mdx).
+
+**Build type.** How LogiStack turns a repository into an image: `dockerfile`, `railpack` (detects the language and builds without a Dockerfile), `static` (serves a directory of files) or `image` (no build, for image sources). See [Build types](../deploy/build-types.mdx).
+
+**Build-time variable.** An environment variable that is also passed to the build, for values compiled into the app such as `NEXT_PUBLIC_API_URL`. See [Environment variables](../deploy/environment-variables.mdx).
+
+**BuildKit.** The image builder. LogiStack runs it rootless as the `ls-buildkit` service.
+
+**Caddy.** The reverse proxy that holds ports 80 and 443, terminates TLS and routes each hostname to its service. LogiStack configures it through its admin API.
+
+**Deploy trigger.** The rule that decides which git events deploy a service: pushes to the branch, tags matching a pattern, or published releases. See [Git webhooks](../automation/git-webhooks.mdx).
+
+**Deployment.** One attempt to roll out a service, with its own ID (`dep_...`), trigger, commit, image, log and status. See [Deployments](../deploy/deployments.mdx).
+
+**Desired state.** What should run, as stored in Postgres: a service's spec, replicas, domains, variables. Compare **observed state**.
+
+**Destructive tool.** An MCP tool that deletes, stops, restores or rolls back something. It runs only with `confirm: true`.
+
+**Environment.** A copy of a project's services with its own variables, network and domains, such as production and staging. Kinds are `production`, `staging`, `preview` and `custom`. See [Environments](../deploy/environments.mdx).
+
+**Folder.** A group of projects, at most two levels deep. Permissions granted on a folder apply to everything in it.
+
+**Generated domain.** A hostname LogiStack makes for a service, on sslip.io, nip.io or your own wildcard, such as `api-x2m4q8.203-0-113-7.sslip.io`. See [Domains](../networking/domains.mdx).
+
+**Ingress node.** A node labelled `logistack.ingress=true`, where Caddy runs and ports 80 and 443 are published.
+
+**Manifest.** A YAML or JSON file describing a project or environment: its environments, variables, services, domains and backups. See [Project manifests](../automation/project-manifests.mdx).
+
+**Master key.** The key that encrypts every secret LogiStack stores. It is a Docker secret and a line in `/etc/logistack/credentials`. Back it up.
+
+**MCP server.** The Model Context Protocol endpoint at `/mcp` that lets AI agents call the API as tools. See [MCP server](../automation/mcp-server.mdx).
+
+**Node.** A server in the swarm, either a manager or a worker. See [Nodes](../operations/nodes.mdx).
+
+**Observed state.** What Docker reports for a service: `running`, `starting`, `unhealthy`, `stopped`, `failed` or `unknown`.
+
+**Pending diff.** The difference between a service's saved settings and what its running deployment uses. It disappears when you deploy.
+
+**Preview environment.** A temporary environment, `pr-<number>`, that LogiStack creates for a pull request and removes when it closes. See [Preview environments](../deploy/preview-environments.mdx).
+
+**Project.** A group of related services across environments, such as an app's API, frontend and database.
+
+**Prune.** An apply option that also deletes what the manifest does not list.
+
+**Reconciler.** The worker loop that compares desired state with Docker every 30 seconds, records observed state and removes orphaned objects. See [Architecture](./architecture.mdx#desired-state-and-the-reconciler).
+
+**Registry.** Where built images are pushed so every node can pull them: the built-in local registry or an external one such as GHCR. See [Registries](../deploy/registries.mdx).
+
+**Role.** A named set of permissions: `owner`, `admin`, `developer`, `viewer`, or a custom role. See [Roles and permissions](../team/roles-and-permissions.mdx).
+
+**Rollback.** Deploying an earlier deployment's image again, without rebuilding.
+
+**Scope.** Where a role applies: the organization, a folder, a project, an environment or a service. A grant applies to everything below its scope.
+
+**Service.** One thing that runs: an application, database, compose service, object storage or game server. Its Docker name is `ls-svc-<id>`.
+
+**Service account.** A non-human member that owns API keys for CI and automation. See [Service accounts](../team/service-accounts.mdx).
+
+**Skip marker.** `[skip ci]`, `[ci skip]` or `[skip deploy]` in a commit message. That commit never deploys.
+
+**Spec.** The full configuration of a service as JSON: source, build, ports, replicas, resources, health check and more. The API, manifests and the dashboard all share it.
+
+**Stack.** A set of services created together from a compose file, a template or a compose file in git. See [Compose stacks](../deploy/compose-stacks.mdx).
+
+**Swarm.** Docker Swarm, the orchestrator LogiStack runs on. It schedules tasks across nodes, rolls updates and rolls them back.
+
+**Template.** A ready-made app from the catalog, deployed as a stack. See [Templates](../deploy/templates.mdx).
+
+**Watch paths.** Globs or directories that narrow branch deploys to pushes that change them. Useful in monorepos.
+
+**Webhook.** The URL a Git provider calls on push and pull request events: `/api/webhooks/git/<provider-id>`.
+
+**Worker.** The `logistack-worker` service that runs deployments, builds, backups, schedules, the reconciler and the proxy sync.

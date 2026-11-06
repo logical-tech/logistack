@@ -1,0 +1,307 @@
+---
+title: Project manifests (configuration as code)
+description: Export a LogiStack project or environment as a YAML or JSON manifest, keep it in git, and apply it from the dashboard, CI or an agent with a dry run first.
+---
+
+A manifest is the desired state of one project, or one environment, as a YAML or JSON file. It lists environments, variables, services with their spec, mounts, domains and backup policies, and git stacks. Use manifests to review configuration changes in pull requests, to recreate a project on another server, or to copy staging's setup into a new environment. Applying a manifest is idempotent: apply the same file twice and the second run changes nothing.
+
+## What a manifest holds
+
+`version` is `1`. `kind` is either:
+
+- `project`: a `project` (name and description), project-wide `variables`, and a list of `environments`.
+- `environment`: one `environment`.
+
+An environment holds `variables`, git `stacks` and `services`. A service holds its `spec`, `variables`, `mounts`, `domains` and `backups`.
+
+| Rule | What it means |
+| --- | --- |
+| Identity | Apply matches environments and services by `slug`, variables by `key`, domains by hostname plus path prefix, backups by target, volume, destination and cron, stacks by name. Rename a service's `name` freely; changing its `slug` means a different service. |
+| Secrets | A secret variable is exported as `secret: true` with no `value`. On apply, a secret without a value keeps the stored one. A new secret without a value is a warning: set it afterwards, or inject the value in CI before applying. |
+| Organization resources | Git providers, S3 destinations, DNS providers and uploaded certificates are referenced by name: `gitProvider`, `destination`, `dnsProvider`, `certificate`. A name that matches nothing, or more than one resource, fails with a 400 listing each such name. |
+| Specs | A service's `spec` is the same object the [REST API](./rest-api.mdx) takes, except that a git source names its provider in the service's `gitProvider` field instead of `gitProviderId`. |
+
+Export leaves out: secret values, generated domains, basic auth and domain access rules (they hold password hashes), node pins and adopted volumes. Stacks made from a pasted compose file or a template are exported as their individual services, because the compose file can hold credentials. Git stacks are exported by repository, and their services carry `stack: <name>`.
+
+## Example
+
+```yaml title="storefront.logistack.yaml"
+# yaml-language-server: $schema=https://logistack.example.com/api/manifest/schema.json
+version: 1
+kind: project
+project:
+  name: Storefront
+  description: Shop frontend, API and database
+variables:
+  - key: SENTRY_ENVIRONMENT_PREFIX
+    value: storefront
+environments:
+  - name: Production
+    slug: production
+    kind: production
+    variables:
+      - key: LOG_LEVEL
+        value: info
+    services:
+      - name: API
+        slug: api
+        gitProvider: GitHub (acme)
+        spec:
+          kind: application
+          source:
+            type: git
+            repository: acme/storefront
+            branch: main
+            path: /apps/api
+          build:
+            type: dockerfile
+            dockerfilePath: Dockerfile
+            context: .
+          ports: []
+          replicas: 2
+          resources:
+            cpu: 1
+            memoryMb: 1024
+          healthcheck:
+            type: http
+            port: 8080
+            path: /healthz
+          placement: []
+          drainTimeout: 30
+        variables:
+          - key: PORT
+            value: "8080"
+          - key: DATABASE_URL
+            secret: true
+          - key: NEXT_PUBLIC_API_URL
+            value: https://api.shop.example.com
+            buildTime: true
+        domains:
+          - hostname: api.shop.example.com
+            port: 8080
+            https: true
+            cert: auto
+      - name: Web
+        slug: web
+        spec:
+          kind: application
+          source:
+            type: image
+            image: ghcr.io/acme/storefront-web:2.3.0
+          build:
+            type: image
+          ports: []
+          replicas: 2
+          resources:
+            memoryMb: 512
+          placement: []
+        domains:
+          - hostname: shop.example.com
+            port: 3000
+            https: true
+            cert: auto
+          - hostname: www.shop.example.com
+            port: 3000
+            https: true
+            cert: auto
+            redirectTo: shop.example.com
+      - name: Orders DB
+        slug: orders-db
+        spec:
+          kind: database
+          engine: postgres
+          version: "17"
+          credentialsRef: env
+          resources:
+            memoryMb: 1024
+        backups:
+          - target: database
+            destination: Backups (Hetzner)
+            cron: 0 3 * * *
+            timezone: Europe/Rome
+            retention:
+              count: 14
+            encrypt: true
+  - name: Staging
+    slug: staging
+    kind: staging
+    color: amber
+    variables:
+      - key: LOG_LEVEL
+        value: debug
+    services: []
+```
+
+Field defaults you can leave out: `desiredState` is `running`, `variables`, `mounts`, `domains`, `backups`, `stacks` and `services` are empty lists, a variable's `secret` and `buildTime` are `false`, a domain's `tunnel` is `false`, a backup's `timezone` is `UTC`, `enabled` is `true`, and `pauseService` and `encrypt` are `false`.
+
+## Editor support
+
+The server publishes the manifest's JSON Schema at `/api/manifest/schema.json`, without authentication. A YAML export starts with a modeline that points at it, so editors with the YAML language server (VS Code's YAML extension, JetBrains IDEs, Zed, Neovim) give completion and validation as you type:
+
+```yaml
+# yaml-language-server: $schema=https://logistack.example.com/api/manifest/schema.json
+```
+
+## Export a manifest
+
+<Steps>
+<Step>
+### Open the project
+
+Go to **Projects** and open the project.
+</Step>
+<Step>
+### Export it
+
+Open the project's actions menu and select **Export manifest** to download the whole project. To export one environment, open that environment's menu and select **Export manifest** there.
+</Step>
+</Steps>
+
+The file is named after the project or environment, such as `storefront.logistack.yaml`. From the API:
+
+```sh
+# The whole project, as YAML
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" \
+  "$LOGISTACK_URL/api/projects/prj_k3v9x2m4q8w1/manifest?format=yaml" -o storefront.logistack.yaml
+
+# One environment, as JSON (the default format)
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" \
+  "$LOGISTACK_URL/api/environments/env_p7d2c9a1r5t3/manifest" -o production.logistack.json
+```
+
+Export needs the `read` permission.
+
+## Apply a manifest from the dashboard
+
+<Steps>
+<Step>
+### Open Import manifest
+
+Open the project's actions menu and select **Import manifest…**. To start from one environment, use **Import manifest…** in that environment's menu.
+
+![The Import manifest wizard with a YAML manifest pasted into the Manifest field](/screens/project-import.webp)
+</Step>
+<Step>
+### Add the manifest
+
+Drop a `.yaml`, `.yml` or `.json` file, select **Choose file**, or paste it into **Manifest**. For an environment manifest, choose the target environment in **Apply to**.
+</Step>
+<Step>
+### Review changes
+
+The **Review changes** step shows a dry-run plan: each environment, variable, stack, service, domain and backup that would be created, updated or deleted, with one line per changed field and never a secret's value. Turn on **Prune** only if you also want to delete what the manifest does not list.
+</Step>
+<Step>
+### Apply
+
+Select **Apply changes**. If the manifest created encrypted backup policies, the result shows each policy's age key once. Copy them now: you need them to restore those backups.
+</Step>
+</Steps>
+
+## Apply a manifest from the API
+
+`POST /api/projects/{id}/apply` takes a project manifest. `POST /api/environments/{id}/apply` takes an environment manifest. The body is:
+
+```json
+{ "manifest": "<YAML or JSON text, or the manifest as an object>", "prune": false, "dryRun": true }
+```
+
+Plan first with `dryRun: true`, then apply:
+
+```sh title="apply.sh"
+set -euo pipefail
+body=$(jq -Rs '{manifest: ., dryRun: true}' storefront.logistack.yaml)
+curl -fsS -X POST "$LOGISTACK_URL/api/projects/$PROJECT_ID/apply" \
+  -H "x-api-key: $LOGISTACK_API_KEY" -H "content-type: application/json" \
+  --data "$body" | jq '.changes[] | "\(.op) \(.resource) \(.environment // "")/\(.service // "") \(.name)"'
+
+body=$(jq -Rs '{manifest: ., dryRun: false}' storefront.logistack.yaml)
+curl -fsS -X POST "$LOGISTACK_URL/api/projects/$PROJECT_ID/apply" \
+  -H "x-api-key: $LOGISTACK_API_KEY" -H "content-type: application/json" \
+  --data "$body" | jq '{applied, warnings, backupKeys}'
+```
+
+```json title="Response (abridged)"
+{
+  "applied": true,
+  "changes": [
+    {
+      "op": "update",
+      "resource": "service",
+      "environment": "production",
+      "name": "api",
+      "changes": ["spec changed"]
+    },
+    {
+      "op": "create",
+      "resource": "domain",
+      "environment": "production",
+      "service": "web",
+      "name": "www.shop.example.com",
+      "changes": ["new"]
+    }
+  ],
+  "warnings": [],
+  "backupKeys": []
+}
+```
+
+Over MCP the same routes are the `project_apply` and `environment_apply` tools.
+
+## What apply does
+
+- It converges phase by phase: project, environments, variables, stacks, services, domains, backups. Each phase reads the current state again.
+- It deletes nothing unless `prune` is `true`. With prune it deletes environments (project manifests only), variables, stacks, services, domains and backups the manifest does not list.
+- It calls the same routes a person uses, as the caller, so their permission checks and audit entries apply. Apply needs `write` on the project or environment, creating a stack needs `deploy`, and prune needs `delete`.
+- It does not deploy. A changed service shows a pending diff until you deploy it. Stacks and config files roll out the way their own routes do.
+- It cannot change the volume mounts of an existing service, the git source of an existing stack, or turn backup encryption off. It reports a warning for each instead.
+
+<Callout type="warn">
+  With `prune: true`, apply deletes every service, domain, variable, stack and backup policy that the manifest does not list, including databases. Always run a dry run with prune first and read every `delete` in the plan.
+</Callout>
+
+## Apply from CI
+
+Keep the manifest in the repository and apply it on merge. This GitHub Actions job plans on pull requests and applies on `main`. Store the key as the `LOGISTACK_API_KEY` secret and the project ID and URL as repository variables. The key needs `write` on the project.
+
+```yaml title=".github/workflows/logistack-manifest.yml"
+name: LogiStack manifest
+on:
+  pull_request:
+    paths: [storefront.logistack.yaml]
+  push:
+    branches: [main]
+    paths: [storefront.logistack.yaml]
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Plan or apply
+        env:
+          LOGISTACK_URL: ${{ vars.LOGISTACK_URL }}
+          LOGISTACK_API_KEY: ${{ secrets.LOGISTACK_API_KEY }}
+          PROJECT_ID: ${{ vars.LOGISTACK_PROJECT_ID }}
+          DRY_RUN: ${{ github.event_name == 'pull_request' }}
+        run: |
+          body=$(jq -Rs --argjson dry "$DRY_RUN" '{manifest: ., dryRun: $dry}' storefront.logistack.yaml)
+          curl -fsS -X POST "$LOGISTACK_URL/api/projects/$PROJECT_ID/apply" \
+            -H "x-api-key: $LOGISTACK_API_KEY" -H "content-type: application/json" \
+            --data "$body" | tee result.json | jq .
+          jq -e '.warnings | length == 0' result.json >/dev/null || echo "::warning::apply reported warnings"
+```
+
+To supply a secret that the manifest leaves empty, fill it in before applying, for example with `yq`:
+
+```sh
+yq -i '(.environments[] | select(.slug == "production") | .services[] | select(.slug == "api") | .variables[] | select(.key == "DATABASE_URL")).value = strenv(DATABASE_URL)' storefront.logistack.yaml
+```
+
+## Common problems
+
+- **`not a valid manifest`.** The `details` list each failing path, such as `environments.0.services.1.spec.build.type`. Validate in your editor with the schema modeline.
+- **`this is an environment manifest: apply it to an environment`.** You sent `kind: environment` to a project's apply route, or the reverse.
+- **A 400 naming a git provider, destination or certificate.** No resource has that name, or more than one does. Rename one in the dashboard so the name is unique.
+- **`a variable that is not secret needs a value`.** Add `value`, or mark the variable `secret: true`.
+- **Changes applied but nothing changed in the running app.** Apply does not deploy. Deploy the services that show a pending diff.

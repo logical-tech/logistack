@@ -1,0 +1,176 @@
+---
+title: Installer reference (install.sh)
+description: Every install.sh flag and environment variable, what the LogiStack installer changes on the server, how to upgrade, repair and uninstall.
+---
+
+`install.sh` installs, repairs and upgrades LogiStack on one Linux server. It installs Docker if needed, starts a Docker Swarm, creates the secrets, deploys the `logistack` stack and prints how to reach the setup wizard. It is idempotent: re-running it repairs a broken install, restarts nothing that already matches, and never rotates existing secrets. For a first install, follow [Install LogiStack](../getting-started/install.mdx); this page lists every option.
+
+## Usage
+
+```sh
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
+```
+
+Pass options after `bash -s --`:
+
+```sh
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.3.0 --yes
+```
+
+Preview what it would do, without changing anything:
+
+```sh
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --dry-run
+```
+
+## Flags
+
+| Flag | What it does |
+| --- | --- |
+| `--version X` | Release to install or upgrade to: `0.3.0`, `v0.3.0` or `latest`. Without it, the installer keeps the release that runs now (read from the api's image, so in-app updates count), else the release in `/etc/logistack/version`, else the release this copy of the script is pinned to, else the latest release on GitHub. A plain re-run never upgrades. |
+| `--advertise-addr IP` | IPv4 address other Swarm nodes use to reach this one. Default: the address of the interface holding the default route. Loopback addresses are refused. Ignored with a warning if the server is already in a swarm. |
+| `--yes`, `-y` | Skip the confirmation prompt. Required when no terminal is attached, such as in cloud-init. |
+| `--dry-run` | Run every check, print the plan (`→ would ...`), change nothing. |
+| `--no-ingress` | Leave Caddy at 0 tasks and ports 80/443 to another proxy. The dashboard is reachable only through the SSH tunnel. Remembered on re-runs until `--enable-ingress`. |
+| `--enable-ingress` | Turn Caddy on after `--no-ingress`. Ports 80 and 443 must be free by then. Cannot be combined with `--no-ingress`. |
+| `--public-setup` | Serve the setup wizard on the server's public address before setup, guarded by a one-time setup token printed at the end. Not remembered: a re-run without it is private again. Cannot be combined with `--no-ingress`. |
+| `--local-build` | Build the four images from the checkout the script runs from, instead of pulling them from `ghcr.io`. Single node only. For development; pass it on every re-run. |
+| `--help`, `-h` | Print the usage. |
+
+## Environment variables
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `LOGISTACK_TUNNEL_PORT` | `3000` (`3001` next to Dokploy) | Loopback port of the `logistack-api-tunnel` container, the private way into the dashboard. |
+| `LOGISTACK_WAIT_TIMEOUT` | `300` | Seconds the installer waits for every service and the api's health check before it gives up. Raise it on slow disks or networks. |
+| `LOGISTACK_STACK_URL_BASE` | `https://raw.githubusercontent.com/logical-tech/logistack` | Where the installer downloads `install/stack.yml` for the chosen release, when the file is not next to the script. Point it at a mirror if GitHub is unreachable. |
+
+Set them for the `bash` that runs the script:
+
+```sh
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo LOGISTACK_TUNNEL_PORT=3300 bash
+```
+
+## Checks before it changes anything
+
+| Check | Fails when |
+| --- | --- |
+| Root | Not root (a dry run only warns). |
+| Operating system | Never fails. Ubuntu 22.04+ and Debian 12+ are supported; others get a warning and need Docker 26+ already installed. |
+| Architecture | Not amd64 or arm64. |
+| Resources | Less than about 2 GB of RAM, or less than 10 GB free on `/var/lib/docker` (or `/`). |
+| Ports | 80/tcp, 443/tcp or 443/udp already in use, unless ingress is off or LogiStack's own Caddy holds them. |
+| Networks | An existing Swarm overlay overlaps a local network (relevant next to Coolify). |
+| Address | No IPv4 address can be detected, or only a loopback one. |
+
+Then it prints the plan and asks to continue, unless you pass `--yes`.
+
+## What it changes on the server
+
+| Object | Details |
+| --- | --- |
+| Docker | Installed from `download.docker.com` when missing (Ubuntu and Debian only). |
+| Swarm | `docker swarm init --advertise-addr <ip>` when the server is not in a swarm. An existing swarm is reused if this node is a manager. |
+| Node labels | `logistack.ingress=true` and `logistack.data=true` on this node, only when no node carries them yet. `logistack.ingress=pending` records `--no-ingress`. |
+| Docker secrets | `logistack-master-key`, `logistack-postgres-password`, `logistack-better-auth-secret`, `logistack-redis-password`, `logistack-agent-token`, `logistack-setup-token`. Created only when absent. |
+| `/etc/logistack/credentials` | The generated secret values, mode 600. |
+| `/etc/logistack/stack.yml`, `/etc/logistack/version` | The deployed stack file and the release the installer last deployed. |
+| `/var/log/logistack-install.log` | Full output of every command the installer ran, mode 600. |
+| `/etc/update-motd.d/99-logistack` | A login banner that shows how to reach the setup wizard on every SSH login until setup is done. |
+| Stack `logistack` | `postgres`, `redis`, `logistack-api`, `logistack-worker`, `logistack-agent` (one per node) and `caddy` (one per ingress node). |
+| Container `logistack-api-tunnel` | The api on `127.0.0.1:3000`, loopback only. Absent with `--public-setup`. |
+| Networks | `ls-control` (10.247.0.0/16, control plane), `ls-ingress`, `ls-storage`, `ls-db`, `ls-game`. See [Architecture](./architecture.mdx#networks). |
+| Volumes | `logistack_pgdata`, `logistack_redisdata`, `logistack_workerdata`, `logistack_agentdata`. |
+| `/etc/sysctl.d/60-logistack-userns.conf` | Only where `kernel.apparmor_restrict_unprivileged_userns` is `1` (Ubuntu 23.10 and later). Sets it to `0`, because rootless BuildKit needs unprivileged user namespaces. |
+
+<Callout type="warn">
+  Back up `/etc/logistack/credentials`. The master key in it encrypts every secret LogiStack stores, and Docker secrets cannot be read back. Without it, a restored database cannot decrypt your variables, keys and passwords.
+</Callout>
+
+If the server has `/etc/logistack/credentials` but no Docker secrets, for example a new server where you copied the file, the installer creates the secrets from the file instead of generating new values. That is the manual disaster recovery path.
+
+The worker later creates `ls-buildkit` (rootless BuildKit, on the first git build) and, if you turn it on, the local registry. They live outside the stack.
+
+## Reach the setup wizard
+
+By default the dashboard is private until setup is done: Caddy answers every request with 404, and the api is published only on the server's loopback. From your machine:
+
+```sh
+ssh -L 3000:127.0.0.1:3000 root@203.0.113.7
+# then open http://localhost:3000
+```
+
+With `--public-setup`, the wizard is at `http://<ip-with-dashes>.sslip.io/setup#token=<token>`. The token is printed at the end of the install, shown in the login banner and stored as `LOGISTACK_SETUP_TOKEN` in `/etc/logistack/credentials`. It stops working once an owner exists. See [The setup wizard](../getting-started/setup-wizard.mdx).
+
+## Install with cloud-init
+
+Paste this into your provider's **User data** or **Cloud config** field when you create the server:
+
+```yaml
+#cloud-config
+runcmd:
+  - curl -fsSL https://stack.logicaltech.it/install.sh | bash -s -- --yes
+```
+
+Follow the install with `tail -f /var/log/cloud-init-output.log`. SSH in when it finishes: the login banner shows how to reach the wizard.
+
+## Next to Dokploy or Coolify
+
+The installer detects Dokploy (Swarm service `dokploy` or `/etc/dokploy`) and Coolify (a running `coolify` container), explains its plan and asks first. In both cases ingress stays off so the existing proxy keeps ports 80 and 443, setup is private, and the api gets read-only access to the old platform's database for the migration wizard. Next to Dokploy, the tunnel uses port `3001` because Dokploy's dashboard holds `3000`. See [Migrate from Dokploy](../operations/migrate-from-dokploy.mdx) and [Migrate from Coolify](../operations/migrate-from-coolify.mdx).
+
+## Upgrade
+
+From the dashboard, an admin opens **Settings > Updates** and selects **Update to vX**. See [Updates](../operations/updates.mdx). From the server:
+
+```sh
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.3.0
+```
+
+The api and worker roll with start-first updates and roll back on failure. Postgres, Redis and Caddy stop the old task first, because they own a data directory or host ports. The api runs database migrations at startup. A release that changes `stack.yml` (a new service or variable) says so in its notes and needs the installer; an in-app update swaps images only.
+
+## Repair
+
+Run the installer again with no options. It recreates missing secrets from `/etc/logistack/credentials`, redeploys the stack at the running release, and recreates the loopback tunnel:
+
+```sh
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
+```
+
+If the dashboard's domain stops working, this is also how you get back in: the tunnel on `127.0.0.1:3000` comes back and you reach it over SSH.
+
+## Uninstall
+
+Download `uninstall.sh` and run it:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/logical-tech/logistack/main/install/uninstall.sh -o uninstall.sh
+sudo bash uninstall.sh
+```
+
+It removes the `logistack` stack, the `ls-buildkit` service, the `logistack-api-tunnel` container, the login banner and the `ls-control` and `ls-ingress` networks (when no app service still uses them). Volumes, secrets and `/etc/logistack` stay, so running the installer again brings LogiStack back with its data. Your app services are not removed.
+
+To delete everything, including the database:
+
+```sh
+sudo bash uninstall.sh --purge
+```
+
+<Callout type="warn">
+  `--purge` permanently deletes the LogiStack database, Redis data, build cache, the Docker secrets, the node labels and `/etc/logistack`. It asks you to type `purge`; `--yes` skips the question. Docker and the swarm stay installed. Volumes on other nodes must be removed there.
+</Callout>
+
+## Firewall
+
+Docker publishes ports through iptables, which bypasses UFW and firewalld. Ports 80 and 443 are open even if UFW says otherwise; the installer warns when it sees an active host firewall. Before you add a second server, open the Swarm ports only between LogiStack nodes:
+
+| Port | Purpose |
+| --- | --- |
+| 2377/tcp | Swarm management |
+| 7946/tcp and 7946/udp | Node discovery |
+| 4789/udp | Overlay network traffic |
+
+```sh title="UFW, for each peer node"
+ufw allow from 198.51.100.20 to any port 2377 proto tcp
+ufw allow from 198.51.100.20 to any port 7946
+ufw allow from 198.51.100.20 to any port 4789 proto udp
+```

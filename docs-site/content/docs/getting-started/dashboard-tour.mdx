@@ -1,0 +1,156 @@
+---
+title: Tour of the dashboard
+description: Find your way around the LogiStack dashboard, from Home and Projects to Monitoring, Domains, Storage, Integrations, Settings and the command menu.
+---
+
+This page walks through the LogiStack dashboard so you know where each feature lives. Every page has the same frame: the sidebar on the left, a top bar with breadcrumbs and search, and the page itself. Read it after your first sign-in.
+
+![The Home page, with the sidebar on the left, a service health summary, recent projects and a Needs attention list](/screens/home.webp)
+
+## The frame
+
+### Sidebar
+
+The sidebar has three groups: the main areas at the top, **Integrations** and **Settings**. Its header shows the current organization and your role in it, for example "Logical, Owner". Select it to switch organizations.
+
+At the bottom, the sidebar shows:
+
+- **Node health**, such as `3/5 nodes`, with a colored dot. It is green when every node is ready and red when one is down. Hover for the names of nodes that are down, or select it to open **Monitoring**.
+- **The running version**, such as `v0.1.0`.
+- **The update notice**, when a newer release exists (see below).
+
+Press Cmd+B (Ctrl+B on Windows and Linux), or select the panel icon at the left of the top bar, to collapse the sidebar to icons.
+
+### Top bar
+
+- **Breadcrumbs** show where you are, for example **Projects > Storefront > web**. Select a crumb to go back up.
+- **Search…** opens the command menu.
+- The **theme** button switches between light and dark.
+- Your **avatar** opens a menu with **Account and security** (password, passkeys, two-factor) and **Sign out**.
+
+### Command menu
+
+Press Cmd+K (Ctrl+K on Windows and Linux), or select **Search…**, to open the command menu. Type to filter, use the arrow keys to move, and press Enter to run.
+
+| Group | What it holds |
+| --- | --- |
+| **Actions** | **New project**, **New folder**, and **Switch to light theme** or **Switch to dark theme**. |
+| **Projects** | Every project you can see, matched by name or description. |
+| **Go to**, **Integrations**, **Settings** | Every page in the sidebar. Pages also match related words: typing `cron` finds **Schedules**, `dns` finds **Domains**, `minio` finds **Storage**. |
+
+For example, press Cmd+K, type `store`, and press Enter to open the Storefront project.
+
+### Update notice
+
+When a new LogiStack release is out, a card appears above the sidebar footer: "v0.2.0 available, You run v0.1.0." It has two buttons:
+
+- **Update** (owners and admins only) asks for confirmation and starts the update. LogiStack pulls every image first and changes nothing if one is missing. A service that does not turn healthy rolls back. While it runs, the card reads "Updating to v0.2.0" and the dashboard may blink while the API restarts.
+- **What's new** opens **Settings > Updates** with the release notes. During an update it reads **Follow progress**.
+
+See [Updates](../operations/updates.mdx).
+
+## Main areas
+
+### Home
+
+What is running, what failed and what needs you. Home shows:
+
+- A banner when LogiStack finds Dokploy or Coolify on the server, with **Start migration**.
+- **Services**: how many services run across how many projects, with a bar split by state (Running, Starting, Unhealthy, Failed, Stopped).
+- **Projects**: each project with one small bar per service, colored by state, and the overall status. **All projects** opens the Projects page.
+- **Needs attention**: failed deployments and backups, failed restore tests, nodes that stopped reporting and certificates about to expire. Select an item to open it.
+- **Nodes**: each server with its state. **Monitoring** opens the metrics.
+- **Recent deployments** across all projects.
+
+**New project** at the top right creates a project.
+
+### Projects
+
+Folders, projects, environments and their services.
+
+![The Projects page, with folders on the left and project cards grouped by folder, each with a status and service bars](/screens/projects.webp)
+
+- The left column lists **All projects**, your folders and subfolders, and **No folder**, each with a count. Select one to filter.
+- **Filter projects…** filters by name. **Archived** shows archived projects.
+- Each card shows the project's status, folder, description, one bar per service, the number of services and its environments.
+- **New folder**, **New from template** and **New project** are at the top right.
+
+Select a project to open it. Its page has a tab per environment, **New service**, **New environment**, **Network map** and **Usage**. Select a service to open its tabs: **Overview**, **Files**, **Deployments**, **Logs**, **Terminal**, **Environment**, **Domains**, **Metrics**, **Backups** and **Settings** (the tabs shown depend on the service kind). See [Deploy your first app](./first-deploy.mdx).
+
+### Monitoring
+
+CPU, memory, disk and network for every node, sampled every 10 seconds.
+
+![The Monitoring overview, with cluster CPU, memory, disk and network charts over 24 hours and a node count by state](/screens/monitoring.webp)
+
+- **Overview** shows the cluster's charts. Switch between **Cluster** and **Per node**, and pick a range: **1h**, **6h**, **24h**, **7d** or **30d**.
+- **Usage** breaks resource use down by project.
+- **Nodes** lists your servers. **Add server** adds one to the cluster.
+- **Settings** holds alert thresholds and monitoring options. See [Alerts and notifications](../operations/alerts-and-notifications.mdx).
+
+See [Metrics](../operations/metrics.mdx) and [Nodes](../operations/nodes.mdx).
+
+### Schedules
+
+Cron jobs that run a script in a fresh container, inside a service, or on a host.
+
+![The Schedules page, listing five schedules with their cadence, next run, last result, an enable switch and a run button](/screens/schedules.webp)
+
+Each row shows when it runs (for example "Every day at 02:15", with the time zone), its last result, a switch to pause it and a button to run it now. **New schedule** creates one. See [Schedules](../data/schedules.mdx).
+
+### Domains
+
+Every hostname the proxy routes, with its certificate and DNS status.
+
+![The Domains page, listing ten hostnames with their status, TLS method and certificate expiry](/screens/domains.webp)
+
+A summary line counts domains with errors, certificates expiring within 14 days and domains waiting for the proxy. Each row shows the service, project and environment the domain belongs to, its **Status** (**Active**, **Pending** or **Error**), its **TLS** method (DNS-01, HTTP-01, Uploaded or None) and the certificate expiry. **Add domain** attaches a hostname to any service. See [Domains](../networking/domains.mdx).
+
+### Network
+
+How traffic reaches each service: the proxy and tunnels, every domain, and the tasks running on each node.
+
+![The Network page, a zoomable map of domains, services and tasks with a legend for proxy, tunnel and published-port routes](/screens/network.webp)
+
+Filter by project with **All projects**, or search for a service, domain or node. Solid lines go through the proxy, dashed lines through a Cloudflare Tunnel, and dotted lines are published ports that bypass the proxy. Zoom with the **-** and **+** buttons. See [Network map](../networking/network-map.mdx).
+
+### Storage
+
+S3-compatible object storage in every project: buckets, files, scoped keys and share links.
+
+![The Storage page, listing four object storage services with their engine, project and status](/screens/storage.webp)
+
+**All storage** lists every object storage service with its engine (MinIO, RustFS, Garage or SeaweedFS), project and status. Select one to browse its buckets. To create one, add an **Object storage** service to an environment. See [Object storage](../data/object-storage.mdx).
+
+## Integrations
+
+Connections to outside services, shared by the whole organization:
+
+| Page | What it does |
+| --- | --- |
+| **Git providers** | GitHub, GitLab, Gitea and Bitbucket, for deploy on push and pull request previews. See [Deploy from Git](../deploy/from-git.mdx). |
+| **Registries** | Where built images are pushed and where nodes pull them from. See [Registries](../deploy/registries.mdx). |
+| **S3 destinations** | Buckets for database and volume backups. See [S3 destinations](../data/s3-destinations.mdx). |
+| **DNS providers** | Create records automatically and solve DNS-01 challenges for wildcard certificates. See [DNS providers](../networking/dns-providers.mdx). |
+| **Cloudflare Tunnels** | Publish services through Cloudflare without opening ports. See [Cloudflare Tunnels](../networking/cloudflare-tunnels.mdx). |
+| **Notifications** | Channels and rules for deployments, backups, certificates and nodes. See [Alerts and notifications](../operations/alerts-and-notifications.mdx). |
+
+## Settings
+
+| Page | What it does |
+| --- | --- |
+| **General** | Organization name, instance URL and default domains. |
+| **Appearance** | Light, dark or system, and a color theme. See [Appearance](../team/appearance.mdx). |
+| **Members** | People with access to this organization and their roles. See [Members and invitations](../team/members-and-invitations.mdx). |
+| **Authentication** | Two-factor requirement and single sign-on over OIDC or SAML. See [Single sign-on](../team/sso.mdx). |
+| **Roles** | Built-in and custom roles. See [Roles and permissions](../team/roles-and-permissions.mdx). |
+| **API keys** | Keys for the REST API and the MCP server. See [API keys](../team/api-keys.mdx). |
+| **SSH keys** | For private Git repositories and adding servers. See [SSH keys](../team/ssh-keys.mdx). |
+| **Certificates** | Let's Encrypt certificates and custom ones you upload. See [HTTPS certificates](../networking/https-certificates.mdx). |
+| **Updates** | The running release, the latest one, and one-click updates. See [Updates](../operations/updates.mdx). |
+| **Sponsor** | Sponsor LogiStack, or activate a sponsorship key. |
+| **Builds** | The architectures builds target, and QEMU emulation for the rest. See [Build platforms](../deploy/build-platforms.mdx). |
+| **Migrate** | Move projects, databases and domains from Dokploy or Coolify. See [Migrate from Dokploy](../operations/migrate-from-dokploy.mdx). |
+| **Audit log** | Every change, who made it, from where, and whether it succeeded. See [Audit log](../team/audit-log.mdx). |
+
+What you can change on these pages depends on your role. See [Roles and permissions](../team/roles-and-permissions.mdx).

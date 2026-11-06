@@ -1,0 +1,162 @@
+---
+title: Roles and permissions
+description: How LogiStack permissions work, the Owner, Admin, Developer and Viewer roles, custom roles, and grants on folders, projects, environments and services.
+---
+
+A role is a named set of actions. You grant a role to a member or a service account on a scope: the whole organization, a folder, a project, an environment or one service. Read this page to choose the right role for someone, to create a custom role such as "can deploy but not edit", or to understand why a request was denied.
+
+## The permission model
+
+LogiStack checks every request, from the dashboard, the [REST API](../automation/rest-api.mdx) or the [MCP server](../automation/mcp-server.mdx), with the same rule:
+
+> An actor may do an action on a resource when **some grant they hold**, on that resource **or on any scope above it**, includes the action.
+
+The parts of that rule:
+
+- **Scopes form a tree.** Organization › folder › subfolder › project › environment › service. A grant on a scope reaches everything below it. Developer on folder `Clients` can deploy every service of every project in `Clients` and its subfolders.
+- **Grants only add.** There are no "deny" grants. An organization role applies everywhere; extra grants widen access on one branch. To give someone less, give them a smaller organization role (usually Viewer) and add grants where they need more.
+- **The organization role is a grant too.** The role in the **Members** list is a grant on the whole organization.
+- **API keys narrow, never widen.** A key acts as its owner. A scoped key can do an action only where both the owner's grants and the key's scopes allow it. See [API keys](./api-keys.mdx).
+- **Deleting the organization** is the one action reserved to Owners, whatever other roles allow.
+
+### Example
+
+Tom is **Viewer** on the organization, with **deployer** (a custom role with Read and Deploy) on project `Storefront`.
+
+| Tom tries to… | Allowed? | Why |
+| --- | --- | --- |
+| Read logs of `Booking API` | Yes | Viewer on the organization includes Read |
+| Deploy `storefront-web` | Yes | deployer on project Storefront includes Deploy, and the service is inside it |
+| Change an env var of `storefront-web` | No | No grant of his includes Write |
+| Deploy `Booking API` | No | His only Deploy grant is on Storefront |
+
+The audit log records each denied attempt with the outcome **Denied**.
+
+## Actions
+
+Every role is a subset of these seven actions. The labels are the column headers on the **Roles** page.
+
+| Action | Label | Allows |
+| --- | --- | --- |
+| `read` | Read | See projects, services, deployments, logs and settings. |
+| `read:secrets` | Read secrets | Reveal secret environment variables and credentials. |
+| `deploy` | Deploy | Start deployments, restart and roll back services. |
+| `write` | Write | Create and change projects, services, domains and variables. |
+| `delete` | Delete | Remove projects, environments, services and domains. |
+| `admin` | Administer | Manage members, roles, keys and integrations on the scope. |
+| `exec` | Terminal | Open a shell inside running containers. Every session is audited. |
+
+**Read secrets**, **Administer** and **Terminal** are marked **Sensitive** in the role editor. Grant them deliberately.
+
+## Built-in roles
+
+| Role | Read | Read secrets | Deploy | Write | Delete | Administer | Terminal |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| **Owner** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Developer** | ✓ | | ✓ | ✓ | | | |
+| **Viewer** | ✓ | | | | | | |
+
+- **Owner**: everything, including deleting the organization. Only an Owner can make or unmake Owners, and an organization always keeps at least one.
+- **Admin**: everything except deleting the organization.
+- **Developer**: ships code. Reads, deploys and edits, never sees secrets, can't delete, and can't open a terminal.
+- **Viewer**: reads everything except secrets.
+
+Built-in roles can't be edited or deleted. Owner can only be held on the whole organization.
+
+## See the roles
+
+In the sidebar, under **Settings**, select **Roles**. The page shows **Built-in roles** and **Custom roles** as a matrix of actions, with the number of **Holders** of each.
+
+![The Roles page: a matrix of the four built-in roles and two custom roles, deployer and secrets-auditor, against the seven actions](/screens/settings-roles.webp)
+
+## Create a custom role
+
+Create one when no built-in role fits, for example a release manager who may deploy and roll back but not edit, or an auditor who may read secrets but change nothing. You need the **Owner** or **Admin** role.
+
+<Steps>
+<Step>
+### Open the role editor
+
+On **Settings › Roles**, select **Create role**. The **New custom role** panel opens.
+</Step>
+<Step>
+### Name the role
+
+![The role editor with a Name field and the list of allowed actions, sensitive ones marked](/screens/role-editor.webp)
+
+In **Name**, type a lowercase name with letters, digits and dashes, starting with a letter, up to 32 characters. For example `deployer` or `release-manager`. Names can't change later, and `owner`, `admin`, `developer`, `viewer` and `member` are taken.
+</Step>
+<Step>
+### Pick the actions
+
+Under **Allowed actions**, check the actions the role allows. A new role starts with **Read** and **Deploy** checked. Pick at least one.
+
+For a release manager, keep **Read** and **Deploy**. For a secrets auditor, check **Read** and **Read secrets**.
+</Step>
+<Step>
+### Save
+
+Select **Create role**. The role appears under **Custom roles** with 0 holders.
+</Step>
+</Steps>
+
+Now grant it: from **Settings › Members**, open a member's **⋯** menu and select **Add access**, or pick it as their organization role. See [Members and invitations](./members-and-invitations.mdx#add-access-on-one-folder-project-environment-or-service).
+
+## Edit or delete a custom role
+
+1. On **Settings › Roles**, select **Edit** on the role's row.
+2. Change the checked actions and select **Save changes**.
+
+Changes apply at once to everyone who holds the role, on every scope it was granted.
+
+To delete a role, open **Edit** and select **Delete role** in the **Delete role** box. You can delete a role only when nobody holds it: change or remove those members and grants first. Deleting can't be undone.
+
+## Grant a role on a scope
+
+Grants are managed per person on **Settings › Members** (**⋯** › **Add access**). The **Applies to** field offers:
+
+| Scope | Reaches |
+| --- | --- |
+| **Whole organization** | Everything |
+| **Folder** | Its subfolders, and every project, environment and service in them |
+| **Project** | All its environments and services |
+| **Environment** | All services in that environment, for example `Storefront · Production` |
+| **Service** | That service only |
+
+Owner can't be granted on a scope; ownership is organization-wide.
+
+### Recipes
+
+| Goal | Organization role | Extra grant |
+| --- | --- | --- |
+| A freelancer works only on one client | Viewer | Developer on folder `Clients / Acme` |
+| A developer may ship staging but not production | Viewer | Developer on environment `Storefront · Staging` |
+| On-call engineers may restart and roll back, not edit | Viewer | custom `deployer` (Read, Deploy) on the organization |
+| A security reviewer audits secrets | Viewer | custom `secrets-auditor` (Read, Read secrets) on the organization |
+| A team lead manages people on their own project | Developer | Admin on project `Booking API` |
+
+<Callout type="info">
+A grant needs **Administer** on the scope itself. An Admin on project `Booking API` can add grants inside that project through the API, but not on other projects. The **Members** page in the dashboard is for organization Owners and Admins.
+</Callout>
+
+## Grants from the API
+
+```bash title="Give a member Developer on one project"
+curl -X POST https://stack.example.com/api/grants \
+  -H "Authorization: Bearer $LOGISTACK_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "usr_8f2k1",
+    "role": "developer",
+    "scope": { "kind": "project", "id": "prj_storefront" }
+  }'
+```
+
+`scope.kind` is one of `organization`, `folder`, `project`, `environment` or `service`. `GET /api/roles` lists built-in and custom roles with their actions, and `GET /api/grants` lists every scoped grant.
+
+## Troubleshooting
+
+- **A button is missing or disabled.** You don't hold the action it needs on that resource. Ask an Admin to check your grants on **Settings › Members**.
+- **"Denied" entries in the audit log.** Someone, or a key, tried an action no grant allowed. Open the entry to see the actor and the resource.
+- **A scoped API key gets 403 where its owner succeeds.** The key's scopes don't cover that resource. Create a key with the right scope, or use **Everything the owner can do**.

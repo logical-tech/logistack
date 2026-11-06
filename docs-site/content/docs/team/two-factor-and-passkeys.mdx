@@ -1,0 +1,154 @@
+---
+title: Two-factor authentication and passkeys
+description: Protect LogiStack sign-ins with an authenticator app, backup codes or passkeys, manage your sessions, and require two-factor for the whole organization.
+---
+
+Two-factor authentication (2FA) asks for a six-digit code from an authenticator app after your password, so a stolen password alone isn't enough. Passkeys go further: you sign in with Touch ID, Windows Hello, your phone or a security key, with no password at all. Set up at least one on your own account, and, as an Admin, require one for everyone in the organization.
+
+Both live on **Account and security**: open your user menu (your initials, top right) and select **Account and security**.
+
+![The Account and security page: two-factor authentication off with a Set up two-factor button, two passkeys (MacBook Pro Touch ID, YubiKey 5C), and three sessions](/screens/account-security.webp)
+
+## Set up two-factor with an authenticator app
+
+You need an authenticator app such as 1Password, Google Authenticator or Authy.
+
+<Steps>
+<Step>
+### Start the setup
+
+On **Account and security**, select **Set up two-factor**. A three-step wizard opens inside the **Two-factor authentication** card.
+</Step>
+<Step>
+### Confirm it's you
+
+Enter your **Password** and select **Confirm password**. LogiStack creates your authenticator key. Select **Continue**.
+</Step>
+<Step>
+### Scan the QR code
+
+On **Scan and verify**, scan the QR code with your authenticator app. No camera? Copy the **Setup key** shown next to it and add it in the app by hand.
+</Step>
+<Step>
+### Enter the code
+
+Type the six digits the app shows in **Code from the app**. The code changes every 30 seconds. Verification starts on its own after the sixth digit; you can also select **Verify code**. "Two-factor is on" confirms it. Select **Continue**.
+</Step>
+<Step>
+### Save the backup codes
+
+On **Save backup codes**, select **Download as .txt** (saves `logistack-backup-codes.txt`) or **Copy all**, and store the codes in your password manager. Check **I saved these codes somewhere safe** and select **Done**.
+</Step>
+</Steps>
+
+<Callout type="warn">
+Backup codes are shown once. Each code signs you in once if you lose your phone, so keep them somewhere other than that phone.
+</Callout>
+
+The card now reads **On. Sign-ins ask for a code from your authenticator app.**, and on **Settings › Members** your row shows **2FA**.
+
+### Sign in with two-factor
+
+After your email and password, LogiStack shows **Two-factor authentication**:
+
+![The Two-factor authentication sign-in page asking for a 6-digit code](/screens/two-factor-challenge.webp)
+
+1. Type the 6-digit code from your app. It submits on its own.
+2. Optional: turn on **Trust this browser for 30 days** to skip the code on this browser for a month.
+
+Lost your phone? Select **Lost your device? Use a backup code**, enter one code (format `abcde-12345`) and select **Verify**. Each backup code works once.
+
+### Turn two-factor off
+
+On **Account and security**, select **Turn off**, enter your **Password** and select **Turn off two-factor**. Your password alone signs you in again, and your backup codes stop working.
+
+## Add a passkey
+
+A passkey replaces the password with your device's unlock (Touch ID, Face ID, Windows Hello, a phone or a security key such as a YubiKey). It also counts as a second factor for the organization's 2FA requirement.
+
+<Steps>
+<Step>
+### Open the dialog
+
+In **Passkeys**, select **Add passkey**.
+</Step>
+<Step>
+### Name it
+
+In **Name**, type the device, for example `Work laptop` or `YubiKey 5C`. Select **Continue**.
+</Step>
+<Step>
+### Confirm in the browser
+
+Your browser asks you to confirm with Touch ID, Windows Hello, your phone or a security key. Follow its prompt.
+</Step>
+</Steps>
+
+The passkey appears in the list with where it lives: **Synced across devices** (for example iCloud Keychain or a password manager) or **This device only** (for example a hardware key).
+
+To sign in with it, select **Sign in with a passkey** on the sign-in page.
+
+To remove one, select its trash button and then **Remove passkey**. It stops signing you in right away. The key itself stays in your password manager or device until you delete it there.
+
+## Review your sessions
+
+**Sessions** lists every browser signed in to your account, with its browser and system (for example **Chrome on macOS**), IP address and last activity. **This device** marks the one you're using.
+
+- Select **Sign out** on a row to end that session.
+- Select **Sign out other sessions** to end all but this one, for example after losing a laptop.
+
+Whoever uses that browser has to sign in again.
+
+## Require two-factor for the whole organization
+
+As an **Owner** or **Admin**, you can require every member to have an authenticator app or a passkey.
+
+<Steps>
+<Step>
+### Open Authentication
+
+In the sidebar, under **Settings**, select **Authentication**. The **Two-factor authentication** panel is at the top.
+</Step>
+<Step>
+### Turn on the requirement
+
+Turn on **Require two-factor authentication**. The confirmation says how many members have no authenticator app or passkey yet, and whether that includes you.
+</Step>
+<Step>
+### Confirm
+
+Select **Require it**.
+</Step>
+<Step>
+### Set the grace period
+
+Pick a **Grace period**: **None, lock at once**, **3 days**, **7 days**, **14 days** or **30 days**. It counts from when the requirement was switched on, or from the day someone joins, whichever is later.
+</Step>
+<Step>
+### Decide about SSO members
+
+Turn on **Trust the identity provider's MFA** if your [SSO provider](./sso.mdx) already asks for a second factor. Members who can only sign in through SSO then count as enrolled.
+</Step>
+</Steps>
+
+Every change saves at once.
+
+### What members see
+
+- **During the grace period**, members without a second factor see "Add a second factor by November 20, 2026" on **Account and security**, and their row on **Settings › Members** shows **No 2FA, required**.
+- **After the grace period**, their access pauses: projects and settings stay locked until they add an authenticator app or a passkey. Adding one takes about a minute and unlocks everything.
+
+API keys and service accounts keep working under the requirement. They don't sign in interactively.
+
+<Callout type="warn">
+With **None, lock at once**, members without a second factor lose access the moment you save. Check **Settings › Members** for **No 2FA** first, and set up your own second factor before you turn this on.
+</Callout>
+
+To make two-factor optional again, turn off **Require two-factor authentication**.
+
+## Troubleshooting
+
+- **"Enter all six digits."** The code field isn't full. Wait for a fresh code if the current one is about to expire.
+- **The code is always rejected.** Your phone's clock is off. Turn on automatic date and time, then try a new code.
+- **The passkey prompt doesn't appear.** Your browser or device has no passkey support, or the page isn't served over HTTPS on the instance URL.
+- **A member is locked out after the grace period.** They sign in and add an authenticator app or passkey from **Account and security**, which stays reachable. Or lengthen the **Grace period**.

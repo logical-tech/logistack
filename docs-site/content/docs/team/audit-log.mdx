@@ -1,0 +1,98 @@
+---
+title: Audit log
+description: See every change made in LogiStack through the dashboard, the API or MCP, filter by person, action, resource and outcome, and export the log as CSV or JSON.
+---
+
+The audit log records every change made in your organization, whether through the dashboard, the REST API or the MCP server: who made it, what it touched, from which IP, and whether it went through. Secrets are redacted. Use it to answer "who deleted this domain?", to review what an AI agent did, or to hand evidence to an auditor.
+
+You need the **Administer** action on the organization, which **Owners** and **Admins** have.
+
+## Open the audit log
+
+In the sidebar, under **Settings**, select **Audit log**. The newest entries come first, 50 at a time.
+
+![The Audit log page with filters for time range, actor, action, resource and outcome, and a table of entries such as deployment.create by the claude-code API key and a denied service.delete by Tom Lindqvist](/screens/settings-audit-log.webp)
+
+Each row shows:
+
+| Column | Shows |
+| --- | --- |
+| **When** | Relative time; hover for the exact date and time |
+| **Actor** | The name and its kind: **Person**, **API key**, **Service account** or **System** |
+| **Action** | What was done, as `resource.verb`, for example `deployment.create`, `env_var.update`, `member.update` |
+| **Resource** | The resource type and its id, for example `service` · `svc_storefront_web` |
+| **Outcome** | **Success**, **Denied** (no permission) or **Error** (allowed, but it failed) |
+| **IP** | The client IP, or **None** when there was no client |
+
+Select **Load more** at the bottom for older entries. "That's every entry for these filters." means you reached the end.
+
+## Filter the log
+
+The filter bar has five menus. Combine them freely.
+
+| Filter | Options |
+| --- | --- |
+| Time range | **Last 24 hours**, **Last 7 days** (the default), **Last 30 days**, **All time** |
+| Actor | **Anyone**, or one person, API key or service account |
+| Action | **Any action**, or one action such as `service.delete` |
+| Resource | **Any resource**, or one type such as `domain` |
+| Outcome | **Any outcome**, **Success**, **Denied**, **Error** |
+
+Select **Clear filters** to reset them. Filters are part of the page URL, so you can bookmark a view or send it to a colleague, for example:
+
+```text
+https://stack.example.com/settings/audit-log?outcome=denied&range=30d
+```
+
+### Examples
+
+- **What did our agent do today?** Actor: the agent's key (for example `claude-code · API key`), time range **Last 24 hours**.
+- **Who changed production variables?** Action: `env_var.update`, time range **Last 30 days**.
+- **Is someone probing for access?** Outcome: **Denied**.
+
+## Inspect an entry
+
+Select a row (or focus it and press Enter) to open its details:
+
+- **Outcome**, **When**, **Actor** and **Actor id**
+- **Resource** and **Resource id**
+- **IP**, **User agent** and **Request id**
+- For updates, **Before** and **After** values. For other actions, the **Request** body or **Details**.
+
+Secret values never appear: they're redacted before the entry is written.
+
+## Export the log
+
+<Steps>
+<Step>
+### Set the filters
+
+Narrow the log to what you need, for example **Last 30 days** and **Any outcome**. The export uses the current filters.
+</Step>
+<Step>
+### Export
+
+Select **Export**, then **Export as CSV** or **Export as JSON**. The browser downloads a file named like `audit-log-<timestamp>.csv`.
+</Step>
+</Steps>
+
+One export holds up to 10,000 entries. For more, export in smaller time ranges.
+
+### Export with the API
+
+```bash title="Denied actions since 1 November, as CSV"
+curl -G https://stack.example.com/api/audit-log/export \
+  -H "Authorization: Bearer $LOGISTACK_KEY" \
+  --data-urlencode "format=csv" \
+  --data-urlencode "outcome=denied" \
+  --data-urlencode "from=2026-11-01T00:00:00Z" \
+  -o audit-log.csv
+```
+
+The export accepts `format` (`csv` or `json`), `action`, `actorId`, `resourceType`, `resourceId`, `outcome` (`success`, `denied`, `error`), `from` and `to` (ISO 8601 with a time zone). `GET /api/audit-log` returns the same entries a page at a time, with `limit` (up to 200) and a `cursor` for the next page.
+
+## Troubleshooting
+
+- **The log doesn't load for you.** You need Administer on the organization. Ask an Owner or Admin.
+- **"Nothing matches these filters".** Widen the time range or clear a filter. **Last 7 days** is the default, so older entries need **All time**.
+- **An action has no IP.** It wasn't made by a client request; the actor kind is usually **System**.

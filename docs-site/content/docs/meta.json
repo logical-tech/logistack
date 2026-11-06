@@ -1,0 +1,14 @@
+{
+	"title": "LogiStack Docs",
+	"pages": [
+		"index",
+		"getting-started",
+		"deploy",
+		"networking",
+		"data",
+		"operations",
+		"team",
+		"automation",
+		"reference"
+	]
+}
