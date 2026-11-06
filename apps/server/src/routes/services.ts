@@ -158,7 +158,10 @@ const ServicePatch = patchOf(
 );
 
 /** List items for the services matching `where`, by name. */
-export async function listServices(db: Db, where: SQL) {
+export async function listServices(
+	db: Pick<Db, "select" | "selectDistinctOn">,
+	where: SQL,
+) {
 	const rows = await db
 		.select({ service, status: serviceStatus })
 		.from(service)

@@ -86,6 +86,7 @@ export const stacksMock = (db: MockDb): StacksApi => ({
 		if (!stack) return Promise.reject(new ApiError(404, "stack not found"));
 		const changes = mockChanges(db, id, composeYaml);
 		stack.composeYaml = composeYaml;
+		if (stack.source === "template") stack.source = "compose";
 		return delay({ changes, services: [] });
 	},
 	remove: (id) => {

@@ -65,7 +65,7 @@ import {
 	refuseArchived,
 	requirePermission,
 } from "../scope.ts";
-import { stackCompose } from "../stack-compose.ts";
+import { MASKED, stackCompose } from "../stack-compose.ts";
 import { listServices, ServiceListItem } from "./services.ts";
 
 const tags = ["stacks"];
@@ -571,6 +571,58 @@ export async function syncGitStacks(
 	return { deployments, failures };
 }
 
+/** A stack's services and their desired state written as compose; secrets masked unless `secrets`. */
+async function effectiveOf(
+	db: Pick<Db, "select" | "selectDistinctOn">,
+	masterKey: Parameters<typeof decrypt>[0],
+	stackId: string,
+	secrets: boolean,
+) {
+	const services = await listServices(db, eq(service.stackId, stackId));
+	const ids = services.map((s) => s.id);
+	const [vars, mounts] = ids.length
+		? await Promise.all([
+				db
+					.select()
+					.from(envVar)
+					.where(and(eq(envVar.scope, "service"), inArray(envVar.scopeId, ids)))
+					.orderBy(asc(envVar.key)),
+				db
+					.select()
+					.from(mount)
+					.where(and(eq(mount.kind, "volume"), inArray(mount.serviceId, ids))),
+			])
+		: [[], []];
+	const effectiveCompose = stackCompose(
+		await Promise.all(
+			services.map(async (s) => ({
+				slug: s.slug,
+				spec: s.spec,
+				env: await Promise.all(
+					vars
+						.filter((v) => v.scopeId === s.id)
+						.map(async (v) => ({
+							key: v.key,
+							value:
+								v.isSecret && !secrets
+									? null
+									: await decrypt(masterKey, v.valueEncrypted),
+						})),
+				),
+				volumes: mounts
+					.filter((m) => m.serviceId === s.id && m.volumeName)
+					.map((m) => ({
+						name: m.volumeName as string,
+						target: m.target,
+						readOnly: m.readOnly,
+					})),
+				domains: s.domains,
+			})),
+		),
+	);
+	return { services, effectiveCompose };
+}
+
 /**
  * Converges a stack's services to `yaml`, or with `dryRun` only reports what that would do.
  * `source` is where the file comes from and must match the stack's: a user edits a compose stack,
@@ -591,7 +643,9 @@ export async function updateStack(
 			await tx.select().from(stack).where(eq(stack.id, stackId)).for("update"),
 			"stack",
 		);
-		if (row.source !== o.source)
+		// A template stack takes its first compose file from the user; it is a compose stack after.
+		const fromTemplate = row.source === "template" && o.source === "compose";
+		if (row.source !== o.source && !fromTemplate)
 			throw new Failure(
 				"bad_request",
 				row.source === "git"
@@ -601,9 +655,24 @@ export async function updateStack(
 						: "only a stack deployed from a compose file takes a new one",
 			);
 		const after = composePlan(yaml, row.git);
+		const masked = after.flatMap((p) =>
+			p.env.filter((e) => e.value === MASKED).map((e) => `${p.name}: ${e.key}`),
+		);
+		if (masked.length)
+			throw new Failure(
+				"validation_failed",
+				`replace ${MASKED} with the real value`,
+				masked,
+			);
+		// Without a stored file the baseline is what runs now, so only the lines the user edited change.
 		const before = row.composeYamlEncrypted
 			? composePlan(await decrypt(masterKey, row.composeYamlEncrypted), row.git)
-			: [];
+			: fromTemplate
+				? composePlan(
+						(await effectiveOf(tx, masterKey, stackId, true)).effectiveCompose,
+						null,
+					)
+				: [];
 		const members = await tx
 			.select({
 				id: service.id,
@@ -744,7 +813,10 @@ export async function updateStack(
 		}
 		await tx
 			.update(stack)
-			.set({ composeYamlEncrypted: await encrypt(masterKey, yaml) })
+			.set({
+				composeYamlEncrypted: await encrypt(masterKey, yaml),
+				...(fromTemplate && { source: "compose" as const }),
+			})
 			.where(eq(stack.id, stackId));
 		return { delta, deployed };
 	});
@@ -825,51 +897,11 @@ export const stacks = router()
 					.where(eq(stack.id, id)),
 				"stack",
 			);
-			const services = await listServices(db, eq(service.stackId, id));
-			const ids = services.map((s) => s.id);
-			const [vars, mounts] = ids.length
-				? await Promise.all([
-						db
-							.select()
-							.from(envVar)
-							.where(
-								and(eq(envVar.scope, "service"), inArray(envVar.scopeId, ids)),
-							)
-							.orderBy(asc(envVar.key)),
-						db
-							.select()
-							.from(mount)
-							.where(
-								and(eq(mount.kind, "volume"), inArray(mount.serviceId, ids)),
-							),
-					])
-				: [[], []];
-			const effectiveCompose = stackCompose(
-				await Promise.all(
-					services.map(async (s) => ({
-						slug: s.slug,
-						spec: s.spec,
-						env: await Promise.all(
-							vars
-								.filter((v) => v.scopeId === s.id)
-								.map(async (v) => ({
-									key: v.key,
-									value:
-										v.isSecret && !secrets
-											? null
-											: await decrypt(masterKey, v.valueEncrypted),
-								})),
-						),
-						volumes: mounts
-							.filter((m) => m.serviceId === s.id && m.volumeName)
-							.map((m) => ({
-								name: m.volumeName as string,
-								target: m.target,
-								readOnly: m.readOnly,
-							})),
-						domains: s.domains,
-					})),
-				),
+			const { services, effectiveCompose } = await effectiveOf(
+				db,
+				masterKey,
+				id,
+				secrets,
 			);
 			const { encrypted, ...rest } = row;
 			return c.json(
@@ -1064,7 +1096,7 @@ export const stacks = router()
 				summary:
 					"Apply a new compose file to a stack and redeploy what changed",
 				description:
-					"Services are matched by compose service name: new ones are created, dropped ones deleted (their volumes are kept), changed ones updated and redeployed. Only what the compose itself changed since the last apply is written, so settings changed on a service since then survive. Applying the same file again changes nothing. Same 400 rules as creating a stack; a service that would switch between database and application is a 400.",
+					"Services are matched by compose service name: new ones are created, dropped ones deleted (their volumes are kept), changed ones updated and redeployed. Only what the compose itself changed since the last apply is written, so settings changed on a service since then survive. Applying the same file again changes nothing. A template stack takes its first file against its effective compose (what runs now) and is a compose stack after; `<secret>` placeholders are a 400. Same 400 rules as creating a stack; a service that would switch between database and application is a 400.",
 				middleware: [requirePermission("write", byParam("stack"))],
 				request: { params: IdParam, ...body(NewCompose) },
 				responses: { 200: json(StackUpdated, "Applied"), ...errors },
