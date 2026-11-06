@@ -64,16 +64,21 @@ function StackCompose() {
 	const view = hasSource ? (search.view ?? "source") : "effective";
 	const text =
 		view === "source" ? (stack.composeYaml ?? "") : stack.effectiveCompose;
-	const editing = draft !== null && view === "source";
+	const editing = draft !== null;
+	// A template stack's first edit starts from what runs now; masked secrets can't be written back.
 	const canEdit =
-		stack.source === "compose" && view === "source" && !stack.composeHidden;
+		(stack.source === "compose" && view === "source" && !stack.composeHidden) ||
+		(stack.source === "template" &&
+			!stack.effectiveCompose.includes("<secret>"));
 	const error = git
 		? (syncPreview.error ?? sync.error)
 		: (preview.error ?? apply.error);
 	const note =
 		git && view === "source"
 			? `The file last read from ${git.repository}@${git.branch}. Every push to ${git.branch} re-syncs the stack; change it in the repository.`
-			: NOTE[view];
+			: stack.source === "template"
+				? `${NOTE.effective} Edit it to change the stack; once applied, it becomes the stack's compose file.`
+				: NOTE[view];
 
 	const stopEditing = () => {
 		setDraft(null);

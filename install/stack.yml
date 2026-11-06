@@ -70,7 +70,7 @@ services:
     networks: [ls-control]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "logistack", "-d", "logistack"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
       start_period: 30s
@@ -99,7 +99,7 @@ services:
           "CMD-SHELL",
           'REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli ping | grep -q PONG',
         ]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
       start_period: 10s
@@ -219,7 +219,7 @@ services:
     networks: [ls-control, ls-ingress]
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "80"]
-      interval: 10s
+      interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s

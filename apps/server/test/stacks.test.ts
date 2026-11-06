@@ -278,4 +278,48 @@ describe.skipIf(!hasDocker)("stacks API", () => {
 		const id = made?.id ?? null;
 		expect(rows.map((r) => r.stackId)).toEqual([id, id]);
 	});
+	test("a template stack takes a compose edit against what runs now, then is a compose stack", async () => {
+		const [made] = await h.deps.db
+			.select()
+			.from(stack)
+			.where(eq(stack.name, "analytics"));
+		const id = made?.id as string;
+		const detail = await h.call("GET", `/api/stacks/${id}`, as());
+		expect(detail.json.composeYaml).toBeNull();
+		const edited: string = detail.json.effectiveCompose;
+		const yaml = edited.replace(
+			/(cache:\n\s+image: )nginx:1\.29/,
+			"$1nginx:1.30",
+		);
+		expect(yaml).not.toBe(edited);
+		const preview = await h.call("POST", `/api/stacks/${id}/compose/preview`, {
+			...as(),
+			body: { composeYaml: yaml },
+		});
+		expect(preview.status).toBe(200);
+		expect(preview.json.changes).toEqual([
+			{
+				service: "cache",
+				op: "update",
+				changes: ["image nginx:1.29 → nginx:1.30"],
+			},
+		]);
+		const masked = await h.call("PUT", `/api/stacks/${id}/compose`, {
+			...as(),
+			body: {
+				composeYaml: `${yaml.trimEnd()}\n    environment:\n      TOKEN: <secret>\n`,
+			},
+		});
+		expect(masked.status).toBe(400);
+		const applied = await h.call("PUT", `/api/stacks/${id}/compose`, {
+			...as(),
+			body: { composeYaml: yaml },
+		});
+		expect(applied.status).toBe(200);
+		expect(applied.json.services.map((s: { name: string }) => s.name)).toEqual([
+			"cache",
+		]);
+		const after = await h.call("GET", `/api/stacks/${id}`, as());
+		expect(after.json).toMatchObject({ source: "compose", composeYaml: yaml });
+	});
 });
