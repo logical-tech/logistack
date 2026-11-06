@@ -41,6 +41,10 @@ import {
 	targetSuggestions,
 } from "@/components/service/load-balancer-form";
 import {
+	ReleaseCommandFields,
+	type ReleaseSettings,
+} from "@/components/service/release-commands";
+import {
 	limitsLabel,
 	limitsOf,
 	ResourceProfileSelect,
@@ -178,6 +182,8 @@ type V = StorageFields & {
 	https: boolean;
 	/** Image sources only: published ports, bind mounts, user, capabilities, restart. */
 	host: HostSettings;
+	/** Applications: commands run on the new image around each rollout. */
+	release: ReleaseSettings;
 	/** A profile name or UNLIMITED; empty follows the organization default. */
 	resourceProfile: string;
 };
@@ -204,6 +210,7 @@ const DEFAULTS: V = {
 	hostname: "",
 	https: true,
 	host: { ports: [] },
+	release: {},
 	resourceProfile: "",
 	...STORAGE_DEFAULTS,
 };
@@ -702,6 +709,7 @@ function buildSteps(
 								},
 								{ label: "Build", value: BUILD_LABEL[v.build] },
 								{ label: "Port", value: v.port },
+								...releaseRows(v.release),
 							]
 						: v.kind === "image"
 							? [
@@ -711,6 +719,7 @@ function buildSteps(
 									},
 									{ label: "Port", value: v.port },
 									...hostRows(v.host),
+									...releaseRows(v.release),
 								]
 							: v.kind === "database"
 								? [
@@ -1144,6 +1153,7 @@ function ConfigureStep({
 					</Field>
 				</div>
 				{name}
+				<ReleaseAdvanced w={w} />
 			</div>
 		);
 	}
@@ -1176,6 +1186,7 @@ function ConfigureStep({
 					{name}
 				</div>
 				<HostAdvanced w={w} />
+				<ReleaseAdvanced w={w} />
 			</div>
 		);
 	}
@@ -1475,6 +1486,57 @@ function HostAdvanced({ w }: { w: WizardApi<V> }) {
 	);
 }
 
+function releaseRows(r: ReleaseSettings) {
+	return (["preDeploy", "postDeploy"] as const).flatMap((phase) => {
+		const c = r[phase];
+		return c
+			? [
+					{
+						label: phase === "preDeploy" ? "Pre-deploy" : "Post-deploy",
+						value: (
+							<span className="font-mono text-xs">
+								{JSON.stringify(c.command)}
+							</span>
+						),
+					},
+				]
+			: [];
+	});
+}
+
+/** Collapsed unless set, like the host settings. */
+function ReleaseAdvanced({ w }: { w: WizardApi<V> }) {
+	const release = w.values.release;
+	const [open, setOpen] = useState(
+		() => !!(release.preDeploy || release.postDeploy),
+	);
+	return (
+		<Collapsible
+			open={open}
+			onOpenChange={setOpen}
+			className="group/rel mt-4 grid gap-1"
+		>
+			<CollapsibleTrigger className="flex w-fit items-center gap-1.5 rounded-sm text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
+				Release commands
+				<ChevronDown
+					className="size-4 text-muted-foreground transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-data-[state=open]/rel:rotate-180"
+					aria-hidden
+				/>
+			</CollapsibleTrigger>
+			<p className="text-sm text-muted-foreground">
+				Migrations and other one-off runs before or after each rollout.
+			</p>
+			<CollapsibleContent className="t-reveal grid gap-7 pt-4">
+				<ReleaseCommandFields
+					value={release}
+					onChange={(p) => w.set("release", { ...release, ...p })}
+					idPrefix="wz-"
+				/>
+			</CollapsibleContent>
+		</Collapsible>
+	);
+}
+
 /** The preset's config: the default, or the load balancer generated from its form. */
 const webserverConfig = (v: V) =>
 	v.webserver === "haproxy"
@@ -1552,6 +1614,7 @@ function toSpec(v: V): ServiceSpec {
 					},
 		build: toBuild(v),
 		...imageHost(v),
+		...(v.kind === "image" || v.kind === "git" ? v.release : {}),
 		replicas: 1,
 		resources: {},
 		placement: [],

@@ -267,6 +267,11 @@ function Detail({
 					{d.error}
 				</p>
 			)}
+			{d.warning && (
+				<p className="rounded-lg bg-[color-mix(in_oklch,var(--warn)_12%,transparent)] px-3 py-2 text-sm text-warn-text">
+					Deployed, but {d.warning}. The new version stays live.
+				</p>
+			)}
 			{d.reason && (
 				<p className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
 					{d.reason}
