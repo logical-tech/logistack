@@ -1,8 +1,14 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 import worker, { type Env } from "../src/index.ts";
 
 const secret = "whsec_test";
+
+// bun runs every test file in one process: put the real fetch back so other suites never see the fake.
+const realFetch = globalThis.fetch;
+afterEach(() => {
+	globalThis.fetch = realFetch;
+});
 const pair = (await crypto.subtle.generateKey("Ed25519", true, [
 	"sign",
 	"verify",
@@ -39,10 +45,15 @@ function fakeEnv(failSends: number) {
 		EMAIL_FROM: "sponsors@site.test",
 	} as unknown as Env;
 	// Stands in for Resend: fails the first `failSends` requests with a 500.
-	globalThis.fetch = (async (_url: string, init: RequestInit) => {
+	globalThis.fetch = (async (
+		url: string | URL | Request,
+		init?: RequestInit,
+	) => {
+		if (!String(url).startsWith("https://api.resend.com/"))
+			return realFetch(url, init);
 		if (failSends-- > 0)
 			return new Response("domain not ready", { status: 500 });
-		const body = JSON.parse(String(init.body)) as { text: string };
+		const body = JSON.parse(String(init?.body)) as { text: string };
 		sent.push(body.text);
 		return Response.json({ id: "email_1" });
 	}) as typeof fetch;
