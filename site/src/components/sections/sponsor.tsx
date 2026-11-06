@@ -1,5 +1,6 @@
 import { Dither } from "../dither";
 import { SponsorPicker } from "../sponsor-picker";
+import { SponsorWall } from "../sponsor-wall";
 import { Section } from "../ui";
 
 export function Sponsor() {
@@ -33,6 +34,7 @@ export function Sponsor() {
 					<div className="pt-3">
 						<SponsorPicker />
 					</div>
+					<SponsorWall />
 				</div>
 			</div>
 		</Section>

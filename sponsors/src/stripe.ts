@@ -41,6 +41,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 	return diff === 0;
 }
 
+import type { CustomField } from "./profile.ts";
+
 /** The fields of the events we handle. Stripe sends far more; parsing stops here. */
 export type CheckoutSession = {
 	id: string;
@@ -50,6 +52,8 @@ export type CheckoutSession = {
 	currency: string | null;
 	subscription: string | null;
 	customer_details: { email: string | null } | null;
+	/** The Payment Link's optional fields: name, website, instance URL. */
+	custom_fields?: CustomField[] | null;
 };
 
 export type Invoice = {
