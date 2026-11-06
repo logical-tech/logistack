@@ -47,7 +47,8 @@ describe.each(["rsa", "ecc"] as const)("%s key and CSR", (keyType) => {
 			const out = p.stdout.toString() + p.stderr.toString();
 			expect(p.exitCode).toBe(0);
 			expect(out).toMatch(/verify OK/i);
-			expect(out).toContain("CN=app.example.com");
+			// LibreSSL prints `CN=x`, OpenSSL 3 `CN = x`.
+			expect(out).toMatch(/CN ?= ?app\.example\.com/);
 			expect(out).toContain("DNS:app.example.com, DNS:www.example.com");
 		},
 	);
