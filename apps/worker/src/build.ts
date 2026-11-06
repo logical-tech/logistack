@@ -221,6 +221,8 @@ export type BuildPlan = {
 	env: Record<string, string>;
 	/** Runs before buildctl (railpack prepare). */
 	prepare?: string[];
+	/** Files the caller writes before buildctl and removes after it (absolute path → content). */
+	files?: Record<string, string>;
 	/**
 	 * BuildKit pushes a manifest list to the registry itself. Otherwise the single-platform image
 	 * comes back on stdout as a docker tarball, which cannot hold a manifest list.
@@ -314,9 +316,91 @@ export function buildPlan(o: {
 				pushes,
 			};
 		}
-		default:
-			throw new Error(`build type ${o.build.type} is not supported yet`);
+		case "static": {
+			const publish = relative(app, inside(app, o.build.publishDir)) || ".";
+			// Outside the checkout, so the generated file never lands in the build context.
+			const dockerDir = `${o.dir}.static`;
+			const argKeys = [
+				...o.buildEnv.filter((v) => !v.isSecret).map((v) => v.key),
+				...Object.keys(o.context),
+			].sort();
+			const secretKeys = o.buildEnv
+				.filter((v) => v.isSecret)
+				.map((v) => v.key)
+				.sort();
+			return {
+				args: [
+					...common,
+					"--frontend",
+					"dockerfile.v0",
+					"--local",
+					`context=${app}`,
+					"--local",
+					`dockerfile=${dockerDir}`,
+					...vars,
+					...Object.entries(o.context)
+						.sort(([a], [b]) => (a < b ? -1 : 1))
+						.flatMap(([k, v]) => ["--opt", `build-arg:${k}=${v}`]),
+					...output,
+				],
+				env,
+				pushes,
+				files: {
+					[join(dockerDir, "Dockerfile")]: staticDockerfile(
+						publish,
+						argKeys,
+						secretKeys,
+					),
+				},
+			};
+		}
 	}
+	throw new Error("unknown build type");
+}
+
+/**
+ * Pure: the Dockerfile behind the "static" build type. With a package.json it installs with the
+ * lockfile's package manager and runs the `build` script, if there is one; then Caddy serves
+ * `publish` on :80, falling back to /index.html so a SPA's client-side routes resolve.
+ */
+export function staticDockerfile(
+	publish: string,
+	argKeys: string[],
+	secretKeys: string[],
+): string {
+	const mounts = secretKeys
+		.map((k) => `--mount=type=secret,id=${k},env=${k} `)
+		.join("");
+	const script = [
+		"if [ -f package.json ]; then",
+		'  if [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile && PM="pnpm run";',
+		'  elif [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile && PM="yarn run";',
+		'  elif [ -f bun.lock ] || [ -f bun.lockb ]; then npm install -g bun && bun install --frozen-lockfile && PM="bun run";',
+		'  elif [ -f package-lock.json ]; then npm ci && PM="npm run";',
+		'  else npm install && PM="npm run"; fi;',
+		`  if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then $PM build; fi;`,
+		"fi",
+	].join(" \\\n");
+	return `# syntax=docker/dockerfile:1.10
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY . .
+${argKeys.map((k) => `ARG ${k}\n`).join("")}RUN ${mounts}${script}
+
+FROM caddy:2.10-alpine
+COPY <<'CADDYFILE' /etc/caddy/Caddyfile
+{
+	admin off
+}
+:80 {
+	root * /srv
+	encode zstd gzip
+	try_files {path} {path}/index.html {path}.html /index.html
+	file_server
+}
+CADDYFILE
+COPY --from=build /app/${publish} /srv
+`;
 }
 
 const BUILDKIT_PORT = 1234;

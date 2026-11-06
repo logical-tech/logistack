@@ -9,7 +9,7 @@ The setup wizard runs once, right after you [install LogiStack](./install.mdx). 
 
 - Open the wizard as the installer told you: through the SSH tunnel at `http://localhost:3000`, or through the `/setup#token=...` link if you installed with `--public-setup`.
 - Decide which domain to use. You have two options:
-  - **Your own wildcard domain**, such as `*.srv1.example.com`. Recommended for real use. Have access to the domain's DNS, or an API token for Cloudflare, Amazon Route 53 or Hetzner DNS.
+  - **Your own wildcard domain**, such as `*.srv1.example.com`. Recommended for real use. Have access to the domain's DNS, or API credentials for Cloudflare, Amazon Route 53, Hetzner DNS, DigitalOcean, OVHcloud or Porkbun.
   - **sslip.io or nip.io**. Works right away with no DNS change. Good for trying LogiStack.
 
 ![The setup wizard on its first step, Create the owner account, with the seven steps listed on the left](/screens/setup.webp)
@@ -56,7 +56,7 @@ Under **Domain**, choose one:
 For **Your own wildcard domain**, also fill in:
 
 1. **Wildcard base**: the domain under the `*.`, for example `srv1.example.com`. Do not type `*.` or `https://`.
-2. **DNS provider for certificates**: **Cloudflare**, **Amazon Route 53**, **Hetzner DNS**, or **None, I'll manage records myself**. For a provider, enter its credentials. The hint under the fields says where to create them, for example for Cloudflare: My Profile → API Tokens → Create Token → "Edit zone DNS".
+2. **DNS provider for certificates**: **Cloudflare**, **Amazon Route 53**, **Hetzner DNS**, **DigitalOcean**, **OVHcloud**, **Porkbun**, or **None, I'll manage records myself**. For a provider, enter its credentials. The hint under the fields says where to create them, for example for Cloudflare: My Profile → API Tokens → Create Token → "Edit zone DNS".
 3. Check the **DNS records** table. It lists the two records the domain needs:
 
    | Type | Name | Value |

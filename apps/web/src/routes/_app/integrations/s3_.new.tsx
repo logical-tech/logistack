@@ -284,7 +284,7 @@ function ConnectionStep({ w }: { w: WizardApi<V> }) {
 				label="Prefix"
 				optional
 				error={w.error("prefix")}
-				hint={`Backups land under ${objectPath(w.values)}<service>/, so one bucket can serve several instances.`}
+				hint={`Backups land under ${objectPath(w.values)}backups/<policy>/, so one bucket can serve several instances.`}
 			>
 				<Input
 					{...w.bind("prefix")}

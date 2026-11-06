@@ -2,18 +2,33 @@ import type { DnsProviderKind } from "@logistack/contracts";
 import type { z } from "zod";
 import type { ProviderDef } from "../http.ts";
 import { cloudflare } from "./cloudflare.ts";
+import { digitalocean } from "./digitalocean.ts";
 import { hetzner } from "./hetzner.ts";
+import { ovh, ovhSignature } from "./ovh.ts";
+import { porkbun } from "./porkbun.ts";
 import { route53 } from "./route53.ts";
 import { type DnsProvider, type DnsZone, normalizeName } from "./types.ts";
 
 export * from "./propagation.ts";
 export * from "./types.ts";
-export { cloudflare, hetzner, route53 };
+export {
+	cloudflare,
+	digitalocean,
+	hetzner,
+	ovh,
+	ovhSignature,
+	porkbun,
+	route53,
+};
 
-/** The implemented subset of `DnsProviderKind`; the rest stay listed in contracts until built. */
-export const dnsProviders = { cloudflare, route53, hetzner } satisfies Partial<
-	Record<DnsProviderKind, ProviderDef<z.ZodType, DnsProvider>>
->;
+export const dnsProviders = {
+	cloudflare,
+	route53,
+	hetzner,
+	digitalocean,
+	ovh,
+	porkbun,
+} satisfies Record<DnsProviderKind, ProviderDef<z.ZodType, DnsProvider>>;
 export type DnsKind = keyof typeof dnsProviders;
 export type DnsConfig<K extends DnsKind> = z.infer<
 	(typeof dnsProviders)[K]["configSchema"]
@@ -43,6 +58,28 @@ export function caddyDnsChallenge<K extends DnsKind>(
 				access_key_id: c.accessKeyId,
 				secret_access_key: c.secretAccessKey,
 				region: c.region,
+			};
+		}
+		case "digitalocean": {
+			const c = config as DnsConfig<"digitalocean">;
+			return { name: "digitalocean", auth_token: c.apiToken };
+		}
+		case "ovh": {
+			const c = config as DnsConfig<"ovh">;
+			return {
+				name: "ovh",
+				endpoint: c.endpoint,
+				application_key: c.applicationKey,
+				application_secret: c.applicationSecret,
+				consumer_key: c.consumerKey,
+			};
+		}
+		case "porkbun": {
+			const c = config as DnsConfig<"porkbun">;
+			return {
+				name: "porkbun",
+				api_key: c.apiKey,
+				api_secret_key: c.secretApiKey,
 			};
 		}
 	}

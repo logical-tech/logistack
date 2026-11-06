@@ -7,6 +7,7 @@ import { serviceOpsHttp } from "./service-ops";
 import { ssoHttp } from "./sso";
 import { stacksHttp } from "./stacks";
 import { templatesHttp } from "./templates";
+import { variablesHttp } from "./variables";
 
 const api = client.api;
 
@@ -109,6 +110,8 @@ export const httpAdapter: ApiAdapter = {
 			ok(
 				api.projects[":id"].environments.$post({ param: { id }, json: input }),
 			),
+		duplicateEnvironment: (id, json) =>
+			ok(api.environments[":id"].duplicate.$post({ param: { id }, json })),
 	},
 	services: {
 		listByEnvironment: (id) =>
@@ -214,4 +217,5 @@ export const httpAdapter: ApiAdapter = {
 	sso: ssoHttp,
 	stacks: stacksHttp,
 	templates: templatesHttp,
+	variables: variablesHttp,
 };

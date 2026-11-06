@@ -52,6 +52,7 @@ import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/rol
 import { Route as AppSettingsSponsorRouteImport } from './routes/_app/settings/sponsor'
 import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/ssh-keys'
 import { Route as AppSettingsUpdatesRouteImport } from './routes/_app/settings/updates'
+import { Route as AppSettingsVariablesRouteImport } from './routes/_app/settings/variables'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
 import { Route as AppBackupsServiceIdIndexRouteImport } from './routes/_app/backups/$serviceId/index'
 import { Route as AppBackupsServiceIdNewRouteImport } from './routes/_app/backups/$serviceId/new'
@@ -66,9 +67,11 @@ import { Route as AppMonitoringNodesIndexRouteImport } from './routes/_app/monit
 import { Route as AppMonitoringNodesNodeIdRouteImport } from './routes/_app/monitoring/nodes/$nodeId'
 import { Route as AppMonitoringNodesNewRouteImport } from './routes/_app/monitoring/nodes/new'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId/index'
+import { Route as AppProjectsProjectIdDuplicateRouteImport } from './routes/_app/projects/$projectId/duplicate'
 import { Route as AppProjectsProjectIdImportRouteImport } from './routes/_app/projects/$projectId/import'
 import { Route as AppProjectsProjectIdPreviewsRouteImport } from './routes/_app/projects/$projectId/previews'
 import { Route as AppProjectsProjectIdUsageRouteImport } from './routes/_app/projects/$projectId/usage'
+import { Route as AppProjectsProjectIdVariablesRouteImport } from './routes/_app/projects/$projectId/variables'
 import { Route as AppSchedulesScheduleIdEditRouteImport } from './routes/_app/schedules_.$scheduleId_.edit'
 import { Route as AppSettingsApiKeysNewRouteImport } from './routes/_app/settings/api-keys_.new'
 import { Route as AppSettingsAuthenticationOidcRouteImport } from './routes/_app/settings/authentication_.oidc'
@@ -316,6 +319,11 @@ const AppSettingsUpdatesRoute = AppSettingsUpdatesRouteImport.update({
   path: '/settings/updates',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsVariablesRoute = AppSettingsVariablesRouteImport.update({
+  id: '/settings/variables',
+  path: '/settings/variables',
+  getParentRoute: () => AppRoute,
+} as any)
 const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
   id: '/accept-invitation/$id',
   path: '/accept-invitation/$id',
@@ -393,6 +401,12 @@ const AppProjectsProjectIdIndexRoute =
     path: '/',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
   } as any)
+const AppProjectsProjectIdDuplicateRoute =
+  AppProjectsProjectIdDuplicateRouteImport.update({
+    id: '/duplicate',
+    path: '/duplicate',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdImportRoute =
   AppProjectsProjectIdImportRouteImport.update({
     id: '/import',
@@ -409,6 +423,12 @@ const AppProjectsProjectIdUsageRoute =
   AppProjectsProjectIdUsageRouteImport.update({
     id: '/usage',
     path: '/usage',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
+const AppProjectsProjectIdVariablesRoute =
+  AppProjectsProjectIdVariablesRouteImport.update({
+    id: '/variables',
+    path: '/variables',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
   } as any)
 const AppSchedulesScheduleIdEditRoute =
@@ -625,6 +645,7 @@ export interface FileRoutesByFullPath {
   '/settings/sponsor': typeof AppSettingsSponsorRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
+  '/settings/variables': typeof AppSettingsVariablesRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/monitoring/': typeof AppMonitoringIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
@@ -638,9 +659,11 @@ export interface FileRoutesByFullPath {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
   '/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
+  '/projects/$projectId/variables': typeof AppProjectsProjectIdVariablesRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -711,6 +734,7 @@ export interface FileRoutesByTo {
   '/settings/sponsor': typeof AppSettingsSponsorRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
+  '/settings/variables': typeof AppSettingsVariablesRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/monitoring': typeof AppMonitoringIndexRoute
   '/projects': typeof AppProjectsIndexRoute
@@ -724,9 +748,11 @@ export interface FileRoutesByTo {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
   '/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
+  '/projects/$projectId/variables': typeof AppProjectsProjectIdVariablesRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -801,6 +827,7 @@ export interface FileRoutesById {
   '/_app/settings/sponsor': typeof AppSettingsSponsorRoute
   '/_app/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/_app/settings/updates': typeof AppSettingsUpdatesRoute
+  '/_app/settings/variables': typeof AppSettingsVariablesRoute
   '/_auth/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/_app/monitoring/': typeof AppMonitoringIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
@@ -814,9 +841,11 @@ export interface FileRoutesById {
   '/_app/integrations/tunnels_/new': typeof AppIntegrationsTunnelsNewRoute
   '/_app/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/_app/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/_app/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/_app/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/_app/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
   '/_app/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
+  '/_app/projects/$projectId/variables': typeof AppProjectsProjectIdVariablesRoute
   '/_app/schedules_/$scheduleId_/edit': typeof AppSchedulesScheduleIdEditRoute
   '/_app/settings/api-keys_/new': typeof AppSettingsApiKeysNewRoute
   '/_app/settings/authentication_/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -892,6 +921,7 @@ export interface FileRouteTypes {
     | '/settings/sponsor'
     | '/settings/ssh-keys'
     | '/settings/updates'
+    | '/settings/variables'
     | '/accept-invitation/$id'
     | '/monitoring/'
     | '/projects/'
@@ -905,9 +935,11 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/projects/$projectId/duplicate'
     | '/projects/$projectId/import'
     | '/projects/$projectId/previews'
     | '/projects/$projectId/usage'
+    | '/projects/$projectId/variables'
     | '/schedules/$scheduleId/edit'
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
@@ -978,6 +1010,7 @@ export interface FileRouteTypes {
     | '/settings/sponsor'
     | '/settings/ssh-keys'
     | '/settings/updates'
+    | '/settings/variables'
     | '/accept-invitation/$id'
     | '/monitoring'
     | '/projects'
@@ -991,9 +1024,11 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/projects/$projectId/duplicate'
     | '/projects/$projectId/import'
     | '/projects/$projectId/previews'
     | '/projects/$projectId/usage'
+    | '/projects/$projectId/variables'
     | '/schedules/$scheduleId/edit'
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
@@ -1067,6 +1102,7 @@ export interface FileRouteTypes {
     | '/_app/settings/sponsor'
     | '/_app/settings/ssh-keys'
     | '/_app/settings/updates'
+    | '/_app/settings/variables'
     | '/_auth/accept-invitation/$id'
     | '/_app/monitoring/'
     | '/_app/projects/'
@@ -1080,9 +1116,11 @@ export interface FileRouteTypes {
     | '/_app/integrations/tunnels_/new'
     | '/_app/monitoring/nodes/$nodeId'
     | '/_app/monitoring/nodes/new'
+    | '/_app/projects/$projectId/duplicate'
     | '/_app/projects/$projectId/import'
     | '/_app/projects/$projectId/previews'
     | '/_app/projects/$projectId/usage'
+    | '/_app/projects/$projectId/variables'
     | '/_app/schedules_/$scheduleId_/edit'
     | '/_app/settings/api-keys_/new'
     | '/_app/settings/authentication_/oidc'
@@ -1426,6 +1464,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsUpdatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/variables': {
+      id: '/_app/settings/variables'
+      path: '/settings/variables'
+      fullPath: '/settings/variables'
+      preLoaderRoute: typeof AppSettingsVariablesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_auth/accept-invitation/$id': {
       id: '/_auth/accept-invitation/$id'
       path: '/accept-invitation/$id'
@@ -1524,6 +1569,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
     }
+    '/_app/projects/$projectId/duplicate': {
+      id: '/_app/projects/$projectId/duplicate'
+      path: '/duplicate'
+      fullPath: '/projects/$projectId/duplicate'
+      preLoaderRoute: typeof AppProjectsProjectIdDuplicateRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
     '/_app/projects/$projectId/import': {
       id: '/_app/projects/$projectId/import'
       path: '/import'
@@ -1543,6 +1595,13 @@ declare module '@tanstack/react-router' {
       path: '/usage'
       fullPath: '/projects/$projectId/usage'
       preLoaderRoute: typeof AppProjectsProjectIdUsageRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
+    '/_app/projects/$projectId/variables': {
+      id: '/_app/projects/$projectId/variables'
+      path: '/variables'
+      fullPath: '/projects/$projectId/variables'
+      preLoaderRoute: typeof AppProjectsProjectIdVariablesRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
     }
     '/_app/schedules_/$scheduleId_/edit': {
@@ -1845,9 +1904,11 @@ const AppProjectsProjectIdStacksStackIdRouteRouteWithChildren =
   )
 
 interface AppProjectsProjectIdRouteRouteChildren {
+  AppProjectsProjectIdDuplicateRoute: typeof AppProjectsProjectIdDuplicateRoute
   AppProjectsProjectIdImportRoute: typeof AppProjectsProjectIdImportRoute
   AppProjectsProjectIdPreviewsRoute: typeof AppProjectsProjectIdPreviewsRoute
   AppProjectsProjectIdUsageRoute: typeof AppProjectsProjectIdUsageRoute
+  AppProjectsProjectIdVariablesRoute: typeof AppProjectsProjectIdVariablesRoute
   AppProjectsProjectIdIndexRoute: typeof AppProjectsProjectIdIndexRoute
   AppProjectsProjectIdServicesServiceIdRouteRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   AppProjectsProjectIdStacksStackIdRouteRoute: typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
@@ -1858,9 +1919,11 @@ interface AppProjectsProjectIdRouteRouteChildren {
 
 const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChildren =
   {
+    AppProjectsProjectIdDuplicateRoute: AppProjectsProjectIdDuplicateRoute,
     AppProjectsProjectIdImportRoute: AppProjectsProjectIdImportRoute,
     AppProjectsProjectIdPreviewsRoute: AppProjectsProjectIdPreviewsRoute,
     AppProjectsProjectIdUsageRoute: AppProjectsProjectIdUsageRoute,
+    AppProjectsProjectIdVariablesRoute: AppProjectsProjectIdVariablesRoute,
     AppProjectsProjectIdIndexRoute: AppProjectsProjectIdIndexRoute,
     AppProjectsProjectIdServicesServiceIdRouteRoute:
       AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren,
@@ -1922,6 +1985,7 @@ interface AppRouteChildren {
   AppSettingsSponsorRoute: typeof AppSettingsSponsorRoute
   AppSettingsSshKeysRoute: typeof AppSettingsSshKeysRoute
   AppSettingsUpdatesRoute: typeof AppSettingsUpdatesRoute
+  AppSettingsVariablesRoute: typeof AppSettingsVariablesRoute
   AppBackupsServiceIdNewRoute: typeof AppBackupsServiceIdNewRoute
   AppBackupsServiceIdRestoreRoute: typeof AppBackupsServiceIdRestoreRoute
   AppIntegrationsDnsNewRoute: typeof AppIntegrationsDnsNewRoute
@@ -1972,6 +2036,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsSponsorRoute: AppSettingsSponsorRoute,
   AppSettingsSshKeysRoute: AppSettingsSshKeysRoute,
   AppSettingsUpdatesRoute: AppSettingsUpdatesRoute,
+  AppSettingsVariablesRoute: AppSettingsVariablesRoute,
   AppBackupsServiceIdNewRoute: AppBackupsServiceIdNewRoute,
   AppBackupsServiceIdRestoreRoute: AppBackupsServiceIdRestoreRoute,
   AppIntegrationsDnsNewRoute: AppIntegrationsDnsNewRoute,

@@ -126,7 +126,7 @@ export function Hero({ templates }: { templates: number }) {
 				>
 					<CopyCommand command={site.install} />
 					<a
-						href={`${site.github}#quick-start`}
+						href={site.docs}
 						className="pressable inline-flex h-12 items-center gap-2 rounded-full px-5 text-sm font-medium hover:bg-tile"
 					>
 						Read the docs
