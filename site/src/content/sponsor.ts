@@ -27,3 +27,9 @@ export const customAmountLink =
 /** Stripe customer portal (bpc_1UYjmh7MyJvf14A3LqNjEzWo): sponsors sign in by email to cancel or change card. */
 export const manageSponsorshipLink =
 	"https://billing.stripe.com/p/login/5kQ7sFbPX2YIcX4bPz1gs00";
+
+/** The sponsors Worker (`sponsors/` in the repo): /thanks/ reads the new key from it. */
+export const sponsorsApi =
+	process.env.NEXT_PUBLIC_SPONSORS_API ?? "https://sponsors.logicaltech.it";
+/** Stripe sandbox payment links redirect to /thanks/?sandbox=1; their keys come from here. */
+export const sponsorsSandboxApi = "https://sponsors-sandbox.logicaltech.it";

@@ -126,6 +126,11 @@ const ConfigSchema = z.object({
 	LS_RUN_CONCURRENCY: z.coerce.number().int().min(1).default(8),
 	/** Baked into the image at build time (Dockerfile ARG). */
 	LOGISTACK_VERSION: z.string().default("dev"),
+	/** Trusts sponsor keys from Stripe's sandbox. Set only on test instances. */
+	LOGISTACK_SPONSOR_SANDBOX: z
+		.enum(["", "0", "1", "true", "false"])
+		.optional()
+		.transform((v) => v === "1" || v === "true"),
 	/** Swarm stack the control plane runs in; in-app updates replace its services' images. */
 	LS_STACK_NAME: z.string().default("logistack"),
 	/** Where in-app updates take images from. `localhost` uses images already on this engine (tests). */

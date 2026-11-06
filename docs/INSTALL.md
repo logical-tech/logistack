@@ -36,7 +36,21 @@ Options:
 
 Without `--local-build` the installer pulls `ghcr.io/logical-tech/logistack*:<version>`. A fresh install with no `--version` asks GitHub's API for the latest release, without credentials. `--local-build` from a checkout is for development: its first build takes several minutes, most of it compiling Caddy with its DNS modules, and with no `--version` its images are labelled `0.0.0`.
 
-When it finishes, the installer prints how to reach the setup wizard.
+When it finishes, the installer prints how to reach the setup wizard. It also writes the login banner `/etc/update-motd.d/99-logistack`, which repeats that on every SSH login until setup is done.
+
+### Install while creating the server (cloud-init)
+
+Hetzner, DigitalOcean, Akamai/Linode, Vultr and most other providers accept cloud-init user data when you create a server. Paste this in the "Cloud config" or "User data" field and LogiStack installs during the first boot, with no SSH session:
+
+```yaml
+#cloud-config
+runcmd:
+  - curl -fsSL https://github.com/logical-tech/logistack/releases/latest/download/install.sh | bash -s -- --yes
+```
+
+The install takes a few minutes after the server is up. Then SSH in: the login banner shows how to reach the setup wizard. To follow the install while it runs, use `tail -f /var/log/cloud-init-output.log`.
+
+To open the wizard on the public address with a one-time token, without an SSH tunnel, add `--public-setup` after `--yes` (see [Public setup with a token](#public-setup-with-a-token)). You still need SSH once, because the token is shown only in the login banner and in `/etc/logistack/credentials`.
 
 ## Reaching the setup wizard
 

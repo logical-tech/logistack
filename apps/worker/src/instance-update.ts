@@ -1,5 +1,12 @@
 import { UPDATE_TARGETS } from "@logistack/contracts";
-import { compareVersions } from "@logistack/core";
+import {
+	checkSponsorKey,
+	compareVersions,
+	SPONSOR_RENEW_WINDOW_MS,
+	SPONSORS_SANDBOX_URL,
+	SPONSORS_URL,
+	sponsorKeys,
+} from "@logistack/core";
 import { instanceSettings, instanceUpdate, organization } from "@logistack/db";
 import {
 	type DockerClient,
@@ -277,4 +284,50 @@ export async function checkForUpdate(ctx: Ctx, deps: Deps = {}): Promise<void> {
 		);
 	await ctx.bus.redis.set(NOTIFIED_KEY, latest.version);
 	log("info", "update available", { current, latest: latest.version });
+}
+
+/**
+ * Daily, next to the release check: trades a monthly sponsor key that runs out within ten days
+ * for the newest one of its subscription. Failing is harmless; the old key still has days left.
+ */
+export async function renewSponsorKey(
+	ctx: Ctx,
+	fetcher: typeof fetch = fetch,
+	now = Date.now(),
+): Promise<void> {
+	const [s] = await ctx.db
+		.select({ key: instanceSettings.sponsorKey })
+		.from(instanceSettings);
+	if (!s?.key) return;
+	const keys = sponsorKeys(ctx.cfg.LOGISTACK_SPONSOR_SANDBOX);
+	const current = await checkSponsorKey(s.key, now, keys);
+	if (
+		!current.ok ||
+		current.claims.kind !== "monthly" ||
+		current.claims.exp * 1000 - now > SPONSOR_RENEW_WINDOW_MS
+	)
+		return;
+	try {
+		const base = current.sandbox ? SPONSORS_SANDBOX_URL : SPONSORS_URL;
+		const res = await fetcher(`${base}/v1/refresh`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ key: s.key }),
+			signal: AbortSignal.timeout(10_000),
+		});
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const { key } = (await res.json()) as { key: string | null };
+		if (!key) return;
+		const next = await checkSponsorKey(key, now, keys);
+		if (!next.ok || next.claims.exp <= current.claims.exp) return;
+		await ctx.db
+			.update(instanceSettings)
+			.set({ sponsorKey: key })
+			.where(eq(instanceSettings.id, "singleton"));
+		log("info", "sponsor key renewed", {
+			until: new Date(next.claims.exp * 1000).toISOString(),
+		});
+	} catch (e) {
+		log("warn", "sponsor key renewal failed", { error: String(e) });
+	}
 }

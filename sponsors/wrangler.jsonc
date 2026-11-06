@@ -1,0 +1,34 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "logistack-sponsors",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-11-01",
+	"routes": [{ "pattern": "sponsors.logicaltech.it", "custom_domain": true }],
+	"vars": {
+		"SITE_ORIGIN": "https://stack.logicaltech.it",
+		"EMAIL_FROM": "sponsors@logicaltech.it"
+	},
+	"kv_namespaces": [
+		{ "binding": "SPONSORS", "id": "419ea30737084abca3ebd14c53172507" }
+	],
+	"send_email": [{ "name": "EMAIL" }],
+	// Secrets: SIGNING_KEY, STRIPE_WEBHOOK_SECRET (wrangler secret put).
+	"env": {
+		// Stripe's sandbox: `wrangler deploy --env sandbox`. Its own signing key, KV and webhook
+		// secret; only instances with LOGISTACK_SPONSOR_SANDBOX=1 trust the keys it signs.
+		"sandbox": {
+			"name": "logistack-sponsors-sandbox",
+			"routes": [
+				{ "pattern": "sponsors-sandbox.logicaltech.it", "custom_domain": true }
+			],
+			"vars": {
+				"SITE_ORIGIN": "https://stack.logicaltech.it",
+				"EMAIL_FROM": "sponsors@logicaltech.it"
+			},
+			"kv_namespaces": [
+				{ "binding": "SPONSORS", "id": "d35a17eb189b41a18a292299770dc476" }
+			],
+			"send_email": [{ "name": "EMAIL" }]
+		}
+	}
+}

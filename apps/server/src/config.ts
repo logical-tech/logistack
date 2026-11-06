@@ -65,6 +65,11 @@ const ConfigSchema = z.object({
 	COOLIFY_DB_USER: z.string().min(1).default("coolify"),
 	COOLIFY_DB_NAME: z.string().min(1).default("coolify"),
 	COOLIFY_DB_HOST: z.string().min(1).default("coolify-db"),
+	/** Trusts sponsor keys from Stripe's sandbox. Set only on test instances. */
+	LOGISTACK_SPONSOR_SANDBOX: z
+		.enum(["", "0", "1", "true", "false"])
+		.optional()
+		.transform((v) => v === "1" || v === "true"),
 	GITHUB_CLIENT_ID: optional,
 	GITHUB_CLIENT_SECRET: optional,
 	GOOGLE_CLIENT_ID: optional,

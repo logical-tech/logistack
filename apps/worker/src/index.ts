@@ -26,7 +26,7 @@ import { unfreeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
-import { checkForUpdate } from "./instance-update.ts";
+import { checkForUpdate, renewSponsorKey } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
 import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
@@ -163,7 +163,8 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			async (job) => {
 				if (job.name === "certificates") await checkCertificates(ctx);
 				else if (job.name === "retention") await pruneImages(ctx);
-				else if (job.name === "update-check") await checkForUpdate(ctx);
+				else if (job.name === "update-check")
+					await Promise.all([checkForUpdate(ctx), renewSponsorKey(ctx)]);
 				else if (job.name === "cleanup") await runCleanup(ctx);
 				else if (job.name === "checks") await pollChecks(ctx);
 				else if (job.name === "previews") await expirePreviews(ctx);

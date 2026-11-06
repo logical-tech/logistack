@@ -47,7 +47,8 @@ const state: UpdateStatus = {
 	},
 	latestError: null,
 	checkedAt: new Date().toISOString(),
-	updateAvailable: true,
+	/** `ls-mock-update-none=1` starts the mock up to date (no sidebar update card). */
+	updateAvailable: localStorage.getItem("ls-mock-update-none") !== "1",
 	autoCheck: true,
 	beta: false,
 	run: null,
