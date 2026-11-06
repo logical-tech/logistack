@@ -182,7 +182,7 @@ function RunButton({
 	);
 }
 
-/** Turns encryption on for later backups, then shows the new key once. */
+/** Turns encryption on, or replaces a key nobody saved, then shows the new key once. */
 function EncryptDialog({
 	policy,
 	open,
@@ -194,6 +194,7 @@ function EncryptDialog({
 }) {
 	const update = useUpdatePolicy();
 	const [done, setDone] = useState<PolicyWithKey | null>(null);
+	const rekey = policy.encrypted;
 	// The key leaves memory with the dialog.
 	const close = (o: boolean) => {
 		onOpenChange(o);
@@ -218,12 +219,13 @@ function EncryptDialog({
 				) : (
 					<>
 						<DialogHeader>
-							<DialogTitle>Encrypt these backups?</DialogTitle>
+							<DialogTitle>
+								{rekey ? "Generate a new key?" : "Encrypt these backups?"}
+							</DialogTitle>
 							<DialogDescription className="text-pretty">
-								Later backups are encrypted with age before they leave this
-								server; earlier ones stay as they are and still restore.
-								LogiStack shows the new key once. Encryption cannot be turned
-								off afterwards.
+								{rekey
+									? "Use this if you didn't save the first key. The old key stops working. No backup has been encrypted yet, so nothing is lost. LogiStack shows the new key once."
+									: "Later backups are encrypted with age before they leave this server; earlier ones stay as they are and still restore. LogiStack shows the new key once. Once an encrypted backup exists, the key can't be replaced or removed."}
 							</DialogDescription>
 						</DialogHeader>
 						<DialogFooter>
@@ -246,7 +248,9 @@ function EncryptDialog({
 								}
 							>
 								{update.isPending && <Loader2 className="animate-spin" />}
-								Encrypt and show the key
+								{rekey
+									? "Generate and show the key"
+									: "Encrypt and show the key"}
 							</Button>
 						</DialogFooter>
 					</>
@@ -280,6 +284,18 @@ function EncryptionLine({ policy }: { policy: BackupPolicy }) {
 					<CollapsibleContent className="pt-3">
 						<DecryptHelp command={command} />
 					</CollapsibleContent>
+					{!policy.hasEncryptedBackup && (
+						<p className="pt-2 text-xs text-muted-foreground">
+							Didn't save the key?{" "}
+							<button
+								type="button"
+								className="font-medium text-foreground underline-offset-2 hover:underline"
+								onClick={() => setEncrypting(true)}
+							>
+								Generate a new key
+							</button>
+						</p>
+					)}
 				</Collapsible>
 			) : (
 				<p className="text-xs text-muted-foreground sm:pl-11">

@@ -285,14 +285,63 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 
 		const again = await h.call("PATCH", `/api/backup-policies/${p.json.id}`, {
 			...as("owner"),
-			body: { encrypt: true, cron: "0 6 * * *" },
+			body: { cron: "0 6 * * *" },
 		});
 		expect(again.json).toMatchObject({ encrypted: true, encryptionKey: null });
-		const off = await h.call("PATCH", `/api/backup-policies/${p.json.id}`, {
+		// No encrypted backup exists yet, so a lost key is recoverable: re-key.
+		expect(listed.hasEncryptedBackup).toBe(false);
+		const rekeyed = await h.call("PATCH", `/api/backup-policies/${p.json.id}`, {
+			...as("owner"),
+			body: { encrypt: true },
+		});
+		expect(rekeyed.json.encryptionKey).toMatch(/^AGE-SECRET-KEY-1/);
+		expect(rekeyed.json.encryptionKey).not.toBe(p.json.encryptionKey);
+		const [resealed] = await h.deps.db
+			.select({ sealed: backupPolicy.encryptionKeyEncrypted })
+			.from(backupPolicy)
+			.where(eq(backupPolicy.id, p.json.id));
+		expect(resealed?.sealed).not.toBe(row?.sealed);
+
+		// Two enables racing: one wins, the other gets 409.
+		const race = await Promise.all(
+			[1, 2].map(() =>
+				h.call("PATCH", `/api/backup-policies/${policyId}`, {
+					...as("owner"),
+					body: { encrypt: true },
+				}),
+			),
+		);
+		expect(race.map((r) => r.status).sort()).toEqual([200, 409]);
+		const unlock = await h.call("PATCH", `/api/backup-policies/${policyId}`, {
 			...as("owner"),
 			body: { encrypt: false },
 		});
-		expect(off.status).toBe(400);
+		expect(unlock.status).toBe(200);
+		expect(unlock.json.encrypted).toBe(false);
+
+		// Once an encrypted backup exists the key is the only way back to it.
+		await h.deps.db.insert(backupRun).values({
+			id: "bkr_enc",
+			policyId: p.json.id,
+			kind: "backup",
+			status: "succeeded",
+			objectKey: "backups/x.dump.age",
+		});
+		const locked = await h.call("PATCH", `/api/backup-policies/${p.json.id}`, {
+			...as("owner"),
+			body: { encrypt: false },
+		});
+		expect(locked.status).toBe(400);
+		expect(locked.json.error.message).toContain("encrypted backup");
+		const keep = await h.call("PATCH", `/api/backup-policies/${p.json.id}`, {
+			...as("owner"),
+			body: { encrypt: true },
+		});
+		expect(keep.json).toMatchObject({
+			encrypted: true,
+			hasEncryptedBackup: true,
+			encryptionKey: null,
+		});
 
 		const on = await h.call("PATCH", `/api/backup-policies/${policyId}`, {
 			...as("owner"),
