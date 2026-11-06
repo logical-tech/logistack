@@ -52,6 +52,62 @@ services:
 		}
 	});
 
+	test("with a repository, build: is recorded instead of refused", () => {
+		const builds = new Map();
+		const services = fromCompose(
+			`
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: docker/Dockerfile
+      target: prod
+      args:
+        VERSION: \${VERSION:-1}
+    image: postgres:17
+    ports: ["8080"]
+  worker:
+    build: .
+`,
+			builds,
+		);
+		expect(services.map((s) => [s.name, s.kind])).toEqual([
+			["api", "application"],
+			["worker", "application"],
+		]);
+		expect(Object.fromEntries(builds)).toEqual({
+			api: {
+				context: "./api",
+				dockerfile: "docker/Dockerfile",
+				target: "prod",
+				args: { VERSION: "1" },
+			},
+			worker: { context: ".", dockerfile: "Dockerfile", args: {} },
+		});
+	});
+
+	test("a remote build context or an unknown build key is refused", () => {
+		try {
+			fromCompose(
+				`
+services:
+  app:
+    build:
+      context: https://github.com/acme/app.git
+      ssh: [default]
+`,
+				new Map(),
+			);
+			throw new Error("expected Skip");
+		} catch (e) {
+			expect((e as Skip).reasons.map((r) => r.detail)).toEqual([
+				"services.app.build.ssh",
+				"services.app.build.context https://github.com/acme/app.git",
+				"services.app has no image",
+			]);
+		}
+	});
+
 	test("rejects YAML that does not parse", () => {
 		expect(() => fromCompose("services: [")).toThrow(Skip);
 	});

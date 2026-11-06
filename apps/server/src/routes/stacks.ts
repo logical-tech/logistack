@@ -1,5 +1,8 @@
+import { posix } from "node:path";
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	type ApplicationSource,
+	type BuildConfig,
 	defaultServiceIcon,
 	type ServiceIcon,
 	ServiceSpec,
@@ -34,7 +37,7 @@ import {
 	service,
 	stack,
 } from "@logistack/db";
-import { fromCompose, Skip } from "@logistack/templates";
+import { type ComposeBuild, fromCompose, Skip } from "@logistack/templates";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
@@ -335,30 +338,91 @@ export async function createStack(
 	};
 }
 
+const UNSUPPORTED = "the compose file uses features LogiStack cannot run";
+
+/** Pure: a compose `build:` as a dockerfile build of the stack's repository, or why it cannot be. */
+export function composeBuild(
+	b: ComposeBuild,
+	git: StackGitSource,
+): { source: ApplicationSource; build: BuildConfig } | string {
+	const dir = posix.dirname(git.composePath);
+	const context = posix.normalize(posix.join(dir, b.context));
+	const dockerfilePath = posix.normalize(posix.join(context, b.dockerfile));
+	const outside = (p: string) => p === ".." || p.startsWith("../");
+	if (
+		b.dockerfile.startsWith("/") ||
+		outside(context) ||
+		outside(dockerfilePath)
+	)
+		return `build context ${b.context} and dockerfile ${b.dockerfile} must stay inside the repository`;
+	const secret = Object.entries(b.args).find(([k, v]) => looksSecret(k, v));
+	if (secret)
+		return `build arg ${secret[0]} looks like a secret: build args are visible in the image history; drop it and add a build-time secret variable on the service`;
+	return {
+		source: {
+			type: "git",
+			gitProviderId: git.gitProviderId,
+			repository: git.repository,
+			branch: git.branch,
+			path: ".",
+		},
+		build: {
+			type: "dockerfile",
+			context,
+			dockerfilePath,
+			...(b.target && { target: b.target }),
+			...(Object.keys(b.args).length && { buildArgs: b.args }),
+		},
+	};
+}
+
 /**
  * A user's compose file as service plans; a 400 listing every part LogiStack cannot run.
  * Credentials are told apart by name or URL userinfo, since a pasted compose has no secret inputs.
+ * With `git`, a `build:` service becomes an application built from that repository.
  */
-function composePlan(yaml: string): TemplateServicePlan[] {
+function composePlan(
+	yaml: string,
+	git?: StackGitSource | null,
+): TemplateServicePlan[] {
+	const builds = git ? new Map<string, ComposeBuild>() : undefined;
+	let plans: TemplateServicePlan[];
 	try {
-		return planTemplate({ inputs: [], services: fromCompose(yaml) }, {}).map(
-			(p) => ({
-				...p,
-				env: p.env.map((e) => ({
-					...e,
-					isSecret: e.isSecret || looksSecret(e.key, e.value),
-				})),
-			}),
+		plans = planTemplate(
+			{ inputs: [], services: fromCompose(yaml, builds) },
+			{},
 		);
 	} catch (e) {
 		if (e instanceof Skip)
 			throw new Failure(
 				"validation_failed",
-				"the compose file uses features LogiStack cannot run",
-				e.reasons.map((r) => r.detail),
+				UNSUPPORTED,
+				e.reasons.map((r) =>
+					r.code === "build" && !git
+						? `${r.detail}: building needs a stack deployed from a git repository`
+						: r.detail,
+				),
 			);
 		throw new Failure("validation_failed", (e as Error).message);
 	}
+	const problems: string[] = [];
+	const out = plans.map((p) => {
+		const env = p.env.map((e) => ({
+			...e,
+			isSecret: e.isSecret || looksSecret(e.key, e.value),
+		}));
+		const b = builds?.get(p.name);
+		if (!b || !git || p.spec.kind !== "application") return { ...p, env };
+		const built = composeBuild(b, git);
+		if (typeof built === "string") {
+			problems.push(`services.${p.name}: ${built}`);
+			return { ...p, env };
+		}
+		return { ...p, env, spec: { ...p.spec, ...built } };
+	});
+	if (problems.length)
+		throw new Failure("validation_failed", UNSUPPORTED, problems);
+	return out;
 }
 
 const StackChange = z
@@ -514,7 +578,6 @@ export async function updateStack(
 	o: { dryRun: boolean; source: "compose" | "git"; by: Applier },
 ) {
 	const { db, masterKey, config } = c.var.deps;
-	const after = composePlan(yaml);
 	const { trigger } = o.by;
 	const result = await db.transaction(async (tx) => {
 		const row = one(
@@ -530,8 +593,9 @@ export async function updateStack(
 						? "this stack does not follow a git repository"
 						: "only a stack deployed from a compose file takes a new one",
 			);
+		const after = composePlan(yaml, row.git);
 		const before = row.composeYamlEncrypted
-			? composePlan(await decrypt(masterKey, row.composeYamlEncrypted))
+			? composePlan(await decrypt(masterKey, row.composeYamlEncrypted), row.git)
 			: [];
 		const members = await tx
 			.select({
@@ -888,7 +952,7 @@ export const stacks = router()
 				source: "git",
 				composeYaml,
 				git: input.git,
-				services: composePlan(composeYaml).map((p) => ({
+				services: composePlan(composeYaml, input.git).map((p) => ({
 					plan: p,
 					id: newId("svc"),
 					icon: null,

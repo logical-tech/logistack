@@ -167,6 +167,7 @@ const HANDLED = new Set([
 	"security_opt",
 	"links",
 	"env_file",
+	"build",
 ]);
 
 const RESTART: Record<string, RestartCondition> = {
@@ -237,7 +238,51 @@ export type ComposeContext = {
 	file?: (source: string) => string | undefined;
 	/** `env_file: .env` entries, for adapters whose env file is known. */
 	envFile?: [string, string][];
+	/**
+	 * Receives each service's `build:` keyed by service name, when the compose comes from a
+	 * repository that can be built. Without it `build:` is refused.
+	 */
+	builds?: Map<string, ComposeBuild>;
 };
+
+/** A compose `build:` as written; paths are relative to the compose file's directory. */
+export type ComposeBuild = {
+	context: string;
+	dockerfile: string;
+	target?: string;
+	args: Record<string, string>;
+};
+
+const BUILD_KEYS = new Set(["context", "dockerfile", "target", "args"]);
+
+function parseBuild(
+	raw: unknown,
+	path: string,
+	literal: (s: string) => string,
+	skip: (code: string, detail: string) => void,
+): ComposeBuild | undefined {
+	const b = typeof raw === "string" ? { context: raw } : raw;
+	if (!isRecord(b)) {
+		skip("build", `${path}.build`);
+		return undefined;
+	}
+	for (const k of Object.keys(b))
+		if (!BUILD_KEYS.has(k)) skip("build", `${path}.build.${k}`);
+	const context = literal(String(b.context ?? "."));
+	// A remote context (git URL, tarball) is fetched by the builder, outside the repository.
+	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(context) || context.includes("${{")) {
+		skip("build", `${path}.build.context ${context}`);
+		return undefined;
+	}
+	const args: Record<string, string> = {};
+	for (const [k, v] of entries(b.args)) args[k] = literal(v ?? "");
+	return {
+		context,
+		dockerfile: literal(String(b.dockerfile ?? "Dockerfile")),
+		...(b.target !== undefined && { target: literal(String(b.target)) }),
+		args,
+	};
+}
 
 /**
  * Rewrites literal mentions of sibling hostnames to expressions: inside URLs (`@db:5432`,
@@ -385,8 +430,20 @@ export function mapServices(
 			env[key] = linkHosts(key, v, hosts);
 		}
 
-		const image = typeof svc.image === "string" ? literal(svc.image) : "";
-		if (!image) skip("image", `${path} has no image`);
+		let build: ComposeBuild | undefined;
+		if (svc.build !== undefined) {
+			if (ctx.builds) {
+				build = parseBuild(svc.build, path, literal, skip);
+				if (build) ctx.builds.set(name, build);
+			} else skip("build", `${path}.build`);
+		}
+		// A built service runs its own image; `image:` only names it in Docker Compose.
+		const image = build
+			? ""
+			: typeof svc.image === "string"
+				? literal(svc.image)
+				: "";
+		if (!image && !build) skip("image", `${path} has no image`);
 		else if (image.includes("${{"))
 			skip("image", `${path}.image takes a variable`);
 

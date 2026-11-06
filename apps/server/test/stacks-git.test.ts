@@ -67,7 +67,10 @@ describe.skipIf(!hasDocker)("git stacks", () => {
 		const der = new Uint8Array(
 			await crypto.subtle.exportKey("pkcs8", pair.privateKey),
 		);
-		const privateKey = `-----BEGIN PRIVATE KEY-----\n${der.toBase64().match(/.{1,64}/g)?.join("\n")}\n-----END PRIVATE KEY-----\n`;
+		const privateKey = `-----BEGIN PRIVATE KEY-----\n${der
+			.toBase64()
+			.match(/.{1,64}/g)
+			?.join("\n")}\n-----END PRIVATE KEY-----\n`;
 		const [org] = await h.deps.db.select().from(organization);
 		const [row] = await h.deps.db
 			.insert(gitProvider)
@@ -194,7 +197,10 @@ describe.skipIf(!hasDocker)("git stacks", () => {
 	});
 
 	test("an unsupported compose in a push leaves the stack as it was and says why", async () => {
-		files.set(SHA, "services:\n  web:\n    build: .\n");
+		files.set(
+			SHA,
+			"services:\n  web:\n    image: nginx:1.29\n    privileged: true\n",
+		);
 		const res = await push({ branch: "main" });
 		expect(res.json.reason).toContain("stack infra");
 		const detail = await h.call("GET", `/api/stacks/${stackId}`, as());
@@ -235,5 +241,101 @@ describe.skipIf(!hasDocker)("git stacks", () => {
 			as(),
 		);
 		expect(stacks.json).toHaveLength(1);
+	});
+
+	describe("build:", () => {
+		const BUILT = `
+services:
+  api:
+    build:
+      context: ../api
+      target: prod
+    image: acme/api:dev
+    ports: ["8080"]
+  queue:
+    image: redis:7.4
+`;
+		const built = () => ({
+			gitProviderId: providerId,
+			repository: "acme/infra",
+			branch: "release",
+			composePath: "deploy/compose.yml",
+		});
+		let apiId: string;
+
+		test("a build: service becomes an application built from the stack's repository", async () => {
+			files.set("release", BUILT);
+			const res = await h.call(
+				"POST",
+				`/api/environments/${envId}/stacks/git`,
+				{ ...as(), body: { name: "built", git: built() } },
+			);
+			expect(res.status).toBe(201);
+			const api = res.json.services.find(
+				(s: { name: string }) => s.name === "api",
+			);
+			apiId = api.id;
+			const svc = await h.call("GET", `/api/services/${apiId}`, as());
+			expect(svc.json.spec).toMatchObject({
+				kind: "application",
+				source: {
+					type: "git",
+					gitProviderId: providerId,
+					repository: "acme/infra",
+					branch: "release",
+					path: ".",
+				},
+				build: {
+					type: "dockerfile",
+					context: "api",
+					dockerfilePath: "api/Dockerfile",
+					target: "prod",
+				},
+				ports: [{ target: 8080, protocol: "tcp" }],
+			});
+		});
+
+		test("a code push rebuilds the build: service once and leaves the image services alone", async () => {
+			files.set(SHA, BUILT);
+			const res = await push({ branch: "release" });
+			expect(res.status).toBe(200);
+			expect(res.json.deployments).toHaveLength(1);
+			const [d] = await h.deps.db
+				.select()
+				.from(deployment)
+				.where(eq(deployment.id, res.json.deployments[0]));
+			expect(d).toMatchObject({
+				serviceId: apiId,
+				trigger: "git_push",
+				commitSha: SHA,
+			});
+		});
+
+		test("a build context outside the repository is a 400", async () => {
+			files.set("release", "services:\n  api:\n    build: ../../elsewhere\n");
+			const res = await h.call(
+				"POST",
+				`/api/environments/${envId}/stacks/git`,
+				{ ...as(), body: { name: "escape", git: built() } },
+			);
+			expect(res.status).toBe(400);
+			expect(res.json.error.details[0]).toContain(
+				"must stay inside the repository",
+			);
+		});
+
+		test("a pasted compose with build: says it needs a repository", async () => {
+			const res = await h.call("POST", `/api/environments/${envId}/stacks`, {
+				...as(),
+				body: {
+					name: "pasted",
+					composeYaml: "services:\n  api:\n    build: .\n",
+				},
+			});
+			expect(res.status).toBe(400);
+			expect(res.json.error.details).toContain(
+				"services.api.build: building needs a stack deployed from a git repository",
+			);
+		});
 	});
 });
