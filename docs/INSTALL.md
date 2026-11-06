@@ -143,6 +143,7 @@ If `/data/coolify` exists but Coolify is not running, the installer treats the s
 | `/var/log/logistack-install.log` | Full output of every command the installer ran, mode 600. |
 | Stack `logistack` | `postgres`, `redis`, `logistack-api`, `logistack-worker`, `logistack-agent` (one per node), `caddy` (one per ingress node). |
 | Service `ls-buildkit` | Rootless BuildKit for git builds. The worker creates it on the first build, outside the stack. `uninstall.sh` removes it. |
+| `/etc/sysctl.d/60-logistack-userns.conf` | Only where `kernel.apparmor_restrict_unprivileged_userns` is 1 (Ubuntu 23.10 and later): sets it to 0, the Ubuntu 22.04 default, because rootless BuildKit needs an unprivileged user namespace. Servers added from the dashboard get the same file. Without it `ls-buildkit` crashloops with `fork/exec /proc/self/exe: permission denied`. |
 | Networks | `ls-control` (10.247.0.0/16, control plane, never reachable from apps) `ls-ingress` (Caddy plus services with a domain) `ls-storage` (storage services, the api and the worker; apps never join) and `ls-db` (database services, the api and the worker, for the database explorer; apps never join). |
 | Volumes | `logistack_pgdata` and `logistack_redisdata`, local to the node labelled `logistack.data=true`. `logistack_workerdata` holds clones and build logs, `ls-buildkit-cache` the build cache. |
 

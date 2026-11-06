@@ -605,6 +605,21 @@ ensure_docker() {
 	[ "$DRY_RUN" = 1 ] || check_docker
 }
 
+# Ubuntu 23.10+ refuses user namespaces to unconfined programs. Rootless BuildKit needs one: without
+# it rootlesskit dies with "fork/exec /proc/self/exe: permission denied" and no Dockerfile builds.
+USERNS_SYSCTL=/etc/sysctl.d/60-logistack-userns.conf
+
+allow_userns() {
+	printf '%s\n' "# LogiStack: rootless BuildKit needs unprivileged user namespaces (Ubuntu 23.10+ restricts them)." \
+		"kernel.apparmor_restrict_unprivileged_userns = 0" >"$USERNS_SYSCTL"
+	sysctl -p "$USERNS_SYSCTL"
+}
+
+ensure_rootless_buildkit() {
+	[ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ] || return 0
+	act "Allow unprivileged user namespaces for rootless BuildKit ($USERNS_SYSCTL)" allow_userns
+}
+
 ensure_swarm() {
 	case "$SWARM_STATE" in
 	active)
@@ -1037,6 +1052,7 @@ main() {
 
 	step "Docker"
 	ensure_docker
+	ensure_rootless_buildkit
 	step "Swarm"
 	ensure_swarm
 	ensure_coolify_bridge
