@@ -190,6 +190,8 @@ export const ApplicationSpec = z
 		capDrop: z.array(Capability).optional(),
 		/** Swarm restart condition; default `any`. */
 		restart: RestartCondition.optional(),
+		/** Seconds a replica gets after SIGTERM to finish in-flight requests before it is killed; default 10. */
+		drainTimeout: z.int().min(0).max(3600).optional(),
 	})
 	.refine((s) => (s.source.type === "image") === (s.build.type === "image"), {
 		message:

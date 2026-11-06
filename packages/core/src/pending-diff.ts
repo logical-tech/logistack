@@ -320,6 +320,7 @@ const otherLabels: Record<string, string> = {
 	"TaskTemplate.ContainerSpec.CapabilityDrop": "dropped capabilities",
 	"TaskTemplate.Placement.Constraints": "placement constraints",
 	"TaskTemplate.RestartPolicy.Condition": "restart policy",
+	"TaskTemplate.ContainerSpec.StopGracePeriod": "drain timeout",
 	"UpdateConfig.Order": "update order",
 	"RollbackConfig.Order": "rollback order",
 };

@@ -346,6 +346,23 @@ describe("placement and rollout", () => {
 		});
 	});
 
+	test("the drain timeout is the stop grace period, 10s by default", () => {
+		const grace = (drainTimeout?: number) =>
+			compileService({
+				...app,
+				service: {
+					...app.service,
+					spec: {
+						...app.service.spec,
+						drainTimeout,
+					} as typeof app.service.spec,
+				},
+			}).TaskTemplate.ContainerSpec?.StopGracePeriod;
+		expect(grace()).toBe(10e9);
+		expect(grace(45)).toBe(45e9);
+		expect(grace(0)).toBe(0);
+	});
+
 	test("desired state stopped scales to zero", () => {
 		const spec = compileService({
 			...app,

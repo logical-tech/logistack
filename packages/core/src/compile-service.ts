@@ -433,7 +433,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				Mounts: [...volumeMounts, ...bindMounts],
 				Configs: configs,
 				Secrets: secrets,
-				StopGracePeriod: s(10),
+				StopGracePeriod: s(app?.drainTimeout ?? 10),
 				...(test
 					? {
 							Healthcheck: {
