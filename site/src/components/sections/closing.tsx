@@ -111,15 +111,16 @@ export function Footer() {
 				</div>
 				<svg
 					aria-hidden
-					viewBox="0 0 1000 220"
-					className="-mb-[2%] w-full fill-[#1F2025]"
+					viewBox="0 10 1000 272"
+					className="mb-6 w-full fill-[#1F2025]"
 				>
 					<text
-						x="-6"
+						x="0"
 						y="200"
-						fontSize="268"
+						fontSize="250"
 						fontWeight="600"
-						letterSpacing="-15"
+						textLength="1000"
+						lengthAdjust="spacingAndGlyphs"
 						fontFamily="var(--font-mona), sans-serif"
 					>
 						LogiStack

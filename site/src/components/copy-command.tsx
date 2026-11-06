@@ -10,8 +10,8 @@ export function CopyCommand({ command }: { command: string }) {
 		setTimeout(() => setCopied(false), 1600);
 	};
 	return (
-		<div className="flex max-w-full items-center gap-3 rounded-full bg-tile py-2 pr-2 pl-5">
-			<code className="min-w-0 truncate font-mono text-[13px] text-fg sm:text-sm">
+		<div className="flex max-w-full items-center gap-3 rounded-[22px] bg-tile py-2 pr-2 pl-5 sm:rounded-full">
+			<code className="min-w-0 font-mono text-[13px] break-all text-fg sm:truncate sm:text-sm">
 				{command}
 			</code>
 			<button
