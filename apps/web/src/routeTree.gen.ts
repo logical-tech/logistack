@@ -68,6 +68,7 @@ import { Route as AppSettingsApiKeysNewRouteImport } from './routes/_app/setting
 import { Route as AppSettingsAuthenticationOidcRouteImport } from './routes/_app/settings/authentication_.oidc'
 import { Route as AppSettingsAuthenticationSamlRouteImport } from './routes/_app/settings/authentication_.saml'
 import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/settings/certificates_.new'
+import { Route as AppSettingsCertificatesOriginRouteImport } from './routes/_app/settings/certificates_.origin'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
 import { Route as AppProjectsProjectIdServicesNewRouteImport } from './routes/_app/projects/$projectId/services/new'
@@ -398,6 +399,12 @@ const AppSettingsCertificatesNewRoute =
     path: '/settings/certificates/new',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSettingsCertificatesOriginRoute =
+  AppSettingsCertificatesOriginRouteImport.update({
+    id: '/settings/certificates_/origin',
+    path: '/settings/certificates/origin',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppIntegrationsDnsProviderIdZoneIdRoute =
   AppIntegrationsDnsProviderIdZoneIdRouteImport.update({
     id: '/integrations/dns_/$providerId/$zoneId',
@@ -580,6 +587,7 @@ export interface FileRoutesByFullPath {
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
   '/settings/authentication/saml': typeof AppSettingsAuthenticationSamlRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
+  '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
   '/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
@@ -657,6 +665,7 @@ export interface FileRoutesByTo {
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
   '/settings/authentication/saml': typeof AppSettingsAuthenticationSamlRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
+  '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
   '/backups/$serviceId': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
@@ -738,6 +747,7 @@ export interface FileRoutesById {
   '/_app/settings/authentication_/oidc': typeof AppSettingsAuthenticationOidcRoute
   '/_app/settings/authentication_/saml': typeof AppSettingsAuthenticationSamlRoute
   '/_app/settings/certificates_/new': typeof AppSettingsCertificatesNewRoute
+  '/_app/settings/certificates_/origin': typeof AppSettingsCertificatesOriginRoute
   '/_app/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/_app/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
@@ -820,6 +830,7 @@ export interface FileRouteTypes {
     | '/settings/authentication/oidc'
     | '/settings/authentication/saml'
     | '/settings/certificates/new'
+    | '/settings/certificates/origin'
     | '/backups/$serviceId/'
     | '/monitoring/nodes/'
     | '/projects/$projectId/'
@@ -897,6 +908,7 @@ export interface FileRouteTypes {
     | '/settings/authentication/oidc'
     | '/settings/authentication/saml'
     | '/settings/certificates/new'
+    | '/settings/certificates/origin'
     | '/backups/$serviceId'
     | '/monitoring/nodes'
     | '/projects/$projectId'
@@ -977,6 +989,7 @@ export interface FileRouteTypes {
     | '/_app/settings/authentication_/oidc'
     | '/_app/settings/authentication_/saml'
     | '/_app/settings/certificates_/new'
+    | '/_app/settings/certificates_/origin'
     | '/_app/backups/$serviceId/'
     | '/_app/monitoring/nodes/'
     | '/_app/projects/$projectId/'
@@ -1424,6 +1437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsCertificatesNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/certificates_/origin': {
+      id: '/_app/settings/certificates_/origin'
+      path: '/settings/certificates/origin'
+      fullPath: '/settings/certificates/origin'
+      preLoaderRoute: typeof AppSettingsCertificatesOriginRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/integrations/dns_/$providerId/$zoneId': {
       id: '/_app/integrations/dns_/$providerId/$zoneId'
       path: '/integrations/dns/$providerId/$zoneId'
@@ -1745,6 +1765,7 @@ interface AppRouteChildren {
   AppSettingsAuthenticationOidcRoute: typeof AppSettingsAuthenticationOidcRoute
   AppSettingsAuthenticationSamlRoute: typeof AppSettingsAuthenticationSamlRoute
   AppSettingsCertificatesNewRoute: typeof AppSettingsCertificatesNewRoute
+  AppSettingsCertificatesOriginRoute: typeof AppSettingsCertificatesOriginRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
   AppIntegrationsDnsProviderIdZoneIdRoute: typeof AppIntegrationsDnsProviderIdZoneIdRoute
 }
@@ -1791,6 +1812,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsAuthenticationOidcRoute: AppSettingsAuthenticationOidcRoute,
   AppSettingsAuthenticationSamlRoute: AppSettingsAuthenticationSamlRoute,
   AppSettingsCertificatesNewRoute: AppSettingsCertificatesNewRoute,
+  AppSettingsCertificatesOriginRoute: AppSettingsCertificatesOriginRoute,
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,
   AppIntegrationsDnsProviderIdZoneIdRoute:
     AppIntegrationsDnsProviderIdZoneIdRoute,
