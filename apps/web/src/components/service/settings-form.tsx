@@ -15,6 +15,11 @@ import {
 	PortRows,
 	ProcessFields,
 } from "@/components/service/host-settings";
+import {
+	matchingProfile,
+	ResourceProfileSelect,
+	UNLIMITED,
+} from "@/components/service/resource-profile-select";
 import { ServiceIconPicker } from "@/components/service/service-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { useResourceProfiles } from "@/lib/api/access";
 import { nodesQuery } from "@/lib/api/monitoring";
 import {
 	type ServiceOverview,
@@ -448,6 +454,7 @@ export function SettingsForm({
 	const patchApp = (patch: Partial<ApplicationSpec>) =>
 		setSpec((s) => (s.kind === "application" ? { ...s, ...patch } : s));
 	const resources = spec.kind === "compose" ? null : spec.resources;
+	const profiles = useResourceProfiles().data?.profiles ?? [];
 	const setResources = (r: Partial<ApplicationSpec["resources"]>) =>
 		setSpec((s) =>
 			s.kind === "compose" ? s : { ...s, resources: { ...s.resources, ...r } },
@@ -497,6 +504,23 @@ export function SettingsForm({
 					id="resources"
 					description="Limits per replica. Swarm only schedules a replica on a node with this much to spare."
 				>
+					<Field
+						id="resource-profile"
+						label="Profile"
+						hint="Copies the profile's limits. Editing the profile later leaves this service as it is."
+						className="max-w-sm"
+					>
+						<ResourceProfileSelect
+							id="resource-profile"
+							value={
+								matchingProfile(resources, profiles)?.name ??
+								(resources.cpu || resources.memoryMb ? "" : UNLIMITED)
+							}
+							onChange={(_, r) =>
+								setResources({ cpu: r.cpu, memoryMb: r.memoryMb })
+							}
+						/>
+					</Field>
 					<div className="grid gap-4 sm:grid-cols-3">
 						{app && (
 							<Field id="replicas" label="Replicas">

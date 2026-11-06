@@ -15,6 +15,7 @@ export * from "./node-labels.ts";
 export * from "./pending-diff.ts";
 export * from "./permissions.ts";
 export * from "./ports.ts";
+export * from "./resource-profiles.ts";
 export * from "./sql.ts";
 export * from "./stack-update.ts";
 export * from "./storage.ts";
