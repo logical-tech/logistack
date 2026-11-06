@@ -73,6 +73,12 @@ else
 	echo "Docker $($SUDO docker version --format '{{.Server.Version}}') is installed"
 fi
 if command -v systemctl >/dev/null 2>&1; then $SUDO systemctl enable --now docker >/dev/null 2>&1 || true; fi
+# BuildKit may land on this node, and rootless BuildKit needs the user namespaces Ubuntu 23.10+ restricts.
+if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+	echo "Allowing unprivileged user namespaces for rootless BuildKit"
+	echo "kernel.apparmor_restrict_unprivileged_userns = 0" | $SUDO tee /etc/sysctl.d/60-logistack-userns.conf >/dev/null
+	$SUDO sysctl -p /etc/sysctl.d/60-logistack-userns.conf >/dev/null
+fi
 STATE=$($SUDO docker info --format '{{.Swarm.LocalNodeState}}')
 if [ "$STATE" = active ]; then
 	echo "Already part of a swarm; leaving membership as it is"
