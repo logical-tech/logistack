@@ -17,7 +17,6 @@ import { runQueues } from "../run-queues.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
 
 const tags = ["builds"];
-const View = BuildPlatforms.openapi("BuildPlatforms");
 /** A setup stuck this long (worker restarted mid-way) may be started again. */
 const STALE_MS = 15 * 60_000;
 
@@ -50,7 +49,7 @@ export const buildPlatforms = router()
 			description:
 				"What an automatic build targets (the architectures of the swarm's nodes), which platforms BuildKit last reported it can build, and the state of the guided QEMU emulation setup. `missing` lists the selectable platforms BuildKit cannot build yet.",
 			middleware: [requirePermission("read", inOrganization)],
-			responses: { 200: json(View, "Build platforms"), ...errors },
+			responses: { 200: json(BuildPlatforms, "Build platforms"), ...errors },
 		}),
 		async (c) => c.json(await read(c), 200),
 	)
@@ -66,7 +65,7 @@ export const buildPlatforms = router()
 				description:
 					"Queues a probe (`buildctl debug workers`) on the worker, starting BuildKit if needed. Poll GET /build-platforms for `buildkit.checkedAt` to change.",
 				middleware: [requirePermission("admin", inOrganization)],
-				responses: { 202: json(View, "Probe queued"), ...errors },
+				responses: { 202: json(BuildPlatforms, "Probe queued"), ...errors },
 			}),
 		),
 		async (c) => {
@@ -90,7 +89,7 @@ export const buildPlatforms = router()
 				description:
 					"Runs tonistiigi/binfmt once, as a Swarm job with CAP_SYS_ADMIN on BuildKit's node, to register QEMU for the missing platforms in that node's kernel, then restarts BuildKit so it detects them. The registration lasts until the node reboots. Poll GET /build-platforms for `buildkit.emulation.state`.",
 				middleware: [requirePermission("admin", inOrganization)],
-				responses: { 202: json(View, "Setup queued"), ...errors },
+				responses: { 202: json(BuildPlatforms, "Setup queued"), ...errors },
 			}),
 		),
 		async (c) => {
