@@ -39,8 +39,14 @@ const Config = z.object({
 		.min(0)
 		.max(65535)
 		.default(9469),
-	/** Heartbeat and metrics period. */
+	/** Heartbeat period. */
 	LOGISTACK_AGENT_INTERVAL_MS: z.coerce.number().int().min(100).default(10_000),
+	/** Metrics period: each pass asks dockerd for one stats call per container. */
+	LOGISTACK_AGENT_METRICS_INTERVAL_MS: z.coerce
+		.number()
+		.int()
+		.min(100)
+		.default(30_000),
 });
 type Config = z.infer<typeof Config>;
 
@@ -147,7 +153,7 @@ async function main() {
 		} catch (e) {
 			log("warn", "metrics failed", { error: errMsg(e) });
 		}
-	}, cfg.LOGISTACK_AGENT_INTERVAL_MS);
+	}, cfg.LOGISTACK_AGENT_METRICS_INTERVAL_MS);
 
 	void (async () => {
 		for (let attempt = 0; ; attempt++) {

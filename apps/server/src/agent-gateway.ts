@@ -304,11 +304,13 @@ export function mountAgentGateway(
 				await touch(conn.node);
 				return;
 			case "metrics":
+				// A buffer for a worker outage, not storage: the worker acks within seconds, and
+				// entries are ~6 KB, so 2000 (~12 MB) covers hours on one node, minutes on many.
 				await redis.send("XADD", [
 					METRICS_STREAM,
 					"MAXLEN",
 					"~",
-					"100000",
+					"2000",
 					"*",
 					"node",
 					conn.node.nodeId,
