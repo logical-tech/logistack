@@ -20,6 +20,7 @@ describe("buildPlan", () => {
 		appPath: "apps/web",
 		imageRef: "ls-local/org/ls-svc-a:dep_1",
 		railpackFrontend: "ghcr.io/railwayapp/railpack-frontend:v1",
+		platforms: ["linux/arm64" as const],
 		buildEnv: [
 			{ key: "PUBLIC_URL", value: "https://x", isSecret: false },
 			{ key: "NPM_TOKEN", value: "t0ken", isSecret: true },
@@ -41,6 +42,8 @@ describe("buildPlan", () => {
 			"build",
 			"--progress",
 			"plain",
+			"--opt",
+			"platform=linux/arm64",
 			"--frontend",
 			"dockerfile.v0",
 			"--local",
@@ -64,6 +67,21 @@ describe("buildPlan", () => {
 		]);
 		expect(plan.env).toEqual({ NPM_TOKEN: "t0ken" });
 		expect(plan.args.join(" ")).not.toContain("t0ken");
+		expect(plan.pushes).toBe(false);
+	});
+
+	test("several platforms: BuildKit pushes one manifest list instead of a docker tarball", () => {
+		const plan = buildPlan({
+			...base,
+			platforms: ["linux/amd64", "linux/arm64"],
+			build: { type: "dockerfile", dockerfilePath: "Dockerfile", context: "." },
+		});
+		expect(plan.pushes).toBe(true);
+		expect(plan.args).toContain("platform=linux/amd64,linux/arm64");
+		expect(plan.args.slice(-2)).toEqual([
+			"--output",
+			"type=image,name=ls-local/org/ls-svc-a:dep_1,push=true",
+		]);
 	});
 
 	test("paths escaping the checkout are rejected", () => {

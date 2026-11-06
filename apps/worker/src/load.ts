@@ -1,5 +1,6 @@
 import type {
 	ApplicationSpec,
+	BuildPlatform,
 	DatabaseSpec,
 	StorageSpec,
 } from "@logistack/contracts";
@@ -307,6 +308,7 @@ export function deploymentContext(
 export type DeploymentRef = {
 	id: string;
 	imageRef: string | null;
+	platforms: BuildPlatform[] | null;
 	commitSha: string | null;
 	commitMessage: string | null;
 	gitRef: string | null;
@@ -337,6 +339,7 @@ export function compileInput(
 		},
 		deploymentId: deployment.id,
 		...(deployment.imageRef ? { image: deployment.imageRef } : {}),
+		...(deployment.platforms ? { platforms: deployment.platforms } : {}),
 		env: Object.fromEntries(
 			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
 		),

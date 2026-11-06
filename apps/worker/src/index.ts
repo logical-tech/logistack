@@ -15,6 +15,7 @@ import { type Job, Worker } from "bullmq";
 import { eq, notInArray } from "drizzle-orm";
 import { ensureStackDbNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
+import { installEmulation, probeBuildkit } from "./build-platforms.ts";
 import { createBus, log, setLogLevel } from "./bus.ts";
 import { checkCertificates } from "./certs.ts";
 import { CHECKS_POLL_MS, pollChecks } from "./checks.ts";
@@ -161,6 +162,8 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "update-check") await checkForUpdate(ctx);
 				else if (job.name === "cleanup") await runCleanup(ctx);
 				else if (job.name === "checks") await pollChecks(ctx);
+				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
+				else if (job.name === "binfmt-install") await installEmulation(ctx);
 				else await sweepOrphans(ctx);
 			},
 			{
