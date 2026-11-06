@@ -218,6 +218,8 @@ export const permissionActions = [
 	"admin",
 	/** Open a shell in a running container. Not in `developer`: grant it explicitly. */
 	"exec",
+	/** Use the AI gateway within the budget an admin assigned. Not in `developer`: grant it explicitly. */
+	"ai",
 ] as const;
 export const PermissionAction = z.enum(permissionActions);
 export type PermissionAction = z.infer<typeof PermissionAction>;

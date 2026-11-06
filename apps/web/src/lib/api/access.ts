@@ -190,6 +190,11 @@ export const ACTION_LABELS: Record<
 		description:
 			"Open a shell inside running containers. Every session is audited.",
 	},
+	ai: {
+		label: "AI",
+		description:
+			"Call models through the AI gateway, within the budget an admin assigns.",
+	},
 };
 
 export const PERMISSION_ACTIONS = Object.keys(
