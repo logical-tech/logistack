@@ -158,6 +158,7 @@ function deploy(
 		commitMessage: commit?.[1] ?? null,
 		gitRef: null,
 		imageRef: `registry.logical.it/logical/${serviceId.slice(4)}:dep_${depCounter}`,
+		platforms: ["linux/amd64", "linux/arm64"],
 		startedAt: new Date(started).toISOString(),
 		finishedAt:
 			durationSeconds === null

@@ -1,10 +1,11 @@
 import {
 	type ApplicationSpec,
+	type BuildPlatform,
 	type Healthcheck,
 	ServiceSpec,
 } from "@logistack/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/field";
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { archOf, buildPlatformsQuery } from "@/lib/api/builds";
 import { nodesQuery } from "@/lib/api/monitoring";
 import {
 	type ServiceOverview,
@@ -167,6 +169,83 @@ function HealthcheckFields({
 	);
 }
 
+const ARCHS = {
+	auto: undefined,
+	amd64: ["linux/amd64"],
+	arm64: ["linux/arm64"],
+	both: ["linux/amd64", "linux/arm64"],
+} as const satisfies Record<string, BuildPlatform[] | undefined>;
+type Archs = keyof typeof ARCHS;
+
+function PlatformsField({
+	build,
+	onChange,
+}: {
+	build: Extract<Build, { type: "dockerfile" | "railpack" }>;
+	onChange: (b: Build) => void;
+}) {
+	const { data: p } = useQuery(buildPlatformsQuery);
+	const current = build.platforms;
+	const value: Archs = !current
+		? "auto"
+		: current.length > 1
+			? "both"
+			: current[0] === "linux/arm64"
+				? "arm64"
+				: "amd64";
+	const targets = current ?? p?.swarm ?? [];
+	const missing = p?.missing.filter((m) => targets.includes(m)) ?? [];
+	const swarm = p?.swarm.length ? p.swarm.map(archOf).join(" and ") : null;
+	return (
+		<Field
+			id="platforms"
+			label="Architectures"
+			hint={
+				missing.length ? (
+					<>
+						BuildKit can't build {missing.map(archOf).join(" and ")} yet.{" "}
+						<Link
+							to="/settings/builds"
+							className="font-medium text-foreground underline decoration-foreground/30 underline-offset-[3px] hover:decoration-foreground"
+						>
+							Set up emulation
+						</Link>
+					</>
+				) : build.type === "railpack" ? (
+					"Railpack builds one architecture per image; on a mixed swarm Automatic builds BuildKit's own."
+				) : value === "both" ? (
+					"One image for both kinds of server. Needs a registry."
+				) : (
+					"The service only runs on servers of the architectures it is built for."
+				)
+			}
+		>
+			<Select
+				value={value}
+				onValueChange={(v) => {
+					const platforms = ARCHS[v as Archs];
+					const { platforms: _, ...rest } = build;
+					onChange(platforms ? { ...rest, platforms: [...platforms] } : rest);
+				}}
+			>
+				<SelectTrigger id="platforms" className="w-full sm:max-w-72">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="auto">
+						Automatic{swarm ? ` (${swarm})` : ""}
+					</SelectItem>
+					<SelectItem value="amd64">amd64 only</SelectItem>
+					<SelectItem value="arm64">arm64 only</SelectItem>
+					{build.type === "dockerfile" && (
+						<SelectItem value="both">amd64 and arm64</SelectItem>
+					)}
+				</SelectContent>
+			</Select>
+		</Field>
+	);
+}
+
 function BuildFields({
 	spec,
 	onChange,
@@ -285,6 +364,9 @@ function BuildFields({
 						/>
 					</Field>
 				</div>
+			)}
+			{(build.type === "dockerfile" || build.type === "railpack") && (
+				<PlatformsField build={build} onChange={setBuild} />
 			)}
 			{build.type === "static" && (
 				<Field

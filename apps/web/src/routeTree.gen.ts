@@ -42,6 +42,7 @@ import { Route as AppSettingsApiKeysRouteImport } from './routes/_app/settings/a
 import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
 import { Route as AppSettingsAuditLogRouteImport } from './routes/_app/settings/audit-log'
 import { Route as AppSettingsAuthenticationRouteImport } from './routes/_app/settings/authentication'
+import { Route as AppSettingsBuildsRouteImport } from './routes/_app/settings/builds'
 import { Route as AppSettingsCertificatesRouteImport } from './routes/_app/settings/certificates'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
@@ -67,6 +68,7 @@ import { Route as AppSchedulesScheduleIdEditRouteImport } from './routes/_app/sc
 import { Route as AppSettingsApiKeysNewRouteImport } from './routes/_app/settings/api-keys_.new'
 import { Route as AppSettingsAuthenticationOidcRouteImport } from './routes/_app/settings/authentication_.oidc'
 import { Route as AppSettingsAuthenticationSamlRouteImport } from './routes/_app/settings/authentication_.saml'
+import { Route as AppSettingsBuildsEmulationRouteImport } from './routes/_app/settings/builds_.emulation'
 import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/settings/certificates_.new'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
@@ -257,6 +259,11 @@ const AppSettingsAuthenticationRoute =
     path: '/settings/authentication',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSettingsBuildsRoute = AppSettingsBuildsRouteImport.update({
+  id: '/settings/builds',
+  path: '/settings/builds',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsCertificatesRoute = AppSettingsCertificatesRouteImport.update({
   id: '/settings/certificates',
   path: '/settings/certificates',
@@ -390,6 +397,12 @@ const AppSettingsAuthenticationSamlRoute =
   AppSettingsAuthenticationSamlRouteImport.update({
     id: '/settings/authentication_/saml',
     path: '/settings/authentication/saml',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppSettingsBuildsEmulationRoute =
+  AppSettingsBuildsEmulationRouteImport.update({
+    id: '/settings/builds_/emulation',
+    path: '/settings/builds/emulation',
     getParentRoute: () => AppRoute,
   } as any)
 const AppSettingsCertificatesNewRoute =
@@ -555,6 +568,7 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/settings/authentication': typeof AppSettingsAuthenticationRoute
+  '/settings/builds': typeof AppSettingsBuildsRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/members': typeof AppSettingsMembersRoute
@@ -579,6 +593,7 @@ export interface FileRoutesByFullPath {
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
   '/settings/authentication/saml': typeof AppSettingsAuthenticationSamlRoute
+  '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
@@ -632,6 +647,7 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/settings/authentication': typeof AppSettingsAuthenticationRoute
+  '/settings/builds': typeof AppSettingsBuildsRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/members': typeof AppSettingsMembersRoute
@@ -656,6 +672,7 @@ export interface FileRoutesByTo {
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
   '/settings/authentication/saml': typeof AppSettingsAuthenticationSamlRoute
+  '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/backups/$serviceId': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes': typeof AppMonitoringNodesIndexRoute
@@ -713,6 +730,7 @@ export interface FileRoutesById {
   '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
   '/_app/settings/audit-log': typeof AppSettingsAuditLogRoute
   '/_app/settings/authentication': typeof AppSettingsAuthenticationRoute
+  '/_app/settings/builds': typeof AppSettingsBuildsRoute
   '/_app/settings/certificates': typeof AppSettingsCertificatesRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/members': typeof AppSettingsMembersRoute
@@ -737,6 +755,7 @@ export interface FileRoutesById {
   '/_app/settings/api-keys_/new': typeof AppSettingsApiKeysNewRoute
   '/_app/settings/authentication_/oidc': typeof AppSettingsAuthenticationOidcRoute
   '/_app/settings/authentication_/saml': typeof AppSettingsAuthenticationSamlRoute
+  '/_app/settings/builds_/emulation': typeof AppSettingsBuildsEmulationRoute
   '/_app/settings/certificates_/new': typeof AppSettingsCertificatesNewRoute
   '/_app/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/_app/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
@@ -795,6 +814,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/audit-log'
     | '/settings/authentication'
+    | '/settings/builds'
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/members'
@@ -819,6 +839,7 @@ export interface FileRouteTypes {
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
     | '/settings/authentication/saml'
+    | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/backups/$serviceId/'
     | '/monitoring/nodes/'
@@ -872,6 +893,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/audit-log'
     | '/settings/authentication'
+    | '/settings/builds'
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/members'
@@ -896,6 +918,7 @@ export interface FileRouteTypes {
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
     | '/settings/authentication/saml'
+    | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/backups/$serviceId'
     | '/monitoring/nodes'
@@ -952,6 +975,7 @@ export interface FileRouteTypes {
     | '/_app/settings/appearance'
     | '/_app/settings/audit-log'
     | '/_app/settings/authentication'
+    | '/_app/settings/builds'
     | '/_app/settings/certificates'
     | '/_app/settings/general'
     | '/_app/settings/members'
@@ -976,6 +1000,7 @@ export interface FileRouteTypes {
     | '/_app/settings/api-keys_/new'
     | '/_app/settings/authentication_/oidc'
     | '/_app/settings/authentication_/saml'
+    | '/_app/settings/builds_/emulation'
     | '/_app/settings/certificates_/new'
     | '/_app/backups/$serviceId/'
     | '/_app/monitoring/nodes/'
@@ -1242,6 +1267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsAuthenticationRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/builds': {
+      id: '/_app/settings/builds'
+      path: '/settings/builds'
+      fullPath: '/settings/builds'
+      preLoaderRoute: typeof AppSettingsBuildsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/certificates': {
       id: '/_app/settings/certificates'
       path: '/settings/certificates'
@@ -1415,6 +1447,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/authentication/saml'
       fullPath: '/settings/authentication/saml'
       preLoaderRoute: typeof AppSettingsAuthenticationSamlRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/builds_/emulation': {
+      id: '/_app/settings/builds_/emulation'
+      path: '/settings/builds/emulation'
+      fullPath: '/settings/builds/emulation'
+      preLoaderRoute: typeof AppSettingsBuildsEmulationRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/certificates_/new': {
@@ -1725,6 +1764,7 @@ interface AppRouteChildren {
   AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
   AppSettingsAuditLogRoute: typeof AppSettingsAuditLogRoute
   AppSettingsAuthenticationRoute: typeof AppSettingsAuthenticationRoute
+  AppSettingsBuildsRoute: typeof AppSettingsBuildsRoute
   AppSettingsCertificatesRoute: typeof AppSettingsCertificatesRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
@@ -1744,6 +1784,7 @@ interface AppRouteChildren {
   AppSettingsApiKeysNewRoute: typeof AppSettingsApiKeysNewRoute
   AppSettingsAuthenticationOidcRoute: typeof AppSettingsAuthenticationOidcRoute
   AppSettingsAuthenticationSamlRoute: typeof AppSettingsAuthenticationSamlRoute
+  AppSettingsBuildsEmulationRoute: typeof AppSettingsBuildsEmulationRoute
   AppSettingsCertificatesNewRoute: typeof AppSettingsCertificatesNewRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
   AppIntegrationsDnsProviderIdZoneIdRoute: typeof AppIntegrationsDnsProviderIdZoneIdRoute
@@ -1771,6 +1812,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
   AppSettingsAuditLogRoute: AppSettingsAuditLogRoute,
   AppSettingsAuthenticationRoute: AppSettingsAuthenticationRoute,
+  AppSettingsBuildsRoute: AppSettingsBuildsRoute,
   AppSettingsCertificatesRoute: AppSettingsCertificatesRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsMembersRoute: AppSettingsMembersRoute,
@@ -1790,6 +1832,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsApiKeysNewRoute: AppSettingsApiKeysNewRoute,
   AppSettingsAuthenticationOidcRoute: AppSettingsAuthenticationOidcRoute,
   AppSettingsAuthenticationSamlRoute: AppSettingsAuthenticationSamlRoute,
+  AppSettingsBuildsEmulationRoute: AppSettingsBuildsEmulationRoute,
   AppSettingsCertificatesNewRoute: AppSettingsCertificatesNewRoute,
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,
   AppIntegrationsDnsProviderIdZoneIdRoute:

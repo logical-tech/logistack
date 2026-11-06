@@ -32,6 +32,8 @@ export interface SystemInfo {
 	ID: string;
 	Name: string;
 	ServerVersion: string;
+	/** `uname -m` of the engine host: `x86_64`, `aarch64`. */
+	Architecture: string;
 	NCPU: number;
 	MemTotal: number;
 	Containers: number;
