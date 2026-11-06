@@ -51,6 +51,7 @@ import {
 	useServiceMutation,
 } from "@/lib/api/service-ops";
 import type { ProjectId } from "@/lib/api/types";
+import { ScalingSection } from "./scaling";
 import { ServiceAlerts } from "./service-alerts";
 
 type Build = ApplicationSpec["build"];
@@ -604,20 +605,7 @@ export function SettingsForm({
 							}
 						/>
 					</Field>
-					<div className="grid gap-4 sm:grid-cols-3">
-						{app && (
-							<Field id="replicas" label="Replicas">
-								<Input
-									id="replicas"
-									type="number"
-									min={0}
-									value={app.replicas}
-									onChange={(e) =>
-										patchApp({ replicas: num(e.target.value) ?? 0 })
-									}
-								/>
-							</Field>
-						)}
+					<div className="grid max-w-xl gap-4 sm:grid-cols-2">
 						<Field
 							id="cpu"
 							label="CPU"
@@ -651,6 +639,19 @@ export function SettingsForm({
 
 			{app && (
 				<>
+					<Section
+						title="Scaling"
+						id="scaling"
+						description="How many copies of the service run. Fixed keeps a set number; automatic adds and removes copies with the load."
+					>
+						<ScalingSection
+							service={o}
+							projectId={projectId}
+							replicas={app.replicas}
+							onReplicas={(replicas) => patchApp({ replicas })}
+						/>
+					</Section>
+
 					<Section
 						title="Healthcheck and drain"
 						id="healthcheck"

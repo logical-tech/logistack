@@ -15,6 +15,7 @@
 		"environments",
 		"preview-environments",
 		"service-settings",
+		"autoscaling",
 		"build-platforms",
 		"registries"
 	]

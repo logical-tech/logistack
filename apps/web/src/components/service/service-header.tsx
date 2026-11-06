@@ -15,6 +15,7 @@ import { ServiceGlyph } from "@/components/service/service-icon";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { autoscaleQuery } from "@/lib/api/autoscale";
 import { projectQuery } from "@/lib/api/projects";
 import {
 	type DeploymentRow,
@@ -84,6 +85,10 @@ export function ServiceHeader({
 		});
 	const stopped = o.desiredState === "stopped";
 	const note = convergence(o);
+	const { data: autoscale } = useQuery({
+		...autoscaleQuery(o.id),
+		enabled: o.kind === "application",
+	});
 	const replicas =
 		o.kind === "application" && o.status.replicasDesired > 0
 			? `${o.status.replicasRunning}/${o.status.replicasDesired}`
@@ -97,6 +102,16 @@ export function ServiceHeader({
 					<h1 className="truncate text-xl font-semibold">{o.name}</h1>
 					<p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
 						<ServiceStatus status={o.status.observed} suffix={replicas} />
+						{autoscale?.enabled && (
+							<Link
+								to="/projects/$projectId/services/$serviceId/settings"
+								params={{ projectId, serviceId: o.id }}
+								hash="scaling"
+								className="text-foreground tabular underline-offset-4 hover:underline"
+							>
+								Scales {autoscale.minReplicas}–{autoscale.maxReplicas}
+							</Link>
+						)}
 						{note && (
 							<span className="text-foreground">
 								Desired {o.desiredState}, {note}

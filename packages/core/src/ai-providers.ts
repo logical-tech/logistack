@@ -31,6 +31,8 @@ export type AiProviderDef = {
 	freeModel?: (id: string) => boolean;
 	/** Models served when the provider has no usable `/models` listing. */
 	staticModels?: string[];
+	/** Rejects JSON Schema keywords like `additionalProperties` in tool parameters; the gateway strips them. */
+	plainToolSchemas?: boolean;
 	/** Each key carries its own base URL (Ollama, vLLM, LM Studio). */
 	customBaseUrl?: boolean;
 	/** The free tier as the provider publishes it. Absent: unpublished. Providers change these often. */
@@ -186,6 +188,7 @@ export const aiProviders = [
 		name: "Kilo Gateway",
 		tier: "free",
 		baseUrl: "https://api.kilo.ai/api/gateway/v1",
+		keyUrl: "https://kilo.ai",
 		keyHint: "not needed",
 		keyless: true,
 		freeModel: suffixFree,
@@ -208,6 +211,7 @@ export const aiProviders = [
 		name: "OVHcloud AI Endpoints",
 		tier: "free",
 		baseUrl: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+		keyUrl: "https://endpoints.ai.cloud.ovh.net",
 		keyHint: "not needed",
 		keyless: true,
 		freeQuota: {
@@ -347,6 +351,22 @@ export const aiProviders = [
 		keyHint: "API key",
 	},
 	{
+		id: "cohere",
+		name: "Cohere",
+		tier: "free",
+		baseUrl: "https://api.cohere.ai/compatibility/v1",
+		catalogId: "cohere",
+		keyUrl: "https://dashboard.cohere.com/api-keys",
+		keyHint: "trial key",
+		defaultModel: "command-a-03-2025",
+		plainToolSchemas: true,
+		freeQuota: {
+			limits: [{ amount: 1_000, unit: "requests", per: "month" }],
+			note: "Trial keys are for evaluation; Cohere's terms don't allow production use.",
+			docsUrl: "https://docs.cohere.com/docs/rate-limits",
+		},
+	},
+	{
 		id: "custom",
 		name: "OpenAI-compatible server",
 		tier: "free",
@@ -411,6 +431,16 @@ export const aiProviders = [
 		catalogId: "fireworks-ai",
 		keyUrl: "https://fireworks.ai/account/api-keys",
 		keyHint: "fw_…",
+	},
+	{
+		id: "sambanova",
+		name: "SambaNova",
+		tier: "paid",
+		baseUrl: "https://api.sambanova.ai/v1",
+		catalogId: "sambanova",
+		keyUrl: "https://cloud.sambanova.ai/apis",
+		keyHint: "API key",
+		defaultModel: "Meta-Llama-3.3-70B-Instruct",
 	},
 ] as const satisfies readonly AiProviderDef[];
 

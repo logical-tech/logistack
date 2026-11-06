@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AddProviderButton, useAiSettings } from "@/components/ai/ai-page";
 import { formatAllowance, formatAllowances } from "@/components/ai/parts";
+import { SignupLinks } from "@/components/ai/signup-links";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Panel, SkeletonRows } from "@/components/panel";
@@ -71,16 +72,20 @@ function Providers({ settings }: { settings: AiSettings }) {
 	const { data: keys } = useQuery(aiProviderKeysQuery);
 	const defs = new Map(settings.providers.map((p) => [p.id, p]));
 	const tierOf = (k: AiProviderKey) => defs.get(k.provider)?.tier ?? "free";
+	const connected = new Set(keys?.map((k) => k.provider));
 
 	if (keys && keys.length === 0)
 		return (
-			<EmptyState
-				icon={Sparkles}
-				title="Connect a model provider"
-				description="Groq, Cerebras, Gemini, Mistral and OpenRouter have free tiers; a key takes a minute to create. Add OpenAI or Anthropic for paid models."
-			>
-				<AddProviderButton variant="outline" />
-			</EmptyState>
+			<div className="grid gap-10">
+				<EmptyState
+					icon={Sparkles}
+					title="Connect a model provider"
+					description="Groq, Cerebras, Gemini, Mistral and OpenRouter have free tiers; a key takes a minute to create. Add OpenAI or Anthropic for paid models."
+				>
+					<AddProviderButton variant="outline" />
+				</EmptyState>
+				<SignupLinks settings={settings} connected={connected} />
+			</div>
 		);
 
 	return (
@@ -112,6 +117,7 @@ function Providers({ settings }: { settings: AiSettings }) {
 				);
 			})}
 			<AutoChain settings={settings} />
+			{keys && <SignupLinks settings={settings} connected={connected} />}
 		</div>
 	);
 }

@@ -1,6 +1,6 @@
 ---
 title: Service settings
-description: Change a LogiStack service's source, build, replicas, CPU and memory limits, health check, ports, placement and command, and stop, restart or delete it.
+description: Change a LogiStack service's source, build, CPU and memory limits, scaling, health check, ports, placement and command, and stop, restart or delete it.
 ---
 
 The **Settings** tab holds everything that defines how a service builds and runs: its source, build, resources, health check, ports, host access and placement. Most changes apply on the next deployment, so you can edit several settings, review the diff and roll them out together. Use this page when a service needs more memory, more replicas, a health check, or a different branch.
@@ -66,18 +66,23 @@ Git services also have **Deploy triggers** here. See [Deploy from Git](./from-gi
 Limits per replica. Swarm only schedules a replica on a node with this much to spare.
 
 - **Profile**: copies a resource profile's limits. Editing the profile later leaves this service as it is.
-- **Replicas**: how many copies run. Applications only; a database runs one.
 - **CPU**: cores; `0.5` is half a core. Empty is unlimited.
 - **Memory**: megabytes, such as `512`. Empty is unlimited. A replica that goes over the limit is stopped.
 
-```text title="Example: scale an API"
-Replicas:  3
+```text title="Example: size an API"
 CPU:       0.5
 Memory:    512
 ```
 
+## Scaling
+
+How many copies of the service run. Applications only; a database runs one.
+
+- **Fixed**: **Copies** sets how many always run. It is saved with the rest of the form.
+- **Automatic**: LogiStack adds and removes copies with the CPU load, between a minimum and a maximum. See [Scale a service automatically](./autoscaling.mdx).
+
 <Callout>
-More than one replica needs a stateless app: no volume and no published host port. Keep sessions and uploads in a database, Redis or [object storage](../data/object-storage.mdx).
+More than one copy needs a stateless app: no volume and no published host port. Keep sessions and uploads in a database, Redis or [object storage](../data/object-storage.mdx).
 </Callout>
 
 ## Healthcheck and drain

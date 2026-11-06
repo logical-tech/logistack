@@ -369,13 +369,37 @@ function routeHeaders(res: Response, a: Attempt) {
 	return res;
 }
 
-/** Chat requests always ask for the usage chunk; we need it to bill. */
-function upstreamChat(req: ChatRequest, model: string): ChatRequest {
+/** JSON Schema keywords some providers refuse inside tool parameters. */
+const STRICT_KEYS = new Set(["additionalProperties", "$schema"]);
+
+function plainSchema(v: unknown): unknown {
+	if (Array.isArray(v)) return v.map(plainSchema);
+	if (!v || typeof v !== "object") return v;
+	return Object.fromEntries(
+		Object.entries(v)
+			.filter(([k]) => !STRICT_KEYS.has(k))
+			.map(([k, x]) => [k, plainSchema(x)]),
+	);
+}
+
+/** The body sent upstream: the routed model, the usage chunk on streams (we bill from it), provider quirks. */
+function upstreamChat(req: ChatRequest, cand: Candidate): ChatRequest {
 	return {
 		...req,
-		model,
+		model: cand.model,
 		...(req.stream
 			? { stream_options: { ...req.stream_options, include_usage: true } }
+			: {}),
+		...(cand.def.plainToolSchemas && req.tools
+			? {
+					tools: req.tools.map((t) => ({
+						...t,
+						function: {
+							...t.function,
+							parameters: plainSchema(t.function.parameters),
+						},
+					})),
+				}
 			: {}),
 	};
 }
@@ -493,7 +517,7 @@ export const gateway = new Hono<Env>()
 			who,
 			req.model,
 			() => "/chat/completions",
-			(cand) => upstreamChat(req, cand.model),
+			(cand) => upstreamChat(req, cand),
 			60_000,
 		);
 		if (!a.res.ok) return upstreamFailure(a);
@@ -541,7 +565,7 @@ export const gateway = new Hono<Env>()
 			(cand) =>
 				native(cand)
 					? { ...req, model: cand.model, max_tokens: req.max_tokens ?? 4096 }
-					: upstreamChat(chat, cand.model),
+					: upstreamChat(chat, cand),
 			60_000,
 		);
 		if (!a.res.ok) return upstreamFailure(a);
@@ -636,7 +660,7 @@ export const gateway = new Hono<Env>()
 			(cand) =>
 				native(cand)
 					? { ...req, model: cand.model, store: false }
-					: upstreamChat(chat, cand.model),
+					: upstreamChat(chat, cand),
 			60_000,
 		);
 		if (!a.res.ok) return upstreamFailure(a);

@@ -1,0 +1,136 @@
+---
+title: Scale a service automatically
+description: Let LogiStack add and remove copies of a service as its CPU load changes, between a minimum and maximum you choose, with a replay of the last day before you turn it on.
+---
+
+Automatic scaling runs more copies of a service when it is busy and fewer when it is quiet. You choose the fewest and the most copies, and how quickly it reacts; LogiStack watches each copy's CPU and changes the count on its own. Use it for a web app or API whose traffic rises and falls during the day, so it has room at peak and doesn't hold idle copies at night.
+
+Automatic scaling works on application services. Databases, object storage, game servers and compose stacks keep a fixed number of copies.
+
+## Before you start
+
+The service needs:
+
+- **A CPU limit.** Usage is measured as a percentage of each copy's limit. Pick a profile or set **CPU** under **Resources** in [Service settings](./service-settings.mdx#resources).
+- **No volumes and no host paths.** Copies of a service with a volume would split or share its data. Keep files in [object storage](../data/object-storage.mdx) and state in a database.
+- **No port published on its node.** Two copies can't bind the same host port on one server. Reach the service through a [domain](../networking/domains.mdx), or publish the port on **Every node**.
+
+These are also recommended, but not required:
+
+- **A health check**, so a new copy gets traffic only once it is ready. Without one, requests can fail for a few seconds after each scale-up.
+- **More than one server**, so copies spread out instead of sharing one server's CPU. See [Nodes](../operations/nodes.mdx).
+
+## Turn on automatic scaling
+
+<Steps>
+<Step>
+
+### Open Scaling
+
+Open the service, select **Settings**, and find the **Scaling** section. Select **Automatic**, then **Set up automatic scaling**.
+
+</Step>
+<Step>
+
+### Check the service
+
+The first step lists the checks from [Before you start](#before-you-start). A red mark blocks the setup: fix it in the service settings, then come back. An orange mark is a warning you can continue past.
+
+![The Check the service step: a CPU limit, no volumes and no host ports pass, a warning that the service has no health check, and copies spread across 3 servers](/screens/autoscale-checks.webp)
+
+</Step>
+<Step>
+
+### Choose how many copies
+
+Drag the two handles to set the minimum and maximum, from 1 to 20 copies. The service never runs fewer than the minimum, even when idle, and never more than the maximum, even under a spike. The line below shows the CPU and memory the service uses at the maximum, so you know how much the servers need to spare.
+
+With the keyboard, focus a handle and press the arrow keys.
+
+![The How many copies step with the range set between 1 and 6 copies and the CPU and memory needed at the maximum](/screens/autoscale-range.webp)
+
+</Step>
+<Step>
+
+### Choose how quickly it reacts
+
+Each behavior sets the CPU level each copy should stay around:
+
+| Behavior | CPU target | Use it when |
+| --- | --- | --- |
+| **Balanced** | 60% | Most web apps and APIs. |
+| **Responsive** | 45% | Traffic arrives in sudden bursts and response time matters more than cost. |
+| **Economical** | 75% | The service tolerates being slower during spikes and you want the fewest copies. |
+| **Custom target** | 10% to 95% | You know the level your app runs best at. |
+
+![The How quickly it reacts step with Balanced selected, and the Responsive, Economical and Custom target choices](/screens/autoscale-behavior.webp)
+
+</Step>
+<Step>
+
+### Review and turn it on
+
+The last step sums up your choices and replays the service's last 24 hours with them: how many copies it would have run, and the CPU of each copy against the target. If the service has run for less than about an hour, there is not enough history and the preview says so.
+
+Select **Turn on automatic scaling**.
+
+![The Review step: between 1 and 3 copies with the Balanced behavior, and charts of copies and CPU per copy over the last day](/screens/autoscale-review.webp)
+
+</Step>
+</Steps>
+
+The **Scaling** section now shows how many copies run, the range, the behavior and the last change with its reason. The service header shows **Scales** with the range, linking back to it.
+
+![The Scaling section with Automatic selected: running 3 copies now, between 2 and 6, and the last change 18 minutes ago because CPU was at 74%, above the 60% target](/screens/service-scaling.webp)
+
+## How it decides
+
+Every 30 seconds LogiStack reads the average CPU of the service's copies, as a percentage of each copy's limit, and compares it with the target:
+
+- **Up, quickly.** When the average over the last minute is more than 10% above the target, it adds enough copies to bring each one back to the target. It at most doubles the count, and adds at most 4 copies, in one step, and waits a minute before the next step.
+- **Down, slowly.** When the average over the last 5 minutes is low enough that one copy fewer would still run at or under the target, it removes one copy. It waits at least 3 minutes after any change before removing another. With 2 copies and a 60% target, that means each copy at 30% or less.
+- **Holds** while a deployment runs, while a backup has paused the service, and while new copies are still starting. If a copy stays pending because no server has room, it doesn't ask for more.
+
+Within 10% of the target nothing changes, so the count doesn't flap. A change takes effect within about 30 seconds, without a deployment.
+
+### Example
+
+The `api` service has a 0.5 CPU limit, a range of 2 to 6 and the Balanced behavior (60%). It runs 2 copies at 35% each. A campaign starts and each copy climbs to 90%. Within a minute LogiStack moves to 3 copies, bringing each back to about 60%. In the evening each copy drops to 20% for five minutes: two copies would run at 30%, under the target, so it removes one and is back at the minimum of 2.
+
+## Change or turn it off
+
+- To change the range or behavior, select **Edit scaling** in the **Scaling** section and go through the steps again. The current count stays if it fits the new range; otherwise it moves to the nearest end.
+- To turn it off, select **Fixed**, then **Switch to fixed**. The service goes back to the number of copies it had before you turned automatic scaling on.
+
+## Get notified
+
+Each change sends a `service.scaled` event with the old and new count and the reason. Add **Service scaled automatically** to a notification rule to receive it in Slack, email or another channel. See [Alerts and notifications](../operations/alerts-and-notifications.mdx). Each change is also recorded in the audit log.
+
+## Use the API
+
+The **Scaling** settings are also available through the API and the manifest:
+
+- `GET /api/services/{id}/autoscale` returns the settings, the current count and the readiness checks.
+- `PUT /api/services/{id}/autoscale` saves them. Over MCP this is the `service_autoscale` tool.
+- `GET /api/services/{id}/autoscale/preview?minReplicas=1&maxReplicas=6&behavior=balanced` returns the replay of the last day.
+
+```json title="PUT /api/services/svc_.../autoscale"
+{
+  "enabled": true,
+  "minReplicas": 2,
+  "maxReplicas": 6,
+  "behavior": "balanced"
+}
+```
+
+With `behavior: "custom"`, also send `targetCpu`. The API also accepts `targetMemory`, a percentage of the memory limit: the service then scales up when either CPU or memory is over its target, and scales down only when both are under. It needs a memory limit.
+
+In a [project manifest](../automation/project-manifests.mdx), add `autoscale` with the same fields to an application service. Apply saves it only when it changed; leaving it out keeps the current setting.
+
+## Common problems
+
+- **The setup stops at Check the service**: a red check fails. The message names it: set a CPU limit, remove the volume or host path, or publish the port on **Every node**.
+- **The count stays at the maximum**: the service needs more than the maximum at its current load. Raise the maximum, or the CPU limit per copy.
+- **The count doesn't go up under load**: new copies are still pending, usually because no server has the CPU or memory the limits ask for. Check **Monitoring** › **Nodes**, or lower the limits.
+- **Errors for a few seconds after scaling up**: the service has no health check, so new copies get traffic before they are ready. Add one under **Healthcheck and drain**.
+- **The preview says there is not enough history**: the service has run for under an hour, or it was stopped. Turn scaling on anyway, or come back later to see the replay.

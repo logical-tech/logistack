@@ -14,22 +14,103 @@ export type AutoscaleBehavior = z.infer<typeof AutoscaleBehavior>;
 
 const Percent = z.int().min(10).max(95);
 
-export const AutoscaleSettings = z
+const Range = {
+	minReplicas: z.int().min(1).max(AUTOSCALE_MAX_REPLICAS),
+	maxReplicas: z.int().min(1).max(AUTOSCALE_MAX_REPLICAS),
+};
+const rangeOk = (s: { minReplicas: number; maxReplicas: number }) =>
+	s.minReplicas <= s.maxReplicas;
+const rangeError = {
+	message: "must be at least the minimum",
+	path: ["maxReplicas"],
+};
+
+export const AutoscaleSettings = z.object({
+	enabled: z.boolean(),
+	...Range,
+	behavior: AutoscaleBehavior,
+	/** Average CPU across replicas, percent of each replica's limit. */
+	targetCpu: Percent,
+	/** Average memory, percent of the limit; null leaves memory out of the decision. */
+	targetMemory: Percent.nullable(),
+});
+export type AutoscaleSettings = z.infer<typeof AutoscaleSettings>;
+
+/** A preset sets `targetCpu` itself; `custom` needs one. */
+export const AutoscaleInput = z
 	.object({
 		enabled: z.boolean(),
-		minReplicas: z.int().min(1).max(AUTOSCALE_MAX_REPLICAS),
-		maxReplicas: z.int().min(1).max(AUTOSCALE_MAX_REPLICAS),
-		behavior: AutoscaleBehavior,
-		/** Average CPU across replicas, percent of each replica's limit. */
-		targetCpu: Percent,
-		/** Average memory, percent of the limit; null leaves memory out of the decision. */
-		targetMemory: Percent.nullable(),
+		...Range,
+		behavior: AutoscaleBehavior.default("balanced"),
+		targetCpu: Percent.optional().describe(
+			"Only with behavior `custom`; presets set it: responsive 45, balanced 60, economical 75.",
+		),
+		targetMemory: Percent.nullable()
+			.default(null)
+			.describe("Needs a memory limit; null leaves memory out."),
 	})
-	.refine((s) => s.minReplicas <= s.maxReplicas, {
-		message: "must be at least the minimum",
-		path: ["maxReplicas"],
-	});
-export type AutoscaleSettings = z.infer<typeof AutoscaleSettings>;
+	.refine(rangeOk, rangeError)
+	.refine((s) => s.behavior !== "custom" || s.targetCpu !== undefined, {
+		message: "required with behavior 'custom'",
+		path: ["targetCpu"],
+	})
+	.meta({ id: "AutoscaleInput" });
+export type AutoscaleInput = z.infer<typeof AutoscaleInput>;
+
+export const autoscaleCheckIds = [
+	"cpu_limit",
+	"volumes",
+	"host_ports",
+	"healthcheck",
+	"nodes",
+] as const;
+
+/** One readiness check; a failed `blocker` refuses enabling, a failed `warning` only informs. */
+export const AutoscaleCheck = z.object({
+	id: z.enum(autoscaleCheckIds),
+	level: z.enum(["blocker", "warning"]),
+	ok: z.boolean(),
+	message: z.string(),
+});
+export type AutoscaleCheck = z.infer<typeof AutoscaleCheck>;
+
+export const AutoscaleView = AutoscaleSettings.extend({
+	/** False until settings were first saved; the rest are then defaults. */
+	configured: z.boolean(),
+	/** The autoscaler's current count; null before its first decision. */
+	replicas: z.int().nullable(),
+	lastScaledAt: z.coerce.date().nullable(),
+	lastReason: z.string().nullable(),
+	checks: z.array(AutoscaleCheck),
+}).meta({ id: "AutoscaleView" });
+export type AutoscaleView = z.infer<typeof AutoscaleView>;
+
+/** What these settings would have done over the last day, one point per minute with data. */
+export const AutoscalePreview = z
+	.object({
+		points: z.array(
+			z.object({
+				at: z.coerce.date(),
+				replicas: z.int(),
+				/** CPU at the simulated count, percent of the limit. */
+				cpu: z.number(),
+			}),
+		),
+		/** Under an hour of samples: too little to show. */
+		enoughData: z.boolean(),
+	})
+	.meta({ id: "AutoscalePreview" });
+export type AutoscalePreview = z.infer<typeof AutoscalePreview>;
+
+export const AutoscalePreviewQuery = z
+	.object({
+		minReplicas: z.coerce.number().pipe(Range.minReplicas),
+		maxReplicas: z.coerce.number().pipe(Range.maxReplicas),
+		behavior: AutoscaleBehavior.default("balanced"),
+		targetCpu: z.coerce.number().pipe(Percent).optional(),
+	})
+	.refine(rangeOk, rangeError);
+export type AutoscalePreviewQuery = z.infer<typeof AutoscalePreviewQuery>;
 
 /** Payload of the `service.scaled` event; `cpu` and `memory` are percent of the limit. */
 export const ServiceScaledEventPayload = z.object({
