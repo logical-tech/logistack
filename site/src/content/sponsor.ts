@@ -23,3 +23,7 @@ export const sponsorLinks: Record<Frequency, Record<SponsorAmount, string>> = {
 /** Stripe only offers a visitor-chosen amount on one-time payments. */
 export const customAmountLink =
 	"https://donate.stripe.com/8x2aERf299n6e18g5P1gs06";
+
+/** Stripe customer portal (bpc_1UYjmh7MyJvf14A3LqNjEzWo): sponsors sign in by email to cancel or change card. */
+export const manageSponsorshipLink =
+	"https://billing.stripe.com/p/login/5kQ7sFbPX2YIcX4bPz1gs00";

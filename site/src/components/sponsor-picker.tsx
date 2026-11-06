@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
 	customAmountLink,
 	type Frequency,
+	manageSponsorshipLink,
 	SPONSOR_AMOUNTS,
 	type SponsorAmount,
 	sponsorLinks,
@@ -23,7 +24,7 @@ function target(frequency: Frequency, choice: Choice) {
 		href: sponsorLinks[frequency][choice],
 		label: `Sponsor €${choice}${monthly ? " a month" : " once"}`,
 		note: monthly
-			? "Billed monthly through Stripe until you cancel."
+			? "Billed monthly through Stripe. Cancel any time."
 			: "A one-time gift, paid through Stripe.",
 	};
 }
@@ -91,6 +92,12 @@ export function SponsorPicker() {
 					{note}
 				</span>
 			</div>
+			<a
+				href={manageSponsorshipLink}
+				className="w-fit text-sm text-muted underline transition-colors hover:text-fg"
+			>
+				Already a sponsor? Manage or cancel
+			</a>
 		</div>
 	);
 }

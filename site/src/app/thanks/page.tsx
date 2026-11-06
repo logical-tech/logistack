@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/sections/closing";
 import { Nav } from "@/components/sections/nav";
 import { site } from "@/content/site";
+import { manageSponsorshipLink } from "@/content/sponsor";
 
 export const metadata: Metadata = {
 	title: "Thank you",
@@ -23,12 +24,12 @@ export default function Thanks() {
 				</h1>
 				<p className="max-w-[52ch] text-lg leading-relaxed text-fg/90">
 					Your payment went through. It pays for the hours behind releases,
-					security fixes and the template catalog. To change or cancel a monthly
-					sponsorship,{" "}
-					<a href={site.company.url} className="underline">
-						get in touch with Logical
-					</a>
-					.
+					security fixes and the template catalog. To change your card or cancel
+					a monthly sponsorship, sign in to the{" "}
+					<a href={manageSponsorshipLink} className="underline">
+						Stripe billing portal
+					</a>{" "}
+					with the email you paid with.
 				</p>
 				<div className="flex flex-wrap gap-3 pt-2">
 					<a
