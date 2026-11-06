@@ -68,9 +68,13 @@ jobs:
       - id: diff
         env:
           BEFORE: ${{ github.event.before }}
+          MESSAGE: ${{ github.event.head_commit.message }}
         run: |
+          # `[skip smoke]` in the head commit's message opts out; check and test still run.
+          if [[ "$MESSAGE" == *"[skip smoke]"* ]]; then
+            echo smoke=false >>"$GITHUB_OUTPUT"
           # A force push leaves no base to diff against: run it.
-          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+          elif ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             echo smoke=true >>"$GITHUB_OUTPUT"
           elif git diff --name-only "$BEFORE" HEAD | grep -qE '^(install/|docker/|Dockerfile|\.dockerignore|bun\.lock|(apps|packages)/[a-z-]+/package\.json|apps/agent/|packages/db/drizzle/|packages/(docker|proxy)/|apps/server/src/(index|config)\.ts|apps/server/src/routes/updates\.ts|apps/worker/src/(index|config|build|instance-update|update-runner)\.ts)'; then
             echo smoke=true >>"$GITHUB_OUTPUT"
