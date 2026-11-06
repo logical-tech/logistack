@@ -22,7 +22,8 @@
 			],
 			"vars": {
 				"SITE_ORIGIN": "https://stack.logicaltech.it",
-				"EMAIL_FROM": "sponsors@logicaltech.it"
+				"EMAIL_FROM": "sponsors@logicaltech.it",
+				"SANDBOX": "1"
 			},
 			"kv_namespaces": [
 				{ "binding": "SPONSORS", "id": "d35a17eb189b41a18a292299770dc476" }

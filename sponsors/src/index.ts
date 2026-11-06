@@ -1,3 +1,4 @@
+import { renderKeyEmail } from "./email.ts";
 import {
 	MONTHLY_TTL,
 	ONCE_TTL,
@@ -23,6 +24,8 @@ export type Env = {
 	/** The marketing site, allowed to read a session's key from /thanks/. */
 	SITE_ORIGIN: string;
 	EMAIL_FROM: string;
+	/** "1" in the sandbox environment: test emails say so. */
+	SANDBOX?: string;
 };
 
 const DAY = 86_400;
@@ -55,11 +58,12 @@ async function sendKey(
 	key: string,
 	monthly: boolean,
 ) {
-	const steps = `In LogiStack, open Settings > Sponsor and paste this key:\n\n${key}\n\n`;
-	const renewal = monthly
-		? "Your instance renews the key by itself every month while the sponsorship is active. If it can't reach us, the key keeps working for a week past the month.\n\n"
-		: "The key is valid for a year.\n\n";
-	const text = `Thank you for sponsoring LogiStack.\n\n${steps}${renewal}— Logical`;
+	const email = renderKeyEmail({
+		key,
+		monthly,
+		exp: readClaims(key)?.exp ?? now(),
+		sandbox: env.SANDBOX === "1",
+	});
 	const res = await fetch("https://api.resend.com/emails", {
 		method: "POST",
 		headers: {
@@ -71,9 +75,9 @@ async function sendKey(
 		body: JSON.stringify({
 			from: `LogiStack <${env.EMAIL_FROM}>`,
 			to: [to],
-			subject: "Your LogiStack sponsor key",
-			text,
-			html: `<p>Thank you for sponsoring LogiStack.</p><p>In LogiStack, open <b>Settings &gt; Sponsor</b> and paste this key:</p><pre style="white-space:pre-wrap;word-break:break-all;font-size:13px;background:#f4f4f5;padding:12px;border-radius:8px">${key}</pre><p>${renewal.trim()}</p><p>— Logical</p>`,
+			subject: email.subject,
+			text: email.text,
+			html: email.html,
 		}),
 	});
 	// Throwing makes the webhook answer 500, so Stripe retries and the email goes out later.
