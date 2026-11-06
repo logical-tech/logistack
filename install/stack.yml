@@ -161,8 +161,6 @@ services:
       - workerdata:/var/lib/logistack
     # ls-storage: backups to a LogiStack storage service. ls-db: so the worker can attach databases to it.
     networks: [ls-control, ls-storage, ls-db]
-    healthcheck:
-      disable: true
     deploy:
       <<: *rolling
       replicas: 1

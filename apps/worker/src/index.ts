@@ -52,6 +52,9 @@ import { syncTunnels } from "./tunnels.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
 
+/** Same path as the worker target's HEALTHCHECK in the Dockerfile. */
+const HEARTBEAT = "/tmp/logistack-worker.alive";
+
 async function onEvent(ctx: Ctx, e: EventEnvelope) {
 	switch (e.type) {
 		case "deployment.queued": {
@@ -293,6 +296,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 
 if (import.meta.main) {
 	const running = await startWorker(loadConfig());
+	// The image's HEALTHCHECK reads this file's age: a started worker with a live event loop.
+	const beat = () => Bun.write(HEARTBEAT, String(Date.now()));
+	await beat();
+	setInterval(beat, 5_000);
 	let stopping = false;
 	const stop = async () => {
 		if (stopping) return;
