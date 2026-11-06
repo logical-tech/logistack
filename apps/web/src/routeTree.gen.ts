@@ -34,6 +34,7 @@ import { Route as AppIntegrationsS3RouteImport } from './routes/_app/integration
 import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integrations/tunnels'
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
+import { Route as AppMonitoringUsageRouteImport } from './routes/_app/monitoring/usage'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/projects/$projectId/route'
 import { Route as AppSchedulesScheduleIdRouteImport } from './routes/_app/schedules_.$scheduleId'
@@ -64,6 +65,7 @@ import { Route as AppMonitoringNodesIndexRouteImport } from './routes/_app/monit
 import { Route as AppMonitoringNodesNodeIdRouteImport } from './routes/_app/monitoring/nodes/$nodeId'
 import { Route as AppMonitoringNodesNewRouteImport } from './routes/_app/monitoring/nodes/new'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId/index'
+import { Route as AppProjectsProjectIdUsageRouteImport } from './routes/_app/projects/$projectId/usage'
 import { Route as AppSchedulesScheduleIdEditRouteImport } from './routes/_app/schedules_.$scheduleId_.edit'
 import { Route as AppSettingsApiKeysNewRouteImport } from './routes/_app/settings/api-keys_.new'
 import { Route as AppSettingsAuthenticationOidcRouteImport } from './routes/_app/settings/authentication_.oidc'
@@ -216,6 +218,11 @@ const AppMonitoringIndexRoute = AppMonitoringIndexRouteImport.update({
 const AppMonitoringAlertsRoute = AppMonitoringAlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
+const AppMonitoringUsageRoute = AppMonitoringUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
@@ -375,6 +382,12 @@ const AppProjectsProjectIdIndexRoute =
   AppProjectsProjectIdIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
+const AppProjectsProjectIdUsageRoute =
+  AppProjectsProjectIdUsageRouteImport.update({
+    id: '/usage',
+    path: '/usage',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
   } as any)
 const AppSchedulesScheduleIdEditRoute =
@@ -569,6 +582,7 @@ export interface FileRoutesByFullPath {
   '/integrations/s3': typeof AppIntegrationsS3Route
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -596,6 +610,7 @@ export interface FileRoutesByFullPath {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -649,6 +664,7 @@ export interface FileRoutesByTo {
   '/integrations/s3': typeof AppIntegrationsS3Route
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -676,6 +692,7 @@ export interface FileRoutesByTo {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -733,6 +750,7 @@ export interface FileRoutesById {
   '/_app/integrations/s3': typeof AppIntegrationsS3Route
   '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
   '/_app/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -760,6 +778,7 @@ export interface FileRoutesById {
   '/_app/integrations/tunnels_/new': typeof AppIntegrationsTunnelsNewRoute
   '/_app/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/_app/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/_app/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
   '/_app/schedules_/$scheduleId_/edit': typeof AppSchedulesScheduleIdEditRoute
   '/_app/settings/api-keys_/new': typeof AppSettingsApiKeysNewRoute
   '/_app/settings/authentication_/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -818,6 +837,7 @@ export interface FileRouteTypes {
     | '/integrations/s3'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
@@ -845,6 +865,7 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/projects/$projectId/usage'
     | '/schedules/$scheduleId/edit'
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
@@ -898,6 +919,7 @@ export interface FileRouteTypes {
     | '/integrations/s3'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
@@ -925,6 +947,7 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/projects/$projectId/usage'
     | '/schedules/$scheduleId/edit'
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
@@ -981,6 +1004,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/s3'
     | '/_app/integrations/tunnels'
     | '/_app/monitoring/alerts'
+    | '/_app/monitoring/usage'
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
     | '/_app/settings/api-keys'
@@ -1008,6 +1032,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/tunnels_/new'
     | '/_app/monitoring/nodes/$nodeId'
     | '/_app/monitoring/nodes/new'
+    | '/_app/projects/$projectId/usage'
     | '/_app/schedules_/$scheduleId_/edit'
     | '/_app/settings/api-keys_/new'
     | '/_app/settings/authentication_/oidc'
@@ -1224,6 +1249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonitoringAlertsRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
+    '/_app/monitoring/usage': {
+      id: '/_app/monitoring/usage'
+      path: '/usage'
+      fullPath: '/monitoring/usage'
+      preLoaderRoute: typeof AppMonitoringUsageRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
     '/_app/projects/': {
       id: '/_app/projects/'
       path: '/'
@@ -1434,6 +1466,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
     }
+    '/_app/projects/$projectId/usage': {
+      id: '/_app/projects/$projectId/usage'
+      path: '/usage'
+      fullPath: '/projects/$projectId/usage'
+      preLoaderRoute: typeof AppProjectsProjectIdUsageRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
     '/_app/schedules_/$scheduleId_/edit': {
       id: '/_app/schedules_/$scheduleId_/edit'
       path: '/schedules/$scheduleId/edit'
@@ -1635,6 +1674,7 @@ declare module '@tanstack/react-router' {
 
 interface AppMonitoringRouteRouteChildren {
   AppMonitoringAlertsRoute: typeof AppMonitoringAlertsRoute
+  AppMonitoringUsageRoute: typeof AppMonitoringUsageRoute
   AppMonitoringIndexRoute: typeof AppMonitoringIndexRoute
   AppMonitoringNodesNodeIdRoute: typeof AppMonitoringNodesNodeIdRoute
   AppMonitoringNodesNewRoute: typeof AppMonitoringNodesNewRoute
@@ -1643,6 +1683,7 @@ interface AppMonitoringRouteRouteChildren {
 
 const AppMonitoringRouteRouteChildren: AppMonitoringRouteRouteChildren = {
   AppMonitoringAlertsRoute: AppMonitoringAlertsRoute,
+  AppMonitoringUsageRoute: AppMonitoringUsageRoute,
   AppMonitoringIndexRoute: AppMonitoringIndexRoute,
   AppMonitoringNodesNodeIdRoute: AppMonitoringNodesNodeIdRoute,
   AppMonitoringNodesNewRoute: AppMonitoringNodesNewRoute,
@@ -1722,6 +1763,7 @@ const AppProjectsProjectIdStacksStackIdRouteRouteWithChildren =
   )
 
 interface AppProjectsProjectIdRouteRouteChildren {
+  AppProjectsProjectIdUsageRoute: typeof AppProjectsProjectIdUsageRoute
   AppProjectsProjectIdIndexRoute: typeof AppProjectsProjectIdIndexRoute
   AppProjectsProjectIdServicesServiceIdRouteRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   AppProjectsProjectIdStacksStackIdRouteRoute: typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
@@ -1732,6 +1774,7 @@ interface AppProjectsProjectIdRouteRouteChildren {
 
 const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChildren =
   {
+    AppProjectsProjectIdUsageRoute: AppProjectsProjectIdUsageRoute,
     AppProjectsProjectIdIndexRoute: AppProjectsProjectIdIndexRoute,
     AppProjectsProjectIdServicesServiceIdRouteRoute:
       AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren,

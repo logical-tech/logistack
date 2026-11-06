@@ -600,8 +600,8 @@ function findNode(id: string) {
 
 export const monitoringAdapter: Pick<
 	ApiAdapter,
-	"nodes" | "joins" | "metrics" | "monitoring"
-> = {
+	"nodes" | "joins" | "monitoring"
+> & { metrics: Omit<ApiAdapter["metrics"], "usage" | "projectUsage"> } = {
 	nodes: {
 		list: () => delay(nodes.filter((n) => n.desired !== "remove").map(view)),
 		get: (id) => {

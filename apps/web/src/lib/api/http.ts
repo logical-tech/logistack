@@ -183,6 +183,9 @@ export const httpAdapter: ApiAdapter = {
 			),
 		service: (id, range) =>
 			ok(api.metrics.services[":id"].$get({ param: { id }, query: { range } })),
+		usage: (range) => ok(api.usage.$get({ query: { range } })),
+		projectUsage: (id, range) =>
+			ok(api.projects[":id"].usage.$get({ param: { id }, query: { range } })),
 	},
 	monitoring: {
 		settings: () => ok(api.monitoring.settings.$get()),

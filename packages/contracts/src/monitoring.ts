@@ -85,6 +85,68 @@ export const ContainerMetricsResponse = z.object({
 });
 export type ContainerMetricsResponse = z.infer<typeof ContainerMetricsResponse>;
 
+export const usageRanges = ["24h", "7d"] as const;
+export const UsageRange = z.enum(usageRanges);
+export type UsageRange = z.infer<typeof UsageRange>;
+
+/**
+ * Consumption over the window. `cpu` is average cores and `memUsed` average bytes, both over the
+ * whole window (a service that ran half of it counts half); `rx`/`tx` are bytes transferred.
+ * `disk` is the current size of the volumes, null when no node reported it.
+ */
+export const UsageFigures = z.object({
+	cpu: z.number(),
+	memUsed: z.number(),
+	rx: z.number(),
+	tx: z.number(),
+	disk: Num,
+});
+export type UsageFigures = z.infer<typeof UsageFigures>;
+
+/** One bucket of the summed scope: `cpu` in cores, `memUsed` in bytes, `rx`/`tx` in bytes per second. */
+export const UsagePoint = z.object({
+	t: z.number(),
+	cpu: z.number(),
+	memUsed: z.number(),
+	rx: z.number(),
+	tx: z.number(),
+});
+export type UsagePoint = z.infer<typeof UsagePoint>;
+
+const UsageWindow = {
+	range: UsageRange,
+	stepSec: z.number().int().positive(),
+	from: z.number(),
+	to: z.number(),
+	totals: UsageFigures,
+	trend: z.array(UsagePoint),
+};
+
+const Named = { id: z.string(), name: z.string() };
+
+export const EnvironmentUsage = UsageFigures.extend({
+	...Named,
+	services: z.array(UsageFigures.extend(Named)),
+});
+export type EnvironmentUsage = z.infer<typeof EnvironmentUsage>;
+
+export const ProjectUsage = z.object({
+	...UsageWindow,
+	environments: z.array(EnvironmentUsage),
+});
+export type ProjectUsage = z.infer<typeof ProjectUsage>;
+
+export const OrganizationUsage = z.object({
+	...UsageWindow,
+	/** Every node's cores, memory and disk; null unless the actor can read the organization. */
+	capacity: z
+		.object({ cpus: z.number(), memory: z.number(), disk: z.number() })
+		.nullable(),
+	/** Only the projects the actor can read; `totals` and `trend` cover the same set. */
+	projects: z.array(UsageFigures.extend(Named)),
+});
+export type OrganizationUsage = z.infer<typeof OrganizationUsage>;
+
 /** Desired Swarm availability; `remove` drains, leaves and deletes the node. */
 export const nodeDesiredStates = ["active", "drain", "remove"] as const;
 export const NodeDesired = z.enum(nodeDesiredStates);

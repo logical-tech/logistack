@@ -6,6 +6,7 @@ import {
 	Boxes,
 	Check,
 	Folder,
+	Gauge,
 	MoreHorizontal,
 	Plus,
 	Settings2,
@@ -185,6 +186,12 @@ function ProjectDetail() {
 									)}
 								</DropdownMenuContent>
 							</DropdownMenu>
+							<Button variant="outline" asChild>
+								<Link to="/projects/$projectId/usage" params={{ projectId }}>
+									<Gauge data-icon="inline-start" />
+									Usage
+								</Link>
+							</Button>
 							<Button variant="outline" asChild>
 								<Link
 									to="/network"

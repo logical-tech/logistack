@@ -158,6 +158,14 @@ const DiskCategory = z.object({
 });
 
 /** Where a node's disk goes, from the engine's `/system/df` plus the container log files. */
+const VolumeSize = z.object({
+	name: z.string(),
+	bytes: Bytes,
+	inUse: z.boolean(),
+	/** `logistack.resource` when LogiStack created it. */
+	resourceId: z.string().optional(),
+});
+
 export const DiskUsage = z.object({
 	at: z.number(),
 	dockerRootDir: z.string(),
@@ -170,17 +178,9 @@ export const DiskUsage = z.object({
 	/** json-file logs under the root dir; null when the agent cannot read them. */
 	logs: DiskCategory.nullable(),
 	/** Largest volumes first. */
-	topVolumes: z
-		.array(
-			z.object({
-				name: z.string(),
-				bytes: Bytes,
-				inUse: z.boolean(),
-				/** `logistack.resource` when LogiStack created it. */
-				resourceId: z.string().optional(),
-			}),
-		)
-		.max(20),
+	topVolumes: z.array(VolumeSize).max(20),
+	/** Every volume, for usage attribution; older agents omit it. */
+	allVolumes: z.array(VolumeSize).optional(),
 });
 export type DiskUsage = z.infer<typeof DiskUsage>;
 

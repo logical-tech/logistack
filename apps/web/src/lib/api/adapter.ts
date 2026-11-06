@@ -28,11 +28,13 @@ import type {
 	NodeJoinInput,
 	NodeJoinStep,
 	NodeUpdate,
+	OrganizationUsage,
 	Overview,
 	Project,
 	ProjectDetail,
 	ProjectId,
 	ProjectSummary,
+	ProjectUsage,
 	PruneInput,
 	PruneResult,
 	Service,
@@ -42,6 +44,7 @@ import type {
 	SetupInput,
 	SourceCheck,
 	UpdateEnvironmentInput,
+	UsageRange,
 } from "./types";
 
 /**
@@ -109,6 +112,9 @@ export type ApiAdapter = {
 			perNode?: boolean;
 		}): Promise<HostMetrics>;
 		service(id: ServiceId, range: MetricRange): Promise<ContainerMetrics>;
+		/** Only the projects the caller can read. */
+		usage(range: UsageRange): Promise<OrganizationUsage>;
+		projectUsage(id: ProjectId, range: UsageRange): Promise<ProjectUsage>;
 	};
 	monitoring: {
 		settings(): Promise<MonitoringSettings>;
