@@ -1,4 +1,5 @@
 export * from "./db/index.ts";
+export * from "./dns/cloudflare-origin-ca.ts";
 export * from "./dns/cloudflare-tunnel.ts";
 export * from "./dns/index.ts";
 export * from "./git/index.ts";

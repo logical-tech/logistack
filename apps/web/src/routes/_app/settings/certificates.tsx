@@ -225,7 +225,16 @@ function CertificatesPage() {
 			<PageHeader
 				title={s.title}
 				description={s.description}
-				actions={upload()}
+				actions={
+					<>
+						<Button asChild variant="outline">
+							<Link to="/settings/certificates/origin">
+								Cloudflare Origin certificate
+							</Link>
+						</Button>
+						{upload()}
+					</>
+				}
 			/>
 			<div className="grid gap-10">
 				<Panel title="Issued automatically" id="managed-certs">

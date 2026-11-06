@@ -687,6 +687,60 @@ export const networkingMock: NetworkingApi = {
 			custom.push(c);
 			return delay(c);
 		},
+		originTest: (domainId) => {
+			const d = domains.find((x) => x.id === domainId);
+			const host = d?.hostname ?? "";
+			for (const p of providers.filter((x) => x.kind === "cloudflare")) {
+				const zone = p.zones.find(
+					(z) => host === z.name || host.endsWith(`.${z.name}`),
+				);
+				if (zone)
+					return delay(
+						{
+							hostname: host,
+							provider: { id: p.id, name: p.name },
+							zone,
+							permission: "Zone > SSL and Certificates > Edit",
+						},
+						800,
+					);
+			}
+			return delay(null, 500).then(() =>
+				fail(
+					`No Cloudflare DNS provider manages a zone for ${host}. Connect one under Integrations, DNS first.`,
+				),
+			);
+		},
+		originIssue: (domainId, input) => {
+			const d = domains.find((x) => x.id === domainId);
+			const host = d?.hostname ?? "";
+			const c: CustomCertificate = {
+				id: rid("crt"),
+				name: `${host} (Cloudflare Origin)`,
+				sans: [host],
+				issuer: "CloudFlare Origin Certificate Authority",
+				notBefore: new Date().toISOString(),
+				notAfter: inDays(input.validityDays),
+				domains: 1,
+				createdAt: new Date().toISOString(),
+			};
+			custom.push(c);
+			if (d)
+				Object.assign(d, {
+					https: true,
+					cert: "custom",
+					tls: "custom",
+					customCertificateId: c.id,
+					status: "pending",
+					certificate: {
+						source: "custom",
+						name: c.name,
+						issuer: c.issuer,
+						notAfter: c.notAfter,
+					},
+				});
+			return delay(c, 1200);
+		},
 		remove: (id) => {
 			const c = custom.find((x) => x.id === id);
 			if (c?.domains)
