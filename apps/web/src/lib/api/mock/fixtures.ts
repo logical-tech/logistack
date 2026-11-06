@@ -600,6 +600,7 @@ export function createMockDb(): MockDb {
 			name: "plausible",
 			source: "compose",
 			templateId: null,
+			git: null,
 			createdBy: null,
 			createdAt: ago(60 * 24 * 30),
 			updatedAt: ago(60 * 24 * 30),

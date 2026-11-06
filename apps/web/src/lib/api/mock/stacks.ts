@@ -67,6 +67,18 @@ export const stacksMock = (db: MockDb): StacksApi => ({
 				["The mock does not deploy compose files; run the real server."],
 			),
 		),
+	createFromGit: () =>
+		Promise.reject(
+			new ApiError(
+				422,
+				"The mock reads no repositories; run the real server.",
+				"unprocessable",
+			),
+		),
+	sync: (id) =>
+		db.stacks.some((s) => s.id === id)
+			? delay({ changes: [], services: [] })
+			: Promise.reject(new ApiError(404, "stack not found")),
 	previewCompose: (id, composeYaml) =>
 		delay({ changes: mockChanges(db, id, composeYaml) }),
 	applyCompose: (id, composeYaml) => {

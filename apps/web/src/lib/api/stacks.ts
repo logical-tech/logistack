@@ -26,6 +26,7 @@ export type StackCreated = InferResponseType<
 	201
 >;
 
+export type StackGit = NonNullable<Stack["git"]>;
 export type StackChanges = InferResponseType<
 	Api["stacks"][":id"]["compose"]["preview"]["$post"],
 	200
@@ -44,6 +45,13 @@ export type StacksApi = {
 		environmentId: EnvironmentId,
 		input: { name: string; composeYaml: string },
 	): Promise<StackCreated>;
+	/** Reads the compose file from git and deploys it; 422 when the provider cannot serve it. */
+	createFromGit(
+		environmentId: EnvironmentId,
+		input: { name: string; git: StackGit },
+	): Promise<StackCreated>;
+	/** Re-reads a git stack's compose file; with `dryRun` only reports the changes. */
+	sync(id: StackId, dryRun: boolean): Promise<StackUpdated>;
 	/** What applying `composeYaml` would create, change or remove; writes nothing. */
 	previewCompose(id: StackId, composeYaml: string): Promise<StackChanges>;
 	/** Converges the stack's services to `composeYaml` and redeploys the ones that changed. */
@@ -58,6 +66,17 @@ export const stacksHttp: StacksApi = {
 	get: (id) => ok(client.api.stacks[":id"].$get({ param: { id } })),
 	createFromCompose: (id, json) =>
 		ok(client.api.environments[":id"].stacks.$post({ param: { id }, json })),
+	createFromGit: (id, json) =>
+		ok(
+			client.api.environments[":id"].stacks.git.$post({ param: { id }, json }),
+		),
+	sync: (id, dryRun) =>
+		ok(
+			client.api.stacks[":id"].sync.$post({
+				param: { id },
+				query: { dryRun: dryRun ? "true" : "false" },
+			}),
+		),
 	previewCompose: (id, composeYaml) =>
 		ok(
 			client.api.stacks[":id"].compose.preview.$post({
@@ -102,6 +121,35 @@ export function useCreateComposeStack() {
 			name: string;
 			composeYaml: string;
 		}) => api.stacks.createFromCompose(environmentId, input),
+		onSuccess: () =>
+			Promise.all(
+				invalidated.map((queryKey) => qc.invalidateQueries({ queryKey })),
+			),
+	});
+}
+
+export function useCreateGitStack() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			environmentId,
+			...input
+		}: {
+			environmentId: EnvironmentId;
+			name: string;
+			git: StackGit;
+		}) => api.stacks.createFromGit(environmentId, input),
+		onSuccess: () =>
+			Promise.all(
+				invalidated.map((queryKey) => qc.invalidateQueries({ queryKey })),
+			),
+	});
+}
+
+export function useSyncStack(id: StackId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: () => api.stacks.sync(id, false),
 		onSuccess: () =>
 			Promise.all(
 				invalidated.map((queryKey) => qc.invalidateQueries({ queryKey })),

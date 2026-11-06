@@ -1,4 +1,8 @@
-import type { ServiceIcon, ServiceSpec } from "@logistack/contracts";
+import type {
+	ServiceIcon,
+	ServiceSpec,
+	StackGitSource,
+} from "@logistack/contracts";
 import { sql } from "drizzle-orm";
 import {
 	type AnyPgColumn,
@@ -106,8 +110,10 @@ export const stack = pgTable(
 		source: stackSource("source").notNull(),
 		/** Catalog template id when `source` is template. */
 		templateId: text("template_id"),
-		/** The compose file as pasted, encrypted (it may hold credentials), when `source` is compose. */
+		/** The compose file last applied, encrypted (it may hold credentials), when `source` is compose or git. */
 		composeYamlEncrypted: text("compose_yaml_encrypted"),
+		/** Where the compose file lives when `source` is git. */
+		git: jsonb("git").$type<StackGitSource>(),
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),

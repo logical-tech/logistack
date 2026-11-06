@@ -169,6 +169,7 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 				name: instance,
 				source: "template",
 				templateId: t.id,
+				git: null,
 				createdBy: null,
 				createdAt: now,
 				updatedAt: now,

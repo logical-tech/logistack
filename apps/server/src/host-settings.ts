@@ -84,8 +84,15 @@ export async function guardHostSettings(
 ): Promise<string | null | undefined> {
 	if (o.spec.kind !== "application") return undefined;
 	const resource = c.get("resource");
-	if (resource && hostKey(o.spec) !== hostKey(o.before))
+	if (hostKey(o.spec) !== hostKey(o.before)) {
+		// A git push has no one to authorize it: an admin applies host-level changes by hand.
+		if (!resource)
+			throw new Failure(
+				"forbidden",
+				"bind mounts and extra capabilities need an admin to apply them",
+			);
 		check(c, "admin", resource);
+	}
 
 	let nodeId = o.nodeId;
 	let pinned: string | null | undefined;

@@ -2,7 +2,7 @@ import { StreamLanguage } from "@codemirror/language";
 import { yaml } from "@codemirror/legacy-modes/mode/yaml";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Lock, PenLine } from "lucide-react";
+import { Lock, PenLine, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -12,7 +12,11 @@ import { Segmented } from "@/components/segmented";
 import { ComposeChangesDialog } from "@/components/stack/compose-changes";
 import { Button } from "@/components/ui/button";
 import { ApiError, api } from "@/lib/api";
-import { stackQuery, useApplyStackCompose } from "@/lib/api/stacks";
+import {
+	stackQuery,
+	useApplyStackCompose,
+	useSyncStack,
+} from "@/lib/api/stacks";
 
 const yamlLanguage = StreamLanguage.define(yaml);
 
@@ -50,14 +54,26 @@ function StackCompose() {
 	});
 	const apply = useApplyStackCompose(stackId);
 	const [reviewing, setReviewing] = useState(false);
+	const syncPreview = useMutation({
+		mutationFn: () => api.stacks.sync(stackId, true),
+	});
+	const sync = useSyncStack(stackId);
 	if (!stack) return null;
-	const hasSource = stack.source === "compose";
+	const git = stack.git;
+	const hasSource = stack.source === "compose" || git !== null;
 	const view = hasSource ? (search.view ?? "source") : "effective";
 	const text =
 		view === "source" ? (stack.composeYaml ?? "") : stack.effectiveCompose;
 	const editing = draft !== null && view === "source";
-	const canEdit = hasSource && view === "source" && !stack.composeHidden;
-	const error = preview.error ?? apply.error;
+	const canEdit =
+		stack.source === "compose" && view === "source" && !stack.composeHidden;
+	const error = git
+		? (syncPreview.error ?? sync.error)
+		: (preview.error ?? apply.error);
+	const note =
+		git && view === "source"
+			? `The file last read from ${git.repository}@${git.branch}. Every push to ${git.branch} re-syncs the stack; change it in the repository.`
+			: NOTE[view];
 
 	const stopEditing = () => {
 		setDraft(null);
@@ -74,7 +90,10 @@ function StackCompose() {
 						value={view}
 						onChange={(v) => navigate({ search: { view: v }, replace: true })}
 						options={[
-							{ value: "source", label: "Pasted file" },
+							{
+								value: "source",
+								label: git ? git.composePath : "Compose file",
+							},
 							{ value: "effective", label: "Effective" },
 						]}
 					/>
@@ -91,11 +110,53 @@ function StackCompose() {
 							Edit
 						</Button>
 					)}
+					{git && (
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={syncPreview.isPending}
+							onClick={() =>
+								syncPreview.mutate(undefined, {
+									onSuccess: () => setReviewing(true),
+								})
+							}
+						>
+							<RefreshCw aria-hidden />
+							Sync now
+						</Button>
+					)}
 				</div>
 			</div>
 			<p className="max-w-[75ch] text-sm text-pretty text-muted-foreground">
-				{NOTE[view]}
+				{note}
 			</p>
+			{git && error && (
+				<p role="alert" className="text-sm text-pretty text-bad-text">
+					{errorText(error)}
+				</p>
+			)}
+			{git && syncPreview.data && (
+				<ComposeChangesDialog
+					changes={syncPreview.data.changes}
+					open={reviewing}
+					onOpenChange={setReviewing}
+					applying={sync.isPending}
+					onApply={() =>
+						sync.mutate(undefined, {
+							onSuccess: (out) => {
+								setReviewing(false);
+								syncPreview.reset();
+								toast.success(
+									out.services.length
+										? `Synced; deploying ${out.services.map((s) => s.name).join(", ")}`
+										: "Synced; nothing changed",
+								);
+							},
+							onError: () => setReviewing(false),
+						})
+					}
+				/>
+			)}
 			{view === "source" && stack.composeHidden ? (
 				<div className="flex items-start gap-3 rounded-xl bg-card px-4 py-5 text-sm shadow-card ring-1 ring-border">
 					<Lock

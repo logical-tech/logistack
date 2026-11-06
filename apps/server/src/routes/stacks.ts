@@ -3,12 +3,15 @@ import {
 	defaultServiceIcon,
 	type ServiceIcon,
 	ServiceSpec,
+	StackGitSource,
 	StackSource,
 } from "@logistack/contracts";
 import {
+	DEFAULT_GIT_TRIGGER,
 	decrypt,
 	diffStack,
 	encrypt,
+	evaluateTrigger,
 	newId,
 	patchSpec,
 	planTemplate,
@@ -18,24 +21,28 @@ import {
 	type TemplateEnvEntry,
 	type TemplateMount,
 	type TemplateServicePlan,
+	type TriggerEvent,
 } from "@logistack/core";
 import {
 	type Db,
 	deployment,
 	domain,
+	environment,
 	envVar,
 	mount,
+	project,
 	service,
 	stack,
 } from "@logistack/db";
 import { fromCompose, Skip } from "@logistack/templates";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, one } from "../errors.ts";
 import { envelope } from "../events.ts";
+import { connect, loadProvider } from "../git/providers.ts";
 import { guardHostSettings } from "../host-settings.ts";
 import { log } from "../log.ts";
 import {
@@ -61,6 +68,8 @@ const Stack = z
 		name: z.string(),
 		source: StackSource,
 		templateId: z.string().nullable(),
+		/** Where the compose file lives, for a git stack. */
+		git: StackGitSource.nullable(),
 		createdBy: z.string().nullable(),
 		createdAt: z.string(),
 		updatedAt: z.string(),
@@ -114,6 +123,7 @@ const stackColumns = {
 	name: stack.name,
 	source: stack.source,
 	templateId: stack.templateId,
+	git: stack.git,
 	createdBy: stack.createdBy,
 	createdAt: stack.createdAt,
 	updatedAt: stack.updatedAt,
@@ -139,6 +149,7 @@ async function insertMember(
 		importedFrom: string | null;
 		isGenerated: (hostname: string) => boolean;
 		trigger: "manual" | "api" | "git_push";
+		commitSha?: string | null;
 	},
 ): Promise<string> {
 	const p = s.plan;
@@ -167,7 +178,11 @@ async function insertMember(
 	return one(
 		await tx
 			.insert(deployment)
-			.values({ serviceId: s.id, trigger: s.trigger })
+			.values({
+				serviceId: s.id,
+				trigger: s.trigger,
+				commitSha: s.commitSha ?? null,
+			})
 			.returning({ id: deployment.id }),
 	).id;
 }
@@ -223,6 +238,7 @@ export async function createStack(
 		source: StackSource;
 		templateId?: string;
 		composeYaml?: string;
+		git?: StackGitSource;
 		services: Planned[];
 		/** Hostnames LogiStack generated, as opposed to ones the user typed. */
 		generated?: Set<string>;
@@ -270,6 +286,7 @@ export async function createStack(
 					composeYamlEncrypted: input.composeYaml
 						? await encrypt(masterKey, input.composeYaml)
 						: null,
+					git: input.git ?? null,
 					createdBy: actor.userId,
 				})
 				.returning({ id: stack.id }),
@@ -364,30 +381,154 @@ const StackUpdated = z
 
 const NewCompose = z.object({ composeYaml: ComposeInput.shape.composeYaml });
 
+/** Who applies a compose change: a request's actor, or a push to a git stack's branch. */
+type Applier = {
+	organizationId: string;
+	userId: string | null;
+	trigger: "manual" | "api" | "git_push";
+	commitSha?: string | null;
+};
+
+export function applierOf(c: Context<Env>): Applier {
+	const actor = requireActor(c);
+	return {
+		organizationId: actor.organizationId,
+		userId: actor.userId,
+		trigger: actor.kind === "user" ? "manual" : "api",
+	};
+}
+
+const MAX_COMPOSE = 256 * 1024;
+
+/** The compose file of a git stack at `ref`; a 422 when the provider cannot serve it. */
+export async function readGitCompose(
+	db: Db,
+	masterKey: CryptoKey,
+	git: StackGitSource,
+	organizationId: string,
+	ref: string = git.branch,
+): Promise<string> {
+	const { row, config } = await loadProvider(
+		db,
+		masterKey,
+		git.gitProviderId,
+		organizationId,
+	);
+	let yaml: string;
+	try {
+		yaml = await (await connect(db, row.kind, config)).readFile(
+			git.repository,
+			ref,
+			git.composePath,
+		);
+	} catch (e) {
+		throw new Failure(
+			"unprocessable",
+			`couldn't read ${git.repository}@${ref}:${git.composePath}: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
+	if (yaml.length > MAX_COMPOSE)
+		throw new Failure(
+			"unprocessable",
+			`${git.composePath} is larger than 256 KB`,
+		);
+	return yaml;
+}
+
 /**
- * Converges a compose stack's services to `yaml`, or with `dryRun` only reports what that would do.
- * The stack row is locked, so concurrent edits apply one after the other, each against the compose
- * the previous one stored. Created and changed services each get a deployment.
+ * Re-syncs every git stack that follows the pushed branch through this provider, reading the
+ * compose file at the pushed commit. One stack failing (unreadable file, unsupported compose)
+ * does not stop the others; its reason is returned.
+ */
+export async function syncGitStacks(
+	c: Context<Env>,
+	providerId: string,
+	organizationId: string,
+	push: TriggerEvent & { repo: string; commitSha?: string | null },
+) {
+	const { db, masterKey } = c.var.deps;
+	const rows = await db
+		.select({ id: stack.id, name: stack.name, git: stack.git })
+		.from(stack)
+		.innerJoin(environment, eq(environment.id, stack.environmentId))
+		.innerJoin(project, eq(project.id, environment.projectId))
+		.where(
+			and(
+				eq(project.organizationId, organizationId),
+				eq(stack.source, "git"),
+				sql`${stack.git}->>'gitProviderId' = ${providerId}`,
+			),
+		);
+	const deployments: { id: string; serviceId: string }[] = [];
+	const failures: string[] = [];
+	for (const { id, name, git } of rows) {
+		if (!git || git.repository.toLowerCase() !== push.repo.toLowerCase())
+			continue;
+		const decision = evaluateTrigger(push, {
+			...DEFAULT_GIT_TRIGGER,
+			branch: git.branch,
+			watchPaths: [],
+		});
+		if (decision.action !== "deploy") continue;
+		try {
+			const yaml = await readGitCompose(
+				db,
+				masterKey,
+				git,
+				organizationId,
+				push.commitSha ?? git.branch,
+			);
+			const out = await updateStack(c, id, yaml, {
+				dryRun: false,
+				source: "git",
+				by: {
+					organizationId,
+					userId: null,
+					trigger: "git_push",
+					commitSha: push.commitSha ?? null,
+				},
+			});
+			for (const s of out.services)
+				if (s.deploymentId)
+					deployments.push({ id: s.deploymentId, serviceId: s.id });
+		} catch (e) {
+			const reason = `stack ${name}: ${e instanceof Error ? e.message : String(e)}`;
+			log("warn", "git stack sync failed", { stackId: id, reason });
+			failures.push(reason);
+		}
+	}
+	return { deployments, failures };
+}
+
+/**
+ * Converges a stack's services to `yaml`, or with `dryRun` only reports what that would do.
+ * `source` is where the file comes from and must match the stack's: a user edits a compose stack,
+ * a push or sync updates a git stack. The stack row is locked, so concurrent updates apply one
+ * after the other, each against the compose the previous one stored. Created and changed services
+ * each get a deployment.
  */
 export async function updateStack(
 	c: Context<Env>,
 	stackId: string,
 	yaml: string,
-	o: { dryRun: boolean },
+	o: { dryRun: boolean; source: "compose" | "git"; by: Applier },
 ) {
 	const { db, masterKey, config } = c.var.deps;
-	const actor = requireActor(c);
 	const after = composePlan(yaml);
-	const trigger = actor.kind === "user" ? "manual" : "api";
+	const { trigger } = o.by;
 	const result = await db.transaction(async (tx) => {
 		const row = one(
 			await tx.select().from(stack).where(eq(stack.id, stackId)).for("update"),
 			"stack",
 		);
-		if (row.source !== "compose")
+		if (row.source !== o.source)
 			throw new Failure(
 				"bad_request",
-				"only a stack deployed from a compose file takes a new one",
+				row.source === "git"
+					? "this stack follows its git repository: push the change, or sync it"
+					: o.source === "git"
+						? "this stack does not follow a git repository"
+						: "only a stack deployed from a compose file takes a new one",
 			);
 		const before = row.composeYamlEncrypted
 			? composePlan(await decrypt(masterKey, row.composeYamlEncrypted))
@@ -459,10 +600,11 @@ export async function updateStack(
 					environmentId: row.environmentId,
 					stackId,
 					nodeId: nodeId ?? null,
-					createdBy: actor.userId,
+					createdBy: o.by.userId,
 					importedFrom: null,
 					isGenerated: () => false,
 					trigger,
+					commitSha: o.by.commitSha ?? null,
 				});
 				deployed.push({
 					id,
@@ -515,7 +657,11 @@ export async function updateStack(
 			const dep = one(
 				await tx
 					.insert(deployment)
-					.values({ serviceId: m.id, trigger })
+					.values({
+						serviceId: m.id,
+						trigger,
+						commitSha: o.by.commitSha ?? null,
+					})
 					.returning({ id: deployment.id }),
 			);
 			deployed.push({
@@ -536,7 +682,7 @@ export async function updateStack(
 		await c.var.deps.bus.publishEvent(
 			envelope(
 				"deployment.queued",
-				actor.organizationId,
+				o.by.organizationId,
 				{ type: "deployment", id: s.deploymentId },
 				{ serviceId: s.id, trigger },
 			),
@@ -707,6 +853,108 @@ export const stacks = router()
 	)
 	.openapi(
 		mutation(
+			"stack.create_git",
+			createRoute({
+				method: "post",
+				path: "/environments/{id}/stacks/git",
+				tags,
+				security,
+				summary: "Deploy a compose file from a git repository as a stack",
+				description:
+					"Reads `composePath` at the head of `branch` through the connected provider and deploys it like a pasted compose file. Pushes to the branch re-sync the stack once the push webhook is registered (POST /git-providers/{id}/webhooks). A provider without an API (generic SSH) cannot serve the file: 422.",
+				middleware: [requirePermission("write", byParam("environment"))],
+				request: {
+					params: IdParam,
+					...body(z.object({ name: Slug, git: StackGitSource })),
+				},
+				responses: { 201: json(StackCreated, "Created and queued"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { id: environmentId } = c.req.valid("param");
+			const input = c.req.valid("json");
+			check(c, "deploy", c.get("resource") as Resource);
+			c.set("auditDiff", { name: input.name, git: input.git });
+			const { db, masterKey } = c.var.deps;
+			const composeYaml = await readGitCompose(
+				db,
+				masterKey,
+				input.git,
+				requireActor(c).organizationId,
+			);
+			const created = await createStack(c, {
+				environmentId,
+				name: input.name,
+				source: "git",
+				composeYaml,
+				git: input.git,
+				services: composePlan(composeYaml).map((p) => ({
+					plan: p,
+					id: newId("svc"),
+					icon: null,
+				})),
+			});
+			c.set("auditResourceId", created.stackId);
+			return c.json({ ...created, name: input.name }, 201);
+		},
+	)
+	.openapi(
+		mutation(
+			"stack.sync",
+			createRoute({
+				method: "post",
+				path: "/stacks/{id}/sync",
+				tags,
+				security,
+				summary: "Re-read a git stack's compose file and apply it",
+				description:
+					"What a push to the branch does, on demand: reads the compose file at the head of the branch and converges the stack to it, redeploying what changed. With `dryRun=true` it only reports the changes.",
+				middleware: [requirePermission("write", byParam("stack"))],
+				request: {
+					params: IdParam,
+					query: z.object({
+						dryRun: z
+							.enum(["true", "false"])
+							.default("false")
+							.transform((v) => v === "true"),
+					}),
+				},
+				responses: { 200: json(StackUpdated, "Synced"), ...errors },
+			}),
+		),
+		async (c) => {
+			const id = c.req.valid("param").id;
+			const { dryRun } = c.req.valid("query");
+			if (!dryRun) check(c, "deploy", c.get("resource") as Resource);
+			c.set("auditResourceId", id);
+			const { db, masterKey } = c.var.deps;
+			const [row] = await db
+				.select({ git: stack.git })
+				.from(stack)
+				.where(eq(stack.id, id));
+			if (!row?.git)
+				throw new Failure(
+					"bad_request",
+					"this stack does not follow a git repository",
+				);
+			const by = applierOf(c);
+			const yaml = await readGitCompose(
+				db,
+				masterKey,
+				row.git,
+				by.organizationId,
+			);
+			const out = await updateStack(c, id, yaml, {
+				dryRun,
+				source: "git",
+				by,
+			});
+			c.set("auditDiff", { changes: out.changes });
+			return c.json(out, 200);
+		},
+	)
+	.openapi(
+		mutation(
 			"stack.preview",
 			createRoute({
 				method: "post",
@@ -729,7 +977,7 @@ export const stacks = router()
 				c,
 				c.req.valid("param").id,
 				c.req.valid("json").composeYaml,
-				{ dryRun: true },
+				{ dryRun: true, source: "compose", by: applierOf(c) },
 			);
 			return c.json({ changes }, 200);
 		},
@@ -757,6 +1005,8 @@ export const stacks = router()
 			c.set("auditResourceId", id);
 			const out = await updateStack(c, id, c.req.valid("json").composeYaml, {
 				dryRun: false,
+				source: "compose",
+				by: applierOf(c),
 			});
 			c.set("auditDiff", { changes: out.changes });
 			return c.json(out, 200);
