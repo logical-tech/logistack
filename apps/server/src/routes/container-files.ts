@@ -170,20 +170,25 @@ export const containerFiles = router()
 		},
 	)
 	.openapi(
-		createRoute({
-			method: "get",
-			path: "/services/{id}/container-files/download",
-			tags,
-			security,
-			summary: "Download a file from a running container",
-			description:
-				"Needs the `exec` permission. Streams a regular file up to 50 MB as an attachment.",
-			middleware: [exec],
-			request: { params: Params, query: Query },
-			responses: { 200: { description: "The file bytes" }, ...errors },
-		}),
+		// Audited like a write: pulling files out of a container is as sensitive as exec.
+		mutation(
+			"service.container_file_download",
+			createRoute({
+				method: "get",
+				path: "/services/{id}/container-files/download",
+				tags,
+				security,
+				summary: "Download a file from a running container",
+				description:
+					"Needs the `exec` permission. Streams a regular file up to 50 MB as an attachment. Audited.",
+				middleware: [exec],
+				request: { params: Params, query: Query },
+				responses: { 200: { description: "The file bytes" }, ...errors },
+			}),
+		),
 		async (c) => {
 			const path = containerPath(c.req.valid("query").path);
+			c.set("auditDiff", { path });
 			const stat = await settle(
 				(await archive(c, { op: "stat", path })).handle.result,
 			);
