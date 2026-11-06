@@ -1,7 +1,7 @@
 import { aiProvider } from "@logistack/core/ai-providers";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -63,6 +63,7 @@ const BLURB: Record<string, string> = {
 	zhipu: "GLM Flash models from Z.ai; only Flash counts as free.",
 	modelscope: "Open models on ModelScope's inference API.",
 	aion: "Aion Labs' own models.",
+	cohere: "Command models on a trial key; evaluation only, not production.",
 	custom: "Ollama, vLLM, LM Studio or any OpenAI-compatible server.",
 	openai: "GPT-5 and embeddings. Billed by OpenAI, counted as paid.",
 	anthropic: "Claude Sonnet, Haiku and Opus. Billed by Anthropic.",
@@ -70,6 +71,7 @@ const BLURB: Record<string, string> = {
 	xai: "Grok models. Billed by xAI.",
 	together: "Open models at scale. Billed by Together AI.",
 	fireworks: "Open models on fast inference. Billed by Fireworks AI.",
+	sambanova: "Fast Llama and DeepSeek. Needs prepaid SambaNova credits.",
 };
 
 /** The free tier in a few words, for the picker: "1M tokens/day", "Unpublished". */
@@ -437,6 +439,7 @@ function ProviderPicker({
 	onChange: (id: string) => void;
 }) {
 	const [query, setQuery] = useState("");
+	const picked = providers.find((p) => p.id === value);
 	const q = query.trim().toLowerCase();
 	const match = (p: Def) =>
 		!q ||
@@ -468,6 +471,22 @@ function ProviderPicker({
 					className="pl-8"
 				/>
 			</div>
+			{picked?.keyUrl && (
+				<p className="text-sm text-muted-foreground" aria-live="polite">
+					No {picked.name} account yet?{" "}
+					<a
+						href={picked.keyUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline focus-visible:underline"
+					>
+						Sign up and create a key
+						<ArrowUpRight className="size-3.5" aria-hidden />
+						<span className="sr-only">(opens in a new tab)</span>
+					</a>
+					, then come back here.
+				</p>
+			)}
 			{groups.length === 0 ? (
 				<p className="text-sm text-muted-foreground" aria-live="polite">
 					No provider matches “{query.trim()}”.
