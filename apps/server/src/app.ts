@@ -31,6 +31,7 @@ import { git } from "./routes/git.ts";
 import { health } from "./routes/health.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
+import { manifests } from "./routes/manifest.ts";
 import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
 import { migrations } from "./routes/migrations.ts";
@@ -136,6 +137,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", projects)
 		.route("/api", services)
 		.route("/api", stacks)
+		.route("/api", manifests)
 		.route("/api", envVars)
 		.route("/api", domains)
 		.route("/api", domainAccess)
