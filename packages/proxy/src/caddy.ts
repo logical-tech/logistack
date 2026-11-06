@@ -75,6 +75,7 @@ export type CaddyHandler =
 	| {
 			handler: "reverse_proxy";
 			upstreams: { dial: string }[];
+			load_balancing?: { try_duration: string; try_interval: string };
 			transport?: { protocol: "http"; tls?: Record<string, never> };
 			rewrite?: { method?: string; uri?: string };
 			headers?: { request?: CaddyHeaderOps };
