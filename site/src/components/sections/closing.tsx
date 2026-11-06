@@ -36,9 +36,9 @@ const columns = [
 	[
 		"Product",
 		[
-			["Templates", "/#templates"],
+			["Features", "/features/"],
+			["Templates", "/templates/"],
 			["Database editor", "/#data"],
-			["Servers", "/#servers"],
 			["FAQ", "/#faq"],
 		],
 	],
