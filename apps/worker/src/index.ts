@@ -13,7 +13,7 @@ import { createDockerClient, type DockerEvent } from "@logistack/docker";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
 import { eq, notInArray } from "drizzle-orm";
-import { ensureStackDbNetwork } from "./apply.ts";
+import { ensureStackNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { installEmulation, probeBuildkit } from "./build-platforms.ts";
 import { createBus, log, setLogLevel } from "./bus.ts";
@@ -280,11 +280,13 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		.where(notInArray(deployment.status, terminal));
 	for (const s of stranded) await enqueueDeploy(ctx.queues, s.serviceId);
 	await enqueueProxySync(ctx.queues, "boot");
-	await ensureStackDbNetwork(ctx).catch((e) =>
-		log("error", "could not attach the database network", {
-			error: e instanceof Error ? e.message : String(e),
-		}),
-	);
+	for (const name of [ctx.cfg.LS_DB_NETWORK, ctx.cfg.LS_GAME_NETWORK])
+		await ensureStackNetwork(ctx, name).catch((e) =>
+			log("error", "could not attach a shared network", {
+				network: name,
+				error: e instanceof Error ? e.message : String(e),
+			}),
+		);
 	log("info", "worker started", { resumed: stranded.length });
 
 	return {

@@ -30,6 +30,7 @@ const ConfigSchema = z.object({
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
 	LS_DB_NETWORK: z.string().default("ls-db"),
+	LS_GAME_NETWORK: z.string().default("ls-game"),
 	/** The node label Caddy's placement waits on (`install.sh` writes `pending`, then `true`). */
 	LS_INGRESS_LABEL: z.string().default("logistack.ingress"),
 	/** Dokploy's Traefik, a container or a service by this exact name; the proxy switch stops it. */

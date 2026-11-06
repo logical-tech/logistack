@@ -2,6 +2,7 @@ import type {
 	ApplicationSpec,
 	BuildPlatform,
 	DatabaseSpec,
+	GameSpec,
 	StorageSpec,
 } from "@logistack/contracts";
 import {
@@ -40,7 +41,9 @@ export type ServiceRow = typeof service.$inferSelect;
 export type DomainRow = typeof domain.$inferSelect;
 
 export type ServiceContext = {
-	service: ServiceRow & { spec: ApplicationSpec | DatabaseSpec | StorageSpec };
+	service: ServiceRow & {
+		spec: ApplicationSpec | DatabaseSpec | StorageSpec | GameSpec;
+	};
 	organizationId: string;
 	projectName: string;
 	environmentName: string;
