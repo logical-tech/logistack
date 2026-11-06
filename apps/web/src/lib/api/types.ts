@@ -26,6 +26,7 @@ export type {
 	ServiceKind,
 	ServiceSpec,
 	ThresholdMetric,
+	UsageRange,
 } from "@logistack/contracts";
 
 export type ObservedStatus = ObservedState;
@@ -102,6 +103,10 @@ export type HostSeries = HostMetrics["series"][number];
 export type HostPoint = HostSeries["points"][number];
 export type ContainerMetrics = Ok<Api["metrics"]["services"][":id"]["$get"]>;
 export type ContainerPoint = ContainerMetrics["points"][number];
+export type OrganizationUsage = Ok<Api["usage"]["$get"]>;
+export type ProjectUsage = Ok<Api["projects"][":id"]["usage"]["$get"]>;
+export type UsageFigures = OrganizationUsage["totals"];
+export type UsagePoint = OrganizationUsage["trend"][number];
 
 export type MonitoringSettings = Ok<Api["monitoring"]["settings"]["$get"]>;
 export type MonitoringSettingsInput = Body<

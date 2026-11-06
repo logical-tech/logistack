@@ -15,6 +15,7 @@ import { serviceOpsMock } from "./service-ops";
 import { ssoMock } from "./sso";
 import { stacksMock } from "./stacks";
 import { templatesMock } from "./templates";
+import { usageMock } from "./usage";
 
 const db = createMockDb();
 
@@ -79,6 +80,7 @@ function summarize(projectId: ProjectSummary["id"]): ProjectSummary {
 
 export const mockAdapter: ApiAdapter = {
 	...monitoringAdapter,
+	metrics: { ...monitoringAdapter.metrics, ...usageMock(db) },
 	access: mockAccess,
 	instance: {
 		status: () =>

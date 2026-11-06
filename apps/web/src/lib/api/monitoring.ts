@@ -13,8 +13,10 @@ import type {
 	MetricRange,
 	NodeId,
 	NodeUpdate,
+	ProjectId,
 	PruneInput,
 	ServiceId,
+	UsageRange,
 } from "./types";
 
 // Polling is the floor: the agent gateway may push nothing, and the views must still move.
@@ -70,6 +72,23 @@ export const serviceMetricsQuery = (id: ServiceId, range: MetricRange) =>
 		queryKey: ["metrics", "services", id, range],
 		queryFn: () => api.metrics.service(id, range),
 		refetchInterval: POLL,
+		placeholderData: keepPreviousData,
+	});
+
+/** No polling: the volume column asks every node's agent for a df. */
+export const usageQuery = (range: UsageRange) =>
+	queryOptions({
+		queryKey: ["metrics", "usage", range],
+		queryFn: () => api.metrics.usage(range),
+		staleTime: 60_000,
+		placeholderData: keepPreviousData,
+	});
+
+export const projectUsageQuery = (id: ProjectId, range: UsageRange) =>
+	queryOptions({
+		queryKey: ["metrics", "usage", "projects", id, range],
+		queryFn: () => api.metrics.projectUsage(id, range),
+		staleTime: 60_000,
 		placeholderData: keepPreviousData,
 	});
 
