@@ -1,7 +1,7 @@
 import { StreamLanguage } from "@codemirror/language";
 import { nginx } from "@codemirror/legacy-modes/mode/nginx";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
-import { useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	FileCode2,
@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Segmented } from "@/components/segmented";
+import { ContainerFiles } from "@/components/service/container-files";
 import {
 	LoadBalancerForm,
 	targetSuggestions,
@@ -28,6 +29,7 @@ import {
 	type ConfigFile,
 	filesApi,
 	filesQuery,
+	type ServiceFiles as ServiceFilesData,
 	useDeleteVolumeFile,
 	useSaveConfig,
 	volumeKey,
@@ -60,7 +62,12 @@ const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const errorText = (e: unknown) =>
 	e instanceof Error ? e.message : "Something went wrong.";
 
-/** The Files tab: each config file in an editor, then each volume's files. */
+type Source = "volumes" | "container";
+
+/**
+ * The Files tab. Volumes: each config file in an editor, then each volume's files. Container:
+ * the running replica's whole filesystem.
+ */
 export function ServiceFiles({
 	service,
 	projectId,
@@ -69,6 +76,42 @@ export function ServiceFiles({
 	projectId: string;
 }) {
 	const files = useQuery(filesQuery(service.id));
+	const [picked, setPicked] = useState<Source | null>(null);
+	const mounts = files.data
+		? files.data.files.length + files.data.volumes.length
+		: 1;
+	const source = picked ?? (mounts ? "volumes" : "container");
+	return (
+		<div className="grid gap-6">
+			<div>
+				<Segmented
+					label="Files from"
+					value={source}
+					onChange={setPicked}
+					options={[
+						{ value: "volumes", label: "Volumes" },
+						{ value: "container", label: "Container" },
+					]}
+				/>
+			</div>
+			{source === "container" ? (
+				<ContainerFiles serviceId={service.id} tasks={service.status.tasks} />
+			) : (
+				<MountFiles files={files} service={service} projectId={projectId} />
+			)}
+		</div>
+	);
+}
+
+function MountFiles({
+	files,
+	service,
+	projectId,
+}: {
+	files: UseQueryResult<ServiceFilesData>;
+	service: ServiceOverview;
+	projectId: string;
+}) {
 	if (files.isPending)
 		return (
 			<div className="overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border">
@@ -93,7 +136,7 @@ export function ServiceFiles({
 			<EmptyState
 				icon={FileCode2}
 				title="No files"
-				description="This service mounts no config files or volumes."
+				description="This service mounts no config files or volumes. Switch to Container to browse the running replica's filesystem."
 			/>
 		);
 	return (
