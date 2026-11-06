@@ -1,23 +1,26 @@
 ---
 title: Connect a DNS provider
-description: Connect Cloudflare, Amazon Route 53 or Hetzner DNS so LogiStack creates domain records, issues DNS-01 and wildcard certificates, and edits zone records for you.
+description: Connect Cloudflare, Route 53, Hetzner, DigitalOcean, OVHcloud or Porkbun so LogiStack creates records, issues DNS-01 wildcard certificates and edits zones.
 ---
 
 A DNS provider is an API credential for the service that hosts your zones. With one connected, LogiStack creates the A or CNAME record when you add a domain, removes it when you delete the domain, and issues certificates over DNS-01, which wildcards and Cloudflare-proxied records need. You can also browse and edit every record in the zone from the dashboard. Connect one as soon as you use your own domains.
 
-LogiStack supports three providers:
+LogiStack supports these providers:
 
 | Provider | Credential | Notes |
 | --- | --- | --- |
 | Cloudflare | API token | Also used for [Cloudflare Tunnels](./cloudflare-tunnels.mdx) and [Origin certificates](./https-certificates.mdx#issue-a-cloudflare-origin-certificate). Records can be proxied. |
 | Amazon Route 53 | IAM access key | Region defaults to `us-east-1`. |
 | Hetzner DNS | Hetzner Cloud API token | Uses the Hetzner Cloud DNS API. |
+| DigitalOcean | Personal access token | TTL of 30 seconds or more. |
+| OVHcloud | Application key, application secret and consumer key | Endpoint `ovh-eu`, `ovh-ca` or `ovh-us`. TTL `0` means the zone default. |
+| Porkbun | API key and secret API key | API access must be on for each domain. TTL of 600 seconds or more. |
 
 ## Credentials for each provider
 
 Give LogiStack a credential limited to DNS on the zones it should manage. It is encrypted at rest and never shown again.
 
-<Tabs items={["Cloudflare", "Amazon Route 53", "Hetzner DNS"]}>
+<Tabs items={["Cloudflare", "Amazon Route 53", "Hetzner DNS", "DigitalOcean", "OVHcloud", "Porkbun"]}>
 <Tab value="Cloudflare">
 
 Field: **API token**.
@@ -68,6 +71,46 @@ Field: **API token**.
 In the Hetzner Console, open your project, then **Security** > **API tokens**, and create a token with **Read & Write** access.
 
 </Tab>
+<Tab value="DigitalOcean">
+
+Field: **API token**.
+
+In the DigitalOcean Control Panel, go to **API** > **Tokens** > **Generate New Token**. Choose **Custom Scopes** and select every scope under **domain**: `domain:read`, `domain:create`, `domain:update` and `domain:delete`. Set an expiration that suits you and copy the token, which DigitalOcean shows only once.
+
+</Tab>
+<Tab value="OVHcloud">
+
+Fields: **Endpoint** (prefilled with `ovh-eu`), **Application key**, **Application secret**, **Consumer key**.
+
+Set **Endpoint** to the API region of your OVHcloud account:
+
+| Account | Endpoint | Create the keys at |
+| --- | --- | --- |
+| OVHcloud Europe | `ovh-eu` | `https://eu.api.ovh.com/createToken/` |
+| OVHcloud Canada | `ovh-ca` | `https://ca.api.ovh.com/createToken/` |
+| OVHcloud US | `ovh-us` | `https://api.us.ovhcloud.com/createToken/` |
+
+On the create token page, sign in, name the application and add these rights:
+
+| Method | Path | For |
+| --- | --- | --- |
+| GET | `/domain/zone` | Listing your zones |
+| GET | `/domain/zone/*` | Reading records |
+| POST | `/domain/zone/*` | Creating records and applying changes (`refresh`) |
+| PUT | `/domain/zone/*` | Changing records |
+| DELETE | `/domain/zone/*` | Deleting records |
+
+To limit the keys to one zone, replace `/domain/zone/*` with `/domain/zone/example.com/*`. The page then shows the three keys.
+
+</Tab>
+<Tab value="Porkbun">
+
+Fields: **API key**, **Secret API key**.
+
+1. On porkbun.com, open **Account** > **API Access** and create a key. Copy the API key and the secret key.
+2. Open **Domain Management**, open the **Details** of each domain LogiStack should manage, and turn on **API Access**. Porkbun refuses API calls for domains where it is off.
+
+</Tab>
 </Tabs>
 
 ## Connect a provider
@@ -88,14 +131,14 @@ Select **DNS providers** in the sidebar, under **Integrations**. The page lists 
 
 Select **Connect provider**. The **Connect a DNS provider** wizard opens on **Where does the zone live?**.
 
-![The first step of the Connect a DNS provider wizard, Where does the zone live?, with Cloudflare, Amazon Route 53 and Hetzner DNS as choices](/screens/dns-new.webp)
+![The first step of the Connect a DNS provider wizard, Where does the zone live?, with Cloudflare, Amazon Route 53, Hetzner DNS and the other providers as choices](/screens/dns-new.webp)
 
 </Step>
 <Step>
 
 ### Pick the provider
 
-Under **DNS provider**, pick **Cloudflare**, **Amazon Route 53** or **Hetzner DNS**. Select **Continue**.
+Under **DNS provider**, pick **Cloudflare**, **Amazon Route 53**, **Hetzner DNS**, **DigitalOcean**, **OVHcloud** or **Porkbun**. Select **Continue**.
 
 </Step>
 <Step>
@@ -171,7 +214,7 @@ Select **Add record**, or the pencil on a row. In the dialog, set:
 - **Type**: `A`, `AAAA`, `CNAME`, `TXT`, `MX`, `SRV`, `CAA` or `NS`.
 - **Name**: `@` for the zone itself, `*` for a wildcard, or a name like `www`.
 - The value fields for the type, for example **IPv4 address** for A, **Target** for CNAME, **Priority** and **Mail server** for MX, **Flags**, **Tag** and **Value** for CAA.
-- **TTL**: how long resolvers may cache the answer. Cloudflare offers **Auto**; Hetzner accepts 60 seconds or more.
+- **TTL**: how long resolvers may cache the answer. Cloudflare and OVHcloud offer **Auto**. Hetzner and OVHcloud accept 60 seconds or more, DigitalOcean 30, Porkbun 600.
 - **Comment** (Cloudflare only).
 - **Proxy through Cloudflare** (Cloudflare A, AAAA and CNAME only). Proxied records always use **Auto** TTL.
 
@@ -190,7 +233,7 @@ Some examples:
 | `@` | CAA | `0 issue "letsencrypt.org"` | Allows Let's Encrypt to issue for the domain |
 | `_dmarc` | TXT | `v=DMARC1; p=quarantine` | Publishes a DMARC policy |
 
-The editor checks values before saving. A CNAME cannot sit at the zone apex and has exactly one target, and a Cloudflare record holds one value. Route 53 and Hetzner record sets can hold several values; add more with the value list.
+The editor checks values before saving. A CNAME cannot sit at the zone apex and has exactly one target, and a Cloudflare record holds one value. Record sets at the other providers can hold several values; add more with the value list.
 
 ### Records LogiStack created
 
@@ -212,7 +255,7 @@ Select the bin on the provider's row and confirm **Remove**. LogiStack forgets t
 
 **`The provider refused the credential`.** The token or key is wrong, expired, or lacks permission. Create a new one with the permissions above.
 
-**A zone is missing from the wizard.** The credential cannot see it. For Cloudflare, check the token's zone resources. For Route 53, check the IAM policy's `Resource`.
+**A zone is missing from the wizard.** The credential cannot see it. For Cloudflare, check the token's zone resources. For Route 53, check the IAM policy's `Resource`. For OVHcloud, check the key's rights. For Porkbun, turn on **API Access** for the domain.
 
 **`Couldn't load the zone`.** The provider API did not answer or the credential lost access. Select **Try again**. If it persists, reconnect the provider.
 

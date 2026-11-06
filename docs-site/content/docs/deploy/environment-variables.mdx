@@ -1,6 +1,6 @@
 ---
 title: Environment variables and secrets
-description: Set environment variables and secrets on LogiStack services, share them across a project or environment, pass them to builds, and read deployment variables.
+description: Set environment variables and secrets on LogiStack services, share them across the organization, a project or an environment, and pass them to builds.
 ---
 
 Environment variables configure a service without changing its image: database URLs, API keys, feature flags. LogiStack stores every value encrypted, masks secrets from people who can't read them, and applies changes on the next deployment. Variables can be set once for the whole organization, a project or an environment, and overridden per service.
@@ -63,11 +63,46 @@ Select **Save and redeploy** to apply at once, or **Save** to apply on the next 
 
 ## Inherited variables
 
-The **Inherited** panel lists the variables the service gets from the organization, project and environment, each with its scope. A crossed-out row is overridden by a more specific one. To change one for this service only, select **Override for this service**: it copies the key and value into **Service variables** for you to edit.
+The **Inherited** panel lists the variables the service gets from the organization, project and environment, each with its scope. A crossed-out row is overridden by a more specific one. To change one for this service only, select **Override for this service**: it copies the key and value into **Service variables** for you to edit. To change it for everyone, select **Shared variables** at the top of the panel.
 
 ## Set organization, project and environment variables
 
-The dashboard edits service variables. Set the shared scopes through the API, the MCP server, or a [project manifest](../automation/project-manifests.mdx).
+Shared variables use the same editor as service variables: **Add**, **Paste .env**, **Secret**, **Build** and **Save**. Saving applies them to every service in the scope from its next deployment.
+
+<Steps>
+<Step>
+
+### Open the scope
+
+- **Organization**: select **Settings** › **Variables** in the sidebar.
+- **Project or environment**: open the project, select the settings icon next to the environment tabs and select **Variables**. You can also open the project's actions menu (**⋯**) and select **Shared variables**, or select **Shared variables** in a service's **Inherited** panel.
+
+![The Shared variables page of the Storefront project, with the Production tab selected and LOG_LEVEL and a secret DATABASE_URL](/screens/project-variables.webp)
+
+</Step>
+<Step>
+
+### Pick the project or one environment
+
+On the project's **Shared variables** page, **All environments** holds project variables. Each environment tab holds that environment's variables, which win over the project's.
+
+</Step>
+<Step>
+
+### Edit and save
+
+Add or change variables as you would on a service, then select **Save**. Redeploy the services that should pick up the change.
+
+</Step>
+</Steps>
+
+![Settings › Variables, listing the organization variables LOG_LEVEL and SENTRY_DSN](/screens/settings-variables.webp)
+
+Changing shared variables needs the write permission on that scope, and seeing a secret value needs the read secrets permission on it. Without it, the row shows **Hidden** and you can only replace the value.
+
+### With the API or a manifest
+
+The same variables can be set through the API, the MCP server, or a [project manifest](../automation/project-manifests.mdx).
 
 ```bash title="Create a secret DATABASE_URL for one environment"
 curl -fsS -X POST "https://stack.example.com/api/env-vars" \
