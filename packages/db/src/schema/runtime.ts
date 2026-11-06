@@ -39,6 +39,8 @@ export const node = pgTable("node", {
 	swarmNodeId: text("swarm_node_id").notNull().unique(),
 	hostname: text("hostname").notNull(),
 	address: text("address").notNull(),
+	/** The address players and DNS records use when `address` is private (NAT, cloud VPC). */
+	publicAddress: text("public_address"),
 	role: nodeRole("role").notNull(),
 	labels: jsonb("labels").$type<Record<string, string>>().notNull().default({}),
 	status: nodeStatus("status").notNull().default("pending"),
