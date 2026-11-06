@@ -13,7 +13,8 @@
 			"!**/*.yml",
 			"!**/*.yaml",
 			"!**/drizzle/meta",
-			"!packages/templates/catalog"
+			"!packages/templates/catalog",
+			"!design"
 		]
 	},
 	"formatter": {
@@ -24,6 +25,11 @@
 		"enabled": true,
 		"rules": {
 			"preset": "recommended"
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
 		}
 	},
 	"javascript": {
