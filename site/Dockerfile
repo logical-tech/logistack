@@ -9,12 +9,14 @@ COPY site/package.json site/bun.lock ./
 RUN bun install --frozen-lockfile --ignore-scripts
 COPY site/ ./
 COPY packages/templates/catalog/ /repo/packages/templates/catalog/
-ARG NEXT_PUBLIC_SITE_URL=https://logistack.dev
+ARG NEXT_PUBLIC_SITE_URL=https://stack.logicaltech.it
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NEXT_TELEMETRY_DISABLED=1
 RUN bunx --bun next build
 
 FROM caddy:2.10-alpine
 COPY site/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /repo/site/out /srv
+# The page tells visitors to pipe this into bash, so it ships with every build of the site.
+COPY install/install.sh /srv/install.sh
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO /dev/null http://127.0.0.1/ || exit 1

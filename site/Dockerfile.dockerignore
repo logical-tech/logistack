@@ -1,6 +1,7 @@
 *
 !site
 !packages/templates/catalog
+!install/install.sh
 site/node_modules
 site/.next
 site/out
