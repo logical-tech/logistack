@@ -2,6 +2,8 @@
 
 LogiStack is a self-hosted PaaS that runs on Docker Swarm, an alternative to Dokploy and Coolify. You push code or pick an image, and LogiStack builds it, deploys it, gives it a domain with HTTPS, and backs up its data. It differs from those two in four ways. Postgres holds the desired state, and a reconciler converges Docker and Caddy to it, so a manual change on the server is reverted instead of drifting. The worker configures Caddy through its admin API, so a domain change never redeploys the app or restarts the proxy. An agent on every node collects logs and metrics, and runs backups and schedules on the node where the container lives. No feature is behind a license: audit log, custom roles, SSO, and multi-node are all in the open-source build.
 
+Documentation, with step-by-step guides and screenshots: https://stack.logicaltech.it/docs/
+
 ## Quick start
 
 Run the installer as root on a fresh server:
@@ -104,7 +106,7 @@ curl -fsSL https://raw.githubusercontent.com/logical-tech/logistack/main/install
 
 `uninstall.sh` removes the stack and its networks. Volumes, secrets, and `/etc/logistack` stay, so the installer brings LogiStack back with its data. To delete everything, including the database, run it with `-s -- --purge`. It asks you to type `purge`. Docker and Swarm stay installed.
 
-`docs/INSTALL.md` covers every installer flag, the objects the installer creates, firewall rules for more nodes, and how to build the images.
+[The installer reference](https://stack.logicaltech.it/docs/reference/installer/) covers every installer flag, the objects the installer creates, firewall rules for more nodes, and how to build the images.
 
 ## Features
 
