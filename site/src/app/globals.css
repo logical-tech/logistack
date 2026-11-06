@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+@theme {
+	--color-bg: #111214;
+	--color-deep: #0c0d0f;
+	--color-step: #16171a;
+	--color-surface: #17181b;
+	--color-tile: #1b1c20;
+	--color-raised: #1d1f23;
+	--color-line: #ffffff17;
+	--color-fg: #f1f2f4;
+	--color-muted: #a7abb3;
+	--color-faint: #8a8f98;
+	--color-brand: #6e9cf7;
+	--color-ok: #4fd08b;
+	--color-warn: #e8b54a;
+	--color-bad: #f07b6b;
+	--color-pink: #f2779a;
+
+	--font-sans: var(--font-mona), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+	--ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+	:root {
+		color-scheme: dark;
+		background: var(--color-bg);
+		color: var(--color-fg);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
+		scrollbar-color: #2a2c31 var(--color-bg);
+	}
+
+	html {
+		scroll-behavior: smooth;
+		scroll-padding-top: 88px;
+	}
+
+	::selection {
+		background: #6e9cf74d;
+		color: var(--color-fg);
+	}
+
+	h1,
+	h2,
+	h3 {
+		text-wrap: balance;
+	}
+
+	p,
+	li,
+	dd {
+		text-wrap: pretty;
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--color-brand);
+		outline-offset: 3px;
+		border-radius: 6px;
+	}
+
+	a {
+		text-underline-offset: 3px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html {
+			scroll-behavior: auto;
+		}
+		*,
+		*::before,
+		*::after {
+			/* biome-ignore lint/complexity/noImportantStyles: reduced motion must beat every component animation */
+			animation-duration: 1ms !important;
+			/* biome-ignore lint/complexity/noImportantStyles: same as above */
+			transition-duration: 1ms !important;
+		}
+	}
+}
+
+@utility pressable {
+	transition-property: scale, background-color, color, opacity;
+	transition-duration: 150ms;
+	transition-timing-function: var(--ease-out-expo);
+	&:active {
+		scale: 0.96;
+	}
+}
+
+@utility float-tile {
+	animation: float 7s var(--ease-out-expo) infinite alternate;
+}
+
+@keyframes float {
+	from {
+		translate: 0 0;
+	}
+	to {
+		translate: 0 -10px;
+	}
+}
+
+@keyframes rise {
+	from {
+		opacity: 0;
+		translate: 0 14px;
+		filter: blur(4px);
+	}
+	to {
+		opacity: 1;
+		translate: 0 0;
+		filter: blur(0);
+	}
+}
+
+@utility rise {
+	animation: rise 700ms var(--ease-out-expo) both;
+}
+
+@utility reveal {
+	@media (prefers-reduced-motion: no-preference) {
+		@supports (animation-timeline: view()) {
+			animation: rise linear both;
+			animation-timeline: view();
+			animation-range: entry 0% entry 55%;
+		}
+	}
+}
