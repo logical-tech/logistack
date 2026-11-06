@@ -121,6 +121,9 @@ export type ExecHandle = AsyncGenerator<ExecEvent> & {
 	close(): void;
 };
 
+/** `ack` reports output bytes read, for a job with `ackWindowBytes`; agents without `job-ack` ignore it. */
+export type JobHandle = AsyncGenerator<JobEvent> & { ack(bytes: number): void };
+
 /** An archive request: a read's content, then its result; a write's tar goes in through `write`/`end`. */
 export type ArchiveHandle = AsyncGenerator<ArchiveEvent> &
 	Pick<ExecHandle, "write" | "end">;
@@ -138,11 +141,7 @@ export type Agents = {
 		req: Req<"logs.follow">,
 		opts?: CallOptions,
 	): AsyncGenerator<LogLine>;
-	runJob(
-		nodeId: string,
-		job: JobSpecInput,
-		opts?: CallOptions,
-	): AsyncGenerator<JobEvent>;
+	runJob(nodeId: string, job: JobSpecInput, opts?: CallOptions): JobHandle;
 	disk(
 		nodeId: string,
 		req: DiskRequest,
@@ -573,21 +572,29 @@ export function mountAgentGateway(
 				if (m.type === "logs.line") yield { stream: m.stream, line: m.line };
 		},
 
-		async *runJob(nodeId, job, opts) {
-			const { replies } = start(
+		runJob(nodeId, job, opts) {
+			const { conn, replies, id } = start(
 				nodeId,
 				{ type: "run.job", id: crypto.randomUUID(), job },
 				"job.cancel",
 				opts?.signal,
 			);
-			for await (const m of replies) {
-				if (m.type === "job.output")
-					yield { type: "output", stream: m.stream, data: decode(m.data) };
-				else if (m.type === "job.result") {
-					const { type: _, id: __, ...result } = m;
-					yield { type: "result", ...result };
+			async function* events(): AsyncGenerator<JobEvent> {
+				for await (const m of replies) {
+					if (m.type === "job.output")
+						yield { type: "output", stream: m.stream, data: decode(m.data) };
+					else if (m.type === "job.result") {
+						const { type: _, id: __, ...result } = m;
+						yield { type: "result", ...result };
+					}
 				}
 			}
+			const acks = conn.node.capabilities.includes("job-ack");
+			return Object.assign(events(), {
+				ack: (bytes: number) => {
+					if (acks) send(conn, { type: "job.ack", id, bytes });
+				},
+			});
 		},
 
 		async disk(nodeId, req, opts) {

@@ -18,6 +18,7 @@ type Active = {
 		Partial<Pick<ExecHandle, "resize">>;
 	/** Serializes stdin writes, which wait for the agent socket to drain. */
 	chain: Promise<void>;
+	ack?: (bytes: number) => void;
 };
 
 const b64 = (data: Uint8Array) => Buffer.from(data).toString("base64");
@@ -58,7 +59,9 @@ export async function serveAgentRpc(
 		const signal = a.abort.signal;
 		try {
 			if (m.type === "job") {
-				for await (const e of agents.runJob(nodeId, m.job, { signal }))
+				const h = agents.runJob(nodeId, m.job, { signal });
+				a.ack = h.ack;
+				for await (const e of h)
 					await reply(
 						m.id,
 						e.type === "output"
@@ -143,6 +146,7 @@ export async function serveAgentRpc(
 		const a = active.get(m.id);
 		if (!a) return;
 		if (m.type === "cancel") return a.abort.abort();
+		if (m.type === "ack") return a.ack?.(m.bytes);
 		const exec = a.exec;
 		if (!exec) return;
 		if (m.type === "resize") return exec.resize?.(m.rows, m.cols);

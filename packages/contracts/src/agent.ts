@@ -19,6 +19,9 @@ import { NodeRole } from "./enums.ts";
 //   with `rpc.error` code `backpressure`.
 // - The server queues at most MAX_QUEUED_MESSAGES per request for its consumer; on overflow it
 //   cancels the request and the consumer's iterator throws.
+// - A job with `ackWindowBytes` sends at most that many output bytes past the last `job.ack`
+//   (cumulative bytes its consumer has read), so a slow consumer pauses the job instead of
+//   piling output up in memory. No ack for ACK_STALL_MS fails it with code `backpressure`.
 
 export const AGENT_WS_PATH = "/api/agent/ws";
 /** Swarm node id on the upgrade request, so refusals happen before the socket opens. */
@@ -30,6 +33,8 @@ export const MAX_FRAME_BYTES = 1024 * 1024;
 export const HIGH_WATER_BYTES = 4 * 1024 * 1024;
 export const STALL_TIMEOUT_MS = 30_000;
 export const MAX_QUEUED_MESSAGES = 1024;
+/** Long enough for a slow link to upload one multipart part between acks. */
+export const ACK_STALL_MS = 10 * 60_000;
 
 const RequestId = z.string().min(1).max(64);
 const Base64 = z.string().max(Math.ceil(MAX_CHUNK_BYTES / 3) * 4);
@@ -114,6 +119,8 @@ const JobCommon = {
 	timeoutSec: z.number().int().positive().max(86_400),
 	/** Output beyond this is counted in `bytes` but not sent. */
 	outputLimitBytes: Bytes.default(1024 * 1024),
+	/** Flow control: output bytes the agent may send past the last `job.ack`. */
+	ackWindowBytes: z.number().int().positive().optional(),
 };
 
 export const JobSpec = z.discriminatedUnion("kind", [
@@ -406,6 +413,8 @@ export const ServerMessage = z.discriminatedUnion("type", [
 	z.object(req("logs.stop")),
 	z.object({ ...req("run.job"), job: JobSpec }),
 	z.object(req("job.cancel")),
+	/** Bytes of the job's output the consumer has read so far. */
+	z.object({ ...req("job.ack"), bytes: Bytes }),
 	z.object({ ...req("disk.run"), request: DiskRequest }),
 	z.object({ ...req("archive.start"), request: ArchiveRequest }),
 ]);
