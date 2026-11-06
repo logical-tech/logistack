@@ -20,17 +20,20 @@ function fakeEnv(failSends: number) {
 			put: async (k: string, v: string) => void kv.set(k, v),
 			delete: async (k: string) => void kv.delete(k),
 		},
-		EMAIL: {
-			send: async (m: { text: string }) => {
-				if (failSends-- > 0) throw new Error("sending not enabled");
-				sent.push(m.text);
-			},
-		},
+		RESEND_API_KEY: "re_test",
 		SIGNING_KEY: pkcs8,
 		STRIPE_WEBHOOK_SECRET: secret,
 		SITE_ORIGIN: "https://site.test",
 		EMAIL_FROM: "sponsors@site.test",
 	} as unknown as Env;
+	// Stands in for Resend: fails the first `failSends` requests with a 500.
+	globalThis.fetch = (async (_url: string, init: RequestInit) => {
+		if (failSends-- > 0)
+			return new Response("domain not ready", { status: 500 });
+		const body = JSON.parse(String(init.body)) as { text: string };
+		sent.push(body.text);
+		return Response.json({ id: "email_1" });
+	}) as typeof fetch;
 	return { env, kv, sent };
 }
 

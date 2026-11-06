@@ -14,7 +14,8 @@ import {
 
 export type Env = {
 	SPONSORS: KVNamespace;
-	EMAIL: SendEmail;
+	/** Secret: a Resend API key with sending access to EMAIL_FROM's domain. */
+	RESEND_API_KEY: string;
 	/** Secret: base64url PKCS#8 Ed25519 private key. */
 	SIGNING_KEY: string;
 	/** Secret: the `whsec_…` of the Stripe webhook endpoint. */
@@ -47,19 +48,36 @@ async function issue(
 	return signSponsorKey({ v: 1, ...c, iat, exp: iat + ttl }, env.SIGNING_KEY);
 }
 
-async function sendKey(env: Env, to: string, key: string, monthly: boolean) {
+async function sendKey(
+	env: Env,
+	sessionId: string,
+	to: string,
+	key: string,
+	monthly: boolean,
+) {
 	const steps = `In LogiStack, open Settings > Sponsor and paste this key:\n\n${key}\n\n`;
 	const renewal = monthly
 		? "Your instance renews the key by itself every month while the sponsorship is active. If it can't reach us, the key keeps working for a week past the month.\n\n"
 		: "The key is valid for a year.\n\n";
 	const text = `Thank you for sponsoring LogiStack.\n\n${steps}${renewal}— Logical`;
-	await env.EMAIL.send({
-		from: { email: env.EMAIL_FROM, name: "LogiStack" },
-		to,
-		subject: "Your LogiStack sponsor key",
-		text,
-		html: `<p>Thank you for sponsoring LogiStack.</p><p>In LogiStack, open <b>Settings &gt; Sponsor</b> and paste this key:</p><pre style="white-space:pre-wrap;word-break:break-all;font-size:13px;background:#f4f4f5;padding:12px;border-radius:8px">${key}</pre><p>${renewal.trim()}</p><p>— Logical</p>`,
+	const res = await fetch("https://api.resend.com/emails", {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${env.RESEND_API_KEY}`,
+			"Content-Type": "application/json",
+			// Resend drops a repeat of the same key for 24 hours: one email per payment.
+			"Idempotency-Key": `sponsor-key/${sessionId}`,
+		},
+		body: JSON.stringify({
+			from: `LogiStack <${env.EMAIL_FROM}>`,
+			to: [to],
+			subject: "Your LogiStack sponsor key",
+			text,
+			html: `<p>Thank you for sponsoring LogiStack.</p><p>In LogiStack, open <b>Settings &gt; Sponsor</b> and paste this key:</p><pre style="white-space:pre-wrap;word-break:break-all;font-size:13px;background:#f4f4f5;padding:12px;border-radius:8px">${key}</pre><p>${renewal.trim()}</p><p>— Logical</p>`,
+		}),
 	});
+	// Throwing makes the webhook answer 500, so Stripe retries and the email goes out later.
+	if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }
 
 async function onCheckout(env: Env, s: CheckoutSession) {
@@ -91,7 +109,7 @@ async function onCheckout(env: Env, s: CheckoutSession) {
 	// Stripe's retry sends the same key again.
 	const email = s.customer_details?.email;
 	if (!email || (await env.SPONSORS.get(`emailed:${s.id}`))) return;
-	await sendKey(env, email, key, monthly);
+	await sendKey(env, s.id, email, key, monthly);
 	await env.SPONSORS.put(`emailed:${s.id}`, "1", {
 		expirationTtl: SESSION_TTL,
 	});
