@@ -1,3 +1,4 @@
+import type { AiAgentPart } from "@logistack/contracts";
 import {
 	bigint,
 	boolean,
@@ -118,4 +119,50 @@ export const aiUsage = pgTable(
 		index("ai_usage_org_time_idx").on(t.organizationId, t.createdAt),
 		index("ai_usage_user_time_idx").on(t.organizationId, t.userId, t.createdAt),
 	],
+);
+
+/** A member's conversation with the Agent. The run lives in the api process; this row survives it. */
+export const aiAgentConversation = pgTable(
+	"ai_agent_conversation",
+	{
+		id: id("aac"),
+		organizationId: org(),
+		userId: owner(),
+		title: text("title").notNull(),
+		/** A gateway model ref: `auto` or `provider/model`. */
+		model: text("model").notNull().default("auto"),
+		/** `idle`, `running`, `waiting` (an operation awaits approval) or `failed`. */
+		status: text("status").notNull().default("idle"),
+		error: text("error"),
+		/** Set by Stop; the run checks it between chunks and tool calls. */
+		stopRequested: boolean("stop_requested").notNull().default(false),
+		...timestamps,
+	},
+	(t) => [
+		index("ai_agent_conversation_user_idx").on(
+			t.organizationId,
+			t.userId,
+			t.updatedAt,
+		),
+	],
+);
+
+/** One message; `parts` follow the AI SDK UIMessage part shapes (`AiAgentPart` in contracts). */
+export const aiAgentMessage = pgTable(
+	"ai_agent_message",
+	{
+		id: id("aam"),
+		conversationId: text("conversation_id")
+			.notNull()
+			.references(() => aiAgentConversation.id, { onDelete: "cascade" }),
+		role: text("role").notNull(),
+		parts: jsonb("parts").$type<AiAgentPart[]>().notNull().default([]),
+		model: text("model"),
+		inputTokens: integer("input_tokens").notNull().default(0),
+		outputTokens: integer("output_tokens").notNull().default(0),
+		/** False while the assistant is still writing it. */
+		done: boolean("done").notNull().default(true),
+		createdAt: tstz("created_at").defaultNow().notNull(),
+	},
+	(t) => [index("ai_agent_message_conv_idx").on(t.conversationId, t.createdAt)],
 );

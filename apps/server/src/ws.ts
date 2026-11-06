@@ -3,6 +3,7 @@ import type { EventEnvelope, LiveMessage } from "@logistack/contracts";
 import type { Resource } from "@logistack/core";
 import type { Db } from "@logistack/db";
 import {
+	aiAgentConversation,
 	backupPolicy,
 	backupRun,
 	instanceUpdate,
@@ -31,7 +32,7 @@ export { websocket } from "hono/bun";
 const Channel = z
 	.string()
 	.regex(
-		/^((org|deployment|service|node-join|backup-run|schedule-run|instance-update|deployment-log|service-logs):[A-Za-z0-9_-]+|org:[A-Za-z0-9_-]+:metrics)$/,
+		/^((org|deployment|service|node-join|backup-run|schedule-run|instance-update|deployment-log|service-logs|ai-agent):[A-Za-z0-9_-]+|org:[A-Za-z0-9_-]+:metrics)$/,
 	);
 
 const ClientMessage = z.discriminatedUnion("type", [
@@ -65,6 +66,18 @@ async function channelResource(
 ): Promise<Resource | undefined> {
 	const [kind, id = ""] = channel.split(":");
 	if (kind === "org") return organizationResource(id);
+	// Only the member who owns the conversation follows it.
+	if (kind === "ai-agent") {
+		const n = await db.$count(
+			aiAgentConversation,
+			and(
+				eq(aiAgentConversation.id, id),
+				eq(aiAgentConversation.organizationId, actor.organizationId),
+				eq(aiAgentConversation.userId, actor.userId),
+			),
+		);
+		return n ? organizationResource(actor.organizationId) : undefined;
+	}
 	if (kind === "node-join") {
 		const n = await db.$count(
 			nodeJoin,

@@ -27,6 +27,7 @@ import { Route as AuthSsoTestRouteImport } from './routes/_auth/sso-test'
 import { Route as AuthTwoFactorRouteImport } from './routes/_auth/two-factor'
 import { Route as AppAccountSecurityRouteImport } from './routes/_app/account/security'
 import { Route as AppAiIndexRouteImport } from './routes/_app/ai/index'
+import { Route as AppAiAgentRouteImport } from './routes/_app/ai/agent'
 import { Route as AppAiBudgetsRouteImport } from './routes/_app/ai/budgets'
 import { Route as AppAiGatewayRouteImport } from './routes/_app/ai/gateway'
 import { Route as AppAiProvidersRouteImport } from './routes/_app/ai/providers'
@@ -194,6 +195,11 @@ const AppAccountSecurityRoute = AppAccountSecurityRouteImport.update({
 const AppAiIndexRoute = AppAiIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppAiRouteRoute,
+} as any)
+const AppAiAgentRoute = AppAiAgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
   getParentRoute: () => AppAiRouteRoute,
 } as any)
 const AppAiBudgetsRoute = AppAiBudgetsRouteImport.update({
@@ -658,6 +664,7 @@ export interface FileRoutesByFullPath {
   '/two-factor': typeof AuthTwoFactorRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
   '/account/security': typeof AppAccountSecurityRoute
+  '/ai/agent': typeof AppAiAgentRoute
   '/ai/budgets': typeof AppAiBudgetsRoute
   '/ai/gateway': typeof AppAiGatewayRoute
   '/ai/providers': typeof AppAiProvidersRoute
@@ -752,6 +759,7 @@ export interface FileRoutesByTo {
   '/sso-test': typeof AuthSsoTestRoute
   '/two-factor': typeof AuthTwoFactorRoute
   '/account/security': typeof AppAccountSecurityRoute
+  '/ai/agent': typeof AppAiAgentRoute
   '/ai/budgets': typeof AppAiBudgetsRoute
   '/ai/gateway': typeof AppAiGatewayRoute
   '/ai/providers': typeof AppAiProvidersRoute
@@ -851,6 +859,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
   '/_app/account/security': typeof AppAccountSecurityRoute
+  '/_app/ai/agent': typeof AppAiAgentRoute
   '/_app/ai/budgets': typeof AppAiBudgetsRoute
   '/_app/ai/gateway': typeof AppAiGatewayRoute
   '/_app/ai/providers': typeof AppAiProvidersRoute
@@ -951,6 +960,7 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/projects/$projectId'
     | '/account/security'
+    | '/ai/agent'
     | '/ai/budgets'
     | '/ai/gateway'
     | '/ai/providers'
@@ -1045,6 +1055,7 @@ export interface FileRouteTypes {
     | '/sso-test'
     | '/two-factor'
     | '/account/security'
+    | '/ai/agent'
     | '/ai/budgets'
     | '/ai/gateway'
     | '/ai/providers'
@@ -1143,6 +1154,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/projects/$projectId'
     | '/_app/account/security'
+    | '/_app/ai/agent'
     | '/_app/ai/budgets'
     | '/_app/ai/gateway'
     | '/_app/ai/providers'
@@ -1357,6 +1369,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/ai/'
       preLoaderRoute: typeof AppAiIndexRouteImport
+      parentRoute: typeof AppAiRouteRoute
+    }
+    '/_app/ai/agent': {
+      id: '/_app/ai/agent'
+      path: '/agent'
+      fullPath: '/ai/agent'
+      preLoaderRoute: typeof AppAiAgentRouteImport
       parentRoute: typeof AppAiRouteRoute
     }
     '/_app/ai/budgets': {
@@ -1923,6 +1942,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppAiRouteRouteChildren {
+  AppAiAgentRoute: typeof AppAiAgentRoute
   AppAiBudgetsRoute: typeof AppAiBudgetsRoute
   AppAiGatewayRoute: typeof AppAiGatewayRoute
   AppAiProvidersRoute: typeof AppAiProvidersRoute
@@ -1931,6 +1951,7 @@ interface AppAiRouteRouteChildren {
 }
 
 const AppAiRouteRouteChildren: AppAiRouteRouteChildren = {
+  AppAiAgentRoute: AppAiAgentRoute,
   AppAiBudgetsRoute: AppAiBudgetsRoute,
   AppAiGatewayRoute: AppAiGatewayRoute,
   AppAiProvidersRoute: AppAiProvidersRoute,
