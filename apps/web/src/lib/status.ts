@@ -25,6 +25,7 @@ export const DEPLOYMENT_STATUS: Record<DeploymentStatus, StatusMeta> = {
 	cloning: { label: "Cloning", tone: "busy", live: true },
 	building: { label: "Building", tone: "busy", live: true },
 	pushing: { label: "Pushing", tone: "busy", live: true },
+	releasing: { label: "Releasing", tone: "busy", live: true },
 	deploying: { label: "Deploying", tone: "info", live: true },
 	healthy: { label: "Ready", tone: "ok" },
 	failed: { label: "Failed", tone: "bad" },

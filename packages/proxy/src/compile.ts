@@ -419,9 +419,20 @@ function compareRoutes(a: ProxyRoute, b: ProxyRoute): number {
 	);
 }
 
+/**
+ * How long a request waits for its upstream to accept a connection. It covers the gap of a
+ * stop-first redeploy, when the Swarm VIP has no task behind it. A request whose connection was
+ * accepted is retried only when it is a GET, Caddy's default.
+ */
+export const UPSTREAM_TRY_DURATION = "30s";
+
 const proxyTo = (u: Upstream): CaddyHandler => ({
 	handler: "reverse_proxy",
 	upstreams: [{ dial: `${u.host}:${u.port}` }],
+	load_balancing: {
+		try_duration: UPSTREAM_TRY_DURATION,
+		try_interval: "250ms",
+	},
 });
 const basicAuth = (
 	users: Extract<AccessRule, { type: "basic_auth" }>["users"],

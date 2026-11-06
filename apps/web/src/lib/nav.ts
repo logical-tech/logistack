@@ -7,6 +7,7 @@ import {
 	CalendarClock,
 	CircleArrowUp,
 	Container,
+	Cpu,
 	Database,
 	FileClock,
 	Fingerprint,
@@ -322,6 +323,14 @@ export const NAV: NavGroup[] = [
 					action: "Check now",
 				},
 				keywords: ["upgrade", "version", "release"],
+			},
+			{
+				to: "/settings/builds",
+				title: "Builds",
+				icon: Cpu,
+				description:
+					"The architectures builds target, what BuildKit can build, and QEMU for the rest.",
+				keywords: ["arm64", "amd64", "architecture", "qemu", "buildkit"],
 			},
 			{
 				to: "/settings/migrate",

@@ -22,6 +22,10 @@ function delay<T>(value: T, ms = 200 + Math.random() * 350): Promise<T> {
 	);
 }
 
+/** Looks like an age X25519 identity; the mock never encrypts anything with it. */
+const mockAgeKey = () =>
+	`AGE-SECRET-KEY-1${Array.from({ length: 58 }, () => "QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L"[Math.floor(Math.random() * 32)]).join("")}`;
+
 const rid = (prefix: string) =>
 	`${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 const MIN = 60_000;
@@ -188,6 +192,8 @@ function storefrontPostgres(): ServiceBackups {
 			retention: { count: 14, days: 30 },
 			verifyCron: "0 5 * * 0",
 			pauseService: false,
+			encrypted: true,
+			hasEncryptedBackup: true,
 			enabled: true,
 			nextRunAt: nextRuns("0 3 * * *", "Europe/Rome", 1)[0] ?? null,
 			nextVerifyAt: nextRuns("0 5 * * 0", "Europe/Rome", 1)[0] ?? null,
@@ -206,6 +212,8 @@ function storefrontPostgres(): ServiceBackups {
 			retention: { count: 4 },
 			verifyCron: null,
 			pauseService: true,
+			encrypted: false,
+			hasEncryptedBackup: false,
 			enabled: true,
 			nextRunAt: nextRuns("30 4 * * 0", "Europe/Rome", 1)[0] ?? null,
 			nextVerifyAt: null,
@@ -694,6 +702,8 @@ export const mockBackups: BackupsApi = {
 				verifyCron,
 				pauseService:
 					input.target === "volume" && (input.pauseService ?? false),
+				encrypted: input.encrypt ?? false,
+				hasEncryptedBackup: false,
 				enabled,
 				nextRunAt: enabled
 					? (nextRuns(input.cron, timezone, 1)[0] ?? null)
@@ -706,17 +716,40 @@ export const mockBackups: BackupsApi = {
 				createdAt: new Date().toISOString(),
 			};
 			svc.policies.push(policy);
-			return delay(policy);
+			return delay({
+				...policy,
+				encryptionKey: policy.encrypted ? mockAgeKey() : null,
+			});
 		},
 		updatePolicy: (id, patch) => {
 			for (const svc of Object.values(store.services)) {
 				const p = svc.policies.find((x) => x.id === id);
 				if (!p) continue;
-				Object.assign(p, patch);
+				const { encrypt, ...fields } = patch;
+				if (encrypt === false && p.encrypted && p.hasEncryptedBackup)
+					return Promise.reject(
+						new ApiError(
+							400,
+							"encryption cannot be turned off: an encrypted backup exists and needs its key",
+						),
+					);
+				const fresh = !!encrypt && !p.hasEncryptedBackup;
+				Object.assign(
+					p,
+					fields,
+					fresh
+						? { encrypted: true }
+						: encrypt === false
+							? { encrypted: false }
+							: {},
+				);
 				p.nextRunAt = p.enabled
 					? (nextRuns(p.cron, p.timezone, 1)[0] ?? null)
 					: null;
-				return delay(p);
+				return delay({
+					...p,
+					encryptionKey: fresh ? mockAgeKey() : null,
+				});
 			}
 			return notFound("backup policy");
 		},

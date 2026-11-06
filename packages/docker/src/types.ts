@@ -32,6 +32,8 @@ export interface SystemInfo {
 	ID: string;
 	Name: string;
 	ServerVersion: string;
+	/** `uname -m` of the engine host: `x86_64`, `aarch64`. */
+	Architecture: string;
 	NCPU: number;
 	MemTotal: number;
 	Containers: number;
@@ -191,6 +193,8 @@ export interface Placement {
 	Constraints?: string[];
 	Preferences?: { Spread: { SpreadDescriptor: string } }[];
 	MaxReplicas?: number;
+	/** Image platforms; Swarm maps `amd64`/`arm64` to node `x86_64`/`aarch64`. */
+	Platforms?: { Architecture: string; OS: string }[];
 }
 
 export interface RestartPolicy {
@@ -359,6 +363,16 @@ export interface ContainerSummary {
 		| "dead";
 	Status: string;
 	Labels: Labels;
+}
+
+/** `X-Docker-Container-Path-Stat`; `mode` is a Go `fs.FileMode` (type bits high, permissions low). */
+export interface PathStat {
+	name: string;
+	size: number;
+	mode: number;
+	/** RFC 3339. */
+	mtime: string;
+	linkTarget: string;
 }
 
 export interface ContainerInspect {

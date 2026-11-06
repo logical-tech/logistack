@@ -1,6 +1,7 @@
 import {
 	type BuildConfig,
 	databaseIcon,
+	type ResourceProfiles,
 	ServiceSpec as SpecSchema,
 } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
@@ -39,6 +40,16 @@ import {
 	LoadBalancerForm,
 	targetSuggestions,
 } from "@/components/service/load-balancer-form";
+import {
+	ReleaseCommandFields,
+	type ReleaseSettings,
+} from "@/components/service/release-commands";
+import {
+	limitsLabel,
+	limitsOf,
+	ResourceProfileSelect,
+	UNLIMITED,
+} from "@/components/service/resource-profile-select";
 import {
 	STORAGE_DEFAULTS,
 	type StorageFields,
@@ -83,6 +94,7 @@ import {
 	type WizardStep,
 } from "@/components/wizard/wizard";
 import { ApiError } from "@/lib/api";
+import { useResourceProfiles } from "@/lib/api/access";
 import { instanceStatusQuery } from "@/lib/api/instance";
 import {
 	branchesQuery,
@@ -99,7 +111,11 @@ import {
 	servicesQuery,
 	useCreateService,
 } from "@/lib/api/services";
-import { type StackId, useCreateComposeStack } from "@/lib/api/stacks";
+import {
+	type StackId,
+	useCreateComposeStack,
+	useCreateGitStack,
+} from "@/lib/api/stacks";
 import type {
 	BuildType,
 	DatabaseEngine,
@@ -155,6 +171,9 @@ type V = StorageFields & {
 	engine: DatabaseEngine;
 	version: string;
 	composeYaml: string;
+	/** A pasted compose file, or one read from a connected repository and re-synced on push. */
+	composeFrom: "paste" | "git";
+	composePath: string;
 	webserver: WebserverKind;
 	/** Load balancer form; the config is generated from it. */
 	lb: LbSettings;
@@ -163,6 +182,10 @@ type V = StorageFields & {
 	https: boolean;
 	/** Image sources only: published ports, bind mounts, user, capabilities, restart. */
 	host: HostSettings;
+	/** Applications: commands run on the new image around each rollout. */
+	release: ReleaseSettings;
+	/** A profile name or UNLIMITED; empty follows the organization default. */
+	resourceProfile: string;
 };
 
 const DEFAULTS: V = {
@@ -179,12 +202,16 @@ const DEFAULTS: V = {
 	engine: "postgres",
 	version: "17",
 	composeYaml: "",
+	composeFrom: "paste",
+	composePath: "docker-compose.yml",
 	webserver: "nginx",
 	lb: LB_DEFAULTS,
 	domainMode: "generated",
 	hostname: "",
 	https: true,
 	host: { ports: [] },
+	release: {},
+	resourceProfile: "",
 	...STORAGE_DEFAULTS,
 };
 
@@ -332,7 +359,8 @@ function buildSteps(
 						{
 							value: "compose",
 							title: "Docker Compose",
-							description: "Paste a compose file and deploy it as one stack.",
+							description:
+								"Paste a compose file, or follow one in a repository, and deploy it as one stack.",
 							icon: Layers,
 						},
 						{
@@ -403,6 +431,23 @@ function buildSteps(
 						),
 					});
 				}
+				if (v.kind === "compose" && v.composeFrom === "git") {
+					return z.object({
+						...base,
+						repository: z.string().min(1, "Choose a repository."),
+						branch: z.string().trim().min(1, "Enter a branch."),
+						composePath: z
+							.string()
+							.trim()
+							.min(1, "Enter the path of the compose file.")
+							.refine(
+								(p) =>
+									!p.startsWith("/") &&
+									p.split("/").every((s) => s && s !== ".."),
+								"A path inside the repository, like deploy/compose.yaml.",
+							),
+					});
+				}
 				if (v.kind === "compose") {
 					return z.object({
 						...base,
@@ -440,10 +485,21 @@ function buildSteps(
 			title: "Test the source",
 			description:
 				"LogiStack checks it can reach the source before anything is created.",
-			when: (v) => v.kind === "git" || v.kind === "image",
-			testKeys: ["kind", "providerId", "repository", "branch", "path", "image"],
+			when: (v) =>
+				v.kind === "git" ||
+				v.kind === "image" ||
+				(v.kind === "compose" && v.composeFrom === "git"),
+			testKeys: [
+				"kind",
+				"composeFrom",
+				"providerId",
+				"repository",
+				"branch",
+				"path",
+				"image",
+			],
 			test: (v) =>
-				v.kind === "git" && v.providerId
+				(v.kind === "git" || v.kind === "compose") && v.providerId
 					? integrations.git.check(v.providerId, {
 							repository: v.repository,
 							branch: v.branch.trim(),
@@ -456,21 +512,23 @@ function buildSteps(
 			render: (w) => (
 				<div className="grid gap-4">
 					<p className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-						{w.values.kind === "git" ? (
-							<GitBranch className="size-4 shrink-0" aria-hidden />
-						) : (
+						{w.values.kind === "image" ? (
 							<Container className="size-4 shrink-0" aria-hidden />
+						) : (
+							<GitBranch className="size-4 shrink-0" aria-hidden />
 						)}
 						<span className="truncate font-mono text-foreground">
-							{w.values.kind === "git"
-								? `${repoLabel(w.values)}@${w.values.branch}${w.values.path === "/" ? "" : ` ${w.values.path}`}`
-								: w.values.image}
+							{w.values.kind === "compose"
+								? `${w.values.repository}@${w.values.branch} ${w.values.composePath}`
+								: w.values.kind === "git"
+									? `${repoLabel(w.values)}@${w.values.branch}${w.values.path === "/" ? "" : ` ${w.values.path}`}`
+									: w.values.image}
 						</span>
 					</p>
 					<TestPanel
 						w={w}
 						idle={
-							w.values.kind === "git" ? (
+							w.values.kind !== "image" ? (
 								<>
 									We'll read{" "}
 									<span className="font-mono text-xs text-foreground">
@@ -651,6 +709,7 @@ function buildSteps(
 								},
 								{ label: "Build", value: BUILD_LABEL[v.build] },
 								{ label: "Port", value: v.port },
+								...releaseRows(v.release),
 							]
 						: v.kind === "image"
 							? [
@@ -660,6 +719,7 @@ function buildSteps(
 									},
 									{ label: "Port", value: v.port },
 									...hostRows(v.host),
+									...releaseRows(v.release),
 								]
 							: v.kind === "database"
 								? [
@@ -670,12 +730,37 @@ function buildSteps(
 									]
 								: v.kind === "webserver"
 									? webserverRows(v)
-									: [
-											{
-												label: "Compose",
-												value: `${v.composeYaml.split("\n").length} lines`,
-											},
-										];
+									: v.composeFrom === "git"
+										? [
+												{
+													label: "Provider",
+													value: providerName(v.providerId),
+												},
+												{
+													label: "Repository",
+													value: (
+														<span className="font-mono text-xs">
+															{v.repository}
+														</span>
+													),
+												},
+												{ label: "Branch", value: v.branch },
+												{
+													label: "Compose file",
+													value: (
+														<span className="font-mono text-xs">
+															{v.composePath}
+														</span>
+													),
+												},
+												{ label: "Sync", value: "Every push to the branch" },
+											]
+										: [
+												{
+													label: "Compose",
+													value: `${v.composeYaml.split("\n").length} lines`,
+												},
+											];
 				return (
 					<Summary
 						w={w}
@@ -687,6 +772,11 @@ function buildSteps(
 									{ label: "Name", value: serviceName(v) },
 									{ label: "Environment", value: env.name },
 									...source,
+									...(v.kind === "compose"
+										? []
+										: [
+												{ label: "Resources", value: <ProfileSummary v={v} /> },
+											]),
 								],
 							},
 							...(v.kind === "database"
@@ -844,6 +934,43 @@ function NameField({ w }: { w: WizardApi<V> }) {
 	);
 }
 
+/** The profile the wizard will copy: the one picked, else the organization default. */
+function chosenProfile(v: V, rp: ResourceProfiles | undefined) {
+	const name = v.resourceProfile || rp?.defaultProfile;
+	return rp?.profiles.find((p) => p.name === name);
+}
+
+function ProfileSummary({ v }: { v: V }) {
+	const p = chosenProfile(v, useResourceProfiles().data);
+	return p ? (
+		<span>
+			{p.name}{" "}
+			<span className="text-muted-foreground tabular-nums">
+				{limitsLabel(p)}
+			</span>
+		</span>
+	) : (
+		"Unlimited"
+	);
+}
+
+function ProfileField({ w }: { w: WizardApi<V> }) {
+	const { data } = useResourceProfiles();
+	return (
+		<Field
+			id="wz-resourceProfile"
+			label="Resources"
+			hint="Limits per replica, copied from the profile. Change them later in the service settings."
+		>
+			<ResourceProfileSelect
+				id="wz-resourceProfile"
+				value={chosenProfile(w.values, data)?.name ?? UNLIMITED}
+				onChange={(name) => w.set("resourceProfile", name)}
+			/>
+		</Field>
+	);
+}
+
 function ConfigureStep({
 	w,
 	providers,
@@ -854,7 +981,12 @@ function ConfigureStep({
 	suggestions: string[];
 }) {
 	const v = w.values;
-	const name = <NameField w={w} />;
+	const name = (
+		<>
+			<NameField w={w} />
+			{v.kind !== "compose" && <ProfileField w={w} />}
+		</>
+	);
 	if (v.kind === "webserver") {
 		const def = WEBSERVERS[v.webserver];
 		return (
@@ -1021,6 +1153,7 @@ function ConfigureStep({
 					</Field>
 				</div>
 				{name}
+				<ReleaseAdvanced w={w} />
 			</div>
 		);
 	}
@@ -1053,6 +1186,7 @@ function ConfigureStep({
 					{name}
 				</div>
 				<HostAdvanced w={w} />
+				<ReleaseAdvanced w={w} />
 			</div>
 		);
 	}
@@ -1102,27 +1236,118 @@ function ConfigureStep({
 			</div>
 		);
 	}
+	// Git stacks read the file through a provider's API, so a generic SSH remote cannot serve one.
+	const apiProviders = providers.filter((p) => p.kind !== "generic");
+	const from = apiProviders.length ? v.composeFrom : "paste";
 	return (
 		<div className="grid gap-4">
-			<Field
-				id="wz-composeYaml"
-				label="Compose file"
-				error={w.error("composeYaml")}
-				hint="Each compose service becomes a container of one stack, reachable by its name. Official database images become managed databases. build:, host paths and privileged mode are not supported; add domains from the stack once it runs."
-			>
-				<Textarea
-					{...w.bind("composeYaml")}
-					rows={10}
-					spellCheck={false}
-					placeholder={
-						"services:\n  web:\n    image: nginx:1.29\n    ports:\n      - 80"
-					}
-					className="font-mono text-xs leading-5"
-					autoFocus
+			{apiProviders.length > 0 && (
+				<ChoiceGroup
+					label="Compose file"
+					value={from}
+					onChange={(f) => {
+						w.set("composeFrom", f);
+						if (f === "git" && !apiProviders.some((p) => p.id === v.providerId))
+							w.set("providerId", apiProviders[0]?.id ?? "");
+					}}
+					columns={2}
+					choices={[
+						{
+							value: "paste",
+							title: "Paste a file",
+							description: "Edit it later from the stack's Compose tab.",
+							icon: PenLine,
+						},
+						{
+							value: "git",
+							title: "From a repository",
+							description:
+								"Read from a branch; every push re-syncs the stack and rebuilds build: services.",
+							icon: GitBranch,
+						},
+					]}
 				/>
-			</Field>
-			{name}
+			)}
+			{from === "git" ? (
+				<>
+					<Field id="wz-providerId" label="Git provider">
+						<Select
+							value={v.providerId}
+							onValueChange={(id) => {
+								w.set("providerId", id);
+								w.set("repository", "");
+							}}
+						>
+							<SelectTrigger id="wz-providerId" className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{apiProviders.map((p) => {
+									const Icon = GIT_KIND[p.kind].icon;
+									return (
+										<SelectItem key={p.id} value={p.id}>
+											<Icon aria-hidden />
+											{p.name}
+										</SelectItem>
+									);
+								})}
+							</SelectContent>
+						</Select>
+					</Field>
+					<Field
+						id="wz-repository"
+						label="Repository"
+						error={w.error("repository")}
+					>
+						<RepoPicker key={v.providerId} w={w} />
+					</Field>
+					<div className="grid gap-4 sm:grid-cols-2">
+						<BranchField w={w} />
+						<Field
+							id="wz-composePath"
+							label="Compose file path"
+							error={w.error("composePath")}
+							hint="From the repository root."
+						>
+							<Input
+								{...w.bind("composePath")}
+								className="font-mono"
+								spellCheck={false}
+								autoCapitalize="none"
+							/>
+						</Field>
+					</div>
+					{name}
+				</>
+			) : (
+				<>
+					<PasteCompose w={w} />
+					{name}
+				</>
+			)}
 		</div>
+	);
+}
+
+function PasteCompose({ w }: { w: WizardApi<V> }) {
+	return (
+		<Field
+			id="wz-composeYaml"
+			label="Compose file"
+			error={w.error("composeYaml")}
+			hint="Each compose service becomes a container of one stack, reachable by its name. Official database images become managed databases. build: needs a repository; host paths and privileged mode are not supported. Add domains from the stack once it runs."
+		>
+			<Textarea
+				{...w.bind("composeYaml")}
+				rows={10}
+				spellCheck={false}
+				placeholder={
+					"services:\n  web:\n    image: nginx:1.29\n    ports:\n      - 80"
+				}
+				className="font-mono text-xs leading-5"
+				autoFocus
+			/>
+		</Field>
 	);
 }
 
@@ -1261,6 +1486,57 @@ function HostAdvanced({ w }: { w: WizardApi<V> }) {
 	);
 }
 
+function releaseRows(r: ReleaseSettings) {
+	return (["preDeploy", "postDeploy"] as const).flatMap((phase) => {
+		const c = r[phase];
+		return c
+			? [
+					{
+						label: phase === "preDeploy" ? "Pre-deploy" : "Post-deploy",
+						value: (
+							<span className="font-mono text-xs">
+								{JSON.stringify(c.command)}
+							</span>
+						),
+					},
+				]
+			: [];
+	});
+}
+
+/** Collapsed unless set, like the host settings. */
+function ReleaseAdvanced({ w }: { w: WizardApi<V> }) {
+	const release = w.values.release;
+	const [open, setOpen] = useState(
+		() => !!(release.preDeploy || release.postDeploy),
+	);
+	return (
+		<Collapsible
+			open={open}
+			onOpenChange={setOpen}
+			className="group/rel mt-4 grid gap-1"
+		>
+			<CollapsibleTrigger className="flex w-fit items-center gap-1.5 rounded-sm text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
+				Release commands
+				<ChevronDown
+					className="size-4 text-muted-foreground transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-data-[state=open]/rel:rotate-180"
+					aria-hidden
+				/>
+			</CollapsibleTrigger>
+			<p className="text-sm text-muted-foreground">
+				Migrations and other one-off runs before or after each rollout.
+			</p>
+			<CollapsibleContent className="t-reveal grid gap-7 pt-4">
+				<ReleaseCommandFields
+					value={release}
+					onChange={(p) => w.set("release", { ...release, ...p })}
+					idPrefix="wz-"
+				/>
+			</CollapsibleContent>
+		</Collapsible>
+	);
+}
+
 /** The preset's config: the default, or the load balancer generated from its form. */
 const webserverConfig = (v: V) =>
 	v.webserver === "haproxy"
@@ -1338,6 +1614,7 @@ function toSpec(v: V): ServiceSpec {
 					},
 		build: toBuild(v),
 		...imageHost(v),
+		...(v.kind === "image" || v.kind === "git" ? v.release : {}),
 		replicas: 1,
 		resources: {},
 		placement: [],
@@ -1377,7 +1654,9 @@ function NewService() {
 	const { data: project } = useQuery(projectQuery(projectId));
 	const { data: status } = useQuery(instanceStatusQuery);
 	const create = useCreateService();
+	const { data: resourceProfiles } = useResourceProfiles();
 	const createStack = useCreateComposeStack();
+	const createGitStack = useCreateGitStack();
 	const providers = useQuery(gitProvidersQuery);
 
 	const env =
@@ -1433,31 +1712,72 @@ function NewService() {
 				onComplete={async (v) => {
 					const name = serviceName(v);
 					if (v.kind === "compose") {
-						const made = await createStack
-							.mutateAsync({
-								environmentId: env.id,
-								name,
-								composeYaml: v.composeYaml,
-							})
-							.catch((e: unknown) => {
-								throw e instanceof ApiError && Array.isArray(e.details)
-									? new Error(`${e.message}: ${e.details.join("; ")}`)
-									: e;
-							});
+						const fromGit = v.composeFrom === "git";
+						const made = await (fromGit
+							? createGitStack.mutateAsync({
+									environmentId: env.id,
+									name,
+									git: {
+										gitProviderId: v.providerId,
+										repository: v.repository,
+										branch: v.branch.trim(),
+										composePath: v.composePath.trim().replace(/^\.\//, ""),
+									},
+								})
+							: createStack.mutateAsync({
+									environmentId: env.id,
+									name,
+									composeYaml: v.composeYaml,
+								})
+						).catch((e: unknown) => {
+							throw e instanceof ApiError && Array.isArray(e.details)
+								? new Error(`${e.message}: ${e.details.join("; ")}`)
+								: e;
+						});
+						const hook = fromGit
+							? await integrations.git
+									.webhook(v.providerId, v.repository)
+									.catch(
+										(e: unknown): WebhookOutcome => ({
+											status: "failed",
+											message: errorText(e),
+										}),
+									)
+							: null;
 						toast.success(`${name} is deploying`, {
-							description: `${made.services.length} containers start in dependency order.`,
+							description: `${made.services.length} containers start in dependency order.${hook?.status === "registered" || hook?.status === "exists" ? ` Pushes to ${v.branch.trim()} re-sync it.` : ""}`,
 							icon: <Layers className="size-4" />,
 						});
+						if (hook?.status === "failed")
+							toast.warning("Add the push webhook by hand", {
+								description: `${hook.message} Copy the webhook URL from Git providers into the repository's webhook settings.`,
+								duration: 12_000,
+							});
 						await navigate({
 							to: "/projects/$projectId/stacks/$stackId",
 							params: { projectId, stackId: made.stackId as StackId },
 						});
 						return;
 					}
+					const spec = toSpec(v);
+					const profile = chosenProfile(v, resourceProfiles);
+					// With no choice to send (storage, or profiles still loading) the server applies the default.
+					const sized =
+						spec.kind === "storage" ||
+						spec.kind === "compose" ||
+						!resourceProfiles
+							? { spec }
+							: {
+									spec: {
+										...spec,
+										resources: profile ? limitsOf(profile) : {},
+									},
+									resourceProfile: profile?.name ?? null,
+								};
 					const service = await create.mutateAsync({
 						environmentId: env.id,
 						name,
-						spec: toSpec(v),
+						...sized,
 						...(v.kind === "webserver" && {
 							importedFrom: webserverMarker(v.webserver),
 							mounts: webserverMounts(v.webserver, webserverConfig(v)),

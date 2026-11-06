@@ -47,7 +47,148 @@ const entry = (id: string) => {
 	return e;
 };
 
+type Node =
+	| { type: "dir" }
+	| { type: "file"; content: string; binary?: boolean; size?: number }
+	| { type: "symlink"; target: string };
+
+/** One fake root filesystem, shared by every mock service's replicas. */
+const rootfs = new Map<string, Node>([
+	["/", { type: "dir" }],
+	["/app", { type: "dir" }],
+	[
+		"/app/server.js",
+		{
+			type: "file",
+			content:
+				'import http from "node:http";\n\nhttp\n\t.createServer((_, res) => res.end("ok"))\n\t.listen(process.env.PORT ?? 3000);\n',
+		},
+	],
+	[
+		"/app/package.json",
+		{
+			type: "file",
+			content:
+				'{\n  "name": "shop",\n  "type": "module",\n  "scripts": { "start": "node server.js" }\n}\n',
+		},
+	],
+	["/app/node_modules", { type: "dir" }],
+	["/etc", { type: "dir" }],
+	["/etc/hostname", { type: "file", content: "a81f3c2e9d40\n" }],
+	[
+		"/etc/os-release",
+		{
+			type: "file",
+			content:
+				'NAME="Alpine Linux"\nID=alpine\nVERSION_ID=3.20.3\nPRETTY_NAME="Alpine Linux v3.20"\n',
+		},
+	],
+	["/etc/mtab", { type: "symlink", target: "/proc/mounts" }],
+	["/usr", { type: "dir" }],
+	["/usr/bin", { type: "dir" }],
+	[
+		"/usr/bin/node",
+		{ type: "file", content: "", binary: true, size: 98_304_112 },
+	],
+	["/bin", { type: "symlink", target: "/usr/bin" }],
+	["/tmp", { type: "dir" }],
+	["/var", { type: "dir" }],
+	["/var/log", { type: "dir" }],
+	["/var/log/app.log", { type: "file", content: "listening on :3000\n" }],
+]);
+const MOCK_MTIME = Math.floor(Date.now() / 1000) - 3600;
+
+function resolve(path: string): string {
+	for (let i = 0; i < 8; i++) {
+		const n = rootfs.get(path);
+		if (n?.type !== "symlink") return path;
+		path = n.target;
+	}
+	return path;
+}
+
+const sizeOf = (n: Node) =>
+	n.type === "file"
+		? (n.size ?? new TextEncoder().encode(n.content).length)
+		: 0;
+
+function entryOf(path: string, n: Node) {
+	return {
+		name: path === "/" ? "/" : (path.split("/").at(-1) ?? path),
+		type: n.type,
+		size: sizeOf(n),
+		mode: n.type === "dir" ? 0o755 : 0o644,
+		modifiedAt: MOCK_MTIME,
+		...(n.type === "symlink" ? { linkTarget: n.target } : {}),
+	};
+}
+
+function stat(path: string) {
+	const real = resolve(path);
+	const n = rootfs.get(real);
+	if (!n) throw new Error(`${path}: no such file or directory`);
+	return { real, n };
+}
+
 export const mockFiles: FilesApi = {
+	container: {
+		list: async (_id, taskId, path) => {
+			const { real, n } = stat(path);
+			const prefix = real === "/" ? "/" : `${real}/`;
+			const entries =
+				n.type === "dir"
+					? [...rootfs]
+							.filter(
+								([p]) =>
+									p !== real &&
+									p.startsWith(prefix) &&
+									!p.slice(prefix.length).includes("/"),
+							)
+							.map(([p, c]) => entryOf(p, c))
+							.sort(
+								(a, b) =>
+									Number(b.type === "dir") - Number(a.type === "dir") ||
+									a.name.localeCompare(b.name),
+							)
+					: null;
+			return delay({
+				taskId: taskId || "task_mock1",
+				path: real,
+				entry: entryOf(real, n),
+				entries,
+				truncated: false,
+			});
+		},
+		read: async (_id, taskId, path) => {
+			const { real, n } = stat(path);
+			if (n.type !== "file") throw new Error(`${real} is not a regular file`);
+			return delay({
+				taskId: taskId || "task_mock1",
+				path: real,
+				size: sizeOf(n),
+				truncated: false,
+				binary: Boolean(n.binary),
+				content: n.binary ? null : n.content,
+			});
+		},
+		upload: (_id, _taskId, path, file, onProgress) => {
+			let abortRef = () => {};
+			const done = new Promise<void>((resolve, reject) => {
+				const timer = setTimeout(() => {
+					onProgress(file.size);
+					void file.text().then((content) => {
+						rootfs.set(path, { type: "file", content, size: file.size });
+						resolve();
+					});
+				}, 400);
+				abortRef = () => {
+					clearTimeout(timer);
+					reject(new DOMException("Cancelled", "AbortError"));
+				};
+			});
+			return { done, abort: () => abortRef() };
+		},
+	},
 	get: async (id) => delay(entry(id).files),
 	save: async (id, mountId, content) => {
 		const f = entry(id).files.files.find((x) => x.id === mountId);

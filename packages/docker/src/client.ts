@@ -22,6 +22,7 @@ import type {
 	Network,
 	NetworkCreateRequest,
 	NodeSpec,
+	PathStat,
 	PruneResponse,
 	RegistryAuth,
 	SecretSpec,
@@ -243,6 +244,36 @@ export function createDockerClient(opts: DockerClientOptions = {}) {
 						})
 					).arrayBuffer(),
 				),
+			/** Streaming form of `archive`; aborting `signal` stops the daemon's walk. */
+			archiveStream: async (
+				containerId: string,
+				path: string,
+				signal?: AbortSignal,
+			) =>
+				(
+					await t.stream("GET", `/containers/${id(containerId)}/archive`, {
+						query: { path },
+						signal,
+					})
+				).body as ReadableStream<Uint8Array>,
+			/** `path` itself, symlinks not followed; parent components resolve inside the container root. */
+			statPath: async (containerId: string, path: string) => {
+				const res = await t.stream(
+					"HEAD",
+					`/containers/${id(containerId)}/archive`,
+					{ query: { path } },
+				);
+				const raw = res.headers.get("x-docker-container-path-stat");
+				if (!raw) throw new Error("the engine sent no path stat");
+				return JSON.parse(Buffer.from(raw, "base64").toString()) as PathStat;
+			},
+			/** Extracts `tar` into the existing directory `path`; never swaps a directory for a file or back. */
+			putArchive: (containerId: string, path: string, tar: Uint8Array) =>
+				t.json<void>("PUT", `/containers/${id(containerId)}/archive`, {
+					query: { path, noOverwriteDirNonDir: true },
+					headers: { "content-type": "application/x-tar" },
+					body: tar,
+				}),
 			logs: (containerId: string, o: LogOptions = {}) =>
 				logs(`/containers/${id(containerId)}/logs`, o),
 			stats: (containerId: string) =>

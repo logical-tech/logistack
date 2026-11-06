@@ -9,6 +9,7 @@ import {
 	ServiceSpec,
 } from "@logistack/contracts";
 import {
+	applyResourceProfile,
 	databaseCredentials,
 	dataDirOf,
 	encrypt,
@@ -46,7 +47,14 @@ import {
 	slugify,
 } from "../openapi.ts";
 import { checkGit, checkImage } from "../probe.ts";
-import { byParam, check, inOrganization, requirePermission } from "../scope.ts";
+import { readResourceProfiles } from "../resource-profiles.ts";
+import {
+	byParam,
+	check,
+	inOrganization,
+	refuseArchived,
+	requirePermission,
+} from "../scope.ts";
 import { hostPolicy } from "../ssrf.ts";
 import { ConfigContent, MountTarget } from "./files.ts";
 
@@ -85,6 +93,11 @@ const ServiceInput = z.object({
 	slug: Slug.optional(),
 	/** Validated per kind; the service's kind is the spec's. */
 	spec: ServiceSpec,
+	/**
+	 * Organization resource profile whose limits are copied into the spec. Omitted, a spec without
+	 * limits gets the organization's default profile; `null` keeps the spec's limits as sent.
+	 */
+	resourceProfile: z.string().nullable().optional(),
 	/** Node a service with bind mounts is pinned to; default the only node, else the only manager. */
 	nodeId: z.string().optional(),
 	/** Set by importers, e.g. `dokploy:<appName>/<service>`; a re-import skips a service that has it. */
@@ -232,7 +245,16 @@ export const services = router()
 				...(input.nodeId ? { requestedNodeId: input.nodeId } : {}),
 			});
 			const { db, masterKey } = c.var.deps;
-			const spec = input.spec;
+			let spec: ServiceSpec;
+			try {
+				spec = applyResourceProfile(
+					input.spec,
+					input.resourceProfile,
+					await readResourceProfiles(db, requireActor(c).organizationId),
+				);
+			} catch (e) {
+				throw new Failure("bad_request", (e as Error).message);
+			}
 			const adopted = input.adoptedVolumes ?? [];
 			if (adopted.length) {
 				// Mounting a volume by name reaches data outside this organization's own objects.
@@ -540,6 +562,7 @@ export const services = router()
 		async (c) => {
 			const serviceId = c.req.valid("param").id;
 			const actor = requireActor(c);
+			await refuseArchived(c);
 			const row = one(
 				await c.var.deps.db
 					.insert(deployment)

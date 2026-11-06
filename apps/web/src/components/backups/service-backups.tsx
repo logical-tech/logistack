@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
+	ChevronRight,
 	DatabaseBackup,
 	HardDrive,
 	Loader2,
+	Lock,
 	Play,
 	Plus,
 	ShieldCheck,
@@ -19,11 +21,25 @@ import { KindTile } from "@/components/integration-kinds";
 import { ConfirmDelete } from "@/components/integrations/parts";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
 	type BackupPolicy,
 	type BackupRun,
 	type ServiceBackups as Backups,
+	type PolicyWithKey,
 	serviceBackupsQuery,
 	useBackupRun,
 	useDeletePolicy,
@@ -36,6 +52,7 @@ import { formatDuration, relativeTime } from "@/lib/format";
 import { formatBytes } from "@/lib/metrics";
 import { useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
+import { BackupKeyReveal, DecryptHelp, useDecryptCommand } from "./backup-key";
 import { RunStatusLabel } from "./schedule-parts";
 
 const ENGINE_DUMP: Record<string, string> = {
@@ -165,6 +182,143 @@ function RunButton({
 	);
 }
 
+/** Turns encryption on, or replaces a key nobody saved, then shows the new key once. */
+function EncryptDialog({
+	policy,
+	open,
+	onOpenChange,
+}: {
+	policy: BackupPolicy;
+	open: boolean;
+	onOpenChange: (o: boolean) => void;
+}) {
+	const update = useUpdatePolicy();
+	const [done, setDone] = useState<PolicyWithKey | null>(null);
+	const rekey = policy.encrypted;
+	// The key leaves memory with the dialog.
+	const close = (o: boolean) => {
+		onOpenChange(o);
+		if (!o) setDone(null);
+	};
+	return (
+		<Dialog open={open} onOpenChange={close}>
+			<DialogContent className="sm:max-w-lg">
+				{done?.encryptionKey ? (
+					<>
+						<DialogHeader>
+							<DialogTitle>Save the backup key</DialogTitle>
+							<DialogDescription>
+								Backups from now on are encrypted with this key.
+							</DialogDescription>
+						</DialogHeader>
+						<BackupKeyReveal policy={done} encryptionKey={done.encryptionKey} />
+						<DialogFooter>
+							<Button onClick={() => close(false)}>I've saved the key</Button>
+						</DialogFooter>
+					</>
+				) : (
+					<>
+						<DialogHeader>
+							<DialogTitle>
+								{rekey ? "Generate a new key?" : "Encrypt these backups?"}
+							</DialogTitle>
+							<DialogDescription className="text-pretty">
+								{rekey
+									? "Use this if you didn't save the first key. The old key stops working. No backup has been encrypted yet, so nothing is lost. LogiStack shows the new key once."
+									: "Later backups are encrypted with age before they leave this server; earlier ones stay as they are and still restore. LogiStack shows the new key once. Once an encrypted backup exists, the key can't be replaced or removed."}
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button variant="outline" onClick={() => close(false)}>
+								Cancel
+							</Button>
+							<Button
+								disabled={update.isPending}
+								onClick={() =>
+									update.mutate(
+										{ id: policy.id, encrypt: true },
+										{
+											onSuccess: setDone,
+											onError: (e) =>
+												toast.error("Couldn't turn on encryption", {
+													description: e.message,
+												}),
+										},
+									)
+								}
+							>
+								{update.isPending && <Loader2 className="animate-spin" />}
+								{rekey
+									? "Generate and show the key"
+									: "Encrypt and show the key"}
+							</Button>
+						</DialogFooter>
+					</>
+				)}
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function EncryptionLine({ policy }: { policy: BackupPolicy }) {
+	const [encrypting, setEncrypting] = useState(false);
+	const last = policy.lastRun?.objectKey;
+	const command = useDecryptCommand(
+		policy,
+		last?.endsWith(".age") ? last : undefined,
+	);
+	return (
+		<>
+			{policy.encrypted ? (
+				<Collapsible className="sm:pl-11">
+					<CollapsibleTrigger className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+						<Lock className="size-3.5" aria-hidden />
+						Encrypted with age
+						<span aria-hidden>·</span>
+						<span className="text-foreground">Decrypt without LogiStack</span>
+						<ChevronRight
+							className="size-3.5 transition-transform duration-(--duration-fast) group-data-[state=open]:rotate-90"
+							aria-hidden
+						/>
+					</CollapsibleTrigger>
+					<CollapsibleContent className="pt-3">
+						<DecryptHelp command={command} />
+					</CollapsibleContent>
+					{!policy.hasEncryptedBackup && (
+						<p className="pt-2 text-xs text-muted-foreground">
+							Didn't save the key?{" "}
+							<button
+								type="button"
+								className="font-medium text-foreground underline-offset-2 hover:underline"
+								onClick={() => setEncrypting(true)}
+							>
+								Generate a new key
+							</button>
+						</p>
+					)}
+				</Collapsible>
+			) : (
+				<p className="text-xs text-muted-foreground sm:pl-11">
+					Stored unencrypted in the bucket.{" "}
+					<button
+						type="button"
+						className="font-medium text-foreground underline-offset-2 hover:underline"
+						onClick={() => setEncrypting(true)}
+					>
+						Encrypt backups
+					</button>
+				</p>
+			)}
+			{/* Stays mounted while the policy flips to encrypted, so the key stays on screen. */}
+			<EncryptDialog
+				policy={policy}
+				open={encrypting}
+				onOpenChange={setEncrypting}
+			/>
+		</>
+	);
+}
+
 function PolicyRow({ policy, data }: { policy: BackupPolicy; data: Backups }) {
 	const update = useUpdatePolicy();
 	const remove = useDeletePolicy();
@@ -261,6 +415,7 @@ function PolicyRow({ policy, data }: { policy: BackupPolicy; data: Backups }) {
 					)}
 				</Fact>
 			</dl>
+			<EncryptionLine policy={policy} />
 			<ConfirmDelete
 				open={deleting}
 				onOpenChange={setDeleting}

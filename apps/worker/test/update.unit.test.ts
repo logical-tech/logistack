@@ -5,6 +5,7 @@ import {
 	pendingSteps,
 	runUpdate,
 	type UpdateDocker,
+	type UpdateGate,
 	type UpdateOptions,
 	type UpdateTarget,
 } from "../src/update.ts";
@@ -117,6 +118,28 @@ function fakeSwarm(o: {
 	return { docker, calls, services };
 }
 
+/** Records drain, migrate and resume into the same call log as Swarm, so the order shows. */
+function fakeGate(
+	calls: string[],
+	o: { drain?: string; migrate?: string } = {},
+): UpdateGate {
+	return {
+		async drain(report) {
+			calls.push("drain");
+			await report.line("Waiting for 1 deployment");
+			return o.drain ? { ok: false, error: o.drain } : { ok: true };
+		},
+		async resume() {
+			calls.push("resume");
+		},
+		async migrate(image) {
+			calls.push(`migrate ${image}`);
+			if (o.migrate) throw new Error(o.migrate);
+			return { ok: true };
+		},
+	};
+}
+
 function recorder() {
 	const steps: Partial<Record<UpdateStep, UpdateStepState>> = pendingSteps(
 		targets("x"),
@@ -159,19 +182,30 @@ describe("runUpdate", () => {
 		const swarm = fakeSwarm({});
 		const r = recorder();
 		expect(
-			await runUpdate(swarm.docker, targets("0.2.0"), r.report, opts()),
+			await runUpdate(
+				swarm.docker,
+				targets("0.2.0"),
+				r.report,
+				opts(),
+				fakeGate(swarm.calls),
+			),
 		).toEqual({
 			ok: true,
 		});
 		expect(swarm.calls).toEqual([
 			...SERVICES.map(([, image]) => `pull ${REG}/${image}:0.2.0`),
+			"drain",
+			`migrate ${REG}/logistack:0.2.0${DIGEST}`,
 			...SERVICES.map(
 				([step, image]) =>
 					`update logistack_${step} ${REG}/${image}:0.2.0${DIGEST}`,
 			),
+			"resume",
 		]);
 		expect(r.steps).toEqual({
 			pull: "done",
+			drain: "done",
+			migrate: "done",
 			"logistack-api": "done",
 			"logistack-agent": "done",
 			caddy: "done",
@@ -193,12 +227,13 @@ describe("runUpdate", () => {
 			targets("0.2.0"),
 			r.report,
 			opts(),
+			fakeGate(swarm.calls),
 		);
 		expect(res).toEqual({
 			ok: false,
 			error: `${REG}/logistack-caddy:0.2.0: manifest unknown`,
 		});
-		expect(swarm.calls.filter((c) => c.startsWith("update"))).toEqual([]);
+		expect(swarm.calls.filter((c) => !c.startsWith("pull"))).toEqual([]);
 		expect(r.steps.pull).toBe("failed");
 		expect(r.steps["logistack-api"]).toBe("pending");
 	});
@@ -211,6 +246,7 @@ describe("runUpdate", () => {
 			targets("0.2.0"),
 			r.report,
 			opts(),
+			fakeGate(swarm.calls),
 		);
 		expect(res.ok).toBe(false);
 		expect(!res.ok && res.error).toBe(
@@ -228,8 +264,11 @@ describe("runUpdate", () => {
 				swarm.services.get(`logistack_${step}`)?.Spec.TaskTemplate.ContainerSpec
 					.Image,
 			).toBe(`localhost/${image}:0.1.0-local.abc`);
+		expect(swarm.calls.at(-1)).toBe("resume");
 		expect(r.steps).toEqual({
 			pull: "done",
+			drain: "done",
+			migrate: "done",
 			"logistack-api": "rolled_back",
 			"logistack-agent": "rolled_back",
 			caddy: "failed",
@@ -245,6 +284,7 @@ describe("runUpdate", () => {
 			targets("0.2.0"),
 			r.report,
 			opts({ timeoutMs: 5_000 }),
+			fakeGate(swarm.calls),
 		);
 		expect(!res.ok && res.error).toBe(
 			"logistack-api did not become healthy (not healthy after 5 s: health check failing).",
@@ -265,24 +305,98 @@ describe("runUpdate", () => {
 		}));
 		const r = recorder();
 		expect(
-			await runUpdate(swarm.docker, local, r.report, opts({ local: true })),
+			await runUpdate(
+				swarm.docker,
+				local,
+				r.report,
+				opts({ local: true }),
+				fakeGate(swarm.calls),
+			),
 		).toEqual({ ok: true });
-		expect(swarm.calls).toEqual(
-			SERVICES.map(
+		expect(swarm.calls).toEqual([
+			"drain",
+			"migrate localhost/logistack:0.2.0",
+			...SERVICES.map(
 				([step, image]) => `update logistack_${step} localhost/${image}:0.2.0`,
 			),
-		);
+			"resume",
+		]);
 	});
 
 	test("a re-run skips services that already run the target", async () => {
 		const swarm = fakeSwarm({});
-		await runUpdate(swarm.docker, targets("0.2.0"), recorder().report, opts());
+		await runUpdate(
+			swarm.docker,
+			targets("0.2.0"),
+			recorder().report,
+			opts(),
+			fakeGate(swarm.calls),
+		);
 		swarm.calls.length = 0;
 		const r = recorder();
 		expect(
-			await runUpdate(swarm.docker, targets("0.2.0"), r.report, opts()),
+			await runUpdate(
+				swarm.docker,
+				targets("0.2.0"),
+				r.report,
+				opts(),
+				fakeGate(swarm.calls),
+			),
 		).toEqual({ ok: true });
 		expect(swarm.calls.filter((c) => c.startsWith("update"))).toEqual([]);
 		expect(r.steps["logistack-worker"]).toBe("done");
+	});
+
+	test("a drain that times out changes no service and resumes the queues", async () => {
+		const swarm = fakeSwarm({});
+		const r = recorder();
+		const res = await runUpdate(
+			swarm.docker,
+			targets("0.2.0"),
+			r.report,
+			opts(),
+			fakeGate(swarm.calls, { drain: "Gave up after 30 min" }),
+		);
+		expect(res).toEqual({ ok: false, error: "Gave up after 30 min" });
+		expect(swarm.calls.filter((c) => !c.startsWith("pull"))).toEqual([
+			"drain",
+			"resume",
+		]);
+		expect(r.steps.drain).toBe("failed");
+		expect(r.steps.migrate).toBe("pending");
+		expect(r.lines).toContain("Waiting for 1 deployment");
+	});
+
+	test("a failed migration changes no service and resumes the queues", async () => {
+		const swarm = fakeSwarm({});
+		const r = recorder();
+		const res = await runUpdate(
+			swarm.docker,
+			targets("0.2.0"),
+			r.report,
+			opts(),
+			fakeGate(swarm.calls, { migrate: "the migration job failed" }),
+		);
+		expect(res).toEqual({ ok: false, error: "the migration job failed" });
+		expect(swarm.calls.filter((c) => c.startsWith("update"))).toEqual([]);
+		expect(swarm.calls.at(-1)).toBe("resume");
+		expect(r.steps.drain).toBe("done");
+		expect(r.steps.migrate).toBe("failed");
+		expect(r.steps["logistack-api"]).toBe("pending");
+	});
+
+	test("a disabled healthcheck from an older stack is dropped, so the image's check applies", async () => {
+		const swarm = fakeSwarm({});
+		const worker = swarm.services.get("logistack_logistack-worker");
+		if (!worker) throw new Error("no worker");
+		worker.Spec.TaskTemplate.ContainerSpec.Healthcheck = { Test: ["NONE"] };
+		await runUpdate(
+			swarm.docker,
+			targets("0.2.0"),
+			recorder().report,
+			opts(),
+			fakeGate(swarm.calls),
+		);
+		expect(worker.Spec.TaskTemplate.ContainerSpec.Healthcheck).toBeUndefined();
 	});
 });

@@ -12,7 +12,7 @@ import {
 	type ServiceContext,
 } from "../src/load.ts";
 import { domainRoute, routeAccess } from "../src/proxy.ts";
-import { observe } from "../src/reconcile.ts";
+import { crashLoop, observe } from "../src/reconcile.ts";
 
 describe("buildPlan", () => {
 	const base = {
@@ -20,6 +20,7 @@ describe("buildPlan", () => {
 		appPath: "apps/web",
 		imageRef: "ls-local/org/ls-svc-a:dep_1",
 		railpackFrontend: "ghcr.io/railwayapp/railpack-frontend:v1",
+		platforms: ["linux/arm64" as const],
 		buildEnv: [
 			{ key: "PUBLIC_URL", value: "https://x", isSecret: false },
 			{ key: "NPM_TOKEN", value: "t0ken", isSecret: true },
@@ -41,6 +42,8 @@ describe("buildPlan", () => {
 			"build",
 			"--progress",
 			"plain",
+			"--opt",
+			"platform=linux/arm64",
 			"--frontend",
 			"dockerfile.v0",
 			"--local",
@@ -64,6 +67,21 @@ describe("buildPlan", () => {
 		]);
 		expect(plan.env).toEqual({ NPM_TOKEN: "t0ken" });
 		expect(plan.args.join(" ")).not.toContain("t0ken");
+		expect(plan.pushes).toBe(false);
+	});
+
+	test("several platforms: BuildKit pushes one manifest list instead of a docker tarball", () => {
+		const plan = buildPlan({
+			...base,
+			platforms: ["linux/amd64", "linux/arm64"],
+			build: { type: "dockerfile", dockerfilePath: "Dockerfile", context: "." },
+		});
+		expect(plan.pushes).toBe(true);
+		expect(plan.args).toContain("platform=linux/amd64,linux/arm64");
+		expect(plan.args.slice(-2)).toEqual([
+			"--output",
+			"type=image,name=ls-local/org/ls-svc-a:dep_1,push=true",
+		]);
 	});
 
 	test("paths escaping the checkout are rejected", () => {
@@ -77,6 +95,24 @@ describe("buildPlan", () => {
 				},
 			}),
 		).toThrow(/escapes the repository/);
+	});
+
+	test("an app path written from the repository root ('/', '/api') stays inside the checkout", () => {
+		for (const [appPath, dir] of [
+			["/", "/w/builds/dep_1"],
+			["/apps/web", "/w/builds/dep_1/apps/web"],
+		] as const) {
+			const plan = buildPlan({
+				...base,
+				appPath,
+				build: {
+					type: "dockerfile",
+					dockerfilePath: "Dockerfile",
+					context: ".",
+				},
+			});
+			expect(plan.args.join(" ")).toContain(`context=${dir} `);
+		}
 	});
 
 	test("railpack prepares a plan, then builds it with the railpack frontend", () => {
@@ -142,6 +178,68 @@ describe("observe", () => {
 			observe({ exists: true, desired: 1, tasks: [task("failed", "shutdown")] })
 				.observed,
 		).toBe("failed");
+	});
+});
+
+describe("crashLoop", () => {
+	const now = Date.parse("2026-11-06T10:00:00Z");
+	const task = (
+		state: Task["Status"]["State"],
+		secAgo: number,
+		exit = 1,
+	): Pick<Task, "Status"> => ({
+		Status: {
+			State: state,
+			// Swarm stamps nanoseconds.
+			Timestamp: new Date(now - secAgo * 1000)
+				.toISOString()
+				.replace("Z", "123456Z"),
+			Message: "started",
+			Err: `task: non-zero exit (${exit})`,
+			ContainerStatus: { ExitCode: exit },
+		},
+	});
+
+	test("enters at three failures inside five minutes, newest reason first", () => {
+		const tasks = [
+			task("failed", 200, 2),
+			task("failed", 20, 137),
+			task("rejected", 100),
+			task("running", 5),
+		];
+		expect(crashLoop(tasks, null, now)).toEqual({
+			since: "2026-11-06T10:00:00.000Z",
+			failures: 3,
+			reason: "task: non-zero exit (137)",
+			exitCode: 137,
+		});
+		expect(crashLoop(tasks.slice(1), null, now)).toBeNull();
+		// Failures older than the window do not count.
+		expect(
+			crashLoop([...tasks.slice(1), task("failed", 400)], null, now),
+		).toBeNull();
+		// A clean exit or a shutdown is not a crash.
+		expect(
+			crashLoop(
+				[task("complete", 10), task("shutdown", 20), task("shutdown", 30)],
+				null,
+				now,
+			),
+		).toBeNull();
+	});
+
+	test("stays until the window holds no failure, keeping its start", () => {
+		const prev = {
+			since: "2026-11-06T09:50:00.000Z",
+			failures: 3,
+			reason: "x",
+			exitCode: 1,
+		};
+		expect(crashLoop([task("failed", 280)], prev, now)).toMatchObject({
+			since: prev.since,
+			failures: 1,
+		});
+		expect(crashLoop([task("failed", 310)], prev, now)).toBeNull();
 	});
 });
 

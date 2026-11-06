@@ -1,4 +1,8 @@
-import type { NodeDesired } from "@logistack/contracts";
+import type {
+	BuildPlatform,
+	CrashLoop,
+	NodeDesired,
+} from "@logistack/contracts";
 import {
 	type AnyPgColumn,
 	index,
@@ -23,6 +27,8 @@ export type NodeFacts = {
 	memoryBytes?: number;
 	engineVersion?: string;
 	leader?: boolean;
+	/** As the engine reports it: `x86_64`, `aarch64`. */
+	architecture?: string;
 };
 
 export const node = pgTable("node", {
@@ -60,11 +66,15 @@ export const deployment = pgTable(
 		/** The tag to clone for a tag or release trigger; null clones the source branch. */
 		gitRef: text("git_ref"),
 		imageRef: text("image_ref"),
+		/** Platforms the image was built for (`linux/amd64`, ...); null when unknown (image sources, older builds). */
+		platforms: text("platforms").array().$type<BuildPlatform[]>(),
 		/** Encrypted `SpecSnapshot` JSON of what the deploy applied; the pending diff's baseline. */
 		specSnapshotEncrypted: text("spec_snapshot_encrypted"),
 		startedAt: tstz("started_at"),
 		finishedAt: tstz("finished_at"),
 		error: text("error"),
+		/** Why the post-deploy command failed; the deployment still succeeded. */
+		warning: text("warning"),
 		/** Why the deployment is awaiting checks, or why it was skipped (skip marker, watch paths, tag pattern, checks). */
 		reason: text("reason"),
 		logPath: text("log_path"),
@@ -91,6 +101,8 @@ export const serviceStatus = pgTable("service_status", {
 		.$type<Record<string, unknown>[]>()
 		.notNull()
 		.default([]),
+	/** Set while the service's tasks keep failing; null when stable. */
+	crashLoop: jsonb("crash_loop").$type<CrashLoop>(),
 	observedAt: tstz("observed_at").notNull().defaultNow(),
 	...timestamps,
 });

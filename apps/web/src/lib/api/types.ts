@@ -25,7 +25,9 @@ export type {
 	NodeStatus,
 	ServiceKind,
 	ServiceSpec,
+	ServiceThresholdMetric,
 	ThresholdMetric,
+	UsageRange,
 } from "@logistack/contracts";
 
 export type ObservedStatus = ObservedState;
@@ -67,6 +69,8 @@ export type CreateProjectInput = Body<Api["projects"]["$post"]>;
 export type CreateEnvironmentInput = Body<
 	Api["projects"][":id"]["environments"]["$post"]
 >;
+export type UpdateEnvironmentInput = Body<Api["environments"][":id"]["$patch"]>;
+export type EnvironmentColor = NonNullable<Environment["color"]>;
 /** One wizard submit: the service, its domain, then its first deployment. */
 export type CreateServiceInput = {
 	environmentId: EnvironmentId;
@@ -80,6 +84,8 @@ export type CreateServiceInput = {
 	mounts?: Body<Api["environments"][":id"]["services"]["$post"]>["mounts"];
 	/** Provenance marker, e.g. `webserver:nginx`. */
 	importedFrom?: string;
+	/** Profile the spec's limits came from; null opts out of the organization default. */
+	resourceProfile?: string | null;
 };
 export type DomainInput =
 	| { kind: "generated"; port: number }
@@ -102,12 +108,20 @@ export type HostSeries = HostMetrics["series"][number];
 export type HostPoint = HostSeries["points"][number];
 export type ContainerMetrics = Ok<Api["metrics"]["services"][":id"]["$get"]>;
 export type ContainerPoint = ContainerMetrics["points"][number];
+export type OrganizationUsage = Ok<Api["usage"]["$get"]>;
+export type ProjectUsage = Ok<Api["projects"][":id"]["usage"]["$get"]>;
+export type UsageFigures = OrganizationUsage["totals"];
+export type UsagePoint = OrganizationUsage["trend"][number];
 
 export type MonitoringSettings = Ok<Api["monitoring"]["settings"]["$get"]>;
 export type MonitoringSettingsInput = Body<
 	Api["monitoring"]["settings"]["$put"]
 >;
 export type Threshold = MonitoringSettings["thresholds"][number];
+export type ServiceThreshold = MonitoringSettings["serviceThresholds"][number];
+export type ServiceThresholdsInput = Body<
+	Api["services"][":id"]["thresholds"]["$put"]
+>;
 
 export type NodeJoin = Ok<Api["nodes"]["joins"][":id"]["$get"]>;
 export type NodeJoinInput = Body<Api["nodes"]["joins"]["$post"]>;

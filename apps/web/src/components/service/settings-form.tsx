@@ -1,10 +1,11 @@
 import {
 	type ApplicationSpec,
+	type BuildPlatform,
 	type Healthcheck,
 	ServiceSpec,
 } from "@logistack/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/field";
@@ -15,6 +16,12 @@ import {
 	PortRows,
 	ProcessFields,
 } from "@/components/service/host-settings";
+import { ReleaseCommandFields } from "@/components/service/release-commands";
+import {
+	matchingProfile,
+	ResourceProfileSelect,
+	UNLIMITED,
+} from "@/components/service/resource-profile-select";
 import { ServiceIconPicker } from "@/components/service/service-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +42,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { useResourceProfiles } from "@/lib/api/access";
+import { archOf, buildPlatformsQuery } from "@/lib/api/builds";
 import { nodesQuery } from "@/lib/api/monitoring";
 import {
 	type ServiceOverview,
@@ -42,6 +51,7 @@ import {
 	useServiceMutation,
 } from "@/lib/api/service-ops";
 import type { ProjectId } from "@/lib/api/types";
+import { ServiceAlerts } from "./service-alerts";
 
 type Build = ApplicationSpec["build"];
 const PIN = "node.hostname==";
@@ -167,6 +177,83 @@ function HealthcheckFields({
 	);
 }
 
+const ARCHS = {
+	auto: undefined,
+	amd64: ["linux/amd64"],
+	arm64: ["linux/arm64"],
+	both: ["linux/amd64", "linux/arm64"],
+} as const satisfies Record<string, BuildPlatform[] | undefined>;
+type Archs = keyof typeof ARCHS;
+
+function PlatformsField({
+	build,
+	onChange,
+}: {
+	build: Extract<Build, { type: "dockerfile" | "railpack" }>;
+	onChange: (b: Build) => void;
+}) {
+	const { data: p } = useQuery(buildPlatformsQuery);
+	const current = build.platforms;
+	const value: Archs = !current
+		? "auto"
+		: current.length > 1
+			? "both"
+			: current[0] === "linux/arm64"
+				? "arm64"
+				: "amd64";
+	const targets = current ?? p?.swarm ?? [];
+	const missing = p?.missing.filter((m) => targets.includes(m)) ?? [];
+	const swarm = p?.swarm.length ? p.swarm.map(archOf).join(" and ") : null;
+	return (
+		<Field
+			id="platforms"
+			label="Architectures"
+			hint={
+				missing.length ? (
+					<>
+						BuildKit can't build {missing.map(archOf).join(" and ")} yet.{" "}
+						<Link
+							to="/settings/builds"
+							className="font-medium text-foreground underline decoration-foreground/30 underline-offset-[3px] hover:decoration-foreground"
+						>
+							Set up emulation
+						</Link>
+					</>
+				) : build.type === "railpack" ? (
+					"Railpack builds one architecture per image; on a mixed swarm Automatic builds BuildKit's own."
+				) : value === "both" ? (
+					"One image for both kinds of server. Needs a registry."
+				) : (
+					"The service only runs on servers of the architectures it is built for."
+				)
+			}
+		>
+			<Select
+				value={value}
+				onValueChange={(v) => {
+					const platforms = ARCHS[v as Archs];
+					const { platforms: _, ...rest } = build;
+					onChange(platforms ? { ...rest, platforms: [...platforms] } : rest);
+				}}
+			>
+				<SelectTrigger id="platforms" className="w-full sm:max-w-72">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="auto">
+						Automatic{swarm ? ` (${swarm})` : ""}
+					</SelectItem>
+					<SelectItem value="amd64">amd64 only</SelectItem>
+					<SelectItem value="arm64">arm64 only</SelectItem>
+					{build.type === "dockerfile" && (
+						<SelectItem value="both">amd64 and arm64</SelectItem>
+					)}
+				</SelectContent>
+			</Select>
+		</Field>
+	);
+}
+
 function BuildFields({
 	spec,
 	onChange,
@@ -285,6 +372,9 @@ function BuildFields({
 						/>
 					</Field>
 				</div>
+			)}
+			{(build.type === "dockerfile" || build.type === "railpack") && (
+				<PlatformsField build={build} onChange={setBuild} />
 			)}
 			{build.type === "static" && (
 				<Field
@@ -447,6 +537,7 @@ export function SettingsForm({
 	const patchApp = (patch: Partial<ApplicationSpec>) =>
 		setSpec((s) => (s.kind === "application" ? { ...s, ...patch } : s));
 	const resources = spec.kind === "compose" ? null : spec.resources;
+	const profiles = useResourceProfiles().data?.profiles ?? [];
 	const setResources = (r: Partial<ApplicationSpec["resources"]>) =>
 		setSpec((s) =>
 			s.kind === "compose" ? s : { ...s, resources: { ...s.resources, ...r } },
@@ -496,6 +587,23 @@ export function SettingsForm({
 					id="resources"
 					description="Limits per replica. Swarm only schedules a replica on a node with this much to spare."
 				>
+					<Field
+						id="resource-profile"
+						label="Profile"
+						hint="Copies the profile's limits. Editing the profile later leaves this service as it is."
+						className="max-w-sm"
+					>
+						<ResourceProfileSelect
+							id="resource-profile"
+							value={
+								matchingProfile(resources, profiles)?.name ??
+								(resources.cpu || resources.memoryMb ? "" : UNLIMITED)
+							}
+							onChange={(_, r) =>
+								setResources({ cpu: r.cpu, memoryMb: r.memoryMb })
+							}
+						/>
+					</Field>
 					<div className="grid gap-4 sm:grid-cols-3">
 						{app && (
 							<Field id="replicas" label="Replicas">
@@ -544,13 +652,44 @@ export function SettingsForm({
 			{app && (
 				<>
 					<Section
-						title="Healthcheck"
+						title="Healthcheck and drain"
 						id="healthcheck"
-						description="A new replica takes traffic, and a rollout continues, only once this passes."
+						description="A new replica takes traffic, and a rollout continues, only once the check passes. A replica being replaced gets the drain timeout after SIGTERM to finish its requests."
 					>
 						<HealthcheckFields
 							value={app.healthcheck}
 							onChange={(healthcheck) => patchApp({ healthcheck })}
+						/>
+						<Field
+							id="drain"
+							label="Drain timeout"
+							hint="Seconds; 10 when empty."
+							optional
+						>
+							<Input
+								id="drain"
+								type="number"
+								min={0}
+								max={3600}
+								placeholder="10"
+								className="max-w-32"
+								value={app.drainTimeout ?? ""}
+								onChange={(e) =>
+									patchApp({ drainTimeout: num(e.target.value) })
+								}
+							/>
+						</Field>
+					</Section>
+
+					<Section
+						title="Release commands"
+						id="release"
+						description="One-off runs of the new image around each rollout, like database migrations. One argument per line, run without a shell; write sh, -c and a script to use one."
+					>
+						<ReleaseCommandFields
+							value={app}
+							onChange={patchApp}
+							idPrefix="release-"
 						/>
 					</Section>
 
@@ -680,6 +819,8 @@ export function SettingsForm({
 					</Button>
 				</div>
 			)}
+
+			<ServiceAlerts service={o} />
 
 			<DangerZone service={o} projectId={projectId} />
 		</div>

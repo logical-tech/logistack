@@ -86,6 +86,8 @@ const ConfigSchema = z.object({
 	LS_CADDY_SERVICE: z.string().default("logistack_caddy"),
 	LS_API_UPSTREAM: z.string().default("logistack-api:3000"),
 	LS_BUILDKIT_IMAGE: z.string().default("moby/buildkit:v0.34.1-rootless"),
+	/** Registers QEMU emulators in a node's kernel for cross-architecture builds. */
+	LS_BINFMT_IMAGE: z.string().default("tonistiigi/binfmt:qemu-v9.2.2"),
 	/** argv prefix that runs buildctl; tests point it at a client container. */
 	LS_BUILDCTL: json(z.array(z.string()).min(1)).default(["buildctl"]),
 	LS_RAILPACK: json(z.array(z.string()).min(1)).default(["railpack"]),
@@ -129,6 +131,8 @@ const ConfigSchema = z.object({
 	/** Where in-app updates take images from. `localhost` uses images already on this engine (tests). */
 	LS_UPDATE_REGISTRY: z.string().default(RELEASE_REGISTRY),
 	LS_UPDATE_TIMEOUT_MS: ms(10 * 60_000),
+	/** How long an update waits for running deployments, backups and migration steps. */
+	LS_UPDATE_DRAIN_TIMEOUT_MS: ms(30 * 60_000),
 	LOG_LEVEL: z.enum(["info", "silent"]).default("info"),
 });
 

@@ -1,5 +1,6 @@
 import type {
 	ApplicationSpec,
+	BuildPlatform,
 	Capability,
 	DatabaseEngine,
 	DatabaseSpec,
@@ -12,6 +13,7 @@ import type {
 import {
 	type ConfigReference,
 	type Healthcheck,
+	LABEL_DISPOSABLE,
 	type Labels,
 	type ManagedKind,
 	type Mount,
@@ -58,6 +60,8 @@ export type CompileServiceInput = {
 	mounts: CompileMount[];
 	/** Volumes another platform created, by owner id (volume mount id, or service id for a data dir); mounted as they are. */
 	adoptedVolumes?: Record<string, string>;
+	/** A preview service: its volumes are labelled disposable, so they go with it. */
+	disposable?: boolean;
 	domains: { port: number }[];
 	/** `storage`: the shared network the api and worker reach storage services on; required for storage. */
 	/** `db`: the shared network the api reaches databases on for the explorer; absent leaves them off it. */
@@ -80,6 +84,8 @@ export type CompileServiceInput = {
 	bridgeAliases?: string[];
 	/** Swarm node id stateful services are pinned to. */
 	pinNodeId?: string;
+	/** Platforms the image was built for; tasks only land on nodes of these architectures. */
+	platforms?: BuildPlatform[];
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
 	fileIds: Record<string, string>;
 	/** Test isolation: a prefix for every derived name and extra labels on every object. */
@@ -315,7 +321,12 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					Type: "volume",
 					Source: `${prefix}${dockerName("vol", ownerId)}`,
 					Target,
-					VolumeOptions: { Labels: labelsFor(input, ownerId, "volume") },
+					VolumeOptions: {
+						Labels: {
+							...labelsFor(input, ownerId, "volume"),
+							...(input.disposable && { [LABEL_DISPOSABLE]: "true" }),
+						},
+					},
 				};
 	};
 	const volumeMounts: Mount[] = input.mounts
@@ -433,7 +444,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				Mounts: [...volumeMounts, ...bindMounts],
 				Configs: configs,
 				Secrets: secrets,
-				StopGracePeriod: s(10),
+				StopGracePeriod: s(app?.drainTimeout ?? 10),
 				...(test
 					? {
 							Healthcheck: {
@@ -463,6 +474,15 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					...(app?.placement ?? []),
 					...(stateful ? [`node.id==${input.pinNodeId}`] : []),
 				],
+				// The Engine API resolves no manifest, so Swarm only filters by platform when told.
+				...(input.platforms?.length
+					? {
+							Platforms: input.platforms.map((p) => ({
+								OS: "linux",
+								Architecture: p.slice("linux/".length),
+							})),
+						}
+					: {}),
 			},
 			Networks: [
 				{ Target: input.networks.environment, Aliases: [service.slug] },

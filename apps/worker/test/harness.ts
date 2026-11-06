@@ -34,7 +34,9 @@ export function sh(...argv: string[]): string {
 const docker = createDockerClient();
 
 /** Starts `ls-test-worker-pg` and `ls-test-worker-redis` on free loopback ports. */
-export async function startInfra() {
+export async function startInfra(area = "worker") {
+	const PREFIX = `ls-test-${area}-`;
+	const LABEL = { "logistack.test": area };
 	const run = (name: string, image: string, port: number, ...env: string[]) => {
 		Bun.spawnSync(["docker", "rm", "-f", "-v", name], {
 			stdout: "ignore",
@@ -47,7 +49,7 @@ export async function startInfra() {
 			"--name",
 			name,
 			"--label",
-			"logistack.test=worker",
+			`logistack.test=${area}`,
 			"-p",
 			`127.0.0.1::${port}`,
 			...env.flatMap((e) => ["-e", e]),
@@ -84,10 +86,15 @@ export async function startInfra() {
 	return { databaseUrl, redisUrl: `redis://${redis}` };
 }
 
-export async function workerConfig(infra: {
-	databaseUrl: string;
-	redisUrl: string;
-}) {
+export async function workerConfig(
+	infra: {
+		databaseUrl: string;
+		redisUrl: string;
+	},
+	area = "worker",
+) {
+	const PREFIX = `ls-test-${area}-`;
+	const LABEL = { "logistack.test": area };
 	const work = await mkdtemp(join(tmpdir(), PREFIX));
 	const config = loadConfig({
 		DATABASE_URL: infra.databaseUrl,
@@ -108,7 +115,7 @@ export async function workerConfig(infra: {
 			"--name",
 			`${PREFIX}buildctl`,
 			"--label",
-			"logistack.test=worker",
+			`logistack.test=${area}`,
 			"--network",
 			`${PREFIX}control`,
 			"-v",
@@ -175,7 +182,8 @@ export async function waitForDeployment(
 }
 
 /** Removes only objects whose name starts with PREFIX (and images built under it). */
-export async function cleanup() {
+export async function cleanup(area = "worker") {
+	const PREFIX = `ls-test-${area}-`;
 	const ours = (n: string | undefined) =>
 		!!n?.replace(/^\//, "").startsWith(PREFIX);
 	const ignore = () => {};
@@ -206,6 +214,8 @@ export async function cleanup() {
 		if (ours(v.Name)) await docker.volumes.remove(v.Name, true).catch(ignore);
 	const images = sh("docker", "images", "--format", "{{.Repository}}:{{.Tag}}")
 		.split("\n")
-		.filter((r) => /^ls-local\/[^/]+\/ls-test-worker-/.test(r));
+		.filter(
+			(r) => r.startsWith("ls-local/") && !!r.split("/")[2]?.startsWith(PREFIX),
+		);
 	for (const ref of images) await docker.images.remove(ref, true).catch(ignore);
 }

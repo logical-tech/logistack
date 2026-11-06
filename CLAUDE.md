@@ -23,6 +23,7 @@ Private repo `logical-tech/logistack` (SSH host `github-logical`). Never copy co
 7. Parse external input at boundaries with zod; trust internal types.
 8. Every setup flow in the UI is a **guided wizard** (steps, validation, test connection, summary).
 9. No feature gated behind a license.
+10. **Migrations only add.** The previous release runs on the new schema during an update and after a rollback; split drops and renames across two releases (`CONTRIBUTING.md`, "Database migrations").
 
 ## Local dev
 

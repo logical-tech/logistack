@@ -6,6 +6,7 @@ import {
 	type GitProvider,
 	type GitRepo,
 	ownerRepoPath,
+	repoFilePath,
 	requireHmac,
 	summarizeChecks,
 	withCredentials,
@@ -78,6 +79,14 @@ export const gitea = defineProvider({
 					"oauth2",
 					config.token,
 				);
+			},
+			async readFile(repo, ref, path) {
+				const res = await http.request(
+					"readFile",
+					`${base}/api/v1/repos/${ownerRepoPath("gitea", repo)}/raw/${repoFilePath("gitea", path)}?ref=${encodeURIComponent(ref)}`,
+					{ headers },
+				);
+				return res.text();
 			},
 			async commitChecks(repo, ref) {
 				// The combined status keeps the latest status per context; Gitea Actions report here too.

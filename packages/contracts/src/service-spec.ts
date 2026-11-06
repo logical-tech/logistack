@@ -19,11 +19,42 @@ const GitSource = z.object({
 	path: z.string().min(1),
 });
 
+/** Where a git stack reads its compose file; pushes to `branch` re-sync it. */
+export const StackGitSource = z.object({
+	gitProviderId: z.string().min(1),
+	repository: z.string().min(1),
+	branch: z.string().min(1),
+	/** Relative to the repository root, like `docker-compose.yml` or `deploy/compose.yaml`. */
+	composePath: z
+		.string()
+		.min(1)
+		.max(500)
+		.refine(
+			(p) =>
+				!p.startsWith("/") &&
+				p.split("/").every((s) => s !== ".." && s !== "" && !s.includes("\0")),
+			"must be a path inside the repository, like deploy/compose.yaml",
+		),
+});
+export type StackGitSource = z.infer<typeof StackGitSource>;
+
 export const ApplicationSource = z.discriminatedUnion("type", [
 	GitSource,
 	z.object({ type: z.literal("image"), image: z.string().min(1) }),
 ]);
 export type ApplicationSource = z.infer<typeof ApplicationSource>;
+
+export const BuildPlatform = z.enum(["linux/amd64", "linux/arm64"]);
+export type BuildPlatform = z.infer<typeof BuildPlatform>;
+
+/** Absent: the architectures of the swarm's nodes. */
+const platforms = (max: number) =>
+	z
+		.array(BuildPlatform)
+		.min(1)
+		.max(max)
+		.refine((p) => new Set(p).size === p.length, "duplicate platform")
+		.optional();
 
 export const BuildConfig = z.discriminatedUnion("type", [
 	z.object({
@@ -32,8 +63,10 @@ export const BuildConfig = z.discriminatedUnion("type", [
 		context: z.string().min(1),
 		target: z.string().optional(),
 		buildArgs: z.record(z.string(), z.string()).optional(),
+		platforms: platforms(2),
 	}),
-	z.object({ type: z.literal("railpack") }),
+	/** The railpack frontend solves one platform per build, so it cannot produce a manifest list. */
+	z.object({ type: z.literal("railpack"), platforms: platforms(1) }),
 	z.object({ type: z.literal("static"), publishDir: z.string().min(1) }),
 	z.object({ type: z.literal("image") }),
 ]);
@@ -50,6 +83,13 @@ export const Healthcheck = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("command"), command: z.array(z.string()).min(1) }),
 ]);
 export type Healthcheck = z.infer<typeof Healthcheck>;
+
+/** A one-off run of the new image around a rollout; argv, never a shell string. */
+export const ReleaseCommand = z.object({
+	command: z.array(z.string().min(1)).min(1),
+	timeoutSeconds: z.int().min(10).max(7200),
+});
+export type ReleaseCommand = z.infer<typeof ReleaseCommand>;
 
 export const PortMapping = z.object({
 	target: Port,
@@ -190,6 +230,12 @@ export const ApplicationSpec = z
 		capDrop: z.array(Capability).optional(),
 		/** Swarm restart condition; default `any`. */
 		restart: RestartCondition.optional(),
+		/** Runs before the rollout; a non-zero exit fails the deployment and keeps the old version. */
+		preDeploy: ReleaseCommand.optional(),
+		/** Runs once the new tasks are healthy; a failure only warns. */
+		postDeploy: ReleaseCommand.optional(),
+		/** Seconds a replica gets after SIGTERM to finish in-flight requests before it is killed; default 10. */
+		drainTimeout: z.int().min(0).max(3600).optional(),
 	})
 	.refine((s) => (s.source.type === "image") === (s.build.type === "image"), {
 		message:

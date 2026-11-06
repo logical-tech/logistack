@@ -64,6 +64,7 @@ const project = (
 	name,
 	slug: id,
 	description,
+	archivedAt: null,
 	createdAt: ago(createdDaysAgo * 1440),
 	updatedAt: ago(createdDaysAgo * 90),
 });
@@ -86,6 +87,8 @@ const environment = (
 	slug: kind,
 	kind,
 	isDefault,
+	color: null,
+	preview: null,
 	createdAt: ago(60 * 24 * 90),
 	updatedAt: ago(60 * 24 * 90),
 });
@@ -158,6 +161,7 @@ function deploy(
 		commitMessage: commit?.[1] ?? null,
 		gitRef: null,
 		imageRef: `registry.logical.it/logical/${serviceId.slice(4)}:dep_${depCounter}`,
+		platforms: ["linux/amd64", "linux/arm64"],
 		startedAt: new Date(started).toISOString(),
 		finishedAt:
 			durationSeconds === null
@@ -167,6 +171,7 @@ function deploy(
 		reason: null,
 		logPath: null,
 		supersededBy: null,
+		warning: null,
 		createdAt: new Date(started).toISOString(),
 		updatedAt: new Date(started).toISOString(),
 	};
@@ -295,7 +300,21 @@ export function createMockDb(): MockDb {
 	const environments: Environment[] = [
 		environment("storefront", "production"),
 		environment("storefront", "staging"),
-		environment("storefront", "preview"),
+		{
+			...environment("storefront", "preview"),
+			name: "PR #128",
+			slug: "pr-128",
+			preview: {
+				number: 128,
+				title: "Checkout: pay with saved cards",
+				url: "https://github.com/logical-tech/storefront/pull/128",
+				headBranch: "feat/saved-cards",
+				headSha: "9f2c4e1a7b3d5e6f8091a2b3c4d5e6f708192a3b",
+				author: "giulia",
+				urls: ["https://pr-128.preview.logical.it"],
+				expiresAt: ago(-60 * 48),
+			},
+		},
 		environment("backoffice", "production"),
 		environment("backoffice", "staging"),
 		environment("booking", "production"),
@@ -600,6 +619,7 @@ export function createMockDb(): MockDb {
 			name: "plausible",
 			source: "compose",
 			templateId: null,
+			git: null,
 			createdBy: null,
 			createdAt: ago(60 * 24 * 30),
 			updatedAt: ago(60 * 24 * 30),

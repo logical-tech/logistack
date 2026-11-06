@@ -401,4 +401,95 @@ describe.skipIf(!hasDocker)("monitoring api", () => {
 				).status,
 			).toBe(400);
 	});
+
+	test("service thresholds save from the service and from the settings", async () => {
+		const projectId = (
+			await h.call("POST", "/api/projects", { ...as(), body: { name: "Th" } })
+		).json.id;
+		const envs = await h.call(
+			"GET",
+			`/api/projects/${projectId}/environments`,
+			as(),
+		);
+		const svc = (
+			await h.call("POST", `/api/environments/${envs.json[0].id}/services`, {
+				...as(),
+				body: {
+					name: "Api",
+					spec: {
+						kind: "application",
+						source: { type: "image", image: "nginx:1.27" },
+						build: { type: "image" },
+						ports: [],
+						replicas: 1,
+						resources: { memoryMb: 256 },
+						placement: [],
+					},
+				},
+			})
+		).json.id as string;
+		const path = `/api/services/${svc}/thresholds`;
+		const cpu = { metric: "cpu", above: 90, forSec: 300, enabled: true };
+		const saved = await h.call("PUT", path, {
+			...as(),
+			body: { thresholds: [cpu] },
+		});
+		expect(saved.status).toBe(200);
+		expect(saved.json).toEqual([
+			{
+				...cpu,
+				id: expect.any(String),
+				serviceId: svc,
+				firing: null,
+				serviceName: "Api",
+				projectId,
+			},
+		]);
+		expect(
+			(
+				await h.call("PUT", path, {
+					...as(),
+					body: {
+						thresholds: [{ ...cpu, metric: "memoryPercent", above: 120 }],
+					},
+				})
+			).status,
+		).toBe(400);
+
+		const settings = (await h.call("GET", "/api/monitoring/settings", as()))
+			.json;
+		expect(settings.serviceThresholds).toEqual(saved.json);
+		// Settings saved without the field keep the service thresholds.
+		const { lastCleanup: _, serviceThresholds, ...rest } = settings;
+		expect(
+			(await h.call("PUT", "/api/monitoring/settings", { ...as(), body: rest }))
+				.json.serviceThresholds,
+		).toEqual(serviceThresholds);
+		const edited = await h.call("PUT", "/api/monitoring/settings", {
+			...as(),
+			body: {
+				...rest,
+				serviceThresholds: [
+					{ ...serviceThresholds[0], above: 50, firing: undefined },
+				],
+			},
+		});
+		expect(edited.json.serviceThresholds).toMatchObject([
+			{ id: serviceThresholds[0].id, above: 50 },
+		]);
+		expect(
+			(
+				await h.call("PUT", "/api/monitoring/settings", {
+					...as(),
+					body: {
+						...rest,
+						serviceThresholds: [{ ...cpu, serviceId: "svc_nope" }],
+					},
+				})
+			).status,
+		).toBe(404);
+		expect(
+			(await h.call("PUT", path, { ...as(), body: { thresholds: [] } })).json,
+		).toEqual([]);
+	});
 });

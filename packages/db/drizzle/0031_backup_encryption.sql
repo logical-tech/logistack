@@ -1,0 +1,1 @@
+ALTER TABLE "backup_policy" ADD COLUMN "encryption_key_encrypted" text;

@@ -7,15 +7,21 @@ import {
 	MetricRange,
 	MonitoringSettings,
 	MonitoringSettingsInput,
+	ServiceThreshold,
+	ServiceThresholdInput,
 } from "@logistack/contracts";
 import {
 	type Db,
+	environment,
 	metricThreshold,
 	monitoringSettings,
 	node,
+	project,
+	service,
+	serviceThreshold,
 } from "@logistack/db";
 import { syncCleanupScheduler } from "@logistack/worker/schedulers";
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray, type SQL, sql } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import { Cron, Timezone } from "../cron.ts";
@@ -66,6 +72,96 @@ async function loadCleanup(db: Db) {
 		lastCleanup: row?.lastCleanup ?? null,
 	};
 }
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+const serviceThresholdView = (db: Db | Tx, where: SQL) =>
+	db
+		.select({
+			id: serviceThreshold.id,
+			serviceId: serviceThreshold.serviceId,
+			metric: serviceThreshold.metric,
+			above: serviceThreshold.above,
+			forSec: serviceThreshold.forSec,
+			enabled: serviceThreshold.enabled,
+			firing: serviceThreshold.firing,
+			serviceName: service.name,
+			projectId: environment.projectId,
+		})
+		.from(serviceThreshold)
+		.innerJoin(service, eq(service.id, serviceThreshold.serviceId))
+		.innerJoin(environment, eq(environment.id, service.environmentId))
+		.where(where)
+		.orderBy(service.name, serviceThreshold.createdAt);
+
+/**
+ * Replaces the organization's service thresholds, or only `serviceId`'s when given: rows
+ * left out are deleted, rows with an id are updated (their state kept), the rest inserted.
+ */
+async function saveServiceThresholds(
+	tx: Tx,
+	organizationId: string,
+	input: (ServiceThresholdInput & { id?: string | undefined })[],
+	serviceId?: string,
+) {
+	for (const t of input)
+		if (t.metric === "memoryPercent" && t.above > 100)
+			throw new Failure(
+				"bad_request",
+				"a percent of the memory limit is at most 100",
+			);
+	const ids = [...new Set(input.map((t) => t.serviceId))];
+	const owned = ids.length
+		? await tx
+				.select({ id: service.id })
+				.from(service)
+				.innerJoin(environment, eq(environment.id, service.environmentId))
+				.innerJoin(project, eq(project.id, environment.projectId))
+				.where(
+					and(
+						inArray(service.id, ids),
+						eq(project.organizationId, organizationId),
+					),
+				)
+		: [];
+	if (owned.length !== ids.length) throw notFound("service");
+	const scope = and(
+		eq(serviceThreshold.organizationId, organizationId),
+		serviceId ? eq(serviceThreshold.serviceId, serviceId) : undefined,
+	);
+	const keep = input.flatMap((t) => (t.id ? [t.id] : []));
+	await tx
+		.delete(serviceThreshold)
+		.where(
+			and(
+				scope,
+				keep.length ? notInArray(serviceThreshold.id, keep) : undefined,
+			),
+		);
+	for (const { id, ...t } of input) {
+		const [row] = id
+			? await tx
+					.update(serviceThreshold)
+					// A changed limit or window is evaluated afresh.
+					.set({ ...t, firing: null, value: null })
+					.where(and(scope, eq(serviceThreshold.id, id)))
+					.returning()
+			: await tx
+					.insert(serviceThreshold)
+					.values({ ...t, organizationId })
+					.returning();
+		if (!row) throw notFound("threshold");
+	}
+	return serviceThresholdView(tx, scope ?? sql`true`);
+}
+
+const ServiceThresholdsInput = z.object({
+	thresholds: z.array(
+		ServiceThresholdInput.omit({ serviceId: true }).extend({
+			id: z.string().optional(),
+		}),
+	),
+});
 
 export const metrics = router()
 	.openapi(
@@ -217,6 +313,10 @@ export const metrics = router()
 				{
 					retention: await loadRetention(db.$client),
 					...(await loadCleanup(db)),
+					serviceThresholds: await serviceThresholdView(
+						db,
+						eq(serviceThreshold.organizationId, requireActor(c).organizationId),
+					),
 					thresholds: thresholds.map((t) => ({
 						id: t.id,
 						metric: t.metric,
@@ -317,7 +417,17 @@ export const metrics = router()
 						enabled: row.enabled,
 					});
 				}
-				return out;
+				const serviceThresholds = input.serviceThresholds
+					? await saveServiceThresholds(
+							tx,
+							organizationId,
+							input.serviceThresholds,
+						)
+					: await serviceThresholdView(
+							tx,
+							eq(serviceThreshold.organizationId, organizationId),
+						);
+				return { thresholds: out, serviceThresholds };
 			});
 			const cleanup = await loadCleanup(db);
 			if (input.cleanup)
@@ -325,9 +435,63 @@ export const metrics = router()
 					runQueues(c.var.deps.config.REDIS_URL),
 					cleanup.cleanup,
 				);
-			return c.json(
-				{ retention: input.retention, thresholds: saved, ...cleanup },
+			return c.json({ retention: input.retention, ...saved, ...cleanup }, 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/services/{id}/thresholds",
+			tags,
+			security,
+			summary: "A service's CPU and memory alert thresholds",
+			middleware: [requirePermission("read", byParam("service"))],
+			request: { params: IdParam },
+			responses: {
+				200: json(z.array(ServiceThreshold), "Thresholds"),
+				...errors,
+			},
+		}),
+		async (c) =>
+			c.json(
+				await serviceThresholdView(
+					c.var.deps.db,
+					eq(serviceThreshold.serviceId, c.req.valid("param").id),
+				),
 				200,
+			),
+	)
+	.openapi(
+		mutation(
+			"service.thresholds",
+			createRoute({
+				method: "put",
+				path: "/services/{id}/thresholds",
+				tags,
+				security,
+				summary: "Replace a service's CPU and memory alert thresholds",
+				description:
+					"Each crossing, in either direction, emits a `service.threshold` event that notification rules route. Thresholds left out are deleted.",
+				middleware: [requirePermission("write", byParam("service"))],
+				request: { params: IdParam, ...body(ServiceThresholdsInput) },
+				responses: {
+					200: json(z.array(ServiceThreshold), "Saved"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { thresholds } = c.req.valid("json");
+			const { db } = c.var.deps;
+			const saved = await db.transaction((tx) =>
+				saveServiceThresholds(
+					tx,
+					requireActor(c).organizationId,
+					thresholds.map((t) => ({ ...t, serviceId: id })),
+					id,
+				),
 			);
+			return c.json(saved, 200);
 		},
 	);

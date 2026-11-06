@@ -182,6 +182,24 @@ export function requirePermission(
 	};
 }
 
+/**
+ * Throws 409 when the project this request resolved (via `requirePermission` or `check`) is
+ * archived: an archived project takes no deploys and starts nothing.
+ */
+export async function refuseArchived(c: Context<Env>) {
+	const projectId = c.get("resource")?.projectId;
+	if (!projectId) throw new Error("refuseArchived needs a resolved project");
+	const [row] = await c.var.deps.db
+		.select({ archivedAt: project.archivedAt })
+		.from(project)
+		.where(eq(project.id, projectId));
+	if (row?.archivedAt)
+		throw new Failure(
+			"conflict",
+			"the project is archived; unarchive it to deploy",
+		);
+}
+
 /** Resolver for the actor's own organization. */
 export const inOrganization: ResolveResource = (_c, actor) =>
 	organizationResource(actor.organizationId);

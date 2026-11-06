@@ -34,7 +34,15 @@ export type PullRequestEvent = {
 	commitSha: string;
 	commitMessage: string;
 	author: string;
-	pr: { number: number; action: PrAction; headBranch: string };
+	pr: {
+		number: number;
+		action: PrAction;
+		headBranch: string;
+		/** The head lives in another repository. True when the provider cannot tell: a fork is the unsafe case. */
+		fromFork: boolean;
+		/** The pull request's web page. */
+		url?: string;
+	};
 };
 
 export type GitEvent = PushEvent | PullRequestEvent;
@@ -86,6 +94,18 @@ export interface GitProvider {
 	verifyWebhook(headers: Headers, rawBody: string): Promise<GitEvent | null>;
 	/** CI checks and commit statuses on `ref` (a commit SHA, or a tag name for a release). */
 	commitChecks(repo: string, ref: string): Promise<ChecksSummary>;
+	/** A file's text at `ref` (branch, tag or SHA); `path` is relative to the repository root. */
+	readFile(repo: string, ref: string, path: string): Promise<string>;
+	/**
+	 * Edits comment `commentId` on pull request `number`, or posts a new one when there is none (or it
+	 * was deleted); returns the comment's id. GitHub only so far.
+	 */
+	commentOnPullRequest?(
+		repo: string,
+		number: number,
+		body: string,
+		commentId?: string,
+	): Promise<string>;
 }
 
 export type WebhookRejection =
@@ -161,6 +181,18 @@ export function ownerRepoPath(provider: string, repo: string): string {
 			provider,
 			"repo",
 			`not an owner/name repo: ${JSON.stringify(repo)}`,
+		);
+	return parts.map(encodeURIComponent).join("/");
+}
+
+/** Validates a repository-relative file path and returns it with each segment encoded. */
+export function repoFilePath(provider: string, path: string): string {
+	const parts = path.replace(/^\.?\/+/, "").split("/");
+	if (!parts.every((p) => p && p !== "." && p !== ".." && !p.includes("\0")))
+		throw new ProviderError(
+			provider,
+			"readFile",
+			`not a path inside the repository: ${JSON.stringify(path)}`,
 		);
 	return parts.map(encodeURIComponent).join("/");
 }

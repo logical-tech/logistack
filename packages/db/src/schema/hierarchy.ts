@@ -1,4 +1,10 @@
-import type { ServiceIcon, ServiceSpec } from "@logistack/contracts";
+import type {
+	EnvironmentColor,
+	PreviewInfo,
+	ServiceIcon,
+	ServiceSpec,
+	StackGitSource,
+} from "@logistack/contracts";
 import { sql } from "drizzle-orm";
 import {
 	type AnyPgColumn,
@@ -13,7 +19,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
-import { id, timestamps } from "./columns.ts";
+import { id, timestamps, tstz } from "./columns.ts";
 import {
 	desiredState,
 	environmentKind,
@@ -61,6 +67,10 @@ export const project = pgTable(
 		name: text("name").notNull(),
 		slug: text("slug").notNull(),
 		description: text("description"),
+		/** Set while archived: its services are stopped and deploys are refused. */
+		archivedAt: tstz("archived_at"),
+		/** `PreviewSettings` as JSON, encrypted: its variables may be secrets. Null until previews are set up. */
+		previewSettingsEncrypted: text("preview_settings_encrypted"),
 		...timestamps,
 	},
 	(t) => [
@@ -80,6 +90,9 @@ export const environment = pgTable(
 		slug: text("slug").notNull(),
 		kind: environmentKind("kind").notNull(),
 		isDefault: boolean("is_default").notNull().default(false),
+		color: text("color").$type<EnvironmentColor>(),
+		/** Set on the preview environments LogiStack creates for pull requests, which it alone updates and deletes. */
+		preview: jsonb("preview").$type<PreviewInfo>(),
 		...timestamps,
 	},
 	(t) => [
@@ -106,8 +119,10 @@ export const stack = pgTable(
 		source: stackSource("source").notNull(),
 		/** Catalog template id when `source` is template. */
 		templateId: text("template_id"),
-		/** The compose file as pasted, encrypted (it may hold credentials), when `source` is compose. */
+		/** The compose file last applied, encrypted (it may hold credentials), when `source` is compose or git. */
 		composeYamlEncrypted: text("compose_yaml_encrypted"),
+		/** Where the compose file lives when `source` is git. */
+		git: jsonb("git").$type<StackGitSource>(),
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),
@@ -129,6 +144,8 @@ export const service = pgTable(
 		nodeId: text("node_id").references(() => node.id, { onDelete: "set null" }),
 		spec: jsonb("spec").$type<ServiceSpec>().notNull(),
 		desiredState: desiredState("desired_state").notNull().default("running"),
+		/** Stopped by archiving its project; unarchiving starts exactly these again. */
+		stoppedByArchive: boolean("stopped_by_archive").notNull().default(false),
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),

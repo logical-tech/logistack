@@ -1,4 +1,4 @@
-import { appendFile, mkdir, rm } from "node:fs/promises";
+import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	type DeploymentStatus,
@@ -11,6 +11,9 @@ import {
 	deploymentContextEnv,
 	encrypt,
 	isTerminal,
+	missingPlatforms,
+	platformsOfArchs,
+	resolveBuildPlatforms,
 	specSnapshot,
 	transition,
 } from "@logistack/core";
@@ -27,12 +30,12 @@ import {
 	buildkitAddr,
 	buildPlan,
 	clone,
-	ensureBuildkit,
 	type LogLine,
 	loadImage,
 	pushImage,
 	run,
 } from "./build.ts";
+import { dockerConfig, probeBuildkit } from "./build-platforms.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import {
@@ -42,6 +45,7 @@ import {
 	type ServiceContext,
 	svcName,
 } from "./load.ts";
+import { runRelease } from "./release.ts";
 
 export type DeploymentRow = typeof deployment.$inferSelect;
 type Patch = Partial<
@@ -50,9 +54,11 @@ type Patch = Partial<
 		| "startedAt"
 		| "finishedAt"
 		| "error"
+		| "warning"
 		| "commitSha"
 		| "commitMessage"
 		| "imageRef"
+		| "platforms"
 		| "logPath"
 		| "supersededBy"
 	>
@@ -92,6 +98,8 @@ export type Steps = {
 	clone(): Promise<Patch>;
 	build(): Promise<Patch>;
 	push(): Promise<void>;
+	/** The pre-deploy command; throws when it fails, before Swarm sees the new spec. */
+	release(): Promise<void>;
 	deploy(): Promise<RolloutResult>;
 };
 
@@ -106,6 +114,7 @@ export async function drive(o: {
 	status: DeploymentStatus;
 	source: "git" | "image";
 	push: boolean;
+	release: boolean;
 	steps: Steps;
 	advance: (e: DeploymentEvent, patch?: Patch) => Promise<DeploymentStatus>;
 	signal: AbortSignal;
@@ -117,21 +126,36 @@ export async function drive(o: {
 		o.onState?.(state);
 	};
 	try {
+		const { release } = o;
 		if (state === "queued") {
-			await go({ type: "start", source: o.source });
+			await go({ type: "start", source: o.source, release });
 			if (o.source === "git") {
 				await go({ type: "cloned" }, await o.steps.clone());
-				await go({ type: "built", push: o.push }, await o.steps.build());
+				await go(
+					{ type: "built", push: o.push, release },
+					await o.steps.build(),
+				);
 				if (o.push) {
 					await o.steps.push();
-					await go({ type: "pushed" });
+					await go({ type: "pushed", release });
 				}
+			}
+			if (release) {
+				await o.steps.release();
+				await go({ type: "released" });
 			}
 		}
 		if (state !== "deploying")
 			throw new Error(`interrupted: the worker stopped during ${state}`);
 		const result = await o.steps.deploy();
-		if (result.ok) await go({ type: "healthy" }, { finishedAt: new Date() });
+		if (result.ok)
+			await go(
+				{ type: "healthy" },
+				{
+					finishedAt: new Date(),
+					...(result.warning ? { warning: result.warning } : {}),
+				},
+			);
 		else
 			await go(
 				{ type: "fail" },
@@ -268,6 +292,70 @@ async function runDeployment(
 	// Cloned commits land in the row through advance(); `d` is the row as it was read.
 	let commit = { commitSha: d.commitSha, commitMessage: d.commitMessage };
 	const state = { id: d.id, status: d.status };
+	let platforms = d.platforms;
+	let pushedByBuild = false;
+
+	const target = () => ({
+		id: d.id,
+		imageRef: ref,
+		gitRef: d.gitRef,
+		platforms,
+		...commit,
+	});
+	const rollout = async (): Promise<RolloutResult> => {
+		line(`==> deploying ${ref}`);
+		const name = svcName(ctx, sc.service.id);
+		const current = await inspectService(ctx, name);
+		const label = (s?: {
+			TaskTemplate: { ContainerSpec: { Labels?: Record<string, string> } };
+		}) => s?.TaskTemplate.ContainerSpec.Labels?.["logistack.deployment"];
+		const timeoutMs = ctx.cfg.LS_DEPLOY_TIMEOUT_MS;
+		// Resuming: our spec is already applied, or Swarm already rolled it back.
+		if (current && label(current.Spec) === d.id)
+			return waitForRollout(
+				ctx,
+				name,
+				{ created: false, before: undefined },
+				{
+					timeoutMs,
+					signal,
+					deploymentId: d.id,
+				},
+			);
+		if (
+			current &&
+			label(current.PreviousSpec) === d.id &&
+			current.UpdateStatus?.State.startsWith("rollback")
+		)
+			return {
+				ok: false,
+				error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
+				rolledBack: true,
+			};
+		const input = await desiredInput(ctx, sc, target());
+		const snapshot = specSnapshot(input, sc.env);
+		await ctx.db
+			.update(deployment)
+			.set({
+				specSnapshotEncrypted: await encrypt(
+					ctx.masterKey,
+					JSON.stringify(snapshot),
+				),
+			})
+			.where(eq(deployment.id, d.id));
+		const applied = await upsertService(
+			ctx,
+			sc.registry?.auth,
+			compileService(input),
+		);
+		const result = await waitForRollout(ctx, name, applied, {
+			timeoutMs,
+			signal,
+			deploymentId: d.id,
+		});
+		line(result.ok ? "==> healthy" : `==> failed: ${result.error}`);
+		return result;
+	};
 
 	const steps: Steps = {
 		async clone() {
@@ -295,12 +383,38 @@ async function runDeployment(
 				!checkout
 			)
 				throw new Error("nothing to build");
-			if (!push && (await ctx.docker.nodes.list()).length > 1)
+			const nodes = await ctx.docker.nodes.list();
+			if (!push && nodes.length > 1)
 				throw new Error(
 					"a multi-node swarm needs a registry: configure one before building",
 				);
-			line(`==> building ${ref} (${spec.build.type})`);
-			await ensureBuildkit(ctx);
+			const supported = await probeBuildkit(ctx, signal);
+			const native = platformsOfArchs([supported[0]?.split("/")[1] ?? ""])[0];
+			if (!native)
+				throw new Error(
+					`BuildKit runs on ${supported[0] ?? "an unknown platform"}; LogiStack builds for linux/amd64 and linux/arm64`,
+				);
+			const targets = resolveBuildPlatforms({
+				build: spec.build,
+				swarm: platformsOfArchs(
+					nodes.map((n) => n.Description.Platform.Architecture),
+				),
+				native,
+			});
+			const missing = missingPlatforms(supported).filter((p) =>
+				targets.includes(p),
+			);
+			if (missing.length)
+				throw new Error(
+					`BuildKit cannot build ${missing.join(", ")}: set up cross-architecture emulation in Settings > Builds, or build for ${native} only`,
+				);
+			if (targets.length > 1 && !push)
+				throw new Error(
+					"a multi-platform build pushes a manifest list: configure a registry first",
+				);
+			line(
+				`==> building ${ref} for ${targets.join(", ")} (${spec.build.type})`,
+			);
 			const plan = buildPlan({
 				dir: checkout,
 				appPath: spec.source.path,
@@ -313,85 +427,78 @@ async function runDeployment(
 				),
 				imageRef: ref,
 				railpackFrontend: ctx.cfg.LS_RAILPACK_FRONTEND,
+				platforms: targets,
 			});
+			const auth = sc.registry?.auth;
+			const config = `${checkout}.docker`;
 			try {
 				if (plan.prepare)
 					await run([...ctx.cfg.LS_RAILPACK, ...plan.prepare], {
 						log: line,
 						signal,
 					});
+				if (plan.pushes && auth) {
+					await mkdir(config, { recursive: true, mode: 0o700 });
+					await writeFile(join(config, "config.json"), dockerConfig(auth), {
+						mode: 0o600,
+					});
+				}
 				await run(
 					[...ctx.cfg.LS_BUILDCTL, "--addr", buildkitAddr(ctx), ...plan.args],
 					{
 						log: line,
 						signal,
-						env: plan.env,
-						stdout: (tar) => loadImage(ctx, tar, line, signal),
+						env: {
+							...plan.env,
+							...(plan.pushes && auth ? { DOCKER_CONFIG: config } : {}),
+						},
+						...(plan.pushes
+							? {}
+							: { stdout: (tar) => loadImage(ctx, tar, line, signal) }),
 					},
 				);
 			} finally {
 				await rm(checkout, { recursive: true, force: true });
+				await rm(config, { recursive: true, force: true });
 			}
-			return { imageRef: ref };
+			pushedByBuild = plan.pushes;
+			platforms = targets;
+			return { imageRef: ref, platforms };
 		},
 		async push() {
+			if (pushedByBuild) {
+				line(`==> ${ref} was pushed by BuildKit as a manifest list`);
+				return;
+			}
 			line(`==> pushing ${ref}`);
 			await pushImage(ctx, ref, sc.registry?.auth, line, signal);
 		},
-		async deploy() {
-			line(`==> deploying ${ref}`);
-			const target = { id: d.id, imageRef: ref, gitRef: d.gitRef, ...commit };
-			const name = svcName(ctx, sc.service.id);
-			const current = await inspectService(ctx, name);
-			const label = (s?: {
-				TaskTemplate: { ContainerSpec: { Labels?: Record<string, string> } };
-			}) => s?.TaskTemplate.ContainerSpec.Labels?.["logistack.deployment"];
-			const timeoutMs = ctx.cfg.LS_DEPLOY_TIMEOUT_MS;
-			// Resuming: our spec is already applied, or Swarm already rolled it back.
-			if (current && label(current.Spec) === d.id)
-				return waitForRollout(
-					ctx,
-					name,
-					{ created: false, before: undefined },
-					{
-						timeoutMs,
-						signal,
-						deploymentId: d.id,
-					},
-				);
-			if (
-				current &&
-				label(current.PreviousSpec) === d.id &&
-				current.UpdateStatus?.State.startsWith("rollback")
-			)
-				return {
-					ok: false,
-					error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
-					rolledBack: true,
-				};
-			const input = await desiredInput(ctx, sc, target);
-			const snapshot = specSnapshot(input, sc.env);
-			await ctx.db
-				.update(deployment)
-				.set({
-					specSnapshotEncrypted: await encrypt(
-						ctx.masterKey,
-						JSON.stringify(snapshot),
-					),
-				})
-				.where(eq(deployment.id, d.id));
-			const applied = await upsertService(
+		async release() {
+			if (spec.kind !== "application" || !spec.preDeploy) return;
+			const input = await desiredInput(ctx, sc, target());
+			const error = await runRelease(
 				ctx,
-				sc.registry?.auth,
 				compileService(input),
+				"pre",
+				spec.preDeploy,
+				{ registryAuth: sc.registry?.auth, line, signal },
 			);
-			const result = await waitForRollout(ctx, name, applied, {
-				timeoutMs,
-				signal,
-				deploymentId: d.id,
-			});
-			line(result.ok ? "==> healthy" : `==> failed: ${result.error}`);
-			return result;
+			if (error) throw new Error(error);
+		},
+		async deploy() {
+			const result = await rollout();
+			if (!result.ok || spec.kind !== "application" || !spec.postDeploy)
+				return result;
+			// The applied spec, also when resuming a rollout this worker did not start.
+			const live = await inspectService(ctx, svcName(ctx, sc.service.id));
+			const warning = live
+				? await runRelease(ctx, live.Spec, "post", spec.postDeploy, {
+						registryAuth: sc.registry?.auth,
+						line,
+						signal,
+					})
+				: "post-deploy skipped: the service disappeared";
+			return warning ? { ok: true, warning } : result;
 		},
 	};
 
@@ -400,6 +507,7 @@ async function runDeployment(
 			status: d.status,
 			source,
 			push,
+			release: spec.kind === "application" && !!spec.preDeploy,
 			steps,
 			signal,
 			onState: (s) => {

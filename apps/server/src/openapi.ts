@@ -1,10 +1,13 @@
 import { OpenAPIHono, z } from "@hono/zod-openapi";
 import {
 	ApiError,
+	BuildPlatform,
 	DeploymentStatus,
 	DeploymentTrigger,
 	DesiredState,
+	EnvironmentColor,
 	EnvironmentKind,
+	PreviewInfo,
 	ServiceIcon,
 	ServiceKind,
 	ServiceSpec,
@@ -94,6 +97,8 @@ export const Project = z
 		name: z.string(),
 		slug: z.string(),
 		description: z.string().nullable(),
+		/** Set while archived: services stopped, deploys refused. */
+		archivedAt: Timestamp.nullable(),
 		createdAt: Timestamp,
 		updatedAt: Timestamp,
 	})
@@ -106,7 +111,12 @@ export const Environment = z
 		name: z.string(),
 		slug: z.string(),
 		kind: EnvironmentKind,
+		/** The environment opened when entering the project. */
 		isDefault: z.boolean(),
+		/** Null falls back to the kind's color. */
+		color: EnvironmentColor.nullable(),
+		/** Set on the preview LogiStack runs for a pull request: removed when it closes. */
+		preview: PreviewInfo.nullable(),
 		createdAt: Timestamp,
 		updatedAt: Timestamp,
 	})
@@ -144,9 +154,13 @@ export const Deployment = z
 		/** The tag a tag or release trigger deploys; null deploys the source branch. */
 		gitRef: z.string().nullable(),
 		imageRef: z.string().nullable(),
+		/** Platforms the image was built for; null for image sources and builds before multi-arch support. */
+		platforms: z.array(BuildPlatform).nullable(),
 		startedAt: Timestamp.nullable(),
 		finishedAt: Timestamp.nullable(),
 		error: z.string().nullable(),
+		/** Set when the post-deploy command failed; the deployment still succeeded. */
+		warning: z.string().nullable(),
 		/** Why the deployment is awaiting checks or was skipped. */
 		reason: z.string().nullable(),
 		logPath: z.string().nullable(),

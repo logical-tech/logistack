@@ -3,6 +3,8 @@ import {
 	AGENT_NODE_HEADER,
 	AGENT_WS_PATH,
 	AgentMessage,
+	type ArchiveRequest,
+	type ArchiveResult,
 	type DiskRequest,
 	type DiskUsage,
 	HIGH_WATER_BYTES,
@@ -100,6 +102,9 @@ export type JobEvent =
 			durationMs: number;
 	  };
 export type LogLine = { stream: "stdout" | "stderr"; line: string };
+export type ArchiveEvent =
+	| { type: "data"; data: Uint8Array }
+	| ({ type: "result" } & ArchiveResult);
 
 type Without<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type Req<T extends ServerMessageInput["type"]> = Without<
@@ -116,6 +121,13 @@ export type ExecHandle = AsyncGenerator<ExecEvent> & {
 	close(): void;
 };
 
+/** `ack` reports output bytes read, for a job with `ackWindowBytes`; agents without `job-ack` ignore it. */
+export type JobHandle = AsyncGenerator<JobEvent> & { ack(bytes: number): void };
+
+/** An archive request: a read's content, then its result; a write's tar goes in through `write`/`end`. */
+export type ArchiveHandle = AsyncGenerator<ArchiveEvent> &
+	Pick<ExecHandle, "write" | "end">;
+
 /** Aborting fails the iterator with code `cancelled` and cancels the request on the agent. */
 export type CallOptions = { signal?: AbortSignal };
 
@@ -129,16 +141,18 @@ export type Agents = {
 		req: Req<"logs.follow">,
 		opts?: CallOptions,
 	): AsyncGenerator<LogLine>;
-	runJob(
-		nodeId: string,
-		job: JobSpecInput,
-		opts?: CallOptions,
-	): AsyncGenerator<JobEvent>;
+	runJob(nodeId: string, job: JobSpecInput, opts?: CallOptions): JobHandle;
 	disk(
 		nodeId: string,
 		req: DiskRequest,
 		opts?: CallOptions,
 	): Promise<{ usage: DiskUsage; report: PruneReport | null }>;
+	/** Throws `bad_request` when the node's agent predates the `archive` capability. */
+	archive(
+		nodeId: string,
+		req: ArchiveRequest,
+		opts?: CallOptions,
+	): ArchiveHandle;
 };
 
 type Inbound = Extract<AgentMessage, { id: string }>;
@@ -152,6 +166,7 @@ const TERMINAL = new Set([
 	"exec.exit",
 	"job.result",
 	"disk.result",
+	"archive.result",
 	"logs.end",
 	"rpc.error",
 ]);
@@ -448,6 +463,32 @@ export function mountAgentGateway(
 		}),
 	);
 
+	/** `exec.stdin` frames for request `id`, chunked and paced by the socket. */
+	function stdin(conn: Conn, id: string): Pick<ExecHandle, "write" | "end"> {
+		const frames = async (data: Uint8Array, eof: boolean) => {
+			let at = 0;
+			do {
+				await drained(conn);
+				const chunk = data.subarray(at, at + MAX_CHUNK_BYTES);
+				at += MAX_CHUNK_BYTES;
+				send(conn, {
+					type: "exec.stdin",
+					id,
+					data: Buffer.from(chunk).toString("base64"),
+					eof: eof && at >= data.length,
+				});
+			} while (at < data.length);
+		};
+		return {
+			write: (data) =>
+				frames(
+					typeof data === "string" ? new TextEncoder().encode(data) : data,
+					false,
+				),
+			end: () => frames(new Uint8Array(0), true),
+		};
+	}
+
 	/** Starts a request; iterating yields its replies, and leaving the loop early cancels it on the agent. */
 	function start(
 		nodeId: string,
@@ -512,27 +553,8 @@ export function mountAgentGateway(
 					else if (m.type === "exec.exit") yield { type: "exit", code: m.code };
 				}
 			}
-			const stdin = async (data: Uint8Array, eof: boolean) => {
-				let at = 0;
-				do {
-					await drained(conn);
-					const chunk = data.subarray(at, at + MAX_CHUNK_BYTES);
-					at += MAX_CHUNK_BYTES;
-					send(conn, {
-						type: "exec.stdin",
-						id,
-						data: Buffer.from(chunk).toString("base64"),
-						eof: eof && at >= data.length,
-					});
-				} while (at < data.length);
-			};
 			return Object.assign(events(), {
-				write: (data: string | Uint8Array) =>
-					stdin(
-						typeof data === "string" ? new TextEncoder().encode(data) : data,
-						false,
-					),
-				end: () => stdin(new Uint8Array(0), true),
+				...stdin(conn, id),
 				resize: (rows: number, cols: number) =>
 					send(conn, { type: "exec.resize", id, rows, cols }),
 				close: () => void replies.return(undefined),
@@ -550,21 +572,29 @@ export function mountAgentGateway(
 				if (m.type === "logs.line") yield { stream: m.stream, line: m.line };
 		},
 
-		async *runJob(nodeId, job, opts) {
-			const { replies } = start(
+		runJob(nodeId, job, opts) {
+			const { conn, replies, id } = start(
 				nodeId,
 				{ type: "run.job", id: crypto.randomUUID(), job },
 				"job.cancel",
 				opts?.signal,
 			);
-			for await (const m of replies) {
-				if (m.type === "job.output")
-					yield { type: "output", stream: m.stream, data: decode(m.data) };
-				else if (m.type === "job.result") {
-					const { type: _, id: __, ...result } = m;
-					yield { type: "result", ...result };
+			async function* events(): AsyncGenerator<JobEvent> {
+				for await (const m of replies) {
+					if (m.type === "job.output")
+						yield { type: "output", stream: m.stream, data: decode(m.data) };
+					else if (m.type === "job.result") {
+						const { type: _, id: __, ...result } = m;
+						yield { type: "result", ...result };
+					}
 				}
 			}
+			const acks = conn.node.capabilities.includes("job-ack");
+			return Object.assign(events(), {
+				ack: (bytes: number) => {
+					if (acks) send(conn, { type: "job.ack", id, bytes });
+				},
+			});
 		},
 
 		async disk(nodeId, req, opts) {
@@ -579,6 +609,31 @@ export function mountAgentGateway(
 				if (m.type === "disk.result")
 					return { usage: m.usage, report: m.report };
 			throw new AgentError("internal", "disk request ended without a result");
+		},
+
+		archive(nodeId, req, opts) {
+			if (nodes.get(nodeId)?.node.capabilities.includes("archive") === false)
+				throw new AgentError(
+					"bad_request",
+					`the agent on node ${nodeId} is too old to browse files; update LogiStack on it`,
+				);
+			const { conn, replies, id } = start(
+				nodeId,
+				{ type: "archive.start", id: crypto.randomUUID(), request: req },
+				// The agent closes any session by id on a cancel.
+				"exec.close",
+				opts?.signal,
+			);
+			async function* events(): AsyncGenerator<ArchiveEvent> {
+				for await (const m of replies)
+					if (m.type === "archive.data")
+						yield { type: "data", data: decode(m.data) };
+					else if (m.type === "archive.result") {
+						const { type: _, id: __, ...result } = m;
+						yield { type: "result", ...result };
+					}
+			}
+			return Object.assign(events(), stdin(conn, id));
 		},
 	};
 }

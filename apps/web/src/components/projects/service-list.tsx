@@ -269,7 +269,11 @@ function StackRow({
 					/>
 					<span className="truncate">
 						{services.length} containers ·{" "}
-						{stack.source === "compose" ? "Compose" : "Template"}
+						{stack.git
+							? `Compose · ${stack.git.repository}`
+							: stack.source === "compose"
+								? "Compose"
+								: "Template"}
 					</span>
 				</div>
 			</div>

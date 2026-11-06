@@ -123,6 +123,9 @@ export const EVENT_GROUPS: {
 			{ type: "node.recovered", label: "Node recovered" },
 			{ type: "node.joined", label: "Node joined" },
 			{ type: "service.status_changed", label: "Service status changed" },
+			{ type: "service.crash_loop", label: "Service crash-looping" },
+			{ type: "service.threshold", label: "Service threshold crossed" },
+			{ type: "metric.threshold", label: "Node threshold crossed" },
 		],
 	},
 	{
@@ -136,7 +139,11 @@ export const EVENT_GROUPS: {
 	},
 	{
 		label: "Instance",
-		events: [{ type: "instance.update_available", label: "Update available" }],
+		events: [
+			{ type: "instance.update_available", label: "Update available" },
+			{ type: "instance.update_succeeded", label: "Update succeeded" },
+			{ type: "instance.update_failed", label: "Update failed" },
+		],
 	},
 ];
 

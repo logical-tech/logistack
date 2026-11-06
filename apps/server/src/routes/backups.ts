@@ -8,7 +8,7 @@ import {
 	RestoreTarget,
 	RunStatus,
 } from "@logistack/contracts";
-import { newId } from "@logistack/core";
+import { encrypt, newId } from "@logistack/core";
 import {
 	backupPolicy,
 	backupRun,
@@ -22,7 +22,8 @@ import {
 	dropPolicySchedulers,
 	syncPolicySchedulers,
 } from "@logistack/worker/schedulers";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { generateX25519Identity } from "age-encryption";
+import { and, asc, desc, eq, inArray, isNull, like } from "drizzle-orm";
 import type { Context } from "hono";
 import { type Actor, requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -81,6 +82,10 @@ export const BackupPolicyView = z
 		retention: BackupRetention,
 		verifyCron: z.string().nullable(),
 		pauseService: z.boolean(),
+		/** Backups are age-encrypted before upload; the bucket only holds ciphertext. */
+		encrypted: z.boolean(),
+		/** A finished backup is encrypted: the key can no longer be replaced or dropped. */
+		hasEncryptedBackup: z.boolean(),
 		enabled: z.boolean(),
 		nextRunAt: z.string().nullable(),
 		nextVerifyAt: z.string().nullable(),
@@ -88,6 +93,11 @@ export const BackupPolicyView = z
 		createdAt: z.string(),
 	})
 	.openapi("BackupPolicy");
+
+const BackupPolicyWithKey = BackupPolicyView.extend({
+	/** The age identity, returned once: by the request that turned encryption on. */
+	encryptionKey: z.string().nullable(),
+}).openapi("BackupPolicyWithKey");
 
 const BackupVolume = z.object({
 	/** What a volume policy stores in `volumeName`. */
@@ -113,17 +123,26 @@ const ServiceBackups = z
 	})
 	.openapi("ServiceBackups");
 
+// No defaults here: zod applies them inside .partial(), so a patch would reset unsent fields.
 const PolicyFields = z.object({
 	s3DestinationId: z.string(),
 	cron: Cron,
+	timezone: Timezone,
+	retention: BackupRetention,
+	verifyCron: Cron.nullable(),
+	pauseService: z.boolean(),
+	enabled: z.boolean(),
+	/** `true` issues an age key (a new one while no encrypted backup exists); `false` drops it, also only while none exists. */
+	encrypt: z.boolean(),
+});
+
+const PolicyInput = PolicyFields.extend({
 	timezone: Timezone.default("UTC"),
 	retention: BackupRetention.default({ count: 7 }),
 	verifyCron: Cron.nullable().default(null),
 	pauseService: z.boolean().default(false),
 	enabled: z.boolean().default(true),
-});
-
-const PolicyInput = PolicyFields.extend({
+	encrypt: z.boolean().default(false),
 	target: BackupTarget,
 	volumeName: z.string().nullable().default(null),
 });
@@ -159,6 +178,7 @@ const policyView = (
 	p: PolicyRow,
 	destinationName: string,
 	lastRun: RunRow | undefined,
+	hasEncryptedBackup: boolean,
 ): z.infer<typeof BackupPolicyView> => ({
 	id: p.id,
 	serviceId: p.serviceId,
@@ -171,6 +191,8 @@ const policyView = (
 	retention: p.retention,
 	verifyCron: p.verifyCron,
 	pauseService: p.pauseService,
+	encrypted: p.encryptionKeyEncrypted !== null,
+	hasEncryptedBackup,
 	enabled: p.enabled,
 	nextRunAt: nextRun(p.cron, p.timezone, p.enabled),
 	nextVerifyAt: nextRun(p.verifyCron, p.timezone, p.enabled),
@@ -249,6 +271,12 @@ async function destinationName(c: Context<Env>, actor: Actor, id: string) {
 	return d.name;
 }
 
+/** A new age identity: the plaintext for the caller, once, and the sealed copy to store. */
+async function newBackupKey(c: Context<Env>) {
+	const key = await generateX25519Identity();
+	return { key, sealed: await encrypt(c.var.deps.masterKey, key) };
+}
+
 async function enqueue(c: Context<Env>, job: BackupJob & { runId: string }) {
 	await runQueues(c.var.deps.config.REDIS_URL).backup.add("run", job, {
 		jobId: job.runId,
@@ -270,6 +298,23 @@ async function lastRuns(c: Context<Env>, policyIds: string[]) {
 	return new Map(rows.map((r) => [r.policyId, r]));
 }
 
+/** Policies with at least one finished encrypted backup: for those the key is irreplaceable. */
+async function withEncryptedBackup(c: Context<Env>, policyIds: string[]) {
+	if (!policyIds.length) return new Set<string>();
+	const rows = await c.var.deps.db
+		.selectDistinct({ id: backupRun.policyId })
+		.from(backupRun)
+		.where(
+			and(
+				inArray(backupRun.policyId, policyIds),
+				eq(backupRun.kind, "backup"),
+				eq(backupRun.status, "succeeded"),
+				like(backupRun.objectKey, "%.age"),
+			),
+		);
+	return new Set(rows.map((r) => r.id));
+}
+
 async function loadPolicyView(c: Context<Env>, id: string) {
 	const { db } = c.var.deps;
 	const [row] = await db
@@ -281,7 +326,12 @@ async function loadPolicyView(c: Context<Env>, id: string) {
 		)
 		.where(eq(backupPolicy.id, id));
 	if (!row) throw notFound("backup policy");
-	return policyView(row.p, row.name, (await lastRuns(c, [id])).get(id));
+	return policyView(
+		row.p,
+		row.name,
+		(await lastRuns(c, [id])).get(id),
+		(await withEncryptedBackup(c, [id])).has(id),
+	);
 }
 
 export const backups = router()
@@ -309,8 +359,9 @@ export const backups = router()
 				.where(eq(backupPolicy.serviceId, svc.id))
 				.orderBy(asc(backupPolicy.createdAt));
 			const ids = policies.map((r) => r.p.id);
-			const [last, runs] = await Promise.all([
+			const [last, sealedBackups, runs] = await Promise.all([
 				lastRuns(c, ids),
+				withEncryptedBackup(c, ids),
 				ids.length
 					? db
 							.select()
@@ -332,7 +383,12 @@ export const backups = router()
 					},
 					volumes: await volumesOf(c, svc),
 					policies: policies.map((r) =>
-						policyView(r.p, r.name, last.get(r.p.id)),
+						policyView(
+							r.p,
+							r.name,
+							last.get(r.p.id),
+							sealedBackups.has(r.p.id),
+						),
 					),
 					runs: runs.map(runView),
 				},
@@ -349,9 +405,11 @@ export const backups = router()
 				tags: ["backups"],
 				security,
 				summary: "Back up a database or a volume on a cron",
+				description:
+					"With `encrypt`, every backup is encrypted with a new age key before upload. The response carries that key once in `encryptionKey`: store it, since losing it loses the backups once LogiStack is gone. Decrypt with `age -d -i key.txt`.",
 				middleware: [requirePermission("write", byParam("service"))],
 				request: { params: IdParam, ...body(PolicyInput) },
-				responses: { 201: json(BackupPolicyView, "Created"), ...errors },
+				responses: { 201: json(BackupPolicyWithKey, "Created"), ...errors },
 			}),
 		),
 		async (c) => {
@@ -382,15 +440,27 @@ export const backups = router()
 			if (input.pauseService && input.target !== "volume")
 				input.pauseService = false;
 			await destinationName(c, actor, input.s3DestinationId);
+			const { encrypt: wantsKey, ...fields } = input;
+			const key = wantsKey ? await newBackupKey(c) : undefined;
 			const row = one(
 				await c.var.deps.db
 					.insert(backupPolicy)
-					.values({ ...input, serviceId: svc.id })
+					.values({
+						...fields,
+						serviceId: svc.id,
+						encryptionKeyEncrypted: key?.sealed ?? null,
+					})
 					.returning(),
 			);
 			c.set("auditResourceId", row.id);
 			await syncPolicySchedulers(runQueues(c.var.deps.config.REDIS_URL), row);
-			return c.json(await loadPolicyView(c, row.id), 201);
+			return c.json(
+				{
+					...(await loadPolicyView(c, row.id)),
+					encryptionKey: key?.key ?? null,
+				},
+				201,
+			);
 		},
 	)
 	.openapi(
@@ -401,9 +471,12 @@ export const backups = router()
 				path: "/backup-policies/{id}",
 				tags: ["backups"],
 				security,
+				summary: "Change a backup policy",
+				description:
+					"`encrypt: true` on a plaintext policy creates an age key and returns it once in `encryptionKey`; later backups are encrypted, older ones stay plaintext. Until a backup has been encrypted, `encrypt: true` again issues a fresh key (use it when the first one was lost) and `encrypt: false` removes the key; after that both are refused because existing backups need the key. Answers 409 if another change to the key landed first.",
 				middleware: [requirePermission("write", viaPolicy("policy"))],
 				request: { params: IdParam, ...body(PolicyPatch) },
-				responses: { 200: json(BackupPolicyView, "Updated"), ...errors },
+				responses: { 200: json(BackupPolicyWithKey, "Updated"), ...errors },
 			}),
 		),
 		async (c) => {
@@ -419,15 +492,54 @@ export const backups = router()
 				await destinationName(c, requireActor(c), input.s3DestinationId);
 			if (input.verifyCron && current.target !== "database")
 				throw new Failure("bad_request", "verify restores need a database");
-			const row = one(
-				await db
-					.update(backupPolicy)
-					.set(input)
-					.where(eq(backupPolicy.id, id))
-					.returning(),
-			);
+			const { encrypt: wantsKey, ...fields } = input;
+			const previous = current.encryptionKeyEncrypted;
+			const locked = (await withEncryptedBackup(c, [id])).has(id);
+			if (wantsKey === false && previous !== null && locked)
+				throw new Failure(
+					"bad_request",
+					"encryption cannot be turned off: an encrypted backup exists and needs its key",
+				);
+			// A key nobody saved can be replaced until a backup depends on it.
+			const key =
+				wantsKey && !(previous !== null && locked)
+					? await newBackupKey(c)
+					: undefined;
+			const dropKey = wantsKey === false && previous !== null;
+			const changesKey = key !== undefined || dropKey;
+			const [row] = await db
+				.update(backupPolicy)
+				.set({
+					...fields,
+					updatedAt: new Date(),
+					...(key ? { encryptionKeyEncrypted: key.sealed } : {}),
+					...(dropKey ? { encryptionKeyEncrypted: null } : {}),
+				})
+				.where(
+					and(
+						eq(backupPolicy.id, id),
+						// Compare-and-set on the sealed key, so concurrent key changes cannot both win.
+						changesKey
+							? previous === null
+								? isNull(backupPolicy.encryptionKeyEncrypted)
+								: eq(backupPolicy.encryptionKeyEncrypted, previous)
+							: undefined,
+					),
+				)
+				.returning();
+			if (!row)
+				throw new Failure(
+					"conflict",
+					"the backup key changed in the meantime; reload and try again",
+				);
 			await syncPolicySchedulers(runQueues(c.var.deps.config.REDIS_URL), row);
-			return c.json(await loadPolicyView(c, id), 200);
+			return c.json(
+				{
+					...(await loadPolicyView(c, id)),
+					encryptionKey: key?.key ?? null,
+				},
+				200,
+			);
 		},
 	)
 	.openapi(

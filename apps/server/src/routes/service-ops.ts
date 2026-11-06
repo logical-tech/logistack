@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	CrashLoop,
 	EnvKey,
 	EnvVar,
 	type EnvVarScope,
@@ -46,7 +47,12 @@ import {
 	security,
 } from "../openapi.ts";
 import { redisFor, requestProxySync, requestReconcile } from "../redis.ts";
-import { actorCan, byParam, requirePermission } from "../scope.ts";
+import {
+	actorCan,
+	byParam,
+	refuseArchived,
+	requirePermission,
+} from "../scope.ts";
 
 /** What the reconciler stores per running-desired task in `service_status.tasks`. */
 export const TaskView = z.object({
@@ -77,6 +83,8 @@ const ServiceOverview = Service.extend({
 		replicasDesired: z.int(),
 		observedAt: z.string().nullable(),
 		tasks: z.array(ServiceTask),
+		/** Set while tasks keep failing. */
+		crashLoop: CrashLoop.nullable(),
 	}),
 	/** Newest healthy deployment: the image the service runs. */
 	current: Deployment.nullable(),
@@ -169,6 +177,7 @@ export async function queueDeployment(
 	payload: Record<string, unknown> = {},
 ) {
 	const actor = requireActor(c);
+	await refuseArchived(c);
 	const row = one(
 		await c.var.deps.db.insert(deployment).values(values).returning(),
 	);
@@ -189,6 +198,7 @@ async function setDesired(
 	desiredState: "running" | "stopped",
 ) {
 	const { db, config } = c.var.deps;
+	if (desiredState === "running") await refuseArchived(c);
 	const row = one(
 		await db
 			.update(service)
@@ -292,6 +302,7 @@ export const serviceOps = router()
 						replicasRunning: status?.replicasRunning ?? 0,
 						replicasDesired: status?.replicasDesired ?? 0,
 						observedAt: status?.observedAt?.toISOString() ?? null,
+						crashLoop: status?.crashLoop ?? null,
 						tasks: tasks.map((t) => ({
 							...t,
 							hostname:
@@ -425,6 +436,7 @@ export const serviceOps = router()
 				serviceId: id,
 				trigger: actorTrigger(requireActor(c)),
 				imageRef: current.imageRef,
+				platforms: current.platforms,
 				commitSha: current.commitSha,
 				commitMessage: current.commitMessage,
 			});
@@ -491,6 +503,7 @@ export const serviceOps = router()
 					serviceId: target.serviceId,
 					trigger: "rollback",
 					imageRef: target.imageRef,
+					platforms: target.platforms,
 					commitSha: target.commitSha,
 					commitMessage: target.commitMessage,
 				},

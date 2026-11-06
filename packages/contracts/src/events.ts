@@ -7,6 +7,10 @@ export const eventTypes = [
 	"deployment.failed",
 	"deployment.cancelled",
 	"service.status_changed",
+	/** Tasks keep failing; payload `state` is `firing` on entering the loop, `resolved` once it settles. */
+	"service.crash_loop",
+	/** A per-service CPU or memory threshold crossed, either way (payload `state`). */
+	"service.threshold",
 	"backup.succeeded",
 	"backup.failed",
 	"schedule.succeeded",
@@ -21,6 +25,8 @@ export const eventTypes = [
 	"domain.active",
 	"domain.error",
 	"instance.update_available",
+	"instance.update_succeeded",
+	"instance.update_failed",
 	/** A migration item changed status; resource `migration:<id>`, payload names the item. */
 	"migration.item_changed",
 ] as const;

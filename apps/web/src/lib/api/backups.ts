@@ -34,6 +34,8 @@ export type PolicyInput = Body<
 	Api["services"][":id"]["backup-policies"]["$post"]
 >;
 export type PolicyPatch = Body<PolicyApi["$patch"]>;
+/** A created or patched policy; `encryptionKey` is set once, when encryption was just turned on. */
+export type PolicyWithKey = Ok<PolicyApi["$patch"]>;
 export type RestoreInput = Body<Api["backup-runs"][":id"]["restore"]["$post"]>;
 export type RestoreResult = Ok<
 	Api["backup-runs"][":id"]["restore"]["$post"],
@@ -60,8 +62,8 @@ export type BackupsApi = {
 	};
 	backups: {
 		forService(serviceId: string): Promise<ServiceBackups>;
-		createPolicy(serviceId: string, input: PolicyInput): Promise<BackupPolicy>;
-		updatePolicy(id: string, patch: PolicyPatch): Promise<BackupPolicy>;
+		createPolicy(serviceId: string, input: PolicyInput): Promise<PolicyWithKey>;
+		updatePolicy(id: string, patch: PolicyPatch): Promise<PolicyWithKey>;
 		removePolicy(id: string): Promise<void>;
 		run(policyId: string, kind: "backup" | "verify"): Promise<BackupRun>;
 		getRun(id: string): Promise<BackupRun>;

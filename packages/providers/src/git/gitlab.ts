@@ -8,6 +8,7 @@ import {
 	type GitRepo,
 	type PrAction,
 	refOf,
+	repoFilePath,
 	summarizeChecks,
 	WebhookRejectedError,
 	withCredentials,
@@ -69,6 +70,9 @@ const mrPayload = z.object({
 		title: z.string(),
 		source_branch: z.string(),
 		target_branch: z.string(),
+		source_project_id: z.number().optional(),
+		target_project_id: z.number().optional(),
+		url: z.string().optional(),
 		/** Present on `update` only when new commits were pushed. */
 		oldrev: z.string().optional(),
 		last_commit: z.object({ id: z.string(), message: z.string() }),
@@ -146,7 +150,15 @@ function normalize(event: string | null, body: unknown): GitEvent | null {
 			commitSha: a.last_commit.id,
 			commitMessage: a.title,
 			author: p.user?.name ?? "",
-			pr: { number: a.iid, action, headBranch: a.source_branch },
+			pr: {
+				number: a.iid,
+				action,
+				headBranch: a.source_branch,
+				fromFork:
+					a.source_project_id === undefined ||
+					a.source_project_id !== a.target_project_id,
+				...(a.url && { url: a.url }),
+			},
 		};
 	}
 	return null;
@@ -197,6 +209,18 @@ export const gitlab = defineProvider({
 			async getCloneUrl(repo) {
 				const path = repo.split("/").map(encodeURIComponent).join("/");
 				return withCredentials(`${base}/${path}.git`, "oauth2", config.token);
+			},
+			async readFile(repo, ref, path) {
+				// GitLab takes the file path as one encoded segment.
+				const file = encodeURIComponent(
+					decodeURIComponent(repoFilePath("gitlab", path)),
+				);
+				const res = await http.request(
+					"readFile",
+					`${base}/api/v4/projects/${encodeURIComponent(repo)}/repository/files/${file}/raw?ref=${encodeURIComponent(ref)}`,
+					{ headers: { "private-token": config.token } },
+				);
+				return res.text();
 			},
 			async commitChecks(repo, ref) {
 				const statuses = await all<{

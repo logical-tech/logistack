@@ -1,11 +1,18 @@
 import { z } from "zod";
-import { type Deps, defineProvider, Http, secret } from "../http.ts";
+import {
+	type Deps,
+	defineProvider,
+	Http,
+	ProviderError,
+	secret,
+} from "../http.ts";
 import { normalizeGitHubStyle } from "./github-style.ts";
 import {
 	type CheckState,
 	type GitProvider,
 	type GitRepo,
 	ownerRepoPath,
+	repoFilePath,
 	requireHmac,
 	summarizeChecks,
 	withCredentials,
@@ -286,6 +293,20 @@ export const github = defineProvider({
 					await installationToken(),
 				);
 			},
+			async readFile(repo, ref, path) {
+				const res = await http.request(
+					"readFile",
+					`${API}/repos/${ownerRepoPath("github", repo)}/contents/${repoFilePath("github", path)}?ref=${encodeURIComponent(ref)}`,
+					{
+						headers: {
+							...apiHeaders,
+							accept: "application/vnd.github.raw+json",
+							authorization: `Bearer ${await installationToken()}`,
+						},
+					},
+				);
+				return res.text();
+			},
 			async commitChecks(repo, ref) {
 				const base = `/repos/${ownerRepoPath("github", repo)}/commits/${encodeURIComponent(ref)}`;
 				// Both APIs: older CI posts commit statuses, GitHub Actions posts check runs.
@@ -309,6 +330,33 @@ export const github = defineProvider({
 					})),
 					...runs.check_runs.map((r) => ({ name: r.name, state: runState(r) })),
 				]);
+			},
+			async commentOnPullRequest(repo, number, body, commentId) {
+				const base = `${API}/repos/${ownerRepoPath("github", repo)}/issues`;
+				const send = async (method: string, url: string) =>
+					http.json<{ id: number }>("prComment", url, {
+						method,
+						headers: {
+							...apiHeaders,
+							authorization: `Bearer ${await installationToken()}`,
+							"content-type": "application/json",
+						},
+						body: JSON.stringify({ body }),
+					});
+				if (commentId)
+					try {
+						return String(
+							(
+								await send(
+									"PATCH",
+									`${base}/comments/${encodeURIComponent(commentId)}`,
+								)
+							).id,
+						);
+					} catch (e) {
+						if (!(e instanceof ProviderError && e.status === 404)) throw e;
+					}
+				return String((await send("POST", `${base}/${number}/comments`)).id);
 			},
 			async verifyWebhook(headers, rawBody) {
 				await requireHmac(

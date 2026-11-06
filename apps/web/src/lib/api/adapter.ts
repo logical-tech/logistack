@@ -28,17 +28,23 @@ import type {
 	NodeJoinInput,
 	NodeJoinStep,
 	NodeUpdate,
+	OrganizationUsage,
 	Overview,
 	Project,
 	ProjectDetail,
 	ProjectId,
 	ProjectSummary,
+	ProjectUsage,
 	PruneInput,
 	PruneResult,
 	Service,
 	ServiceId,
+	ServiceThreshold,
+	ServiceThresholdsInput,
 	SetupInput,
 	SourceCheck,
+	UpdateEnvironmentInput,
+	UsageRange,
 } from "./types";
 
 /**
@@ -62,9 +68,15 @@ export type ApiAdapter = {
 		create(input: CreateFolderInput): Promise<Folder>;
 	};
 	projects: {
-		list(): Promise<ProjectSummary[]>;
+		list(opts?: { archived?: boolean }): Promise<ProjectSummary[]>;
 		get(id: ProjectId): Promise<ProjectDetail>;
 		create(input: CreateProjectInput): Promise<Project>;
+		/** Stops its services and hides it; unarchive restarts exactly those. */
+		setArchived(id: ProjectId, archived: boolean): Promise<Project>;
+		updateEnvironment(
+			id: EnvironmentId,
+			input: UpdateEnvironmentInput,
+		): Promise<Environment>;
 		createEnvironment(
 			id: ProjectId,
 			input: CreateEnvironmentInput,
@@ -100,10 +112,18 @@ export type ApiAdapter = {
 			perNode?: boolean;
 		}): Promise<HostMetrics>;
 		service(id: ServiceId, range: MetricRange): Promise<ContainerMetrics>;
+		/** Only the projects the caller can read. */
+		usage(range: UsageRange): Promise<OrganizationUsage>;
+		projectUsage(id: ProjectId, range: UsageRange): Promise<ProjectUsage>;
 	};
 	monitoring: {
 		settings(): Promise<MonitoringSettings>;
 		save(input: MonitoringSettingsInput): Promise<MonitoringSettings>;
+		serviceThresholds(id: ServiceId): Promise<ServiceThreshold[]>;
+		saveServiceThresholds(
+			id: ServiceId,
+			input: ServiceThresholdsInput,
+		): Promise<ServiceThreshold[]>;
 	};
 	networking: NetworkingApi;
 	serviceOps: ServiceOpsApi;

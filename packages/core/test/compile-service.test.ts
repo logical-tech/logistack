@@ -118,6 +118,15 @@ describe("snapshots", () => {
 	test("stateless application", () => {
 		expect(compileService(app)).toMatchSnapshot();
 	});
+	test("single-architecture image: placement keeps it on that architecture", () => {
+		expect(
+			compileService({ ...app, platforms: ["linux/amd64"] }).TaskTemplate
+				.Placement,
+		).toMatchSnapshot();
+		expect(
+			compileService(app).TaskTemplate.Placement?.Platforms,
+		).toBeUndefined();
+	});
 	test("stateful application with domain, config and secret", () => {
 		expect(compileService(stateful)).toMatchSnapshot();
 	});
@@ -344,6 +353,23 @@ describe("placement and rollout", () => {
 			Order: "start-first",
 			FailureAction: "rollback",
 		});
+	});
+
+	test("the drain timeout is the stop grace period, 10s by default", () => {
+		const grace = (drainTimeout?: number) =>
+			compileService({
+				...app,
+				service: {
+					...app.service,
+					spec: {
+						...app.service.spec,
+						drainTimeout,
+					} as typeof app.service.spec,
+				},
+			}).TaskTemplate.ContainerSpec?.StopGracePeriod;
+		expect(grace()).toBe(10e9);
+		expect(grace(45)).toBe(45e9);
+		expect(grace(0)).toBe(0);
 	});
 
 	test("desired state stopped scales to zero", () => {

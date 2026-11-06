@@ -18,7 +18,9 @@ import { mcpHandler } from "./mcp.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
 import { backups } from "./routes/backups.ts";
+import { buildPlatforms } from "./routes/build-platforms.ts";
 import { certificates } from "./routes/certificates.ts";
+import { containerFiles } from "./routes/container-files.ts";
 import { databases } from "./routes/databases.ts";
 import { dnsProviders } from "./routes/dns-providers.ts";
 import { domainAccess } from "./routes/domain-access.ts";
@@ -30,6 +32,7 @@ import { git } from "./routes/git.ts";
 import { health } from "./routes/health.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
+import { manifests } from "./routes/manifest.ts";
 import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
 import { migrations } from "./routes/migrations.ts";
@@ -37,6 +40,7 @@ import { networkMapRoutes } from "./routes/network-map.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
+import { previews } from "./routes/previews.ts";
 import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
 import { s3Destinations } from "./routes/s3-destinations.ts";
@@ -52,6 +56,7 @@ import { storage } from "./routes/storage.ts";
 import { templates } from "./routes/templates.ts";
 import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
+import { usage } from "./routes/usage.ts";
 import { webhooks } from "./routes/webhooks.ts";
 import { realtime } from "./ws.ts";
 
@@ -135,6 +140,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", projects)
 		.route("/api", services)
 		.route("/api", stacks)
+		.route("/api", manifests)
+		.route("/api", previews)
 		.route("/api", envVars)
 		.route("/api", domains)
 		.route("/api", domainAccess)
@@ -145,6 +152,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", audit)
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
+		.route("/api", usage)
 		.route("/api", nodes)
 		.route("/api", networkMapRoutes)
 		.route("/api", members)
@@ -153,6 +161,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", sso)
 		.route("/api", serviceOps)
 		.route("/api", instance)
+		.route("/api", buildPlatforms)
 		.route("/api", updates)
 		.route("/api", git)
 		.route("/api", registries)
@@ -164,6 +173,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", schedules)
 		.route("/api", templates)
 		.route("/api", files)
+		.route("/api", containerFiles)
 		.route("/api", storage)
 		.route("/api", databases)
 		.route("/api", migrations)

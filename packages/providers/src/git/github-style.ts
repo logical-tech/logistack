@@ -49,7 +49,13 @@ const prPayload = z.object({
 	repository: z.object({ full_name: z.string() }),
 	pull_request: z.object({
 		title: z.string(),
-		head: z.object({ ref: z.string(), sha: z.string() }),
+		html_url: z.string().optional(),
+		// `head.repo` is null once a fork is deleted.
+		head: z.object({
+			ref: z.string(),
+			sha: z.string(),
+			repo: z.object({ full_name: z.string() }).nullish(),
+		}),
 		base: z.object({ ref: z.string() }),
 		user: z.object({ login: z.string() }).nullish(),
 	}),
@@ -120,6 +126,10 @@ export function normalizeGitHubStyle(
 				number: p.number,
 				action,
 				headBranch: p.pull_request.head.ref,
+				fromFork:
+					p.pull_request.head.repo?.full_name.toLowerCase() !==
+					p.repository.full_name.toLowerCase(),
+				...(p.pull_request.html_url && { url: p.pull_request.html_url }),
 			},
 		};
 	}

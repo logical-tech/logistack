@@ -1,4 +1,4 @@
-import type { ObservedState } from "@logistack/contracts";
+import type { CrashLoop, ObservedState } from "@logistack/contracts";
 import { isTerminal } from "@logistack/core";
 import {
 	deployment,
@@ -11,6 +11,7 @@ import {
 import {
 	DockerError,
 	type Filters,
+	LABEL_DISPOSABLE,
 	LABEL_KIND,
 	LABEL_RESOURCE,
 	managedFilters,
@@ -62,6 +63,38 @@ export function observe(o: {
 	return { observed: "failed", running };
 }
 
+const CRASH_WINDOW_MS = 5 * 60_000;
+const CRASH_FAILURES = 3;
+
+/**
+ * Pure: the crash loop Swarm's task history shows at `now`. It starts at `CRASH_FAILURES`
+ * failed or rejected tasks inside the window and lasts until the window holds none, so a
+ * service hovering at the edge does not flap. `since` carries over from `prev`.
+ */
+export function crashLoop(
+	tasks: Pick<Task, "Status">[],
+	prev: CrashLoop | null,
+	now: number,
+): CrashLoop | null {
+	const failed = tasks
+		.filter(
+			(t) =>
+				(t.Status.State === "failed" || t.Status.State === "rejected") &&
+				now - Date.parse(t.Status.Timestamp) < CRASH_WINDOW_MS,
+		)
+		.sort(
+			(a, b) => Date.parse(b.Status.Timestamp) - Date.parse(a.Status.Timestamp),
+		);
+	const last = failed[0];
+	if (!last || failed.length < (prev ? 1 : CRASH_FAILURES)) return null;
+	return {
+		since: prev?.since ?? new Date(now).toISOString(),
+		failures: failed.length,
+		reason: last.Status.Err || last.Status.Message,
+		exitCode: last.Status.ContainerStatus?.ExitCode ?? null,
+	};
+}
+
 const scopedFilters = (ctx: Ctx): Filters => {
 	const f = managedFilters();
 	for (const [k, v] of Object.entries(scope(ctx).labels))
@@ -106,17 +139,36 @@ async function writeStatus(
 		.select()
 		.from(serviceStatus)
 		.where(eq(serviceStatus.serviceId, row.id));
+	const loop =
+		desired > 0 ? crashLoop(tasks, prev?.crashLoop ?? null, Date.now()) : null;
 	const next = {
 		observed,
 		replicasRunning: running,
 		replicasDesired: desired,
 		tasks: taskView,
+		crashLoop: loop,
 		observedAt: new Date(),
 	};
 	await ctx.db
 		.insert(serviceStatus)
 		.values({ serviceId: row.id, ...next })
 		.onConflictDoUpdate({ target: serviceStatus.serviceId, set: next });
+	const wasLooping = !!prev?.crashLoop;
+	if (wasLooping !== !!loop)
+		await ctx.bus.publish(
+			"service.crash_loop",
+			organizationId,
+			{ type: "service", id: row.id },
+			{
+				state: loop ? "firing" : "resolved",
+				service: row.name,
+				...(loop && {
+					reason: loop.reason,
+					failures: loop.failures,
+					exitCode: loop.exitCode,
+				}),
+			},
+		);
 	if (
 		prev?.observed !== observed ||
 		prev.replicasRunning !== running ||
@@ -251,7 +303,8 @@ type Orphan = { key: string; remove: () => Promise<unknown>; data: boolean };
 
 /**
  * Managed objects with no DB row, removed once orphaned for longer than the grace period.
- * Volumes hold user data: they are reported, never removed automatically.
+ * Volumes hold user data: they are reported, never removed automatically, except a preview's
+ * disposable ones.
  */
 export async function sweepOrphans(
 	ctx: Ctx,
@@ -349,8 +402,9 @@ export async function sweepOrphans(
 				if (!liveMounts.has(id) && !liveVolServices.has(id))
 					orphans.push({
 						key: `volume:${v.Name}`,
-						remove: async () => {},
-						data: true,
+						remove: () => ctx.docker.volumes.remove(v.Name),
+						// shortcut: lists this node's volumes only; a preview volume on another node stays until removed by hand.
+						data: v.Labels?.[LABEL_DISPOSABLE] !== "true",
 					});
 
 		const seenKey = `ls:orphans:${ctx.cfg.LS_NAME_PREFIX || "prod"}`;

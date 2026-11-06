@@ -17,7 +17,7 @@ export type Ctx = {
 	nodes: NodeRunner;
 };
 
-export const scope = (ctx: Ctx) => ({
+export const scope = (ctx: Pick<Ctx, "cfg">) => ({
 	namePrefix: ctx.cfg.LS_NAME_PREFIX,
 	labels: ctx.cfg.LS_SCOPE_LABELS,
 });

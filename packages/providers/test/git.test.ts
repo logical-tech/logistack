@@ -100,7 +100,13 @@ const cases: Case[] = [
 			commitSha: "ec26c3e57ca3a959ca5aad62de7213c562f8c821",
 			commitMessage: "Update the README with new information.",
 			author: "Codertocat",
-			pr: { number: 2, action: "updated", headBranch: "changes" },
+			pr: {
+				number: 2,
+				action: "updated",
+				headBranch: "changes",
+				fromFork: false,
+				url: "https://github.com/Codertocat/Hello-World/pull/2",
+			},
 		},
 	},
 	{
@@ -143,7 +149,13 @@ const cases: Case[] = [
 			commitSha: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
 			commitMessage: "MS-Viewport",
 			author: "Administrator",
-			pr: { number: 1, action: "updated", headBranch: "ms-viewport" },
+			pr: {
+				number: 1,
+				action: "updated",
+				headBranch: "ms-viewport",
+				fromFork: false,
+				url: "https://gitlab.example.com/gitlabhq/gitlab-test/-/merge_requests/1",
+			},
 		},
 	},
 	{
@@ -181,7 +193,12 @@ const cases: Case[] = [
 			commitSha: "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
 			commitMessage: "Add preview support",
 			author: "gitea",
-			pr: { number: 7, action: "updated", headBranch: "feature/preview" },
+			pr: {
+				number: 7,
+				action: "updated",
+				headBranch: "feature/preview",
+				fromFork: false,
+			},
 		},
 	},
 	{
@@ -219,7 +236,12 @@ const cases: Case[] = [
 			commitSha: "d3fe0e9a7c4b",
 			commitMessage: "Preview environments",
 			author: "Emma",
-			pr: { number: 12, action: "opened", headBranch: "feature/x" },
+			pr: {
+				number: 12,
+				action: "opened",
+				headBranch: "feature/x",
+				fromFork: false,
+			},
 		},
 	},
 ];
@@ -328,6 +350,22 @@ describe("webhook verification", () => {
 			"x-gitlab-token": SECRET,
 		});
 		expect(await gitlab.verifyWebhook(h, JSON.stringify(mr))).toBeNull();
+	});
+
+	test("a pull request from a fork, or from a deleted fork, says so", async () => {
+		const pr = fx.githubPullRequest.pull_request;
+		const fromFork = async (repo: { full_name: string } | null) => {
+			const e = await github.verifyWebhook(
+				...signed("pull_request", {
+					...fx.githubPullRequest,
+					pull_request: { ...pr, head: { ...pr.head, repo } },
+				}),
+			);
+			return e?.kind === "pull_request" && e.pr.fromFork;
+		};
+		expect(await fromFork({ full_name: "mallory/Hello-World" })).toBe(true);
+		expect(await fromFork(null)).toBe(true);
+		expect(await fromFork({ full_name: "codertocat/hello-world" })).toBe(false);
 	});
 
 	test("a full commit list means changed paths are unknown", async () => {
@@ -483,6 +521,47 @@ describe("GitHub App", () => {
 		);
 		expect(m.calls[1]?.headers.authorization).toBe("Bearer ghs_abc");
 	});
+
+	test("a pull request comment is edited in place, and posted again once deleted", async () => {
+		const m = mockFetch((c) => {
+			const path = new URL(c.url).pathname;
+			if (path.endsWith("/access_tokens"))
+				return Response.json({
+					token: "ghs_abc",
+					expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+				});
+			if (path === "/repos/acme/api/issues/comments/11")
+				return Response.json({ id: 11 });
+			if (path === "/repos/acme/api/issues/comments/12")
+				return new Response("Not Found", { status: 404 });
+			return Response.json({ id: 13 });
+		});
+		const gh = instantiate(
+			gitProviders.github,
+			{
+				appId: "123",
+				privateKey: pkcs1Pem,
+				webhookSecret: SECRET,
+				installationId: "456",
+			},
+			m,
+		);
+		expect(await gh.commentOnPullRequest?.("acme/api", 4, "hi")).toBe("13");
+		expect(await gh.commentOnPullRequest?.("acme/api", 4, "hi", "11")).toBe(
+			"11",
+		);
+		expect(await gh.commentOnPullRequest?.("acme/api", 4, "hi", "12")).toBe(
+			"13",
+		);
+		const api = m.calls.filter((c) => !c.url.endsWith("/access_tokens"));
+		expect(api.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
+			"POST /repos/acme/api/issues/4/comments",
+			"PATCH /repos/acme/api/issues/comments/11",
+			"PATCH /repos/acme/api/issues/comments/12",
+			"POST /repos/acme/api/issues/4/comments",
+		]);
+		expect(json(api[0] as Call)).toEqual({ body: "hi" });
+	});
 });
 
 describe("API listing", () => {
@@ -552,6 +631,40 @@ describe("API listing", () => {
 			"team/b",
 		]);
 		expect(m.calls).toHaveLength(2);
+	});
+
+	test("readFile asks each API for the raw file at a ref", async () => {
+		const m = mockFetch(() => new Response("services: {}\n"));
+		const gl = instantiate(
+			gitProviders.gitlab,
+			{ baseUrl: "https://git.acme.dev", token: "t", webhookSecret: SECRET },
+			m,
+		);
+		const gt = instantiate(
+			gitProviders.gitea,
+			{ baseUrl: "https://gitea.acme.dev", token: "t", webhookSecret: SECRET },
+			m,
+		);
+		const bb = instantiate(
+			gitProviders.bitbucket,
+			{ workspace: "team", accessToken: "t" },
+			m,
+		);
+		expect(await gl.readFile("grp/app", "main", "deploy/compose.yml")).toBe(
+			"services: {}\n",
+		);
+		await gt.readFile("acme/app", "feat/x", "./compose.yml");
+		await bb.readFile("team/app", "main", "compose.yml");
+		expect(m.calls.map((c) => c.url)).toEqual([
+			"https://git.acme.dev/api/v4/projects/grp%2Fapp/repository/files/deploy%2Fcompose.yml/raw?ref=main",
+			"https://gitea.acme.dev/api/v1/repos/acme/app/raw/compose.yml?ref=feat%2Fx",
+			"https://api.bitbucket.org/2.0/repositories/team/app/src/main/compose.yml",
+		]);
+		for (const bad of ["../secrets", "a/../../b", "", "a//b"])
+			await expect(gt.readFile("acme/app", "main", bad)).rejects.toThrow(
+				ProviderError,
+			);
+		expect(m.calls).toHaveLength(3);
 	});
 
 	test("owner/name paths cannot escape", () => {

@@ -11,6 +11,18 @@ export const environmentKinds = [
 export const EnvironmentKind = z.enum(environmentKinds);
 export type EnvironmentKind = z.infer<typeof EnvironmentKind>;
 
+/** A fixed palette so every color reads in both themes; null on a row falls back to the kind's. */
+export const environmentColors = [
+	"gray",
+	"blue",
+	"green",
+	"amber",
+	"red",
+	"violet",
+] as const;
+export const EnvironmentColor = z.enum(environmentColors);
+export type EnvironmentColor = z.infer<typeof EnvironmentColor>;
+
 export const serviceKinds = [
 	"application",
 	"database",
@@ -18,8 +30,8 @@ export const serviceKinds = [
 	"storage",
 ] as const;
 export const ServiceKind = z.enum(serviceKinds);
-/** Where a stack's services came from: a catalog template or a pasted compose file. */
-export const stackSources = ["template", "compose"] as const;
+/** Where a stack's services came from: a catalog template, a pasted compose file, or a compose file in git. */
+export const stackSources = ["template", "compose", "git"] as const;
 export const StackSource = z.enum(stackSources);
 export type StackSource = z.infer<typeof StackSource>;
 export type ServiceKind = z.infer<typeof ServiceKind>;
@@ -53,6 +65,7 @@ export const deploymentStatuses = [
 	"cloning",
 	"building",
 	"pushing",
+	"releasing",
 	"deploying",
 	"healthy",
 	"failed",

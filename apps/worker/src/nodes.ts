@@ -50,6 +50,7 @@ function facts(n: SwarmNode): NodeFacts {
 		memoryBytes: n.Description.Resources.MemoryBytes,
 		engineVersion: n.Description.Engine.EngineVersion,
 		leader: n.ManagerStatus?.Leader ?? false,
+		architecture: n.Description.Platform.Architecture,
 	};
 }
 

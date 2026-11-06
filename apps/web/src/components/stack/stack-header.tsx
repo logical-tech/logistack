@@ -127,7 +127,11 @@ export function StackHeader({
 						<span>
 							{services.length}{" "}
 							{services.length === 1 ? "container" : "containers"} ·{" "}
-							{stack.source === "compose" ? (
+							{stack.git ? (
+								<span className="font-mono text-xs">
+									{stack.git.repository}@{stack.git.branch}
+								</span>
+							) : stack.source === "compose" ? (
 								"Compose file"
 							) : stack.templateId ? (
 								<Link

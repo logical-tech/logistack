@@ -5,7 +5,44 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { api } from ".";
-import type { CreateEnvironmentInput, ProjectId } from "./types";
+import type {
+	CreateEnvironmentInput,
+	EnvironmentId,
+	ProjectId,
+	UpdateEnvironmentInput,
+} from "./types";
+
+export const archivedProjectsQuery = queryOptions({
+	queryKey: ["projects", "archived"],
+	queryFn: () => api.projects.list({ archived: true }),
+});
+
+/** Archiving changes services, lists and the overview: refresh them all. */
+export function useSetArchived(projectId: ProjectId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (archived: boolean) =>
+			api.projects.setArchived(projectId, archived),
+		onSuccess: () =>
+			Promise.all(
+				[["projects"], ["services"], ["overview"]].map((queryKey) =>
+					qc.invalidateQueries({ queryKey }),
+				),
+			),
+	});
+}
+
+export function useUpdateEnvironment() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			id,
+			...input
+		}: UpdateEnvironmentInput & { id: EnvironmentId }) =>
+			api.projects.updateEnvironment(id, input),
+		onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
+	});
+}
 
 export const projectsQuery = queryOptions({
 	queryKey: ["projects"],

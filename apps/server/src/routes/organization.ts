@@ -2,6 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
 	OrganizationUpdate,
 	observedStates,
+	ResourceProfiles,
 	TwoFactorPolicy,
 	twoFactorAccessKinds,
 } from "@logistack/contracts";
@@ -26,6 +27,10 @@ import {
 	router,
 	security,
 } from "../openapi.ts";
+import {
+	readResourceProfiles,
+	writeResourceProfiles,
+} from "../resource-profiles.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
 import { readTwoFactorPolicy, writeTwoFactorPolicy } from "../two-factor.ts";
 
@@ -243,6 +248,53 @@ export const organizationRoutes = router()
 				after: settingJson(after),
 			});
 			return c.json(settingJson(after), 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/organization/resource-profiles",
+			tags: ["identity"],
+			security,
+			summary: "Named CPU and memory sizes for services",
+			description:
+				"Profiles that service creation and settings offer, and the default copied into a new service that sets no limits. An organization that never saved its own list gets the seeded Nano, Small, Medium and Large.",
+			middleware: [requirePermission("read", inOrganization)],
+			responses: { 200: json(ResourceProfiles, "Profiles"), ...errors },
+		}),
+		async (c) =>
+			c.json(
+				await readResourceProfiles(
+					c.var.deps.db,
+					requireActor(c).organizationId,
+				),
+				200,
+			),
+	)
+	.openapi(
+		mutation(
+			"organization.resource_profiles_update",
+			createRoute({
+				method: "put",
+				path: "/organization/resource-profiles",
+				tags: ["identity"],
+				security,
+				summary: "Replace the organization's resource profiles and default",
+				description:
+					"Services copy a profile's limits when they pick it, so editing or removing a profile never changes an existing service. `defaultProfile` must name one of `profiles`, or be null for no default.",
+				middleware: [requirePermission("admin", inOrganization)],
+				request: body(ResourceProfiles),
+				responses: { 200: json(ResourceProfiles, "Saved"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { db } = c.var.deps;
+			const orgId = requireActor(c).organizationId;
+			const after = c.req.valid("json");
+			const before = await readResourceProfiles(db, orgId);
+			await writeResourceProfiles(db, orgId, after);
+			c.set("auditDiff", { before, after });
+			return c.json(after, 200);
 		},
 	)
 	.openapi(

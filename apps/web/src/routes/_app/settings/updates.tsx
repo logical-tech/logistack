@@ -51,9 +51,19 @@ const STEPS: { id: UpdateStepId; name: string; detail: string }[] = [
 		detail: "All four, before any service changes",
 	},
 	{
+		id: "drain",
+		name: "Finish running work",
+		detail: "Deployments, backups and migration steps finish; new ones wait",
+	},
+	{
+		id: "migrate",
+		name: "Migrate the database",
+		detail: "Once, before any new code serves",
+	},
+	{
 		id: "logistack-api",
 		name: "API",
-		detail: "Migrates the database, then passes its health check",
+		detail: "The old one serves until the new one is healthy",
 	},
 	{ id: "logistack-agent", name: "Agents", detail: "One on every server" },
 	{
@@ -338,15 +348,16 @@ function Updates() {
 					open={confirming}
 					onOpenChange={setConfirming}
 					title={`Update to ${tag(target.version)}?`}
-					description="LogiStack pulls every image first and changes nothing if one is missing. It then updates the API, which migrates the database, then the agents, Caddy and the worker. A service that doesn't turn healthy rolls back, and so does every service updated before it."
+					description="LogiStack pulls every image first and changes nothing if one is missing. It waits for running deployments and backups to finish, migrates the database once, then updates the API, the agents, Caddy and the worker. A service that doesn't turn healthy rolls back, and so does every service updated before it."
 					confirmLabel={`Update to ${tag(target.version)}`}
 					destructive={false}
 					pending={start.isPending}
 					onConfirm={update}
 				>
 					<p className="text-sm text-muted-foreground">
-						The dashboard may lose its connection for a few seconds while the
-						API restarts. This page follows along and reconnects on its own.
+						The dashboard stays up while the API rolls over. New deployments
+						wait in the queue until the update ends. Sites pause for a few
+						seconds while Caddy restarts.
 					</p>
 				</ConfirmDialog>
 			)}
@@ -357,6 +368,7 @@ function Updates() {
 function RunPanel({ run }: { run: UpdateRun }) {
 	const meta = UPDATE_STATUS[run.state];
 	const latest = run.log.at(-1);
+	const waiting = run.log.findLast((l) => l.startsWith("Waiting for"));
 	return (
 		<Panel
 			id="run"
@@ -365,9 +377,16 @@ function RunPanel({ run }: { run: UpdateRun }) {
 			className="t-reveal"
 		>
 			<ol className="divide-y" aria-label="Update steps">
-				{STEPS.map((step) => {
+				{/* An updater from before a step existed never lists it; don't show it as waiting. */}
+				{STEPS.filter(
+					(s) => s.id in run.steps || !Object.keys(run.steps).length,
+				).map((step) => {
 					const state = run.steps[step.id] ?? "pending";
 					const m = UPDATE_STEP_STATUS[state];
+					const detail =
+						step.id === "drain" && state === "running" && waiting
+							? waiting
+							: step.detail;
 					return (
 						<li
 							key={step.id}
@@ -383,8 +402,11 @@ function RunPanel({ run }: { run: UpdateRun }) {
 								>
 									{step.name}
 								</div>
-								<div className="text-[13px] text-muted-foreground">
-									{step.detail}
+								<div
+									key={detail}
+									className="t-swap text-[13px] text-muted-foreground"
+								>
+									{detail}
 								</div>
 							</div>
 							<span

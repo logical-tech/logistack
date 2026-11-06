@@ -43,6 +43,9 @@ export type CustomCertificate = Certificates["custom"][number];
 export type ManagedCertificate = Certificates["managed"][number];
 export type ParsedCertificate = Res<Api["certificates"]["inspect"]["$post"]>;
 export type UploadCertificate = Body<Api["certificates"]["$post"]>;
+type OriginApi = Api["domains"][":id"]["origin-certificate"];
+export type OriginTarget = Res<OriginApi["test"]["$post"]>;
+export type OriginRequest = Body<OriginApi["$post"]>;
 export type AcmeDirectory = Res<
 	Api["certificates"]["issuer"]["$get"]
 >["directory"];
@@ -103,6 +106,11 @@ export type NetworkingApi = {
 		inspect(certPem: string, privateKey: string): Promise<ParsedCertificate>;
 		create(input: UploadCertificate): Promise<CustomCertificate>;
 		remove(id: string): Promise<void>;
+		originTest(domainId: string): Promise<OriginTarget>;
+		originIssue(
+			domainId: string,
+			input: OriginRequest,
+		): Promise<CustomCertificate>;
 		issuer(): Promise<{ directory: AcmeDirectory }>;
 		setIssuer(directory: AcmeDirectory): Promise<{ directory: AcmeDirectory }>;
 	};
@@ -203,6 +211,10 @@ export const networkingHttp: NetworkingApi = {
 			ok(a().certificates.inspect.$post({ json: { certPem, privateKey } })),
 		create: (json) => ok(a().certificates.$post({ json })),
 		remove: (v) => done(a().certificates[":id"].$delete(id(v))),
+		originTest: (v) =>
+			ok(a().domains[":id"]["origin-certificate"].test.$post(id(v))),
+		originIssue: (v, json) =>
+			ok(a().domains[":id"]["origin-certificate"].$post({ ...id(v), json })),
 		issuer: () => ok(a().certificates.issuer.$get()),
 		setIssuer: (directory) =>
 			ok(a().certificates.issuer.$put({ json: { directory } })),

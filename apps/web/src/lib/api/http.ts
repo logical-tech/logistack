@@ -82,7 +82,12 @@ export const httpAdapter: ApiAdapter = {
 		create: (input) => ok(api.folders.$post({ json: input })),
 	},
 	projects: {
-		list: () => ok(api.projects.$get({ query: {} })),
+		list: ({ archived = false } = {}) =>
+			ok(
+				api.projects.$get({
+					query: archived ? { archived: "true" } : {},
+				}),
+			),
 		get: async (id) => {
 			const param = { param: { id } };
 			const [project, environments] = await Promise.all([
@@ -92,6 +97,14 @@ export const httpAdapter: ApiAdapter = {
 			return { ...project, environments };
 		},
 		create: (input) => ok(api.projects.$post({ json: input })),
+		setArchived: (id, archived) =>
+			ok(
+				archived
+					? api.projects[":id"].archive.$post({ param: { id } })
+					: api.projects[":id"].unarchive.$post({ param: { id } }),
+			),
+		updateEnvironment: (id, input) =>
+			ok(api.environments[":id"].$patch({ param: { id }, json: input })),
 		createEnvironment: (id, input) =>
 			ok(
 				api.projects[":id"].environments.$post({ param: { id }, json: input }),
@@ -108,11 +121,12 @@ export const httpAdapter: ApiAdapter = {
 			extraDomains = [],
 			mounts,
 			importedFrom,
+			resourceProfile,
 		}) => {
 			const service = await ok(
 				api.environments[":id"].services.$post({
 					param: { id: environmentId },
-					json: { name, spec, mounts, importedFrom },
+					json: { name, spec, mounts, importedFrom, resourceProfile },
 				}),
 			);
 			const param = { param: { id: service.id } };
@@ -169,10 +183,17 @@ export const httpAdapter: ApiAdapter = {
 			),
 		service: (id, range) =>
 			ok(api.metrics.services[":id"].$get({ param: { id }, query: { range } })),
+		usage: (range) => ok(api.usage.$get({ query: { range } })),
+		projectUsage: (id, range) =>
+			ok(api.projects[":id"].usage.$get({ param: { id }, query: { range } })),
 	},
 	monitoring: {
 		settings: () => ok(api.monitoring.settings.$get()),
 		save: (json) => ok(api.monitoring.settings.$put({ json })),
+		serviceThresholds: (id) =>
+			ok(api.services[":id"].thresholds.$get({ param: { id } })),
+		saveServiceThresholds: (id, json) =>
+			ok(api.services[":id"].thresholds.$put({ param: { id }, json })),
 	},
 	networking: networkingHttp,
 	serviceOps: serviceOpsHttp,

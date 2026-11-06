@@ -32,7 +32,7 @@ import {
 	service,
 } from "@logistack/db";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { systemActor } from "../actor.ts";
+import { type Actor, systemActor } from "../actor.ts";
 import { createApp } from "../app.ts";
 import type { Deps } from "../env.ts";
 import { envelope } from "../events.ts";
@@ -95,7 +95,7 @@ export async function planMigration(
 	});
 }
 
-type Call = <T = { id: string }>(
+export type Call = <T = { id: string }>(
 	method: string,
 	path: string,
 	body?: unknown,
@@ -109,6 +109,11 @@ async function client(
 ): Promise<Call> {
 	const actor = await systemActor(deps.db, organizationId, actorId(source));
 	if (!actor) throw new Error("the organization has no owner");
+	return callAs(deps, actor);
+}
+
+/** The api's own routes, in process, as `actor`: their validation, permission checks and audit. */
+export function callAs(deps: Deps, actor: Actor): Call {
 	const app = createApp(deps, { actor });
 	return async (method, path, body) => {
 		const res = await app.request(`/api${path}`, {
