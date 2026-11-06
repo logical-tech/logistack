@@ -11,10 +11,12 @@ import {
 import type { StackChange } from "@/lib/api/stacks";
 import { cn } from "@/lib/utils";
 
-const OP = {
+/** How a planned create, update or removal is drawn; manifests call removal `delete`. */
+export const CHANGE_OP = {
 	create: { Icon: Plus, label: "New", tone: "text-ok-text" },
 	update: { Icon: PenLine, label: "Changed", tone: "text-muted-foreground" },
 	remove: { Icon: Minus, label: "Removed", tone: "text-bad-text" },
+	delete: { Icon: Minus, label: "Removed", tone: "text-bad-text" },
 } as const;
 
 /** What a compose edit does to each container, confirmed before it is applied. */
@@ -46,7 +48,7 @@ export function ComposeChangesDialog({
 				{changes.length > 0 && (
 					<ul className="max-h-[min(60vh,32rem)] divide-y overflow-y-auto border-t">
 						{changes.map((c) => {
-							const op = OP[c.op];
+							const op = CHANGE_OP[c.op];
 							return (
 								<li key={c.service} className="flex gap-3 px-5 py-3">
 									<op.Icon

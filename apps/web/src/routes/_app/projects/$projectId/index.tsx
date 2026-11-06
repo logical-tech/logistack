@@ -5,6 +5,8 @@ import {
 	ArchiveRestore,
 	Boxes,
 	Check,
+	Download,
+	FileUp,
 	Folder,
 	MoreHorizontal,
 	Plus,
@@ -35,6 +37,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { foldersQuery } from "@/lib/api/folders";
+import { downloadManifest } from "@/lib/api/manifest";
 import {
 	projectQuery,
 	useSetArchived,
@@ -55,6 +58,14 @@ export const Route = createFileRoute("/_app/projects/$projectId/")({
 	}),
 	component: ProjectDetail,
 });
+
+function exportManifest(...args: Parameters<typeof downloadManifest>) {
+	downloadManifest(...args).catch((e) =>
+		toast.error("Couldn't export the manifest", {
+			description: e instanceof Error ? e.message : undefined,
+		}),
+	);
+}
 
 function defaultEnv(envs: Environment[]) {
 	return envs.find((e) => e.isDefault) ?? envs[0];
@@ -168,7 +179,31 @@ function ProjectDetail() {
 										<MoreHorizontal />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
+								<DropdownMenuContent align="end" className="w-52">
+									<DropdownMenuItem
+										onSelect={() =>
+											exportManifest(
+												{ kind: "project", id: projectId },
+												project.slug,
+											)
+										}
+									>
+										<Download />
+										Export manifest
+									</DropdownMenuItem>
+									{!archived && (
+										<DropdownMenuItem asChild>
+											<Link
+												to="/projects/$projectId/import"
+												params={{ projectId }}
+												search={{ env: env.id }}
+											>
+												<FileUp />
+												Import manifest…
+											</Link>
+										</DropdownMenuItem>
+									)}
+									<DropdownMenuSeparator />
 									{archived ? (
 										<DropdownMenuItem
 											disabled={setArchived.isPending}
@@ -273,7 +308,7 @@ function ProjectDetail() {
 								label: <EnvTabLabel env={e} />,
 							}))}
 						/>
-						<EnvironmentMenu env={env} />
+						<EnvironmentMenu env={env} projectSlug={project.slug} />
 						<Button
 							variant="ghost"
 							size="sm"
@@ -330,8 +365,14 @@ function EnvTabLabel({ env }: { env: Environment }) {
 	);
 }
 
-/** Color and default of the selected environment. */
-function EnvironmentMenu({ env }: { env: Environment }) {
+/** Color, default and export of the selected environment. */
+function EnvironmentMenu({
+	env,
+	projectSlug,
+}: {
+	env: Environment;
+	projectSlug: string;
+}) {
 	const update = useUpdateEnvironment();
 	const save = (
 		input: { color: EnvironmentColor } | { isDefault: true },
@@ -369,6 +410,17 @@ function EnvironmentMenu({ env }: { env: Environment }) {
 				>
 					<Check className={env.isDefault ? undefined : "invisible"} />
 					Open by default
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					onSelect={() =>
+						exportManifest(
+							{ kind: "environment", id: env.id },
+							`${projectSlug}-${env.slug}`,
+						)
+					}
+				>
+					<Download />
+					Export manifest
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">

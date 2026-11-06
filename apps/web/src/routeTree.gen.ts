@@ -63,6 +63,7 @@ import { Route as AppMonitoringNodesIndexRouteImport } from './routes/_app/monit
 import { Route as AppMonitoringNodesNodeIdRouteImport } from './routes/_app/monitoring/nodes/$nodeId'
 import { Route as AppMonitoringNodesNewRouteImport } from './routes/_app/monitoring/nodes/new'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId/index'
+import { Route as AppProjectsProjectIdImportRouteImport } from './routes/_app/projects/$projectId/import'
 import { Route as AppSchedulesScheduleIdEditRouteImport } from './routes/_app/schedules_.$scheduleId_.edit'
 import { Route as AppSettingsApiKeysNewRouteImport } from './routes/_app/settings/api-keys_.new'
 import { Route as AppSettingsAuthenticationOidcRouteImport } from './routes/_app/settings/authentication_.oidc'
@@ -370,6 +371,12 @@ const AppProjectsProjectIdIndexRoute =
     path: '/',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
   } as any)
+const AppProjectsProjectIdImportRoute =
+  AppProjectsProjectIdImportRouteImport.update({
+    id: '/import',
+    path: '/import',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
 const AppSchedulesScheduleIdEditRoute =
   AppSchedulesScheduleIdEditRouteImport.update({
     id: '/schedules_/$scheduleId_/edit',
@@ -582,6 +589,7 @@ export interface FileRoutesByFullPath {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -660,6 +668,7 @@ export interface FileRoutesByTo {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/schedules/$scheduleId/edit': typeof AppSchedulesScheduleIdEditRoute
   '/settings/api-keys/new': typeof AppSettingsApiKeysNewRoute
   '/settings/authentication/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -742,6 +751,7 @@ export interface FileRoutesById {
   '/_app/integrations/tunnels_/new': typeof AppIntegrationsTunnelsNewRoute
   '/_app/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/_app/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/_app/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/_app/schedules_/$scheduleId_/edit': typeof AppSchedulesScheduleIdEditRoute
   '/_app/settings/api-keys_/new': typeof AppSettingsApiKeysNewRoute
   '/_app/settings/authentication_/oidc': typeof AppSettingsAuthenticationOidcRoute
@@ -825,6 +835,7 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/projects/$projectId/import'
     | '/schedules/$scheduleId/edit'
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
@@ -903,6 +914,7 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/projects/$projectId/import'
     | '/schedules/$scheduleId/edit'
     | '/settings/api-keys/new'
     | '/settings/authentication/oidc'
@@ -984,6 +996,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/tunnels_/new'
     | '/_app/monitoring/nodes/$nodeId'
     | '/_app/monitoring/nodes/new'
+    | '/_app/projects/$projectId/import'
     | '/_app/schedules_/$scheduleId_/edit'
     | '/_app/settings/api-keys_/new'
     | '/_app/settings/authentication_/oidc'
@@ -1402,6 +1415,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
     }
+    '/_app/projects/$projectId/import': {
+      id: '/_app/projects/$projectId/import'
+      path: '/import'
+      fullPath: '/projects/$projectId/import'
+      preLoaderRoute: typeof AppProjectsProjectIdImportRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
     '/_app/schedules_/$scheduleId_/edit': {
       id: '/_app/schedules_/$scheduleId_/edit'
       path: '/schedules/$scheduleId/edit'
@@ -1683,6 +1703,7 @@ const AppProjectsProjectIdStacksStackIdRouteRouteWithChildren =
   )
 
 interface AppProjectsProjectIdRouteRouteChildren {
+  AppProjectsProjectIdImportRoute: typeof AppProjectsProjectIdImportRoute
   AppProjectsProjectIdIndexRoute: typeof AppProjectsProjectIdIndexRoute
   AppProjectsProjectIdServicesServiceIdRouteRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   AppProjectsProjectIdStacksStackIdRouteRoute: typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
@@ -1693,6 +1714,7 @@ interface AppProjectsProjectIdRouteRouteChildren {
 
 const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChildren =
   {
+    AppProjectsProjectIdImportRoute: AppProjectsProjectIdImportRoute,
     AppProjectsProjectIdIndexRoute: AppProjectsProjectIdIndexRoute,
     AppProjectsProjectIdServicesServiceIdRouteRoute:
       AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren,
