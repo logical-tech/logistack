@@ -7,6 +7,10 @@ export const eventTypes = [
 	"deployment.failed",
 	"deployment.cancelled",
 	"service.status_changed",
+	/** Tasks keep failing; payload `state` is `firing` on entering the loop, `resolved` once it settles. */
+	"service.crash_loop",
+	/** A per-service CPU or memory threshold crossed, either way (payload `state`). */
+	"service.threshold",
 	"backup.succeeded",
 	"backup.failed",
 	"schedule.succeeded",

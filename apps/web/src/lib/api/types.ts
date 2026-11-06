@@ -25,6 +25,7 @@ export type {
 	NodeStatus,
 	ServiceKind,
 	ServiceSpec,
+	ServiceThresholdMetric,
 	ThresholdMetric,
 } from "@logistack/contracts";
 
@@ -108,6 +109,10 @@ export type MonitoringSettingsInput = Body<
 	Api["monitoring"]["settings"]["$put"]
 >;
 export type Threshold = MonitoringSettings["thresholds"][number];
+export type ServiceThreshold = MonitoringSettings["serviceThresholds"][number];
+export type ServiceThresholdsInput = Body<
+	Api["services"][":id"]["thresholds"]["$put"]
+>;
 
 export type NodeJoin = Ok<Api["nodes"]["joins"][":id"]["$get"]>;
 export type NodeJoinInput = Body<Api["nodes"]["joins"]["$post"]>;

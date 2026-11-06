@@ -207,9 +207,43 @@ export const CleanupRun = z.object({
 });
 export type CleanupRun = z.infer<typeof CleanupRun>;
 
+/**
+ * `cpu` is a percent of one core, `memoryPercent` a percent of the container's memory limit
+ * (of the node's memory when the service sets none), `memoryMb` absolute mebibytes. Each is
+ * read per replica and the worst replica counts.
+ */
+export const serviceThresholdMetrics = [
+	"cpu",
+	"memoryPercent",
+	"memoryMb",
+] as const;
+export const ServiceThresholdMetric = z.enum(serviceThresholdMetrics);
+export type ServiceThresholdMetric = z.infer<typeof ServiceThresholdMetric>;
+
+/** A `memoryPercent` threshold above 100 is rejected by the server. */
+export const ServiceThresholdInput = z.object({
+	serviceId: z.string(),
+	metric: ServiceThresholdMetric,
+	/** Fires when the window average is above this, in the metric's unit. */
+	above: z.number().positive().max(1_000_000),
+	forSec: z.int().min(60).max(86_400),
+	enabled: z.boolean(),
+});
+export type ServiceThresholdInput = z.infer<typeof ServiceThresholdInput>;
+
+export const ServiceThreshold = ServiceThresholdInput.extend({
+	id: z.string(),
+	/** null until first evaluated. */
+	firing: z.boolean().nullable(),
+	serviceName: z.string(),
+	projectId: z.string(),
+});
+export type ServiceThreshold = z.infer<typeof ServiceThreshold>;
+
 export const MonitoringSettings = z.object({
 	retention: Retention,
 	thresholds: z.array(Threshold),
+	serviceThresholds: z.array(ServiceThreshold),
 	cleanup: Cleanup,
 	lastCleanup: CleanupRun.nullable(),
 });
@@ -218,6 +252,10 @@ export type MonitoringSettings = z.infer<typeof MonitoringSettings>;
 export const MonitoringSettingsInput = z.object({
 	retention: Retention,
 	thresholds: z.array(ThresholdInput.extend({ id: z.string().optional() })),
+	/** The organization's complete per-service set; omitted keeps it. */
+	serviceThresholds: z
+		.array(ServiceThresholdInput.extend({ id: z.string().optional() }))
+		.optional(),
 	/** Omitted keeps the current schedule. */
 	cleanup: Cleanup.optional(),
 });
@@ -236,6 +274,33 @@ export const ThresholdEventPayload = z.object({
 	forSec: z.number(),
 });
 export type ThresholdEventPayload = z.infer<typeof ThresholdEventPayload>;
+
+/** Payload of the `service.threshold` event. */
+export const ServiceThresholdEventPayload = z.object({
+	thresholdId: z.string(),
+	serviceId: z.string(),
+	service: z.string(),
+	metric: ServiceThresholdMetric,
+	state: z.enum(["firing", "resolved"]),
+	value: z.number(),
+	above: z.number(),
+	forSec: z.number(),
+});
+export type ServiceThresholdEventPayload = z.infer<
+	typeof ServiceThresholdEventPayload
+>;
+
+/** A service whose tasks keep failing, as the reconciler last saw it. */
+export const CrashLoop = z.object({
+	/** ISO time the loop was first detected. */
+	since: z.string(),
+	/** Failed tasks inside the detection window. */
+	failures: z.int(),
+	/** The newest failed task's error, e.g. `task: non-zero exit (1)`. */
+	reason: z.string(),
+	exitCode: z.int().nullable(),
+});
+export type CrashLoop = z.infer<typeof CrashLoop>;
 
 // ---- Adding a server ----
 

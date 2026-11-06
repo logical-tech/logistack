@@ -1,4 +1,4 @@
-import type { NodeDesired } from "@logistack/contracts";
+import type { CrashLoop, NodeDesired } from "@logistack/contracts";
 import {
 	type AnyPgColumn,
 	index,
@@ -91,6 +91,8 @@ export const serviceStatus = pgTable("service_status", {
 		.$type<Record<string, unknown>[]>()
 		.notNull()
 		.default([]),
+	/** Set while the service's tasks keep failing; null when stable. */
+	crashLoop: jsonb("crash_loop").$type<CrashLoop>(),
 	observedAt: tstz("observed_at").notNull().defaultNow(),
 	...timestamps,
 });

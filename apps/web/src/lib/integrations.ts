@@ -123,6 +123,9 @@ export const EVENT_GROUPS: {
 			{ type: "node.recovered", label: "Node recovered" },
 			{ type: "node.joined", label: "Node joined" },
 			{ type: "service.status_changed", label: "Service status changed" },
+			{ type: "service.crash_loop", label: "Service crash-looping" },
+			{ type: "service.threshold", label: "Service threshold crossed" },
+			{ type: "metric.threshold", label: "Node threshold crossed" },
 		],
 	},
 	{

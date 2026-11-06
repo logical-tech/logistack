@@ -1,4 +1,6 @@
 import type {
+	ServiceThresholdEventPayload,
+	ServiceThresholdMetric,
 	ThresholdEventPayload,
 	ThresholdMetric,
 } from "@logistack/contracts";
@@ -87,6 +89,76 @@ export async function evaluateThresholds(
 			"metric.threshold",
 			r.organization_id,
 			{ type: "node", id: r.node_id },
+			payload,
+		);
+		emitted.push(payload);
+	}
+	return emitted;
+}
+
+/** Per container over the window; the worst replica is the service's value. */
+const SERVICE_EXPR: Record<ServiceThresholdMetric, string> = {
+	cpu: "avg(cpu)",
+	// Docker reports the node's memory as the limit of a container that sets none.
+	memoryPercent: "100 * avg(mem_used) / nullif(max(mem_limit), 0)",
+	memoryMb: "avg(mem_used) / 1048576.0",
+};
+
+type ServiceRow = {
+	id: string;
+	organization_id: string;
+	service_id: string;
+	service: string;
+	metric: ServiceThresholdMetric;
+	above: number;
+	for_sec: number;
+	firing: boolean | null;
+};
+
+/**
+ * The per-service counterpart of `evaluateThresholds`: same window average and crossing
+ * semantics, `service.threshold` on each crossing. A service with no samples in the window
+ * (stopped, or not scraped yet) is skipped and keeps its state.
+ */
+export async function evaluateServiceThresholds(
+	sql: Sql,
+	bus: Pick<Bus, "publish">,
+): Promise<ServiceThresholdEventPayload[]> {
+	const rows = await sql<ServiceRow[]>`
+		select t.id, t.organization_id, t.service_id, s.name as service, t.metric, t.above,
+			t.for_sec, t.firing
+		from service_threshold t join service s on s.id = t.service_id
+		where t.enabled`;
+	const emitted: ServiceThresholdEventPayload[] = [];
+	for (const r of rows) {
+		const [sample] = await sql.unsafe<{ value: number | null }[]>(
+			`select max(v) as value from (
+				select ${SERVICE_EXPR[r.metric]} as v from metric_container_raw
+				where service_id = $1 and ts > now() - make_interval(secs => $2)
+				group by container_id
+			) c`,
+			[r.service_id, r.for_sec],
+		);
+		if (sample?.value == null) continue;
+		const value = Number(sample.value);
+		const { firing, emit } = transition(r.firing ?? undefined, value, r.above);
+		await sql`update service_threshold set firing = ${firing}, value = ${value}
+			where id = ${r.id}`;
+		if (!emit) continue;
+		const payload: ServiceThresholdEventPayload = {
+			thresholdId: r.id,
+			serviceId: r.service_id,
+			service: r.service,
+			metric: r.metric,
+			state: emit,
+			value: Math.round(value * 10) / 10,
+			above: r.above,
+			forSec: r.for_sec,
+		};
+		await bus.publish(
+			"service.threshold",
+			r.organization_id,
+			{ type: "service", id: r.service_id },
 			payload,
 		);
 		emitted.push(payload);

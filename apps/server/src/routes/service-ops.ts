@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	CrashLoop,
 	EnvKey,
 	EnvVar,
 	type EnvVarScope,
@@ -77,6 +78,8 @@ const ServiceOverview = Service.extend({
 		replicasDesired: z.int(),
 		observedAt: z.string().nullable(),
 		tasks: z.array(ServiceTask),
+		/** Set while tasks keep failing. */
+		crashLoop: CrashLoop.nullable(),
 	}),
 	/** Newest healthy deployment: the image the service runs. */
 	current: Deployment.nullable(),
@@ -292,6 +295,7 @@ export const serviceOps = router()
 						replicasRunning: status?.replicasRunning ?? 0,
 						replicasDesired: status?.replicasDesired ?? 0,
 						observedAt: status?.observedAt?.toISOString() ?? null,
+						crashLoop: status?.crashLoop ?? null,
 						tasks: tasks.map((t) => ({
 							...t,
 							hostname:

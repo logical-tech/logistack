@@ -206,6 +206,15 @@ export function serviceOpsMock(db: MockDb): ServiceOpsApi {
 						at: iso(3_600_000 * (i + 2)),
 						containerName: `ls-svc-${s.id.slice(4)}.${i + 1}.task${i + 1}${s.id.slice(-4)}`,
 					})).slice(0, replicas),
+					crashLoop:
+						s.status.observed === "failed"
+							? {
+									since: iso(8 * 60_000),
+									failures: 4,
+									reason: "task: non-zero exit (1)",
+									exitCode: 1,
+								}
+							: null,
 				},
 				current: deps.find((d) => d.status === "healthy") ?? null,
 				latest: deps[0] ?? null,

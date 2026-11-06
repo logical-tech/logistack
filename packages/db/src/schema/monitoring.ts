@@ -4,12 +4,14 @@ import type {
 	NodeJoinStep,
 	PreflightCheck,
 	PruneTarget,
+	ServiceThresholdMetric,
 	ThresholdMetric,
 } from "@logistack/contracts";
 import { sql } from "drizzle-orm";
 import {
 	boolean,
 	check,
+	index,
 	integer,
 	jsonb,
 	pgTable,
@@ -20,6 +22,7 @@ import {
 import { organization } from "./auth.ts";
 import { id, timestamps, tstz } from "./columns.ts";
 import { nodeRole } from "./enums.ts";
+import { service } from "./hierarchy.ts";
 import { sshKey } from "./integrations.ts";
 
 // The raw samples and their 1m / 1h rollups (`metric_host_*`, `metric_container_*`) are
@@ -77,6 +80,29 @@ export const metricAlert = pgTable(
 		changedAt: tstz("changed_at").notNull().defaultNow(),
 	},
 	(t) => [primaryKey({ columns: [t.thresholdId, t.swarmNodeId] })],
+);
+
+/** A CPU or memory limit on one service; it carries its own last state, one service per row. */
+export const serviceThreshold = pgTable(
+	"service_threshold",
+	{
+		id: id("sth"),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		serviceId: text("service_id")
+			.notNull()
+			.references(() => service.id, { onDelete: "cascade" }),
+		metric: text("metric").$type<ServiceThresholdMetric>().notNull(),
+		above: real("above").notNull(),
+		forSec: integer("for_sec").notNull(),
+		enabled: boolean("enabled").notNull().default(true),
+		/** null until first evaluated. */
+		firing: boolean("firing"),
+		value: real("value"),
+		...timestamps,
+	},
+	(t) => [index("service_threshold_service_idx").on(t.serviceId)],
 );
 
 /** Rollup watermarks: buckets before `through` are final. */

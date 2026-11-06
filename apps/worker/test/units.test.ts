@@ -12,7 +12,7 @@ import {
 	type ServiceContext,
 } from "../src/load.ts";
 import { domainRoute, routeAccess } from "../src/proxy.ts";
-import { observe } from "../src/reconcile.ts";
+import { crashLoop, observe } from "../src/reconcile.ts";
 
 describe("buildPlan", () => {
 	const base = {
@@ -142,6 +142,68 @@ describe("observe", () => {
 			observe({ exists: true, desired: 1, tasks: [task("failed", "shutdown")] })
 				.observed,
 		).toBe("failed");
+	});
+});
+
+describe("crashLoop", () => {
+	const now = Date.parse("2026-11-06T10:00:00Z");
+	const task = (
+		state: Task["Status"]["State"],
+		secAgo: number,
+		exit = 1,
+	): Pick<Task, "Status"> => ({
+		Status: {
+			State: state,
+			// Swarm stamps nanoseconds.
+			Timestamp: new Date(now - secAgo * 1000)
+				.toISOString()
+				.replace("Z", "123456Z"),
+			Message: "started",
+			Err: `task: non-zero exit (${exit})`,
+			ContainerStatus: { ExitCode: exit },
+		},
+	});
+
+	test("enters at three failures inside five minutes, newest reason first", () => {
+		const tasks = [
+			task("failed", 200, 2),
+			task("failed", 20, 137),
+			task("rejected", 100),
+			task("running", 5),
+		];
+		expect(crashLoop(tasks, null, now)).toEqual({
+			since: "2026-11-06T10:00:00.000Z",
+			failures: 3,
+			reason: "task: non-zero exit (137)",
+			exitCode: 137,
+		});
+		expect(crashLoop(tasks.slice(1), null, now)).toBeNull();
+		// Failures older than the window do not count.
+		expect(
+			crashLoop([...tasks.slice(1), task("failed", 400)], null, now),
+		).toBeNull();
+		// A clean exit or a shutdown is not a crash.
+		expect(
+			crashLoop(
+				[task("complete", 10), task("shutdown", 20), task("shutdown", 30)],
+				null,
+				now,
+			),
+		).toBeNull();
+	});
+
+	test("stays until the window holds no failure, keeping its start", () => {
+		const prev = {
+			since: "2026-11-06T09:50:00.000Z",
+			failures: 3,
+			reason: "x",
+			exitCode: 1,
+		};
+		expect(crashLoop([task("failed", 280)], prev, now)).toMatchObject({
+			since: prev.since,
+			failures: 1,
+		});
+		expect(crashLoop([task("failed", 310)], prev, now)).toBeNull();
 	});
 });
 

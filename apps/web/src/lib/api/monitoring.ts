@@ -15,6 +15,7 @@ import type {
 	NodeUpdate,
 	PruneInput,
 	ServiceId,
+	ServiceThresholdsInput,
 } from "./types";
 
 // Polling is the floor: the agent gateway may push nothing, and the views must still move.
@@ -108,8 +109,29 @@ export function useSaveMonitoring() {
 	const qc = useQueryClient();
 	return useMutation({
 		mutationFn: api.monitoring.save,
-		onSuccess: (saved) =>
-			qc.setQueryData(monitoringSettingsQuery.queryKey, saved),
+		onSuccess: (saved) => {
+			qc.setQueryData(monitoringSettingsQuery.queryKey, saved);
+			void qc.invalidateQueries({ queryKey: ["monitoring", "services"] });
+		},
+	});
+}
+
+export const serviceThresholdsQuery = (id: ServiceId) =>
+	queryOptions({
+		queryKey: ["monitoring", "services", id, "thresholds"],
+		queryFn: () => api.monitoring.serviceThresholds(id),
+	});
+
+export function useSaveServiceThresholds(id: ServiceId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (input: ServiceThresholdsInput) =>
+			api.monitoring.saveServiceThresholds(id, input),
+		onSuccess: (saved) => {
+			qc.setQueryData(serviceThresholdsQuery(id).queryKey, saved);
+			// The monitoring settings list every service's thresholds.
+			void qc.invalidateQueries({ queryKey: monitoringSettingsQuery.queryKey });
+		},
 	});
 }
 
