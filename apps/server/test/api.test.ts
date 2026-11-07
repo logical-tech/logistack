@@ -124,6 +124,24 @@ describe.skipIf(!hasDocker)("api", () => {
 		});
 	});
 
+	test("a transactional mutation writes one success row, naming the new row", async () => {
+		const res = await h.call("POST", "/api/projects", {
+			...asOwner(),
+			body: { name: "Audited in tx" },
+		});
+		expect(res.status).toBe(201);
+		const rows = await h.deps.db
+			.select()
+			.from(auditLog)
+			.where(
+				and(
+					eq(auditLog.action, "project.create"),
+					eq(auditLog.resourceId, res.json.id),
+				),
+			);
+		expect(rows.map((r) => r.outcome)).toEqual(["success"]);
+	});
+
 	test("a permission denial is audited as denied", async () => {
 		const res = await h.call("POST", "/api/projects", {
 			...asViewer(),

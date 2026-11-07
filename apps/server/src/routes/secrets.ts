@@ -34,7 +34,7 @@ import {
 import { and, asc, count, desc, eq, inArray, or } from "drizzle-orm";
 import type { Context } from "hono";
 import type { Actor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import {
 	Failure,
@@ -323,15 +323,18 @@ export const secrets = router()
 			rejectReservedEnvKeys([input.key]);
 			const actor = c.get("actor") as Actor;
 			const { db } = c.var.deps;
-			const row = await db.transaction((tx) =>
-				createSecret(
+			const row = await db.transaction(async (tx) => {
+				const created = await createSecret(
 					{ ...secretsCtx(c), db: tx },
 					{ ...input, value, organizationId: actor.organizationId },
 					actor.userId,
-				),
-			);
-			c.set("auditResourceId", row.id);
-			c.set("auditDiff", { scope: input.scope, key: input.key, version: 1 });
+				);
+				await auditInTx(c, tx, {
+					resourceId: created.id,
+					diff: { scope: input.scope, key: input.key, version: 1 },
+				});
+				return created;
+			});
 			const [out] = await present(db, [row]);
 			return c.json(out, 201);
 		},
@@ -391,15 +394,17 @@ export const secrets = router()
 						value,
 						actor.userId,
 					);
+				await auditInTx(c, tx, {
+					resourceId: r.id,
+					diff: {
+						key: r.key,
+						...(value !== undefined && {
+							version: { from: prev.currentVersion, to: r.currentVersion },
+						}),
+						...(description !== undefined && { description }),
+					},
+				});
 				return r;
-			});
-			c.set("auditResourceId", row.id);
-			c.set("auditDiff", {
-				key: row.key,
-				...(value !== undefined && {
-					version: { from: prev.currentVersion, to: row.currentVersion },
-				}),
-				...(description !== undefined && { description }),
 			});
 			const [out] = await present(db, [row]);
 			return c.json(out, 200);
@@ -497,13 +502,12 @@ export const secrets = router()
 			const row = await db.transaction(async (tx) => {
 				const t = { ...secretsCtx(c), db: tx };
 				const value = await readSecretValue(t, prev, version);
-				return setSecretValue(t, prev.id, value, actor.userId);
-			});
-			c.set("auditResourceId", row.id);
-			c.set("auditDiff", {
-				key: row.key,
-				restored: version,
-				version: row.currentVersion,
+				const r = await setSecretValue(t, prev.id, value, actor.userId);
+				await auditInTx(c, tx, {
+					resourceId: r.id,
+					diff: { key: r.key, restored: version, version: r.currentVersion },
+				});
+				return r;
 			});
 			const [out] = await present(db, [row]);
 			return c.json(out, 200);

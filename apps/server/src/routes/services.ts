@@ -30,7 +30,7 @@ import {
 } from "@logistack/db";
 import { and, asc, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import { Failure, one } from "../errors.ts";
 import { envelope } from "../events.ts";
 import { guardHostSettings } from "../host-settings.ts";
@@ -373,9 +373,9 @@ export const services = router()
 							})),
 						),
 					);
+				await auditInTx(c, tx, { resourceId: created.id });
 				return created;
 			});
-			c.set("auditResourceId", row.id);
 			return c.json(row, 201);
 		},
 	)

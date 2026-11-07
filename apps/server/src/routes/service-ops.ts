@@ -40,7 +40,7 @@ import {
 import { and, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { type Actor, requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound, one, rejectReservedEnvKeys } from "../errors.ts";
 import { envelope } from "../events.ts";
@@ -797,6 +797,7 @@ export const serviceOps = router()
 						.filter((v) => v.secretId)
 						.map((v) => ({ key: v.key, secretId: v.secretId })),
 				});
+				await auditInTx(c, tx);
 				return tx.select().from(envVar).where(scope);
 			});
 			const reveal = actorCan(actor, "read:secrets", resource);

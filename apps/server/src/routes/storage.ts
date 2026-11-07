@@ -29,7 +29,7 @@ import {
 } from "@logistack/db";
 import { and, asc, eq } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import { Failure, one } from "../errors.ts";
 import { body, errors, json, Name, router, security } from "../openapi.ts";
 import { actorCan, byParam, check, requirePermission } from "../scope.ts";
@@ -937,7 +937,7 @@ export const storage = router()
 					access: "readwrite",
 					createdBy: actor.userId,
 				});
-				return one(
+				const dest = one(
 					await tx
 						.insert(s3Destination)
 						.values({
@@ -954,8 +954,9 @@ export const storage = router()
 						})
 						.returning({ id: s3Destination.id }),
 				);
+				await auditInTx(c, tx, { resourceId: dest.id });
+				return dest;
 			});
-			c.set("auditResourceId", row.id);
 			return c.json(row, 201);
 		},
 	);
