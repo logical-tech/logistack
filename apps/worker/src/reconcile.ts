@@ -1,11 +1,12 @@
 import type { CrashLoop, ObservedState } from "@logistack/contracts";
-import { isTerminal } from "@logistack/core";
+import { isTerminal, scaledReplicas } from "@logistack/core";
 import {
 	deployment,
 	environment,
 	mount,
 	project,
 	service,
+	serviceAutoscale,
 	serviceStatus,
 } from "@logistack/db";
 import {
@@ -102,11 +103,14 @@ const scopedFilters = (ctx: Ctx): Filters => {
 	return f;
 };
 
-const desiredReplicas = (row: typeof service.$inferSelect) =>
+const desiredReplicas = (
+	row: typeof service.$inferSelect,
+	scaled: number | undefined,
+) =>
 	row.desiredState === "stopped"
 		? 0
 		: row.spec.kind === "application"
-			? row.spec.replicas
+			? (scaled ?? row.spec.replicas)
 			: 1;
 
 async function writeStatus(
@@ -114,10 +118,11 @@ async function writeStatus(
 	row: typeof service.$inferSelect,
 	organizationId: string,
 	svc: Service | undefined,
+	scaled: number | undefined,
 ) {
 	const name = svcName(ctx, row.id);
 	const tasks = svc ? await ctx.docker.tasks.list({ service: [name] }) : [];
-	const desired = desiredReplicas(row);
+	const desired = desiredReplicas(row, scaled);
 	const { observed, running } = observe({
 		exists: !!svc,
 		desired,
@@ -187,6 +192,7 @@ async function reconcileService(
 	row: typeof service.$inferSelect,
 	organizationId: string,
 	busy: boolean,
+	scaled: number | undefined,
 ) {
 	const name = svcName(ctx, row.id);
 	let svc = await inspectService(ctx, name);
@@ -218,7 +224,7 @@ async function reconcileService(
 					...scope(ctx).labels,
 					"logistack.environment": row.environmentId,
 				};
-				const replicas = desiredReplicas(row);
+				const replicas = desiredReplicas(row, scaled);
 				const actual = svc.Spec.Labels ?? {};
 				const labelDrift = Object.entries(labels).some(
 					([k, v]) => actual[k] !== v,
@@ -245,17 +251,22 @@ async function reconcileService(
 			}
 		}
 	}
-	await writeStatus(ctx, row, organizationId, svc);
+	await writeStatus(ctx, row, organizationId, svc, scaled);
 }
 
 /** One reconcile pass over every service with a desired state. Idempotent; one replica at a time. */
 export async function reconcilePass(ctx: Ctx): Promise<boolean> {
 	return withLock(ctx.bus.redis, "ls:lock:reconcile", 120_000, async () => {
 		const rows = await ctx.db
-			.select({ service, organizationId: project.organizationId })
+			.select({
+				service,
+				organizationId: project.organizationId,
+				autoscale: serviceAutoscale,
+			})
 			.from(service)
 			.innerJoin(environment, eq(environment.id, service.environmentId))
 			.innerJoin(project, eq(project.id, environment.projectId))
+			.leftJoin(serviceAutoscale, eq(serviceAutoscale.serviceId, service.id))
 			.where(ne(service.kind, "compose"));
 		const pending = rows.length
 			? await ctx.db
@@ -286,6 +297,7 @@ export async function reconcilePass(ctx: Ctx): Promise<boolean> {
 					r.service,
 					r.organizationId,
 					busy.has(r.service.id) || paused.has(r.service.id),
+					scaledReplicas(r.autoscale),
 				);
 			} catch (e) {
 				log("error", "reconcile failed", {

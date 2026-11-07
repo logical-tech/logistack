@@ -13,6 +13,8 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAgentRouteImport } from './routes/_app/agent'
+import { Route as AppAiRouteRouteImport } from './routes/_app/ai/route'
 import { Route as AppDomainsRouteImport } from './routes/_app/domains'
 import { Route as AppMonitoringRouteRouteImport } from './routes/_app/monitoring/route'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
@@ -25,6 +27,11 @@ import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthSsoTestRouteImport } from './routes/_auth/sso-test'
 import { Route as AuthTwoFactorRouteImport } from './routes/_auth/two-factor'
 import { Route as AppAccountSecurityRouteImport } from './routes/_app/account/security'
+import { Route as AppAiIndexRouteImport } from './routes/_app/ai/index'
+import { Route as AppAiAgentRouteImport } from './routes/_app/ai/agent'
+import { Route as AppAiBudgetsRouteImport } from './routes/_app/ai/budgets'
+import { Route as AppAiGatewayRouteImport } from './routes/_app/ai/gateway'
+import { Route as AppAiProvidersRouteImport } from './routes/_app/ai/providers'
 import { Route as AppDomainsNewRouteImport } from './routes/_app/domains_.new'
 import { Route as AppIntegrationsDnsRouteImport } from './routes/_app/integrations/dns'
 import { Route as AppIntegrationsGitRouteImport } from './routes/_app/integrations/git'
@@ -54,6 +61,7 @@ import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/s
 import { Route as AppSettingsUpdatesRouteImport } from './routes/_app/settings/updates'
 import { Route as AppSettingsVariablesRouteImport } from './routes/_app/settings/variables'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
+import { Route as AppAiProvidersNewRouteImport } from './routes/_app/ai/providers_.new'
 import { Route as AppBackupsServiceIdIndexRouteImport } from './routes/_app/backups/$serviceId/index'
 import { Route as AppBackupsServiceIdNewRouteImport } from './routes/_app/backups/$serviceId/new'
 import { Route as AppBackupsServiceIdRestoreRouteImport } from './routes/_app/backups/$serviceId/restore'
@@ -120,6 +128,16 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAgentRoute = AppAgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAiRouteRoute = AppAiRouteRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDomainsRoute = AppDomainsRouteImport.update({
   id: '/domains',
   path: '/domains',
@@ -179,6 +197,31 @@ const AppAccountSecurityRoute = AppAccountSecurityRouteImport.update({
   id: '/account/security',
   path: '/account/security',
   getParentRoute: () => AppRoute,
+} as any)
+const AppAiIndexRoute = AppAiIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAiRouteRoute,
+} as any)
+const AppAiAgentRoute = AppAiAgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
+  getParentRoute: () => AppAiRouteRoute,
+} as any)
+const AppAiBudgetsRoute = AppAiBudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => AppAiRouteRoute,
+} as any)
+const AppAiGatewayRoute = AppAiGatewayRouteImport.update({
+  id: '/gateway',
+  path: '/gateway',
+  getParentRoute: () => AppAiRouteRoute,
+} as any)
+const AppAiProvidersRoute = AppAiProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => AppAiRouteRoute,
 } as any)
 const AppDomainsNewRoute = AppDomainsNewRouteImport.update({
   id: '/domains_/new',
@@ -328,6 +371,11 @@ const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
   id: '/accept-invitation/$id',
   path: '/accept-invitation/$id',
   getParentRoute: () => AuthRoute,
+} as any)
+const AppAiProvidersNewRoute = AppAiProvidersNewRouteImport.update({
+  id: '/providers_/new',
+  path: '/providers/new',
+  getParentRoute: () => AppAiRouteRoute,
 } as any)
 const AppBackupsServiceIdIndexRoute =
   AppBackupsServiceIdIndexRouteImport.update({
@@ -608,8 +656,10 @@ const AppProjectsProjectIdStacksStackIdLogsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/setup': typeof SetupRoute
+  '/ai': typeof AppAiRouteRouteWithChildren
   '/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/projects': typeof AppProjectsRouteRouteWithChildren
+  '/agent': typeof AppAgentRoute
   '/domains': typeof AppDomainsRoute
   '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
@@ -621,6 +671,10 @@ export interface FileRoutesByFullPath {
   '/two-factor': typeof AuthTwoFactorRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
   '/account/security': typeof AppAccountSecurityRoute
+  '/ai/agent': typeof AppAiAgentRoute
+  '/ai/budgets': typeof AppAiBudgetsRoute
+  '/ai/gateway': typeof AppAiGatewayRoute
+  '/ai/providers': typeof AppAiProvidersRoute
   '/domains/new': typeof AppDomainsNewRoute
   '/integrations/dns': typeof AppIntegrationsDnsRoute
   '/integrations/git': typeof AppIntegrationsGitRoute
@@ -647,8 +701,10 @@ export interface FileRoutesByFullPath {
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/settings/variables': typeof AppSettingsVariablesRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
+  '/ai/': typeof AppAiIndexRoute
   '/monitoring/': typeof AppMonitoringIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
+  '/ai/providers/new': typeof AppAiProvidersNewRoute
   '/backups/$serviceId/new': typeof AppBackupsServiceIdNewRoute
   '/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
   '/integrations/dns/new': typeof AppIntegrationsDnsNewRoute
@@ -700,6 +756,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/setup': typeof SetupRoute
+  '/agent': typeof AppAgentRoute
   '/domains': typeof AppDomainsRoute
   '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
@@ -710,6 +767,10 @@ export interface FileRoutesByTo {
   '/sso-test': typeof AuthSsoTestRoute
   '/two-factor': typeof AuthTwoFactorRoute
   '/account/security': typeof AppAccountSecurityRoute
+  '/ai/agent': typeof AppAiAgentRoute
+  '/ai/budgets': typeof AppAiBudgetsRoute
+  '/ai/gateway': typeof AppAiGatewayRoute
+  '/ai/providers': typeof AppAiProvidersRoute
   '/domains/new': typeof AppDomainsNewRoute
   '/integrations/dns': typeof AppIntegrationsDnsRoute
   '/integrations/git': typeof AppIntegrationsGitRoute
@@ -736,8 +797,10 @@ export interface FileRoutesByTo {
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/settings/variables': typeof AppSettingsVariablesRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
+  '/ai': typeof AppAiIndexRoute
   '/monitoring': typeof AppMonitoringIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/ai/providers/new': typeof AppAiProvidersNewRoute
   '/backups/$serviceId/new': typeof AppBackupsServiceIdNewRoute
   '/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
   '/integrations/dns/new': typeof AppIntegrationsDnsNewRoute
@@ -789,8 +852,10 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
   '/setup': typeof SetupRoute
+  '/_app/ai': typeof AppAiRouteRouteWithChildren
   '/_app/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/_app/projects': typeof AppProjectsRouteRouteWithChildren
+  '/_app/agent': typeof AppAgentRoute
   '/_app/domains': typeof AppDomainsRoute
   '/_app/network': typeof AppNetworkRoute
   '/_app/schedules': typeof AppSchedulesRoute
@@ -803,6 +868,10 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
   '/_app/account/security': typeof AppAccountSecurityRoute
+  '/_app/ai/agent': typeof AppAiAgentRoute
+  '/_app/ai/budgets': typeof AppAiBudgetsRoute
+  '/_app/ai/gateway': typeof AppAiGatewayRoute
+  '/_app/ai/providers': typeof AppAiProvidersRoute
   '/_app/domains_/new': typeof AppDomainsNewRoute
   '/_app/integrations/dns': typeof AppIntegrationsDnsRoute
   '/_app/integrations/git': typeof AppIntegrationsGitRoute
@@ -829,8 +898,10 @@ export interface FileRoutesById {
   '/_app/settings/updates': typeof AppSettingsUpdatesRoute
   '/_app/settings/variables': typeof AppSettingsVariablesRoute
   '/_auth/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
+  '/_app/ai/': typeof AppAiIndexRoute
   '/_app/monitoring/': typeof AppMonitoringIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/_app/ai/providers_/new': typeof AppAiProvidersNewRoute
   '/_app/backups/$serviceId/new': typeof AppBackupsServiceIdNewRoute
   '/_app/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
   '/_app/integrations/dns_/new': typeof AppIntegrationsDnsNewRoute
@@ -884,8 +955,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/setup'
+    | '/ai'
     | '/monitoring'
     | '/projects'
+    | '/agent'
     | '/domains'
     | '/network'
     | '/schedules'
@@ -897,6 +970,10 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/projects/$projectId'
     | '/account/security'
+    | '/ai/agent'
+    | '/ai/budgets'
+    | '/ai/gateway'
+    | '/ai/providers'
     | '/domains/new'
     | '/integrations/dns'
     | '/integrations/git'
@@ -923,8 +1000,10 @@ export interface FileRouteTypes {
     | '/settings/updates'
     | '/settings/variables'
     | '/accept-invitation/$id'
+    | '/ai/'
     | '/monitoring/'
     | '/projects/'
+    | '/ai/providers/new'
     | '/backups/$serviceId/new'
     | '/backups/$serviceId/restore'
     | '/integrations/dns/new'
@@ -976,6 +1055,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/setup'
+    | '/agent'
     | '/domains'
     | '/network'
     | '/schedules'
@@ -986,6 +1066,10 @@ export interface FileRouteTypes {
     | '/sso-test'
     | '/two-factor'
     | '/account/security'
+    | '/ai/agent'
+    | '/ai/budgets'
+    | '/ai/gateway'
+    | '/ai/providers'
     | '/domains/new'
     | '/integrations/dns'
     | '/integrations/git'
@@ -1012,8 +1096,10 @@ export interface FileRouteTypes {
     | '/settings/updates'
     | '/settings/variables'
     | '/accept-invitation/$id'
+    | '/ai'
     | '/monitoring'
     | '/projects'
+    | '/ai/providers/new'
     | '/backups/$serviceId/new'
     | '/backups/$serviceId/restore'
     | '/integrations/dns/new'
@@ -1064,8 +1150,10 @@ export interface FileRouteTypes {
     | '/_app'
     | '/_auth'
     | '/setup'
+    | '/_app/ai'
     | '/_app/monitoring'
     | '/_app/projects'
+    | '/_app/agent'
     | '/_app/domains'
     | '/_app/network'
     | '/_app/schedules'
@@ -1078,6 +1166,10 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/projects/$projectId'
     | '/_app/account/security'
+    | '/_app/ai/agent'
+    | '/_app/ai/budgets'
+    | '/_app/ai/gateway'
+    | '/_app/ai/providers'
     | '/_app/domains_/new'
     | '/_app/integrations/dns'
     | '/_app/integrations/git'
@@ -1104,8 +1196,10 @@ export interface FileRouteTypes {
     | '/_app/settings/updates'
     | '/_app/settings/variables'
     | '/_auth/accept-invitation/$id'
+    | '/_app/ai/'
     | '/_app/monitoring/'
     | '/_app/projects/'
+    | '/_app/ai/providers_/new'
     | '/_app/backups/$serviceId/new'
     | '/_app/backups/$serviceId/restore'
     | '/_app/integrations/dns_/new'
@@ -1191,6 +1285,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/agent': {
+      id: '/_app/agent'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof AppAgentRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ai': {
+      id: '/_app/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof AppAiRouteRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/domains': {
       id: '/_app/domains'
       path: '/domains'
@@ -1274,6 +1382,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/account/security'
       preLoaderRoute: typeof AppAccountSecurityRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/ai/': {
+      id: '/_app/ai/'
+      path: '/'
+      fullPath: '/ai/'
+      preLoaderRoute: typeof AppAiIndexRouteImport
+      parentRoute: typeof AppAiRouteRoute
+    }
+    '/_app/ai/agent': {
+      id: '/_app/ai/agent'
+      path: '/agent'
+      fullPath: '/ai/agent'
+      preLoaderRoute: typeof AppAiAgentRouteImport
+      parentRoute: typeof AppAiRouteRoute
+    }
+    '/_app/ai/budgets': {
+      id: '/_app/ai/budgets'
+      path: '/budgets'
+      fullPath: '/ai/budgets'
+      preLoaderRoute: typeof AppAiBudgetsRouteImport
+      parentRoute: typeof AppAiRouteRoute
+    }
+    '/_app/ai/gateway': {
+      id: '/_app/ai/gateway'
+      path: '/gateway'
+      fullPath: '/ai/gateway'
+      preLoaderRoute: typeof AppAiGatewayRouteImport
+      parentRoute: typeof AppAiRouteRoute
+    }
+    '/_app/ai/providers': {
+      id: '/_app/ai/providers'
+      path: '/providers'
+      fullPath: '/ai/providers'
+      preLoaderRoute: typeof AppAiProvidersRouteImport
+      parentRoute: typeof AppAiRouteRoute
     }
     '/_app/domains_/new': {
       id: '/_app/domains_/new'
@@ -1477,6 +1620,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/accept-invitation/$id'
       preLoaderRoute: typeof AuthAcceptInvitationIdRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_app/ai/providers_/new': {
+      id: '/_app/ai/providers_/new'
+      path: '/providers/new'
+      fullPath: '/ai/providers/new'
+      preLoaderRoute: typeof AppAiProvidersNewRouteImport
+      parentRoute: typeof AppAiRouteRoute
     }
     '/_app/backups/$serviceId/': {
       id: '/_app/backups/$serviceId/'
@@ -1810,6 +1960,28 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppAiRouteRouteChildren {
+  AppAiAgentRoute: typeof AppAiAgentRoute
+  AppAiBudgetsRoute: typeof AppAiBudgetsRoute
+  AppAiGatewayRoute: typeof AppAiGatewayRoute
+  AppAiProvidersRoute: typeof AppAiProvidersRoute
+  AppAiIndexRoute: typeof AppAiIndexRoute
+  AppAiProvidersNewRoute: typeof AppAiProvidersNewRoute
+}
+
+const AppAiRouteRouteChildren: AppAiRouteRouteChildren = {
+  AppAiAgentRoute: AppAiAgentRoute,
+  AppAiBudgetsRoute: AppAiBudgetsRoute,
+  AppAiGatewayRoute: AppAiGatewayRoute,
+  AppAiProvidersRoute: AppAiProvidersRoute,
+  AppAiIndexRoute: AppAiIndexRoute,
+  AppAiProvidersNewRoute: AppAiProvidersNewRoute,
+}
+
+const AppAiRouteRouteWithChildren = AppAiRouteRoute._addFileChildren(
+  AppAiRouteRouteChildren,
+)
+
 interface AppMonitoringRouteRouteChildren {
   AppMonitoringAlertsRoute: typeof AppMonitoringAlertsRoute
   AppMonitoringUsageRoute: typeof AppMonitoringUsageRoute
@@ -1955,8 +2127,10 @@ const AppProjectsRouteRouteWithChildren =
   AppProjectsRouteRoute._addFileChildren(AppProjectsRouteRouteChildren)
 
 interface AppRouteChildren {
+  AppAiRouteRoute: typeof AppAiRouteRouteWithChildren
   AppMonitoringRouteRoute: typeof AppMonitoringRouteRouteWithChildren
   AppProjectsRouteRoute: typeof AppProjectsRouteRouteWithChildren
+  AppAgentRoute: typeof AppAgentRoute
   AppDomainsRoute: typeof AppDomainsRoute
   AppNetworkRoute: typeof AppNetworkRoute
   AppSchedulesRoute: typeof AppSchedulesRoute
@@ -2006,8 +2180,10 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAiRouteRoute: AppAiRouteRouteWithChildren,
   AppMonitoringRouteRoute: AppMonitoringRouteRouteWithChildren,
   AppProjectsRouteRoute: AppProjectsRouteRouteWithChildren,
+  AppAgentRoute: AppAgentRoute,
   AppDomainsRoute: AppDomainsRoute,
   AppNetworkRoute: AppNetworkRoute,
   AppSchedulesRoute: AppSchedulesRoute,

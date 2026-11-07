@@ -17,6 +17,7 @@ const P = "/projects/prj_storefront";
 const SVC = `${P}/services/svc_storefront_production_web`;
 const PG = `${P}/services/svc_storefront_production_postgres`;
 const REDIS = `${P}/services/svc_storefront_production_redis`;
+const AUTOSCALE = `${P}/services/svc_storefront_production_api/settings?scaling=setup&step=`;
 
 /** A path, or a path plus the buttons/links to click (by accessible name, in order) before the shot. */
 type Shot = string | { path: string; click: string[] };
@@ -44,6 +45,11 @@ export const shots: Record<string, Shot> = {
 	"service-metrics": `${SVC}/metrics`,
 	"service-storage": `${P}/services/svc_storefront_production_media/storage`,
 	"service-settings": `${SVC}/settings`,
+	"service-scaling": `${SVC}/settings#scaling`,
+	"autoscale-checks": `${AUTOSCALE}ready`,
+	"autoscale-range": `${AUTOSCALE}range`,
+	"autoscale-behavior": `${AUTOSCALE}behavior`,
+	"autoscale-review": `${AUTOSCALE}review`,
 	"service-backups": `${PG}/backups`,
 	"database-postgres": `${PG}/database`,
 	"database-redis": `${REDIS}/database`,
@@ -138,6 +144,12 @@ for (const [name, shot] of Object.entries(shots)) {
 		await page.goto(base + path, { waitUntil: "networkidle" });
 		// The mock API answers after a short simulated latency; let skeletons settle.
 		await page.waitForTimeout(1200);
+		// The section renders after the mock answers, too late for the browser's own jump.
+		const hash = new URL(base + path).hash;
+		if (hash)
+			await page
+				.locator(hash)
+				.evaluate((el) => el.scrollIntoView({ block: "start" }));
 		for (const label of click) {
 			await page
 				.getByRole("button", { name: label })

@@ -2,6 +2,7 @@ import {
 	Activity,
 	ArrowRightLeft,
 	Bell,
+	BotMessageSquare,
 	Boxes,
 	Cable,
 	CalendarClock,
@@ -23,6 +24,7 @@ import {
 	Palette,
 	Settings2,
 	ShieldCheck,
+	Sparkles,
 	TerminalSquare,
 	Users,
 	Variable,
@@ -126,6 +128,30 @@ export const NAV: NavGroup[] = [
 				},
 				keywords: ["s3", "buckets", "minio", "files", "object storage"],
 			},
+			{
+				to: "/agent",
+				title: "Agent",
+				icon: BotMessageSquare,
+				description:
+					"Chat with an agent that checks, deploys and changes things through the API, with your permissions. Alpha.",
+				keywords: ["chat", "assistant", "ai", "llm", "copilot"],
+			},
+			{
+				to: "/ai",
+				title: "AI",
+				icon: Sparkles,
+				description:
+					"One OpenAI- and Anthropic-compatible endpoint over free and paid model providers, with keys and monthly budgets per member.",
+				keywords: [
+					"llm",
+					"gateway",
+					"openai",
+					"anthropic",
+					"models",
+					"budget",
+					"groq",
+				],
+			},
 		],
 	},
 	{
@@ -222,11 +248,19 @@ export const NAV: NavGroup[] = [
 			},
 			{
 				to: "/settings/variables",
-				title: "Variables",
+				title: "Secrets & variables",
 				icon: Variable,
 				description:
-					"Environment variables every service in the organization inherits.",
-				keywords: ["env", "environment", "secrets", "dotenv", "shared"],
+					"Encrypted, versioned secrets services can reference, and plain variables every service inherits.",
+				keywords: [
+					"env",
+					"environment",
+					"secrets",
+					"dotenv",
+					"shared",
+					"variables",
+					"encryption key",
+				],
 			},
 			{
 				to: "/settings/appearance",

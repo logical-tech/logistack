@@ -260,6 +260,41 @@
       "when": 1793976592992,
       "tag": "0036_game_servers",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793989286025,
+      "tag": "0037_ai_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793991353414,
+      "tag": "0038_service_autoscale",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793993646058,
+      "tag": "0039_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793993670467,
+      "tag": "0040_scope_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793994911875,
+      "tag": "0041_ai_agent",
+      "breakpoints": true
     }
   ]
 }

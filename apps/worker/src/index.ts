@@ -7,7 +7,7 @@ import {
 	SCHEDULE_QUEUE,
 	type ScheduleJob,
 } from "@logistack/contracts";
-import { importMasterKey } from "@logistack/core";
+import { deriveSecretsKek, importMasterKey } from "@logistack/core";
 import { backupPolicy, createDb, deployment, schedule } from "@logistack/db";
 import { createDockerClient, type DockerEvent } from "@logistack/docker";
 import { coalesce } from "@logistack/proxy";
@@ -50,6 +50,7 @@ import {
 	syncCleanupScheduler,
 } from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
+import { convertLegacySecrets } from "./secrets.ts";
 import { syncTunnels } from "./tunnels.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
@@ -122,6 +123,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		docker: createDockerClient({ socketPath: cfg.DOCKER_SOCKET }),
 		bus: await createBus(cfg.REDIS_URL),
 		masterKey: await importMasterKey(cfg.LOGISTACK_MASTER_KEY),
+		secretsKek: await deriveSecretsKek(cfg.LOGISTACK_MASTER_KEY),
 		queues: createQueues(connection),
 		nodes: await createNodeRunner(cfg.REDIS_URL),
 	};
@@ -273,6 +275,14 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 	void followDocker(ctx, events.signal);
 	const stopMonitoring = await startMonitoring(ctx);
 
+	// Secret variables from before managed secrets become secrets plus references.
+	await convertLegacySecrets(ctx)
+		.then((n) => n && log("info", "converted secret variables", { count: n }))
+		.catch((e) =>
+			log("error", "secret conversion failed", {
+				error: e instanceof Error ? e.message : String(e),
+			}),
+		);
 	// Boot: anything left mid-flight by a dead worker is resumed (deploying) or failed (building).
 	const stranded = await ctx.db
 		.selectDistinct({ serviceId: deployment.serviceId })

@@ -4,17 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encrypt, importMasterKey } from "@logistack/core";
 import {
+	auditLog,
+	deployment,
 	environment,
 	node,
 	nodeJoin,
 	organization,
 	project,
 	service,
+	serviceAutoscale,
 	serviceThreshold,
 	sshKey,
 } from "@logistack/db";
 import { RedisClient } from "bun";
 import { eq } from "drizzle-orm";
+import { autoscalePass } from "../src/autoscale.ts";
 import type { Ctx } from "../src/ctx.ts";
 import { createMetricsConsumer } from "../src/metrics-consumer.ts";
 import {
@@ -376,6 +380,139 @@ describe.skipIf(!hasDocker)(
 				["service.threshold", "org_mon", { type: "service", id: svc }],
 				["service.threshold", "org_mon", { type: "service", id: svc }],
 			]);
+		});
+
+		test("the autoscaler scales on CPU of the limit, holds while busy or cooling down, and records why", async () => {
+			await ensurePartitions(infra.sql);
+			const [p] = await infra.db
+				.insert(project)
+				.values({ organizationId: "org_mon", name: "AS", slug: "as" })
+				.returning();
+			const [e] = await infra.db
+				.insert(environment)
+				.values({
+					projectId: p?.id as string,
+					name: "Prod",
+					slug: "prod",
+					kind: "production",
+					isDefault: true,
+				})
+				.returning();
+			const [s] = await infra.db
+				.insert(service)
+				.values({
+					environmentId: e?.id as string,
+					name: "web",
+					slug: "web",
+					kind: "application",
+					spec: {
+						kind: "application",
+						source: { type: "image", image: "nginx:1" },
+						build: { type: "image" },
+						ports: [],
+						replicas: 1,
+						resources: { cpu: 0.5, memoryMb: 256 },
+						placement: [],
+					},
+				})
+				.returning();
+			const svc = s?.id as string;
+			await infra.db.insert(serviceAutoscale).values({
+				serviceId: svc,
+				minReplicas: 1,
+				maxReplicas: 4,
+				behavior: "balanced",
+				targetCpu: 60,
+			});
+			// `cpu` is percent of one core: 45 on a 0.5-core limit is 90% of the limit.
+			const load = async (cpu: number) => {
+				await infra.sql`delete from metric_container_raw where service_id = ${svc}`;
+				for (const ago of [5, 20, 40, 100, 200])
+					await infra.sql`insert into metric_container_raw values ('node-t', 'ctr-as',
+						now() - make_interval(secs => ${ago}), ${svc}, 'ctr-as', ${cpu}, 1, 100, 0, 0, 0, 0)`;
+			};
+			const events: unknown[][] = [];
+			const reconciles: unknown[] = [];
+			const ctx = {
+				db: infra.db,
+				bus: {
+					redis,
+					publish: async (...a: unknown[]) => void events.push(a),
+				},
+				queues: {
+					reconcile: {
+						add: async (...a: unknown[]) => void reconciles.push(a),
+					},
+				},
+			} as unknown as Ctx;
+			const row = async () =>
+				(
+					await infra.db
+						.select()
+						.from(serviceAutoscale)
+						.where(eq(serviceAutoscale.serviceId, svc))
+				)[0];
+
+			await load(45);
+			const [d] = await infra.db
+				.insert(deployment)
+				.values({ serviceId: svc, trigger: "api" })
+				.returning();
+			expect(await autoscalePass(ctx)).toEqual([]);
+
+			await infra.db
+				.delete(deployment)
+				.where(eq(deployment.id, d?.id as string));
+			expect(await autoscalePass(ctx)).toEqual([
+				{
+					serviceId: svc,
+					service: "web",
+					from: 1,
+					to: 2,
+					reason: "CPU 90% above target 60%",
+					cpu: 90,
+					memory: 1,
+				},
+			]);
+			expect(await row()).toMatchObject({
+				replicas: 2,
+				lastReason: "CPU 90% above target 60%",
+			});
+			expect(reconciles).toHaveLength(1);
+			expect(events.at(-1)?.slice(0, 3)).toEqual([
+				"service.scaled",
+				"org_mon",
+				{ type: "service", id: svc },
+			]);
+			const [audit] = await infra.db
+				.select()
+				.from(auditLog)
+				.where(eq(auditLog.resourceId, svc));
+			expect(audit).toMatchObject({
+				actorKind: "system",
+				actorId: "autoscaler",
+				action: "service.scaled",
+				diff: { replicas: { before: 1, after: 2 } },
+			});
+
+			// Still hot, but inside the scale-up cooldown.
+			expect(await autoscalePass(ctx)).toEqual([]);
+
+			// Quiet for the whole down window, long after the last change: one replica fewer.
+			await load(5);
+			await infra.db
+				.update(serviceAutoscale)
+				.set({ lastScaledAt: new Date(Date.now() - 600_000) })
+				.where(eq(serviceAutoscale.serviceId, svc));
+			expect(
+				(await autoscalePass(ctx)).map((x) => [x.from, x.to, x.reason]),
+			).toEqual([[2, 1, "CPU 10% below target 60%"]]);
+			// At the minimum: nothing more to do.
+			await infra.db
+				.update(serviceAutoscale)
+				.set({ lastScaledAt: new Date(Date.now() - 600_000) })
+				.where(eq(serviceAutoscale.serviceId, svc));
+			expect(await autoscalePass(ctx)).toEqual([]);
 		});
 
 		describe("Add-server steps against a local sshd", () => {

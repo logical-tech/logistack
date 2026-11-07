@@ -39,7 +39,7 @@ type Operation = {
 		content?: Record<string, { schema?: JsonSchema }>;
 	};
 };
-type OpenApiDoc = {
+export type OpenApiDoc = {
 	paths?: Record<string, Record<string, Operation>>;
 	components?: { schemas?: Record<string, JsonSchema> };
 };
@@ -165,6 +165,55 @@ const text = (t: string, isError = false) => ({
 	isError,
 });
 
+/**
+ * Runs one tool as a request against `app`, so permission checks and the audit trail apply as
+ * over REST. Destructive tools need `confirm: true`. Shared by the MCP server and the Agent.
+ */
+export async function invokeTool(
+	app: { request: OpenAPIHono<Env>["request"] },
+	tool: McpTool,
+	args: Record<string, unknown>,
+	headers: Record<string, string>,
+	env?: Env["Bindings"],
+): Promise<{ text: string; isError: boolean; status: number }> {
+	const fail = (t: string) => ({ text: t, isError: true, status: 400 });
+	if (tool.destructive && args.confirm !== true)
+		return fail(
+			`${tool.name} is destructive and was not run. Ask the user, then call it again with "confirm": true.`,
+		);
+	let path = tool.path;
+	for (const p of tool.pathParams) {
+		const v = args[p];
+		if (typeof v !== "string" || v === "")
+			return fail(`missing path parameter ${p}`);
+		path = path.replace(`{${p}}`, encodeURIComponent(v));
+	}
+	const query = new URLSearchParams();
+	for (const q of tool.queryParams) {
+		const v = args[q];
+		if (v !== undefined && v !== null) query.set(q, String(v));
+	}
+	const url = `/api${path}${query.size ? `?${query}` : ""}`;
+	const hasBody = tool.hasBody && args.body !== undefined;
+	const res = await app.request(
+		url,
+		{
+			method: tool.method.toUpperCase(),
+			headers: hasBody
+				? { ...headers, "content-type": "application/json" }
+				: headers,
+			body: hasBody ? JSON.stringify(args.body) : undefined,
+		},
+		env,
+	);
+	const out = await res.text();
+	return {
+		text: res.status === 204 ? `${res.status} done` : out,
+		isError: res.status >= 400,
+		status: res.status,
+	};
+}
+
 /** The MCP endpoint over `app`; build it after every route is registered. */
 export function mcpHandler(app: OpenAPIHono<Env>): Handler<Env> {
 	let tools: McpTool[] | undefined;
@@ -221,46 +270,14 @@ export function mcpHandler(app: OpenAPIHono<Env>): Handler<Env> {
 			const tool = allTools().find((t) => t.name === req.params.name);
 			if (!tool) return text(`unknown tool ${req.params.name}`, true);
 			const args = (req.params.arguments ?? {}) as Record<string, unknown>;
-			if (tool.destructive && args.confirm !== true)
-				return text(
-					`${tool.name} is destructive and was not run. Ask the user, then call it again with "confirm": true.`,
-					true,
-				);
-			let path = tool.path;
-			for (const p of tool.pathParams) {
-				const v = args[p];
-				if (typeof v !== "string" || v === "")
-					return text(`missing path parameter ${p}`, true);
-				path = path.replace(`{${p}}`, encodeURIComponent(v));
-			}
-			const query = new URLSearchParams();
-			for (const q of tool.queryParams) {
-				const v = args[q];
-				if (v !== undefined && v !== null) query.set(q, String(v));
-			}
-			const url = `/api${path}${query.size ? `?${query}` : ""}`;
 			const headers: Record<string, string> = {
 				authorization: `Bearer ${bearer}`,
 				"user-agent": `logistack-mcp (${c.req.header("user-agent") ?? "unknown client"})`,
 			};
 			const ip = clientIp(c);
 			if (ip) headers["x-forwarded-for"] = ip;
-			const hasBody = tool.hasBody && args.body !== undefined;
-			if (hasBody) headers["content-type"] = "application/json";
-			const res = await app.request(
-				url,
-				{
-					method: tool.method.toUpperCase(),
-					headers,
-					body: hasBody ? JSON.stringify(args.body) : undefined,
-				},
-				c.env,
-			);
-			const out = await res.text();
-			return text(
-				res.status === 204 ? `${res.status} done` : out,
-				res.status >= 400,
-			);
+			const out = await invokeTool(app, tool, args, headers, c.env);
+			return text(out.text, out.isError);
 		});
 
 		const transport = new WebStandardStreamableHTTPServerTransport({

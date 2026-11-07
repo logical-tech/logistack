@@ -1,3 +1,9 @@
+export * from "./ai-anthropic.ts";
+export * from "./ai-chat.ts";
+export * from "./ai-pricing.ts";
+export * from "./ai-providers.ts";
+export * from "./ai-responses.ts";
+export * from "./autoscale.ts";
 export * from "./build-platforms.ts";
 export * from "./compile-release.ts";
 export * from "./compile-service.ts";
@@ -21,6 +27,7 @@ export * from "./permissions.ts";
 export * from "./ports.ts";
 export * from "./preview.ts";
 export * from "./resource-profiles.ts";
+export * from "./secrets.ts";
 export * from "./sponsor.ts";
 export * from "./sql.ts";
 export * from "./stack-update.ts";

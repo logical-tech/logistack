@@ -3,6 +3,7 @@ import { httpAccess } from "./access-adapter";
 import { type ApiAdapter, ApiError } from "./adapter";
 import { client, setupHeader } from "./client";
 import { networkingHttp } from "./networking";
+import { secretsHttp } from "./secrets";
 import { serviceOpsHttp } from "./service-ops";
 import { ssoHttp } from "./sso";
 import { stacksHttp } from "./stacks";
@@ -213,6 +214,7 @@ export const httpAdapter: ApiAdapter = {
 			ok(api.services[":id"].thresholds.$put({ param: { id }, json })),
 	},
 	networking: networkingHttp,
+	secrets: secretsHttp,
 	serviceOps: serviceOpsHttp,
 	sso: ssoHttp,
 	stacks: stacksHttp,

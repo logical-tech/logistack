@@ -1,4 +1,5 @@
 import { node } from "@logistack/db";
+import { autoscalePass } from "./autoscale.ts";
 import { log, withLock } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import { startQueuedUpdates } from "./instance-update.ts";
@@ -12,6 +13,9 @@ import {
 import { claimJoin, runJoinStep } from "./node-join.ts";
 import { onNodeOps, syncNodes } from "./nodes.ts";
 import { evaluateServiceThresholds, evaluateThresholds } from "./thresholds.ts";
+
+/** Matches the agent's scrape cadence closely enough; decisions use 1- and 5-minute windows. */
+const AUTOSCALE_INTERVAL_MS = 30_000;
 
 /** Repeats `fn` every `ms` (and on `kick()`), one run at a time, logging failures. */
 function every(name: string, ms: number, fn: () => Promise<void>) {
@@ -92,6 +96,12 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		},
 	);
 
+	const autoscale = every("autoscale", AUTOSCALE_INTERVAL_MS, async () => {
+		await withLock(redis, "ls:lock:autoscale", 60_000, async () => {
+			await autoscalePass(ctx);
+		});
+	});
+
 	const nodes = every(
 		"node sync",
 		ctx.cfg.LS_NODE_SYNC_INTERVAL_MS,
@@ -122,6 +132,7 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 	return async () => {
 		unsubscribe();
 		maintenance.stop();
+		autoscale.stop();
 		nodes.stop();
 		joins.stop();
 		updates.stop();

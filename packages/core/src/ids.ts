@@ -5,6 +5,8 @@ export const idPrefixes = {
 	service: "svc",
 	stack: "stk",
 	envVar: "var",
+	secret: "sec",
+	secretVersion: "sev",
 	mount: "mnt",
 	node: "nod",
 	nodeToken: "ntk",
@@ -34,6 +36,12 @@ export const idPrefixes = {
 	cloudflareTunnel: "cft",
 	migration: "mig",
 	migrationItem: "mgi",
+	aiProviderKey: "aik",
+	aiGatewayKey: "agk",
+	aiUsage: "aiu",
+	aiBudget: "aib",
+	aiAgentConversation: "aac",
+	aiAgentMessage: "aam",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];

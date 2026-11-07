@@ -12,6 +12,7 @@ import {
 	organization,
 	project,
 	service,
+	serviceAutoscale,
 	serviceStatus,
 } from "@logistack/db";
 import { eq } from "drizzle-orm";
@@ -257,6 +258,39 @@ describe.skipIf(!enabled)("worker against the real Swarm", () => {
 			replicasDesired: 1,
 		});
 	}, 120_000);
+
+	test("the reconciler converges to the autoscaler's count, and back to spec.replicas without it", async () => {
+		const name = svcName(ctx(), webId);
+		const replicas = async () => {
+			const m = (await inspectService(ctx(), name))?.Spec.Mode;
+			return m && "Replicated" in m ? m.Replicated.Replicas : undefined;
+		};
+		await db().insert(serviceAutoscale).values({
+			serviceId: webId,
+			minReplicas: 1,
+			maxReplicas: 3,
+			behavior: "balanced",
+			targetCpu: 60,
+			replicas: 2,
+		});
+		await reconcilePass(ctx());
+		expect(await replicas()).toBe(2);
+		const [s] = await db()
+			.select()
+			.from(serviceStatus)
+			.where(eq(serviceStatus.serviceId, webId));
+		expect(s?.replicasDesired).toBe(2);
+
+		await db()
+			.update(serviceAutoscale)
+			.set({ enabled: false })
+			.where(eq(serviceAutoscale.serviceId, webId));
+		await reconcilePass(ctx());
+		expect(await replicas()).toBe(1);
+		await db()
+			.delete(serviceAutoscale)
+			.where(eq(serviceAutoscale.serviceId, webId));
+	}, 60_000);
 
 	test("dockerfile build from a git repo through BuildKit to healthy", async () => {
 		const repo = await fixtureRepo();

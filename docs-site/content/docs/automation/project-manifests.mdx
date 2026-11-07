@@ -12,7 +12,7 @@ A manifest is the desired state of one project, or one environment, as a YAML or
 - `project`: a `project` (name and description), project-wide `variables`, and a list of `environments`.
 - `environment`: one `environment`.
 
-An environment holds `variables`, git `stacks` and `services`. A service holds its `spec`, `variables`, `mounts`, `domains` and `backups`.
+An environment holds `variables`, git `stacks` and `services`. A service holds its `spec`, `variables`, `mounts`, `domains`, `backups` and, for an application, `autoscale` ([automatic scaling](../deploy/autoscaling.mdx#use-the-api)).
 
 | Rule | What it means |
 | --- | --- |

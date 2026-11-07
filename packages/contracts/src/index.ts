@@ -1,6 +1,8 @@
 export * from "./access.ts";
 export * from "./agent.ts";
 export * from "./agent-rpc.ts";
+export * from "./ai-agent.ts";
+export * from "./autoscale.ts";
 export * from "./build-platforms.ts";
 export * from "./database.ts";
 export * from "./dns.ts";
@@ -18,6 +20,7 @@ export * from "./organization.ts";
 export * from "./pending-diff.ts";
 export * from "./previews.ts";
 export * from "./resources.ts";
+export * from "./secrets.ts";
 export * from "./service-icon.ts";
 export * from "./service-spec.ts";
 export * from "./storage.ts";

@@ -12,6 +12,8 @@ export type Ctx = {
 	docker: DockerClient;
 	bus: Bus;
 	masterKey: CryptoKey;
+	/** Wraps per-organization data keys of managed secrets (HKDF of the master key). */
+	secretsKek: CryptoKey;
 	queues: Queues;
 	/** Jobs, execs and log follows on a node, through its agent. */
 	nodes: NodeRunner;

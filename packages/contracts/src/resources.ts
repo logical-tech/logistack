@@ -94,6 +94,8 @@ export const EnvVar = z.object({
 	value: z.string().nullable(),
 	isSecret: z.boolean(),
 	isBuildTime: z.boolean(),
+	/** Set when the value comes from a managed secret; `value` is then always null. */
+	secretId: z.string().nullable(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 });

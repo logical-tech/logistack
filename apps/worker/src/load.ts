@@ -12,19 +12,24 @@ import {
 	decrypt,
 	dockerName,
 	type ResolvedEnvVar,
+	type Resource,
 	resolveEnv,
+	scaledReplicas,
+	secretInChain,
 } from "@logistack/core";
 import {
 	adoptedVolume,
 	domain,
 	environment,
 	envVar,
+	folder,
 	gitProvider,
 	mount,
 	node,
 	project,
 	registry,
 	service,
+	serviceAutoscale,
 	sshKey,
 } from "@logistack/db";
 import type { RegistryAuth } from "@logistack/docker";
@@ -36,6 +41,7 @@ import {
 } from "@logistack/providers";
 import { and, asc, eq, or } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
+import { readSecretValues } from "./secrets.ts";
 
 export type ServiceRow = typeof service.$inferSelect;
 export type DomainRow = typeof domain.$inferSelect;
@@ -59,6 +65,8 @@ export type ServiceContext = {
 	git?: GitAuth;
 	/** Swarm id of the node the service is pinned to, when the row names one. */
 	pinnedSwarmNodeId?: string;
+	/** The autoscaler's replica count while it is enabled. */
+	scaledReplicas?: number;
 };
 
 export const svcName = (ctx: Ctx, serviceId: string) =>
@@ -127,7 +135,20 @@ async function gitAuth(
 	};
 }
 
-type LoadCtx = Pick<Ctx, "db" | "masterKey">;
+/** A project's folder and its parent, outermost first. */
+async function folderChain(
+	ctx: Pick<Ctx, "db">,
+	folderId: string | null,
+): Promise<string[]> {
+	if (!folderId) return [];
+	const [f] = await ctx.db
+		.select({ parentId: folder.parentId })
+		.from(folder)
+		.where(eq(folder.id, folderId));
+	return f?.parentId ? [f.parentId, folderId] : [folderId];
+}
+
+type LoadCtx = Pick<Ctx, "db" | "masterKey" | "secretsKek">;
 
 /** `gitAuth: false` skips minting clone credentials, for callers that only compile. */
 export async function loadService(
@@ -142,10 +163,12 @@ export async function loadService(
 			project,
 			environmentName: environment.name,
 			preview: environment.preview,
+			autoscale: serviceAutoscale,
 		})
 		.from(service)
 		.innerJoin(environment, eq(environment.id, service.environmentId))
 		.innerJoin(project, eq(project.id, environment.projectId))
+		.leftJoin(serviceAutoscale, eq(serviceAutoscale.serviceId, service.id))
 		.where(eq(service.id, serviceId));
 	if (!row) return null;
 	const svc = row.service;
@@ -170,15 +193,43 @@ export async function loadService(
 				and(eq(envVar.scope, "service"), eq(envVar.scopeId, svc.id)),
 			),
 		);
+	const secrets = await readSecretValues(
+		ctx,
+		vars.flatMap((v) => (v.secretId ? [v.secretId] : [])),
+	);
+	const chainOf: Resource = {
+		type: "service",
+		organizationId: orgId,
+		folderIds: await folderChain(ctx, row.project.folderId),
+		projectId: row.project.id,
+		environmentId: svc.environmentId,
+		serviceId: svc.id,
+	};
 	const env = resolveEnv(
 		await Promise.all(
-			vars.map(async (v) => ({
-				scope: v.scope,
-				key: v.key,
-				value: await open(v.valueEncrypted),
-				isSecret: v.isSecret,
-				isBuildTime: v.isBuildTime,
-			})),
+			vars.map(async (v) => {
+				if (!v.secretId)
+					return {
+						scope: v.scope,
+						key: v.key,
+						value: await open(v.valueEncrypted),
+						isSecret: v.isSecret,
+						isBuildTime: v.isBuildTime,
+					};
+				const s = secrets.get(v.secretId);
+				// Re-checked here: moving a project to another folder can strand a folder secret.
+				if (!s || s.organizationId !== orgId || !secretInChain(s, chainOf))
+					throw new Error(
+						`${v.key} references a secret this service cannot use; pick another in its Environment tab`,
+					);
+				return {
+					scope: v.scope,
+					key: v.key,
+					value: s.value,
+					isSecret: true,
+					isBuildTime: v.isBuildTime,
+				};
+			}),
 		),
 	);
 
@@ -260,6 +311,7 @@ export async function loadService(
 		pinnedSwarmNodeId = n?.swarmNodeId;
 	}
 
+	const scaled = scaledReplicas(row.autoscale);
 	return {
 		service: { ...svc, spec },
 		organizationId: orgId,
@@ -280,6 +332,7 @@ export async function loadService(
 			: null,
 		...(git ? { git } : {}),
 		...(pinnedSwarmNodeId ? { pinnedSwarmNodeId } : {}),
+		...(scaled !== undefined && { scaledReplicas: scaled }),
 	};
 }
 
@@ -343,6 +396,9 @@ export function compileInput(
 			slug: sc.service.slug,
 			desiredState: sc.service.desiredState,
 			spec: sc.service.spec,
+			...(sc.scaledReplicas !== undefined && {
+				scaledReplicas: sc.scaledReplicas,
+			}),
 		},
 		deploymentId: deployment.id,
 		...(deployment.imageRef ? { image: deployment.imageRef } : {}),

@@ -3,8 +3,10 @@ import {
 	isReservedEnvKey,
 	RESERVED_ENV_PREFIX,
 } from "@logistack/contracts";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+	ChevronsUpDown,
 	ClipboardPaste,
 	CopyPlus,
 	Eye,
@@ -13,13 +15,24 @@ import {
 	Plus,
 	Settings2,
 	Trash2,
+	TriangleAlert,
 } from "lucide-react";
 import { type ClipboardEvent, type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Panel } from "@/components/panel";
+import { ScopeChip } from "@/components/secrets/secrets-panel";
+import { Segmented } from "@/components/segmented";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
 import {
 	Dialog,
 	DialogContent,
@@ -28,6 +41,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	Tooltip,
@@ -35,6 +53,12 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import {
+	type AvailableSecret,
+	availableSecretsQuery,
+	looksSecret,
+	SCOPE_LABEL as SECRET_SCOPE_LABEL,
+} from "@/lib/api/secrets";
 import {
 	type EffectiveEnvVar,
 	type EnvScope,
@@ -45,13 +69,21 @@ import type { ProjectId, ServiceId } from "@/lib/api/types";
 import { parseDotenv } from "@/lib/dotenv";
 import { cn } from "@/lib/utils";
 
-/** One editable service-scope variable. `value: null` keeps a stored value this user cannot see. */
+/**
+ * One editable variable. `secret` rows reference a managed secret by id; `text` rows carry a
+ * typed value, stored as the service's own secret when `isSecret`. `value: null` keeps a
+ * stored value this user cannot see.
+ */
 type Row = {
 	uid: string;
 	key: string;
+	mode: "secret" | "text";
+	secretId: string | null;
 	value: string | null;
 	isSecret: boolean;
 	isBuildTime: boolean;
+	/** A new row whose Secret toggle follows its name until someone sets it. */
+	auto?: boolean;
 };
 
 const SCOPE_LABEL: Record<EnvScope, string> = {
@@ -67,7 +99,6 @@ const RANK: Record<EnvScope, number> = {
 	service: 3,
 };
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const SECRETISH = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE|(^|_)KEY$|DSN$/i;
 const DOTS = "••••••••••••";
 
 let uidSeq = 0;
@@ -75,12 +106,14 @@ const uid = () => `r${uidSeq++}`;
 /** What an editor starts from: one stored variable at its scope. */
 export type VarLike = Pick<
 	EffectiveEnvVar,
-	"key" | "value" | "isSecret" | "isBuildTime"
+	"key" | "value" | "isSecret" | "isBuildTime" | "secretId"
 >;
 const toRow = (v: VarLike): Row => ({
 	uid: uid(),
 	key: v.key,
-	value: v.value,
+	mode: v.secretId ? "secret" : "text",
+	secretId: v.secretId,
+	value: v.secretId ? null : v.value,
 	isSecret: v.isSecret,
 	isBuildTime: v.isBuildTime,
 });
@@ -88,19 +121,44 @@ const toRow = (v: VarLike): Row => ({
 const signature = (rows: Row[]) =>
 	JSON.stringify(
 		rows
-			.map(({ uid: _, ...r }) => r)
+			.map(({ uid: _, auto: __, ...r }) => r)
 			.sort((a, b) => a.key.localeCompare(b.key)),
 	);
 
+/** A secret reference that no longer resolves for this service. */
+const isBroken = (r: Row, available: AvailableSecret[] | undefined) =>
+	r.mode === "secret" &&
+	r.secretId !== null &&
+	available !== undefined &&
+	!available.some((a) => a.id === r.secretId);
+
 /** A problem with one row, or null. */
-function rowError(r: Row, rows: Row[], stored: Set<string>) {
+function rowError(
+	r: Row,
+	rows: Row[],
+	initial: Row[],
+	available: AvailableSecret[] | undefined,
+) {
 	if (!r.key) return "Name it";
 	if (!KEY.test(r.key))
 		return "Letters, digits and _, not starting with a digit";
 	if (isReservedEnvKey(r.key))
 		return `${RESERVED_ENV_PREFIX} names are set by LogiStack`;
 	if (rows.filter((o) => o.key === r.key).length > 1) return "Defined twice";
-	if (r.value === null && !stored.has(r.key))
+	if (r.mode === "secret") {
+		if (!r.secretId) return "Choose a secret";
+		if (isBroken(r, available))
+			return "This secret is no longer available to this service. Its project may have moved to another folder.";
+		return null;
+	}
+	const keeps = initial.some(
+		(i) =>
+			i.key === r.key &&
+			i.mode === "text" &&
+			i.value === null &&
+			i.isSecret === r.isSecret,
+	);
+	if (r.value === null && !keeps)
 		return "Enter a value: the stored one is hidden from you";
 	return null;
 }
@@ -147,6 +205,131 @@ function Masked() {
 	);
 }
 
+/** Groups in chain order: organization, each folder, project, environment, service. */
+function groupsOf(available: AvailableSecret[]) {
+	const groups: { id: string; heading: string; items: AvailableSecret[] }[] =
+		[];
+	for (const s of available) {
+		const id = `${s.scope}:${s.scopeId}`;
+		let g = groups.find((x) => x.id === id);
+		if (!g) {
+			g = {
+				id,
+				heading: s.scopeName
+					? `${SECRET_SCOPE_LABEL[s.scope]} · ${s.scopeName}`
+					: SECRET_SCOPE_LABEL[s.scope],
+				items: [],
+			};
+			groups.push(g);
+		}
+		g.items.push(s);
+	}
+	return groups;
+}
+
+/** A searchable list of the secrets on the service's chain, grouped by where each is defined. */
+function SecretPicker({
+	row,
+	available,
+	broken,
+	open,
+	onOpenChange,
+	onPick,
+	label,
+}: {
+	row: Row;
+	available: AvailableSecret[] | undefined;
+	broken: boolean;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	onPick: (s: AvailableSecret) => void;
+	label: string;
+}) {
+	const picked = available?.find((a) => a.id === row.secretId);
+	return (
+		<Popover open={open} onOpenChange={onOpenChange}>
+			<PopoverTrigger asChild>
+				<Button
+					type="button"
+					variant="outline"
+					role="combobox"
+					aria-expanded={open}
+					aria-label={label}
+					aria-invalid={broken || undefined}
+					className="h-8 w-full justify-between gap-2 px-2.5 font-normal aria-invalid:text-bad-text aria-invalid:ring-1 aria-invalid:ring-destructive/50"
+				>
+					{picked ? (
+						<span className="flex min-w-0 items-center gap-2">
+							<Lock className="size-3.5 text-muted-foreground" aria-hidden />
+							<span className="truncate font-mono text-[13px]">
+								{picked.key}
+							</span>
+							<ScopeChip
+								scope={picked.scope}
+								name={picked.scopeName}
+								className="hidden min-w-0 shrink sm:inline-flex"
+							/>
+						</span>
+					) : broken ? (
+						<span className="flex min-w-0 items-center gap-2">
+							<TriangleAlert className="size-3.5" aria-hidden />
+							<span className="truncate text-sm">Secret not available</span>
+						</span>
+					) : (
+						<span className="truncate text-sm text-muted-foreground">
+							{available ? "Choose a secret" : "Loading secrets…"}
+						</span>
+					)}
+					<ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				className="w-(--radix-popover-trigger-width) min-w-80 p-0"
+				align="start"
+			>
+				<Command>
+					<CommandInput placeholder="Search secrets" />
+					<CommandList className="max-h-80">
+						<CommandEmpty>
+							{available?.length
+								? "No secret matches."
+								: "No secrets on this service's chain yet."}
+						</CommandEmpty>
+						{groupsOf(available ?? []).map((g) => (
+							<CommandGroup key={g.id} heading={g.heading}>
+								{g.items.map((s) => (
+									<CommandItem
+										key={s.id}
+										value={s.id}
+										keywords={[s.key, s.scopeName, s.description ?? ""]}
+										data-checked={s.id === row.secretId}
+										onSelect={() => onPick(s)}
+										className={cn(s.shadowed && "text-muted-foreground")}
+									>
+										<Lock className="size-3.5 text-muted-foreground" />
+										<span
+											className={cn(
+												"min-w-0 flex-1 truncate font-mono text-[13px]",
+												s.shadowed &&
+													"line-through decoration-muted-foreground/50",
+											)}
+										>
+											{s.key}
+										</span>
+										<span className="shrink-0 text-xs text-muted-foreground tabular">
+											{s.shadowed ? "shadowed" : `v${s.version}`}
+										</span>
+									</CommandItem>
+								))}
+							</CommandGroup>
+						))}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
 /** Lets the panels after the editor see its draft: which names it defines, and add one. */
 export type Draft = {
 	keys: Set<string>;
@@ -154,9 +337,12 @@ export type Draft = {
 };
 
 /**
- * The editable set of variables at one scope: rows with secret and build flags, reveal,
- * paste a .env, and a save bar. `save` receives the whole set; an entry without `value`
- * keeps the stored one (a secret the user cannot read).
+ * The editable set of variables at one scope, with paste-a-.env and a save bar. `save`
+ * receives the whole set; an entry without `value` keeps the stored one.
+ *
+ * With `secrets` (a service), each row is either a reference to a managed secret or typed
+ * text, and text marked secret becomes the service's own secret on save. Without it (an
+ * organization, project or environment), rows are plain variables.
  */
 export function VariablesEditor({
 	title,
@@ -166,6 +352,7 @@ export function VariablesEditor({
 	save,
 	savedHint,
 	redeploy,
+	secrets,
 	children,
 }: {
 	title: string;
@@ -177,17 +364,22 @@ export function VariablesEditor({
 	savedHint: string;
 	/** Adds "Save and redeploy"; runs after the save. */
 	redeploy?: () => Promise<unknown>;
+	/** Secrets the rows may reference; `{ available: undefined }` while loading. */
+	secrets?: { available: AvailableSecret[] | undefined };
 	/** Panels rendered between the editor and its save bar. */
 	children?: (draft: Draft) => ReactNode;
 }) {
+	const service = secrets !== undefined;
+	const available = secrets?.available;
 	const initial = useMemo(() => vars.map(toRow), [vars]);
-	const stored = useMemo(() => new Set(initial.map((r) => r.key)), [initial]);
 	const [rows, setRows] = useState<Row[]>(initial);
 	const [base, setBase] = useState(() => signature(initial));
 	const [revealed, setRevealed] = useState<Set<string>>(new Set());
 	const [pasteOpen, setPasteOpen] = useState(false);
 	const [pasteText, setPasteText] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [picking, setPicking] = useState<string | null>(null);
+	const [review, setReview] = useState<boolean | null>(null);
 
 	// The server's set changed: take it, unless that would drop edits made since the last sync.
 	const incoming = signature(initial);
@@ -198,25 +390,32 @@ export function VariablesEditor({
 	}
 
 	const drafted = new Set(rows.map((r) => r.key));
-	const errors = rows.map((r) => rowError(r, rows, stored));
+	const errors = rows.map((r) => rowError(r, rows, initial, available));
 	const dirty = draft !== incoming;
 	const valid = errors.every((e) => e === null);
+	/** Typed values this save stores as the service's own secrets. */
+	const becomeSecrets = service
+		? rows.filter((r) => r.mode === "text" && r.isSecret && r.value !== null)
+		: [];
 
 	const update = (id: string, patch: Partial<Row>) =>
 		setRows((rs) => rs.map((r) => (r.uid === id ? { ...r, ...patch } : r)));
 	const remove = (id: string) =>
 		setRows((rs) => rs.filter((r) => r.uid !== id));
+	const newRow = (key: string, value: string | null): Row => ({
+		uid: uid(),
+		key,
+		mode: "text",
+		secretId: null,
+		value,
+		isSecret: service && looksSecret(key),
+		isBuildTime: false,
+		auto: service,
+	});
 	const add = (key = "", value: string | null = "") =>
-		setRows((rs) => [
-			...rs,
-			{
-				uid: uid(),
-				key,
-				value,
-				isSecret: SECRETISH.test(key),
-				isBuildTime: false,
-			},
-		]);
+		setRows((rs) => [...rs, newRow(key, value)]);
+	const setKey = (r: Row, key: string) =>
+		update(r.uid, r.auto ? { key, isSecret: looksSecret(key) } : { key });
 
 	/** Pasted assignments replace rows with the same name and append the rest. */
 	function merge(text: string, replacing?: string) {
@@ -231,15 +430,17 @@ export function VariablesEditor({
 			const next = rs.filter((r) => r.uid !== replacing).map((r) => ({ ...r }));
 			for (const v of variables) {
 				const existing = next.find((r) => r.key === v.key);
-				if (existing) existing.value = v.value;
-				else
-					next.push({
-						uid: uid(),
-						key: v.key,
+				if (existing)
+					Object.assign(existing, {
 						value: v.value,
-						isSecret: SECRETISH.test(v.key),
-						isBuildTime: false,
+						// A pasted value replaces a reference; it stays a secret.
+						...(existing.mode === "secret" && {
+							mode: "text",
+							secretId: null,
+							isSecret: true,
+						}),
 					});
+				else next.push(newRow(v.key, v.value));
 			}
 			return next;
 		});
@@ -260,16 +461,28 @@ export function VariablesEditor({
 	}
 
 	async function submit(andRedeploy: boolean) {
+		setReview(null);
 		setBusy(true);
 		try {
 			await save(
-				rows.map((r) => ({
-					key: r.key,
-					isSecret: r.isSecret,
-					isBuildTime: r.isBuildTime,
-					...(r.value === null ? {} : { value: r.value }),
-				})),
+				rows.map((r) =>
+					r.mode === "secret" && r.secretId
+						? {
+								key: r.key,
+								isSecret: true,
+								isBuildTime: r.isBuildTime,
+								secretId: r.secretId,
+							}
+						: {
+								key: r.key,
+								isSecret: r.isSecret,
+								isBuildTime: r.isBuildTime,
+								...(r.value === null ? {} : { value: r.value }),
+							},
+				),
 			);
+			// The server rewrites typed secrets as references: take its set as it arrives.
+			setBase(signature(rows));
 			if (andRedeploy && redeploy) await redeploy();
 			else toast.success("Variables saved", { description: savedHint });
 		} catch (e) {
@@ -283,6 +496,9 @@ export function VariablesEditor({
 			setBusy(false);
 		}
 	}
+	/** New service secrets get a summary first (rule 8); everything else saves at once. */
+	const requestSave = (andRedeploy: boolean) =>
+		becomeSecrets.length ? setReview(andRedeploy) : submit(andRedeploy);
 
 	const reveal = (k: string) =>
 		setRevealed((s) => {
@@ -293,6 +509,9 @@ export function VariablesEditor({
 		});
 
 	const preview = pasteText ? parseDotenv(pasteText) : null;
+	const plainChanged = rows.filter(
+		(r) => r.mode === "text" && !r.isSecret && r.value !== null,
+	);
 
 	return (
 		<div className="grid gap-8">
@@ -324,66 +543,141 @@ export function VariablesEditor({
 					<ul className="divide-y">
 						{rows.map((r, i) => {
 							const error = errors[i];
+							const broken = isBroken(r, available);
 							const shown = !r.isSecret || revealed.has(r.uid);
+							const name = r.key || `variable ${i + 1}`;
 							return (
 								<li
 									key={r.uid}
-									className="grid gap-2 px-4 py-3 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto] md:items-start"
+									className={cn(
+										"grid gap-2 px-4 py-3 md:items-start",
+										service
+											? "md:grid-cols-[minmax(0,13rem)_auto_minmax(0,1fr)_auto]"
+											: "md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto]",
+									)}
 								>
 									<div className="min-w-0">
 										<input
 											value={r.key}
-											onChange={(e) =>
-												update(r.uid, { key: e.target.value.trim() })
-											}
+											onChange={(e) => setKey(r, e.target.value.trim())}
 											onPaste={(e) => onKeyPaste(e, r)}
 											placeholder="NAME"
 											aria-label={`Name of variable ${i + 1}`}
-											aria-invalid={error ? true : undefined}
+											aria-invalid={error && !broken ? true : undefined}
 											spellCheck={false}
 											autoCapitalize="off"
 											// biome-ignore lint/a11y/noAutofocus: focus the row just added
 											autoFocus={!r.key && i === rows.length - 1}
 											className="h-8 w-full rounded-lg bg-muted/60 px-2.5 font-mono text-[13px] outline-none placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring aria-invalid:ring-2 aria-invalid:ring-destructive/40 dark:bg-muted/40"
 										/>
-										{error && (
+										{error && !broken && (
 											<p className="mt-1 text-xs text-bad-text">{error}</p>
 										)}
 									</div>
-									<div className="relative min-w-0">
-										<input
-											type={shown ? "text" : "password"}
-											value={r.value ?? ""}
-											onChange={(e) => update(r.uid, { value: e.target.value })}
-											placeholder={
-												r.value === null
-													? "Hidden. Type to replace it"
-													: "value"
-											}
-											aria-label={`Value of ${r.key || `variable ${i + 1}`}`}
-											spellCheck={false}
-											autoComplete="off"
-											className="h-8 w-full rounded-lg bg-muted/60 pr-9 pl-2.5 font-mono text-[13px] outline-none placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring dark:bg-muted/40"
-										/>
-										{r.isSecret && r.value !== null && (
-											<Button
-												variant="ghost"
-												size="icon-xs"
-												className="absolute top-1 right-1"
-												aria-label={shown ? "Hide value" : "Show value"}
-												aria-pressed={shown}
-												onClick={() => reveal(r.uid)}
-											>
-												{shown ? <EyeOff /> : <Eye />}
-											</Button>
+									{service && (
+										<div>
+											<Segmented
+												label={`Kind of ${name}`}
+												value={r.mode}
+												onChange={(mode) =>
+													update(r.uid, {
+														mode,
+														auto: false,
+														...(mode === "text"
+															? { isSecret: true, value: r.value ?? "" }
+															: {}),
+													})
+												}
+												options={[
+													{ value: "secret", label: "Secret" },
+													{ value: "text", label: "Text" },
+												]}
+											/>
+										</div>
+									)}
+									<div className="min-w-0">
+										{r.mode === "secret" ? (
+											<SecretPicker
+												row={r}
+												available={available}
+												broken={broken}
+												open={picking === r.uid}
+												onOpenChange={(o) => setPicking(o ? r.uid : null)}
+												label={`Secret for ${name}`}
+												onPick={(s) => {
+													update(r.uid, {
+														secretId: s.id,
+														key: r.key || s.key,
+														isSecret: true,
+													});
+													setPicking(null);
+												}}
+											/>
+										) : (
+											<div className="relative">
+												<input
+													type={shown ? "text" : "password"}
+													value={r.value ?? ""}
+													onChange={(e) =>
+														update(r.uid, { value: e.target.value })
+													}
+													placeholder={
+														r.value === null
+															? "Hidden. Type to replace it"
+															: "value"
+													}
+													aria-label={`Value of ${name}`}
+													spellCheck={false}
+													autoComplete="off"
+													className="h-8 w-full rounded-lg bg-muted/60 pr-9 pl-2.5 font-mono text-[13px] outline-none placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring dark:bg-muted/40"
+												/>
+												{r.isSecret && r.value !== null && (
+													<Button
+														variant="ghost"
+														size="icon-xs"
+														className="absolute top-1 right-1"
+														aria-label={shown ? "Hide value" : "Show value"}
+														aria-pressed={shown}
+														onClick={() => reveal(r.uid)}
+													>
+														{shown ? <EyeOff /> : <Eye />}
+													</Button>
+												)}
+											</div>
+										)}
+										{broken && (
+											<div className="mt-1.5 flex items-start gap-2 text-xs text-bad-text">
+												<p className="min-w-0 flex-1 text-pretty">{error}</p>
+												<Button
+													variant="outline"
+													size="xs"
+													className="shrink-0"
+													onClick={() => setPicking(r.uid)}
+												>
+													Fix
+												</Button>
+											</div>
 										)}
 									</div>
 									<div className="flex h-8 items-center gap-4">
-										<Toggle
-											label="Secret"
-											checked={r.isSecret}
-											onChange={(isSecret) => update(r.uid, { isSecret })}
-										/>
+										{service && (
+											<span
+												className={cn(
+													"w-17",
+													r.mode === "secret" && "hidden md:block",
+												)}
+											>
+												{r.mode === "text" && (
+													<Toggle
+														label="Secret"
+														checked={r.isSecret}
+														onChange={(isSecret) =>
+															update(r.uid, { isSecret, auto: false })
+														}
+													/>
+												)}
+											</span>
+										)}
 										<Toggle
 											label="Build"
 											checked={r.isBuildTime}
@@ -393,7 +687,7 @@ export function VariablesEditor({
 											variant="ghost"
 											size="icon-sm"
 											className="ml-auto text-muted-foreground"
-											aria-label={`Remove ${r.key || `variable ${i + 1}`}`}
+											aria-label={`Remove ${name}`}
 											onClick={() => remove(r.uid)}
 										>
 											<Trash2 />
@@ -426,17 +720,54 @@ export function VariablesEditor({
 					<Button
 						variant={redeploy ? "outline" : "default"}
 						disabled={!valid || busy}
-						onClick={() => submit(false)}
+						onClick={() => requestSave(false)}
 					>
 						Save
 					</Button>
 					{redeploy ? (
-						<Button disabled={!valid || busy} onClick={() => submit(true)}>
+						<Button disabled={!valid || busy} onClick={() => requestSave(true)}>
 							Save and redeploy
 						</Button>
 					) : null}
 				</div>
 			)}
+
+			<Dialog
+				open={review !== null}
+				onOpenChange={(o) => !o && setReview(null)}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Review before saving</DialogTitle>
+						<DialogDescription>
+							Values marked secret are stored encrypted as this service's own
+							secrets, with a version history. Plain variables are stored as
+							typed.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4">
+						<SummaryList
+							title="Become secrets"
+							keys={becomeSecrets.map((r) => r.key)}
+							icon
+						/>
+						{plainChanged.length > 0 && (
+							<SummaryList
+								title="Stay plain variables"
+								keys={plainChanged.map((r) => r.key)}
+							/>
+						)}
+					</div>
+					<DialogFooter>
+						<Button variant="ghost" onClick={() => setReview(null)}>
+							Back
+						</Button>
+						<Button disabled={busy} onClick={() => submit(review === true)}>
+							{review ? "Save and redeploy" : "Save"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
 				<DialogContent className="sm:max-w-lg">
@@ -446,6 +777,8 @@ export function VariablesEditor({
 							KEY=value lines; comments, quotes and{" "}
 							<code className="font-mono">export</code> are understood. Names
 							that already exist take the pasted value.
+							{service &&
+								" Names that look sensitive start as secrets; switch any row before saving."}
 						</DialogDescription>
 					</DialogHeader>
 					<Textarea
@@ -458,12 +791,29 @@ export function VariablesEditor({
 						className="font-mono text-[13px]"
 					/>
 					{preview && (
-						<p className="text-sm text-muted-foreground">
-							{preview.variables.length}{" "}
-							{preview.variables.length === 1 ? "variable" : "variables"}
-							{preview.invalid.length > 0 &&
-								`, line ${preview.invalid.join(", ")} skipped`}
-						</p>
+						<div className="grid gap-2">
+							<p className="text-sm text-muted-foreground">
+								{preview.variables.length}{" "}
+								{preview.variables.length === 1 ? "variable" : "variables"}
+								{preview.invalid.length > 0 &&
+									`, line ${preview.invalid.join(", ")} skipped`}
+							</p>
+							{service && preview.variables.length > 0 && (
+								<ul className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+									{preview.variables.map((v) => (
+										<li key={v.key}>
+											<Badge
+												variant={looksSecret(v.key) ? "secondary" : "outline"}
+												className="font-mono font-normal"
+											>
+												{looksSecret(v.key) && <Lock aria-label="secret" />}
+												{v.key}
+											</Badge>
+										</li>
+									))}
+								</ul>
+							)}
+						</div>
 					)}
 					<DialogFooter>
 						<Button variant="ghost" onClick={() => setPasteOpen(false)}>
@@ -484,6 +834,35 @@ export function VariablesEditor({
 				</DialogContent>
 			</Dialog>
 		</div>
+	);
+}
+
+function SummaryList({
+	title,
+	keys,
+	icon,
+}: {
+	title: string;
+	keys: string[];
+	icon?: boolean;
+}) {
+	return (
+		<section>
+			<h3 className="mb-1.5 text-sm font-medium">
+				{title}{" "}
+				<span className="text-muted-foreground tabular">{keys.length}</span>
+			</h3>
+			<ul className="divide-y overflow-hidden rounded-lg bg-muted/50 dark:bg-muted/30">
+				{keys.map((k) => (
+					<li key={k} className="flex items-center gap-2 px-3 py-1.5">
+						{icon ? (
+							<Lock className="size-3.5 text-muted-foreground" aria-hidden />
+						) : null}
+						<span className="truncate font-mono text-[13px]">{k}</span>
+					</li>
+				))}
+			</ul>
+		</section>
 	);
 }
 
@@ -520,17 +899,18 @@ function InheritedPanel({
 					<Link
 						to="/projects/$projectId/variables"
 						params={{ projectId }}
-						search={{ env: environmentId }}
+						search={{ env: environmentId, tab: "variables" }}
 					>
 						<Settings2 data-icon="inline-start" />
-						Shared variables
+						Secrets & variables
 					</Link>
 				</Button>
 			}
 		>
 			{inherited.length === 0 ? (
 				<p className="px-4 py-6 text-sm text-muted-foreground">
-					Nothing is set for the organization, project or environment.
+					No plain variables are set for the organization, project or
+					environment.
 				</p>
 			) : (
 				<ul className="divide-y">
@@ -653,6 +1033,7 @@ export function EnvEditor({
 }) {
 	const navigate = useNavigate();
 	const own = useMemo(() => vars.filter((v) => v.scope === "service"), [vars]);
+	const { data: available } = useQuery(availableSecretsQuery(serviceId));
 	const save = useServiceMutation(serviceId, (variables: ServiceVarInput[]) =>
 		api.serviceOps.saveEnvVars(serviceId, variables),
 	);
@@ -665,11 +1046,13 @@ export function EnvEditor({
 			id="service-vars"
 			empty={
 				<>
-					None yet. Add one, or paste a <code className="font-mono">.env</code>{" "}
-					file. A service variable wins over the same name set higher up.
+					None yet. Add one, reference a secret, or paste a{" "}
+					<code className="font-mono">.env</code> file. A service variable wins
+					over the same name set higher up.
 				</>
 			}
 			vars={own}
+			secrets={{ available }}
 			save={save.mutateAsync}
 			savedHint="They apply from the next deployment."
 			redeploy={async () => {

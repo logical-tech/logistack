@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AutoscaleInput } from "./autoscale.ts";
 import {
 	BackupTarget,
 	CertMode,
@@ -133,6 +134,9 @@ export const ManifestService = z
 		mounts: z.array(ManifestMount).default([]),
 		domains: z.array(ManifestDomain).default([]),
 		backups: z.array(ManifestBackup).default([]),
+		autoscale: AutoscaleInput.optional().describe(
+			"Application services only. Left out, apply keeps the current autoscaling.",
+		),
 	})
 	.refine(
 		(s) =>

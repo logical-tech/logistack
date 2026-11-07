@@ -9,14 +9,18 @@ import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import { type Actor, authenticate } from "./actor.ts";
+import { gateway } from "./ai/gateway.ts";
 import { assertMutationsAudited } from "./audit.ts";
 import type { Deps, Env } from "./env.ts";
 import { onError, validationHook } from "./errors.ts";
 import { terminal } from "./exec-ws.ts";
 import { requestLogger } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
+import { ai } from "./routes/ai.ts";
+import { aiAgent } from "./routes/ai-agent.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
+import { autoscale } from "./routes/autoscale.ts";
 import { backups } from "./routes/backups.ts";
 import { buildPlatforms } from "./routes/build-platforms.ts";
 import { certificates } from "./routes/certificates.ts";
@@ -46,6 +50,7 @@ import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
 import { s3Destinations } from "./routes/s3-destinations.ts";
 import { schedules } from "./routes/schedules.ts";
+import { secrets } from "./routes/secrets.ts";
 import { serviceAuth } from "./routes/service-auth.ts";
 import { serviceOps } from "./routes/service-ops.ts";
 import { services } from "./routes/services.ts";
@@ -145,6 +150,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", manifests)
 		.route("/api", previews)
 		.route("/api", envVars)
+		.route("/api", secrets)
 		.route("/api", domains)
 		.route("/api", domainAccess)
 		.route("/api", dnsProviders)
@@ -154,6 +160,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", audit)
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
+		.route("/api", autoscale)
 		.route("/api", usage)
 		.route("/api", nodes)
 		.route("/api", networkMapRoutes)
@@ -181,15 +188,23 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", games)
 		.route("/api", databases)
 		.route("/api", migrations)
+		.route("/api", ai)
+		.route("/api", aiAgent)
 		.route("/", realtime)
 		.route("/", terminal);
 
 	app.on(["GET", "POST", "DELETE"], "/mcp", mcpHandler(app));
+	// OpenAI- and Anthropic-compatible AI gateway, authenticated by its own keys.
+	app.route("/v1", gateway);
 
 	const web = deps.config.WEB_DIST_DIR;
 	if (existsSync(join(web, "index.html"))) {
 		const isApi = (p: string) =>
-			p === "/ws" || p === "/mcp" || p === "/api" || p.startsWith("/api/");
+			p === "/ws" ||
+			p === "/mcp" ||
+			p === "/api" ||
+			p.startsWith("/api/") ||
+			p.startsWith("/v1/");
 		// A file when one matches, else the app shell for client-side routes.
 		for (const handler of [
 			serveStatic({ root: web }),

@@ -11,6 +11,7 @@ import { registerMockMounts } from "./files";
 import { createMockDb } from "./fixtures";
 import { monitoringAdapter } from "./monitoring";
 import { networkingMock } from "./networking";
+import { secretsStore } from "./secrets";
 import { serviceOpsMock } from "./service-ops";
 import { ssoMock } from "./sso";
 import { stacksMock } from "./stacks";
@@ -20,6 +21,7 @@ import { variablesStore } from "./variables";
 
 const db = createMockDb();
 const variables = variablesStore(db);
+const secrets = secretsStore(db);
 /** Services archiving stopped; unarchive starts exactly these. */
 const archivedServices = new Set<string>();
 
@@ -460,7 +462,8 @@ export const mockAdapter: ApiAdapter = {
 		},
 	},
 	networking: networkingMock,
-	serviceOps: serviceOpsMock(db, variables),
+	secrets: secrets.api,
+	serviceOps: serviceOpsMock(db, variables, secrets),
 	sso: ssoMock,
 	stacks: stacksMock(db),
 	templates: templatesMock(db),

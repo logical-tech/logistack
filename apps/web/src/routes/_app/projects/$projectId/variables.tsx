@@ -5,6 +5,8 @@ import { z } from "zod";
 import { Page, PageHeader } from "@/components/page-header";
 import { SkeletonRows } from "@/components/panel";
 import { EnvDot } from "@/components/projects/env-color";
+import { SecretsPanel } from "@/components/secrets/secrets-panel";
+import { Segmented } from "@/components/segmented";
 import { VariablesEditor } from "@/components/service/env-editor";
 import { SlidingTabs } from "@/components/sliding-tabs";
 import { Button } from "@/components/ui/button";
@@ -16,14 +18,43 @@ import {
 } from "@/lib/api/variables";
 
 export const Route = createFileRoute("/_app/projects/$projectId/variables")({
-	staticData: { crumb: "Variables" },
+	staticData: { crumb: "Secrets & variables" },
 	validateSearch: z.object({
+		tab: z.enum(["secrets", "variables"]).optional().catch(undefined),
 		env: z.string().startsWith("env_").optional().catch(undefined),
 	}),
 	component: ProjectVariables,
 });
 
 function ScopeEditor({
+	scope,
+	scopeId,
+	name,
+	tab,
+}: {
+	scope: SharedScope;
+	scopeId: string;
+	name: string;
+	tab: "secrets" | "variables";
+}) {
+	if (tab === "secrets")
+		return (
+			<SecretsPanel
+				scope={scope}
+				scopeId={scopeId}
+				id={`${scope}-secrets`}
+				title={scope === "project" ? "Project secrets" : `${name} secrets`}
+				empty={
+					scope === "project"
+						? "None yet. Services in any environment of this project can reference a secret defined here."
+						: `None yet. Services in ${name} can reference a secret defined here.`
+				}
+			/>
+		);
+	return <PlainEditor scope={scope} scopeId={scopeId} name={name} />;
+}
+
+function PlainEditor({
 	scope,
 	scopeId,
 	name,
@@ -58,7 +89,7 @@ function ScopeEditor({
 
 function ProjectVariables() {
 	const { projectId } = Route.useParams();
-	const { env: envParam } = Route.useSearch();
+	const { env: envParam, tab = "secrets" } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data: project } = useQuery(projectQuery(projectId));
 	if (!project) return null;
@@ -68,32 +99,48 @@ function ProjectVariables() {
 	return (
 		<Page className="max-w-5xl">
 			<PageHeader
-				title="Shared variables"
-				description={`Every service in ${project.name} inherits these. The most specific scope wins: a service's own variable over the environment's, the environment's over the project's, the project's over the organization's.`}
+				title="Secrets & variables"
+				description={`Secrets defined here can be referenced by any service in ${project.name} below the scope that defines them. Plain variables reach every service; the most specific scope wins.`}
 				actions={
 					<Button variant="outline" asChild>
 						<Link to="/settings/variables">
 							<Building2 data-icon="inline-start" />
-							Organization variables
+							Organization
 						</Link>
 					</Button>
 				}
 			/>
-			<div className="mb-5 border-b">
+			<div className="mb-4 border-b">
 				<SlidingTabs
-					label="Scope"
-					idPrefix="scope"
-					value={value}
+					label="Kind"
+					idPrefix="kind"
+					value={tab}
 					onChange={(id) =>
 						navigate({
-							search: { env: id === "project" ? undefined : id },
+							search: (s) => ({ ...s, tab: id === "secrets" ? undefined : id }),
 							replace: true,
 						})
 					}
 					items={[
-						{ id: "project", label: "All environments" },
+						{ id: "secrets", label: "Secrets" },
+						{ id: "variables", label: "Variables" },
+					]}
+				/>
+			</div>
+			<div className="mb-5 overflow-x-auto">
+				<Segmented
+					label="Scope"
+					value={value}
+					onChange={(id) =>
+						navigate({
+							search: (s) => ({ ...s, env: id === "project" ? undefined : id }),
+							replace: true,
+						})
+					}
+					options={[
+						{ value: "project", label: "Project" },
 						...project.environments.map((e) => ({
-							id: e.id,
+							value: e.id,
 							label: (
 								<>
 									<EnvDot env={e} />
@@ -104,17 +151,14 @@ function ProjectVariables() {
 					]}
 				/>
 			</div>
-			<div
-				id="scope-panel"
-				role="tabpanel"
-				aria-labelledby={`scope-tab-${value}`}
-			>
+			<div id="kind-panel" role="tabpanel" aria-labelledby={`kind-tab-${tab}`}>
 				{env ? (
 					<ScopeEditor
 						key={env.id}
 						scope="environment"
 						scopeId={env.id}
 						name={env.name}
+						tab={tab}
 					/>
 				) : (
 					<ScopeEditor
@@ -122,6 +166,7 @@ function ProjectVariables() {
 						scope="project"
 						scopeId={projectId}
 						name={project.name}
+						tab={tab}
 					/>
 				)}
 			</div>

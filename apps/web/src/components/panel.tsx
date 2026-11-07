@@ -19,7 +19,10 @@ export function Panel({
 	return (
 		<section aria-labelledby={id} className={cn("min-w-0", className)}>
 			<div className="mb-2.5 flex min-h-7 items-center justify-between gap-3">
-				<h2 id={id} className="text-sm font-semibold [font-stretch:100%]">
+				<h2
+					id={id}
+					className="scroll-mt-20 text-sm font-semibold [font-stretch:100%]"
+				>
 					{title}
 				</h2>
 				{actions}
