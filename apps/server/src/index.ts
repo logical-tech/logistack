@@ -7,6 +7,7 @@ import { resumeAgents } from "./ai/agent.ts";
 import { createApp } from "./app.ts";
 import { createAuth } from "./auth.ts";
 import { type Config, loadConfig } from "./config.ts";
+import { startDrainSync } from "./drains.ts";
 import type { Deps } from "./env.ts";
 import { createBus } from "./events.ts";
 import { log, setLogLevel } from "./log.ts";
@@ -52,6 +53,12 @@ export async function startServer(config: Config) {
 		authenticate: nodeTokenAuth(deps.db, config.LOGISTACK_AGENT_TOKEN),
 	});
 	const rpc = await serveAgentRpc(agents, config.REDIS_URL);
+	const drains = await startDrainSync({
+		db: deps.db,
+		masterKey: deps.masterKey,
+		agents,
+		redisUrl: config.REDIS_URL,
+	});
 	const server = Bun.serve({
 		port: config.PORT,
 		fetch: app.fetch,
@@ -66,6 +73,7 @@ export async function startServer(config: Config) {
 		async stop() {
 			await server.stop(true);
 			rpc.close();
+			drains.close();
 			await closeDeps(deps);
 		},
 	};

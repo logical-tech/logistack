@@ -7,8 +7,11 @@ import {
 	type ArchiveResult,
 	type DiskRequest,
 	type DiskUsage,
+	DRAIN_STATUS_TTL_SEC,
+	type DrainsConfig,
 	HIGH_WATER_BYTES,
 	type JobSpecInput,
+	type LogDrainConfigInput,
 	MAX_CHUNK_BYTES,
 	MAX_QUEUED_MESSAGES,
 	type PruneReport,
@@ -29,6 +32,9 @@ export const NODES_KNOWN = "ls:nodes:known";
 export const NODES_DOWN = "ls:nodes:down";
 export const METRICS_STREAM = "ls:metrics";
 export const DOCKER_EVENTS_STREAM = "ls:docker-events";
+/** Hash of node id -> that node's latest `DrainNodeStatus` JSON (plus `hostname`, `at`). */
+export const DRAIN_STATUS_KEY = (drainId: string) =>
+	`ls:drains:${drainId}:status`;
 
 export type AgentHello = Extract<AgentMessage, { type: "hello" }>;
 
@@ -147,6 +153,14 @@ export type Agents = {
 		req: DiskRequest,
 		opts?: CallOptions,
 	): Promise<{ usage: DiskUsage; report: PruneReport | null }>;
+	/** Replaces a node's drain setup; false when its agent is gone or predates `log-drains`. */
+	pushDrains(nodeId: string, config: DrainsConfig): boolean;
+	/** Sends one test line through `drain` from that node. */
+	testDrain(
+		nodeId: string,
+		drain: LogDrainConfigInput,
+		opts?: CallOptions,
+	): Promise<{ ok: boolean; status?: number; error?: string }>;
 	/** Throws `bad_request` when the node's agent predates the `archive` capability. */
 	archive(
 		nodeId: string,
@@ -167,6 +181,7 @@ const TERMINAL = new Set([
 	"job.result",
 	"disk.result",
 	"archive.result",
+	"drains.result",
 	"logs.end",
 	"rpc.error",
 ]);
@@ -332,6 +347,17 @@ export function mountAgentGateway(
 					"event",
 					JSON.stringify(m.event),
 				]);
+				return;
+			case "drains.status":
+				for (const d of m.drains) {
+					const key = DRAIN_STATUS_KEY(d.drainId);
+					await redis.send("HSET", [
+						key,
+						conn.node.nodeId,
+						JSON.stringify({ ...d, hostname: conn.node.hostname, at: m.at }),
+					]);
+					await redis.send("EXPIRE", [key, String(DRAIN_STATUS_TTL_SEC)]);
+				}
 				return;
 			default:
 				conn.calls.get(m.id)?.push(m);
@@ -611,6 +637,32 @@ export function mountAgentGateway(
 				if (m.type === "disk.result")
 					return { usage: m.usage, report: m.report };
 			throw new AgentError("internal", "disk request ended without a result");
+		},
+
+		pushDrains(nodeId, config) {
+			const conn = nodes.get(nodeId);
+			if (!conn?.node.capabilities.includes("log-drains")) return false;
+			send(conn, { type: "drains.config", ...config });
+			return true;
+		},
+
+		async testDrain(nodeId, drain, opts) {
+			if (nodes.get(nodeId)?.node.capabilities.includes("log-drains") === false)
+				throw new AgentError(
+					"bad_request",
+					`the agent on node ${nodeId} is too old to ship logs; update LogiStack on it`,
+				);
+			const { replies } = start(
+				nodeId,
+				{ type: "drains.test", id: crypto.randomUUID(), drain },
+				// Nothing to stop on the agent; it ignores a cancel for an unknown session.
+				"job.cancel",
+				opts?.signal,
+			);
+			for await (const m of replies)
+				if (m.type === "drains.result")
+					return { ok: m.ok, status: m.status, error: m.error };
+			throw new AgentError("internal", "drain test ended without a result");
 		},
 
 		archive(nodeId, req, opts) {

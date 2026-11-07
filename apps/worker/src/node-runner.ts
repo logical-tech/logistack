@@ -11,6 +11,7 @@ import {
 	type DiskUsage,
 	type ExecStartInput,
 	type JobSpecInput,
+	type LogDrainConfig,
 	type LogsFollowInput,
 	MAX_CHUNK_BYTES,
 	type PruneReport,
@@ -137,14 +138,21 @@ export type NodeRunner = {
 	): Promise<DiskResult>;
 	/** A container filesystem operation through the engine's archive endpoint (contracts/agent.ts). */
 	archive(nodeId: string, req: ArchiveRequest, opts?: RunOptions): NodeArchive;
+	/** One test line through a log drain, sent from that node. */
+	testDrain(
+		nodeId: string,
+		drain: LogDrainConfig,
+		opts?: RunOptions,
+	): Promise<DrainTestResult>;
 	close(): void;
 };
 
 export type DiskResult = { usage: DiskUsage; report: PruneReport | null };
+export type DrainTestResult = { ok: boolean; status?: number; error?: string };
 
 type Start = Extract<
 	AgentRpcRequest,
-	{ type: "job" | "exec" | "logs" | "disk" | "archive" }
+	{ type: "job" | "exec" | "logs" | "disk" | "archive" | "drain-test" }
 >;
 type Step<T, R> = { item: T } | { done: R } | undefined;
 
@@ -380,6 +388,18 @@ export async function createNodeRunner(
 						: undefined,
 				// A df walks every volume and a prune can delete gigabytes.
 				{ timeoutMs: 10 * 60_000, ...run },
+			).iterator.result;
+		},
+
+		testDrain(nodeId, drain, run = {}) {
+			return open<never, DrainTestResult>(
+				nodeId,
+				{ type: "drain-test", id: crypto.randomUUID(), drain },
+				(m) =>
+					m.type === "drain"
+						? { done: { ok: m.ok, status: m.status, error: m.error } }
+						: undefined,
+				{ timeoutMs: 30_000, ...run },
 			).iterator.result;
 		},
 
