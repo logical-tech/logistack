@@ -253,7 +253,7 @@ function deploymentLog(
 	ctx: Ctx,
 	id: string,
 	secrets: Iterable<string>,
-): { path: string; line: LogLine } {
+): { path: string; line: LogLine; flush: () => Promise<void> } {
 	const mask = secretMasker(secrets);
 	const path = join(ctx.cfg.LS_WORK_DIR, "logs", `${id}.log`);
 	let chain = mkdir(join(ctx.cfg.LS_WORK_DIR, "logs"), {
@@ -271,6 +271,8 @@ function deploymentLog(
 				.then(() => ctx.bus.publishLog(id, text))
 				.catch(() => {});
 		},
+		// A reader that sees a finished status replays the list once and stops: it must be complete.
+		flush: () => Promise.all([chain, published]).then(() => {}),
 	};
 }
 
@@ -283,7 +285,7 @@ async function runDeployment(
 	const entry: Running = { controller, state: d.status };
 	running.set(d.id, entry);
 	const signal = controller.signal;
-	const { path, line } = deploymentLog(
+	const { path, line, flush } = deploymentLog(
 		ctx,
 		d.id,
 		Object.values(sc.env).flatMap((v) => (v.isSecret ? [v.value] : [])),
@@ -531,8 +533,16 @@ async function runDeployment(
 			onState: (s) => {
 				entry.state = s;
 			},
-			advance: (event, patch = {}) =>
-				advance(ctx, sc, state, event, {
+			advance: async (event, patch = {}) => {
+				// A rollout logs its own failure; a build or release failure only reached the row.
+				if (
+					event.type === "fail" &&
+					patch.error &&
+					state.status !== "deploying"
+				)
+					line(`==> failed: ${patch.error}`);
+				await flush();
+				return advance(ctx, sc, state, event, {
 					...patch,
 					...(event.type === "start"
 						? {
@@ -541,7 +551,8 @@ async function runDeployment(
 								...(source === "image" ? { imageRef: ref } : {}),
 							}
 						: {}),
-				}),
+				});
+			},
 		});
 	} finally {
 		running.delete(d.id);

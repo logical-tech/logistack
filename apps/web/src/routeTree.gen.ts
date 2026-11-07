@@ -13,6 +13,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAgentRouteImport } from './routes/_app/agent'
 import { Route as AppAiRouteRouteImport } from './routes/_app/ai/route'
 import { Route as AppDomainsRouteImport } from './routes/_app/domains'
 import { Route as AppMonitoringRouteRouteImport } from './routes/_app/monitoring/route'
@@ -125,6 +126,11 @@ const SetupRoute = SetupRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAgentRoute = AppAgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAiRouteRoute = AppAiRouteRouteImport.update({
@@ -653,6 +659,7 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AppAiRouteRouteWithChildren
   '/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/projects': typeof AppProjectsRouteRouteWithChildren
+  '/agent': typeof AppAgentRoute
   '/domains': typeof AppDomainsRoute
   '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
@@ -749,6 +756,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/setup': typeof SetupRoute
+  '/agent': typeof AppAgentRoute
   '/domains': typeof AppDomainsRoute
   '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
@@ -847,6 +855,7 @@ export interface FileRoutesById {
   '/_app/ai': typeof AppAiRouteRouteWithChildren
   '/_app/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/_app/projects': typeof AppProjectsRouteRouteWithChildren
+  '/_app/agent': typeof AppAgentRoute
   '/_app/domains': typeof AppDomainsRoute
   '/_app/network': typeof AppNetworkRoute
   '/_app/schedules': typeof AppSchedulesRoute
@@ -949,6 +958,7 @@ export interface FileRouteTypes {
     | '/ai'
     | '/monitoring'
     | '/projects'
+    | '/agent'
     | '/domains'
     | '/network'
     | '/schedules'
@@ -1045,6 +1055,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/setup'
+    | '/agent'
     | '/domains'
     | '/network'
     | '/schedules'
@@ -1142,6 +1153,7 @@ export interface FileRouteTypes {
     | '/_app/ai'
     | '/_app/monitoring'
     | '/_app/projects'
+    | '/_app/agent'
     | '/_app/domains'
     | '/_app/network'
     | '/_app/schedules'
@@ -1271,6 +1283,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/agent': {
+      id: '/_app/agent'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof AppAgentRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/ai': {
@@ -2111,6 +2130,7 @@ interface AppRouteChildren {
   AppAiRouteRoute: typeof AppAiRouteRouteWithChildren
   AppMonitoringRouteRoute: typeof AppMonitoringRouteRouteWithChildren
   AppProjectsRouteRoute: typeof AppProjectsRouteRouteWithChildren
+  AppAgentRoute: typeof AppAgentRoute
   AppDomainsRoute: typeof AppDomainsRoute
   AppNetworkRoute: typeof AppNetworkRoute
   AppSchedulesRoute: typeof AppSchedulesRoute
@@ -2163,6 +2183,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAiRouteRoute: AppAiRouteRouteWithChildren,
   AppMonitoringRouteRoute: AppMonitoringRouteRouteWithChildren,
   AppProjectsRouteRoute: AppProjectsRouteRouteWithChildren,
+  AppAgentRoute: AppAgentRoute,
   AppDomainsRoute: AppDomainsRoute,
   AppNetworkRoute: AppNetworkRoute,
   AppSchedulesRoute: AppSchedulesRoute,

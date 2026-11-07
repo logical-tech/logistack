@@ -2,6 +2,7 @@ import {
 	Activity,
 	ArrowRightLeft,
 	Bell,
+	BotMessageSquare,
 	Boxes,
 	Cable,
 	CalendarClock,
@@ -126,6 +127,14 @@ export const NAV: NavGroup[] = [
 					action: "Choose a project",
 				},
 				keywords: ["s3", "buckets", "minio", "files", "object storage"],
+			},
+			{
+				to: "/agent",
+				title: "Agent",
+				icon: BotMessageSquare,
+				description:
+					"Chat with an agent that checks, deploys and changes things through the API, with your permissions. Alpha.",
+				keywords: ["chat", "assistant", "ai", "llm", "copilot"],
 			},
 			{
 				to: "/ai",

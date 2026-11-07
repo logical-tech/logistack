@@ -5,21 +5,14 @@ import type { ReactNode } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Page, PageHeader } from "@/components/page-header";
 import { SlidingTabs } from "@/components/sliding-tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { aiSettingsQuery } from "@/lib/api/ai";
 
-export type Section =
-	| "overview"
-	| "agent"
-	| "providers"
-	| "gateway"
-	| "budgets";
+export type Section = "overview" | "providers" | "gateway" | "budgets";
 
 const TO = {
 	overview: "/ai",
-	agent: "/ai/agent",
 	providers: "/ai/providers",
 	gateway: "/ai/gateway",
 	budgets: "/ai/budgets",
@@ -49,20 +42,6 @@ export function AiPage({
 	const admin = settings?.canAdmin ?? false;
 	const items = [
 		{ id: "overview" as const, label: "Overview" },
-		{
-			id: "agent" as const,
-			label: (
-				<span className="flex items-center gap-1.5">
-					Agent
-					<Badge
-						variant="outline"
-						className="h-4 px-1.5 font-medium text-[10px] text-muted-foreground uppercase tracking-wide"
-					>
-						Alpha
-					</Badge>
-				</span>
-			),
-		},
 		...(admin ? [{ id: "providers" as const, label: "Providers" }] : []),
 		{ id: "gateway" as const, label: "Gateway" },
 		...(admin ? [{ id: "budgets" as const, label: "Budgets" }] : []),
