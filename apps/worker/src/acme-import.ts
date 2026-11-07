@@ -1,6 +1,7 @@
 import { createPrivateKey, X509Certificate } from "node:crypto";
 import type { RedisClient } from "bun";
 import { z } from "zod";
+import { sealFile } from "./caddy-storage.ts";
 import { CADDY_PREFIX, covers } from "./certs.ts";
 
 /** Where Dokploy's Traefik keeps its ACME state, on a Dokploy server. */
@@ -151,6 +152,7 @@ export async function storeInCaddy(
 	plan: AcmeImportPlan,
 	now = new Date(),
 	prefix = CADDY_PREFIX,
+	encryptionKey?: string,
 ): Promise<string[]> {
 	const written: string[] = [];
 	for (const imp of plan.imports) {
@@ -169,13 +171,9 @@ export async function storeInCaddy(
 				]);
 			await redis.set(
 				key,
-				JSON.stringify({
-					value: bytes.toString("base64"),
-					modified: now.toISOString(),
-					size: bytes.length,
-					compression: 0,
-					encryption: 0,
-				}),
+				JSON.stringify(
+					await sealFile(new Uint8Array(bytes), now, encryptionKey),
+				),
 			);
 		}
 		written.push(imp.hostname);

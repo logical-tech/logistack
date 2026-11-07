@@ -84,6 +84,30 @@ export async function deriveSecretsKek(
 	);
 }
 
+/**
+ * The `encryption_key` of Caddy's Redis storage (pberkel/caddy-storage-redis): 32 hex
+ * characters, whose ASCII bytes are its AES-256-GCM key. Derived, so it never needs storing.
+ */
+export async function deriveCaddyStorageKey(
+	masterKeyBase64: string,
+): Promise<string> {
+	const raw = Uint8Array.fromBase64(masterKeyBase64.trim());
+	const ikm = await crypto.subtle.importKey("raw", raw, "HKDF", false, [
+		"deriveBits",
+	]);
+	const bits = await crypto.subtle.deriveBits(
+		{
+			name: "HKDF",
+			hash: "SHA-256",
+			salt: encoder.encode("logistack/caddy-storage"),
+			info: encoder.encode("logistack/caddy-storage/v1"),
+		},
+		ikm,
+		128,
+	);
+	return new Uint8Array(bits).toHex();
+}
+
 /** Encrypts to `v2:<iv base64>:<ciphertext+tag base64>`, authenticating `aad`. */
 export async function seal(
 	key: CryptoKey,
