@@ -7,6 +7,7 @@ export const idPrefixes = {
 	envVar: "var",
 	secret: "sec",
 	secretVersion: "sev",
+	secretProvider: "ssp",
 	mount: "mnt",
 	node: "nod",
 	nodeToken: "ntk",

@@ -41,12 +41,21 @@ export function comparableInput(
 	return base;
 }
 
+/** Snapshots are stored: an external secret's value is replaced by its `snapshotValue`. */
 export function specSnapshot(
 	input: CompileServiceInput,
-	env: Record<string, { isSecret: boolean }>,
+	env: Record<string, { isSecret: boolean; snapshotValue?: string }>,
 ): SpecSnapshot {
+	const spec = compileService(comparableInput(input));
+	const c = spec.TaskTemplate.ContainerSpec;
+	if (c.Env)
+		c.Env = c.Env.map((e) => {
+			const key = e.slice(0, e.indexOf("="));
+			const swap = env[key]?.snapshotValue;
+			return swap === undefined ? e : `${key}=${swap}`;
+		});
 	return {
-		spec: compileService(comparableInput(input)),
+		spec,
 		plainEnv: Object.keys(env).filter((k) => !env[k]?.isSecret),
 	};
 }

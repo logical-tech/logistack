@@ -26,6 +26,7 @@ import { unfreeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
+import { recheckExternalSecrets } from "./external-secrets.ts";
 import { checkForUpdate, renewSponsorKey } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
 import { cutOver, rollBack } from "./migration.ts";
@@ -170,6 +171,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "cleanup") await runCleanup(ctx);
 				else if (job.name === "checks") await pollChecks(ctx);
 				else if (job.name === "previews") await expirePreviews(ctx);
+				else if (job.name === "external-secrets")
+					log("info", "external secrets checked", {
+						...(await recheckExternalSecrets(ctx)),
+					});
 				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
 				else await sweepOrphans(ctx);
@@ -240,6 +245,12 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			"previews-every",
 			{ every: 15 * 60_000 },
 			{ name: "previews" },
+		);
+		// Re-reads external secrets so a value changed in the provider shows as a pending change.
+		await ctx.queues.maintenance.upsertJobScheduler(
+			"external-secrets-every",
+			{ every: 15 * 60_000 },
+			{ name: "external-secrets" },
 		);
 		await ctx.queues.maintenance.upsertJobScheduler(
 			"retention-every",

@@ -100,11 +100,19 @@ export async function guardedFetch(
 	init: RequestInit,
 	policy: HostPolicy,
 	resolve?: Lookup,
+	/** Also allow http:// to a private address once private hosts are allowed (internal secret managers). */
+	privateHttp = false,
 ): Promise<Response> {
 	const url = new URL(input);
-	if (url.protocol !== "https:")
+	const http =
+		url.protocol === "http:" && privateHttp && policy.allowPrivateHosts;
+	if (url.protocol !== "https:" && !http)
 		throw new BlockedHostError("only https URLs are allowed");
 	const address = await resolvePublic(url.hostname, policy, resolve);
+	if (http && !isPrivateAddress(address))
+		throw new BlockedHostError(
+			"plain http is allowed only to a private address",
+		);
 	const pinned = new URL(url);
 	pinned.hostname = isIP(address) === 6 ? `[${address}]` : address;
 	const headers = new Headers(init.headers);

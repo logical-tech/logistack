@@ -5,6 +5,7 @@ import {
 	EnvVar,
 	type EnvVarScope,
 	envVarScopes,
+	isSecretReference,
 	ObservedState,
 	PendingDiff,
 } from "@logistack/contracts";
@@ -62,6 +63,7 @@ import {
 	refuseArchived,
 	requirePermission,
 } from "../scope.ts";
+import { externalColumns } from "../secret-refs.ts";
 import { availableSecrets } from "./secrets.ts";
 
 /** What the reconciler stores per running-desired task in `service_status.tasks`. */
@@ -367,7 +369,8 @@ export const serviceOps = router()
 				const sc = await loadService(
 					{ db, masterKey, secretsKek: c.var.deps.secretsKek },
 					id,
-					{ gitAuth: false },
+					// Compared with the deployed snapshot, which holds the same placeholders.
+					{ gitAuth: false, external: "placeholder" },
 				);
 				if (!sc) throw notFound("service");
 				const spec = sc.service.spec;
@@ -746,6 +749,20 @@ export const serviceOps = router()
 								values.get(v.secretId)?.value ?? "",
 							),
 						};
+					} else if (v.value !== undefined && isSecretReference(v.value)) {
+						// A typed `secret://` value: this service's own external secret, then referenced.
+						const own = await serviceExternalSecret(tx, {
+							organizationId: actor.organizationId,
+							serviceId,
+							key: v.key,
+							reference: v.value,
+							userId: actor.userId,
+						});
+						set = {
+							isSecret: true,
+							secretId: own.id,
+							valueEncrypted: await encrypt(masterKey, ""),
+						};
 					} else if (v.isSecret && v.value !== undefined) {
 						// Typed text marked secret: stored as this service's own secret, then referenced.
 						const own = await serviceSecret(sctx, {
@@ -912,8 +929,66 @@ async function serviceSecret(
 			},
 			o.userId,
 		);
-	if ((await readSecretValue(ctx, existing)) === o.value) return existing;
+	if (existing.providerId)
+		// Was read from a provider, now typed: back to a stored, versioned value.
+		await ctx.db
+			.update(secret)
+			.set({ providerId: null, externalRef: null, externalFingerprint: null })
+			.where(eq(secret.id, existing.id));
+	else if ((await readSecretValue(ctx, existing)) === o.value) return existing;
 	return setSecretValue(ctx, existing.id, o.value, o.userId);
+}
+
+/** The service's own external secret named `key`, created or pointed at `reference`. */
+async function serviceExternalSecret(
+	db: DbOrTx,
+	o: {
+		organizationId: string;
+		serviceId: string;
+		key: string;
+		reference: string;
+		userId: string;
+	},
+) {
+	const cols = await externalColumns(db, o.organizationId, o.reference);
+	const [existing] = await db
+		.select()
+		.from(secret)
+		.where(
+			and(
+				eq(secret.scope, "service"),
+				eq(secret.scopeId, o.serviceId),
+				eq(secret.key, o.key),
+			),
+		);
+	if (
+		existing?.providerId === cols.providerId &&
+		existing.externalRef === cols.externalRef
+	)
+		return existing;
+	if (existing)
+		return one(
+			await db
+				.update(secret)
+				.set({ ...cols, updatedBy: o.userId })
+				.where(eq(secret.id, existing.id))
+				.returning(),
+		);
+	return one(
+		await db
+			.insert(secret)
+			.values({
+				organizationId: o.organizationId,
+				scope: "service",
+				scopeId: o.serviceId,
+				key: o.key,
+				currentVersion: 0,
+				...cols,
+				createdBy: o.userId,
+				updatedBy: o.userId,
+			})
+			.returning(),
+	);
 }
 
 /**

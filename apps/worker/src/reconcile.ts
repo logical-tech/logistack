@@ -207,7 +207,10 @@ async function reconcileService(
 			.orderBy(desc(deployment.createdAt))
 			.limit(1);
 		if (last) {
-			const sc = await loadService(ctx, row.id);
+			// Drift repair patches the live spec; only a recreate needs external secrets read.
+			const sc = await loadService(ctx, row.id, {
+				external: svc ? "placeholder" : "resolve",
+			});
 			if (sc && !svc) {
 				await upsertService(
 					ctx,

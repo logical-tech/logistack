@@ -103,7 +103,13 @@ export type EnvVar = z.infer<typeof EnvVar>;
 
 export const EnvVarInput = z.object({
 	key: EnvKey,
-	value: z.string(),
+	// References resolve only through a secret (POST /secrets or a service's variables).
+	value: z
+		.string()
+		.refine(
+			(v) => !v.startsWith("secret://"),
+			"secret:// references belong in a secret: create one with this reference and reference it from the service",
+		),
 	isSecret: z.boolean(),
 	isBuildTime: z.boolean(),
 });

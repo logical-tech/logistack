@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
 import { id, timestamps, tstz } from "./columns.ts";
-import { secretScope } from "./enums.ts";
+import { secretProviderKind, secretScope } from "./enums.ts";
 
 /**
  * Per-organization data keys (DEK), wrapped by the KEK derived from the master key.
@@ -35,7 +35,30 @@ export const secretKey = pgTable(
 	],
 );
 
-/** A managed secret at one scope. Its value lives in `secret_version`. */
+/** An external secret manager (Vault, Infisical, 1Password Connect) external secrets read from. */
+export const secretProvider = pgTable(
+	"secret_provider",
+	{
+		id: id("ssp"),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		kind: secretProviderKind("kind").notNull(),
+		/** Written in references: `secret://<name>/...`. */
+		name: text("name").notNull(),
+		/** For display; the copy inside the config is the one used. */
+		url: text("url").notNull(),
+		// Encrypted JSON document (v1:<iv>:<ct>): the config carries the credentials.
+		configEncrypted: text("config_encrypted").notNull(),
+		...timestamps,
+	},
+	(t) => [unique("secret_provider_name_unique").on(t.organizationId, t.name)],
+);
+
+/**
+ * A secret at one scope. A managed one keeps its value in `secret_version`; an external one
+ * (`provider_id` set) is read from the provider at deploy time and stores no value at all.
+ */
 export const secret = pgTable(
 	"secret",
 	{
@@ -48,7 +71,17 @@ export const secret = pgTable(
 		scopeId: text("scope_id").notNull(),
 		key: text("key").notNull(),
 		description: text("description"),
+		/** 0 for an external secret, which has no versions. */
 		currentVersion: integer("current_version").notNull(),
+		providerId: text("provider_id").references(() => secretProvider.id, {
+			onDelete: "restrict",
+		}),
+		/** `<path>#<key>`, percent-encoded, after `secret://<provider name>/`. */
+		externalRef: text("external_ref"),
+		/** Keyed hash of the value last read, so a changed value shows as a pending change. Never the value. */
+		externalFingerprint: text("external_fingerprint"),
+		externalCheckedAt: tstz("external_checked_at"),
+		externalError: text("external_error"),
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),
