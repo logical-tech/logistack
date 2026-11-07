@@ -10,6 +10,7 @@
 	},
 	"dependencies": {
 		"@logistack/contracts": "workspace:*",
+		"@logistack/core": "workspace:*",
 		"@logistack/docker": "workspace:*",
 		"zod": "4.6.7"
 	},
