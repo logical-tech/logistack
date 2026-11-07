@@ -21,6 +21,7 @@ import { aiAgent } from "./routes/ai-agent.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
 import { autoscale } from "./routes/autoscale.ts";
+import { backupDestinations } from "./routes/backup-destinations.ts";
 import { backups } from "./routes/backups.ts";
 import { buildPlatforms } from "./routes/build-platforms.ts";
 import { certificates } from "./routes/certificates.ts";
@@ -177,6 +178,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", registries)
 		.route("/api", webhooks)
 		.route("/api", s3Destinations)
+		.route("/api", backupDestinations)
 		.route("/api", tunnels)
 		.route("/api", serviceAuth)
 		.route("/api", backups)

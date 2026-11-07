@@ -165,6 +165,77 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 		expect(JSON.stringify(diff)).not.toContain("very-secret-key");
 	});
 
+	test("rclone and local destinations: secrets stay encrypted, hosts pass the SSRF guard", async () => {
+		const sftp = {
+			kind: "sftp",
+			settings: { host: "127.0.0.1", port: 2222, user: "backup", path: "nas" },
+			secrets: { password: "sftp-secret-pw" },
+		};
+		const probe = await h.call("POST", "/api/backup-destinations/test", {
+			...as("owner"),
+			body: sftp,
+		});
+		expect(probe.json).toMatchObject({
+			ok: false,
+			message: "Host not allowed",
+		});
+		const noSecret = await h.call("POST", "/api/backup-destinations", {
+			...as("owner"),
+			body: { ...sftp, name: "NAS", secrets: {} },
+		});
+		expect(noSecret.status).toBe(400);
+		const created = await h.call("POST", "/api/backup-destinations", {
+			...as("owner"),
+			body: { ...sftp, name: "NAS" },
+		});
+		expect(created.status).toBe(201);
+		const list = await h.call("GET", "/api/backup-destinations", as("viewer"));
+		expect(list.json).toContainEqual(
+			expect.objectContaining({
+				id: created.json.id,
+				kind: "sftp",
+				location: "sftp://backup@127.0.0.1:2222/nas",
+				settings: sftp.settings,
+				usedBy: 0,
+			}),
+		);
+		expect(list.json).toContainEqual(
+			expect.objectContaining({ id: destinationId, kind: "s3" }),
+		);
+		expect(JSON.stringify(list.json)).not.toContain("sftp-secret-pw");
+		const [diff] = await h.deps.db
+			.select({ diff: auditLog.diff })
+			.from(auditLog)
+			.where(eq(auditLog.action, "backup_destination.create"));
+		expect(JSON.stringify(diff)).not.toContain("sftp-secret-pw");
+		// The S3-only listing stays S3-only for older clients.
+		const s3 = await h.call("GET", "/api/s3-destinations", as("viewer"));
+		expect(s3.json.map((d: { id: string }) => d.id)).toEqual([destinationId]);
+
+		const local = await h.call("POST", "/api/backup-destinations", {
+			...as("owner"),
+			body: {
+				kind: "local",
+				name: "Disk",
+				nodeId: "nod_missing",
+				settings: { path: "/srv/backups" },
+			},
+		});
+		expect(local.status).toBe(404);
+		const relative = await h.call("POST", "/api/backup-destinations/test", {
+			...as("owner"),
+			body: { kind: "local", nodeId: "nod_x", settings: { path: "../etc" } },
+		});
+		expect(relative.status).toBe(400);
+
+		const gone = await h.call(
+			"DELETE",
+			`/api/backup-destinations/${created.json.id}`,
+			as("owner"),
+		);
+		expect(gone.status).toBe(204);
+	});
+
 	test("policies validate their target and register Job Schedulers", async () => {
 		const bad = await h.call("POST", `/api/services/${appId}/backup-policies`, {
 			...as("owner"),
