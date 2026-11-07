@@ -46,6 +46,7 @@ export const shots: Record<string, Shot> = {
 	"service-storage": `${P}/services/svc_storefront_production_media/storage`,
 	"service-settings": `${SVC}/settings`,
 	"service-scaling": `${SVC}/settings#scaling`,
+	"service-security": `${SVC}/security`,
 	"autoscale-checks": `${AUTOSCALE}ready`,
 	"autoscale-range": `${AUTOSCALE}range`,
 	"autoscale-behavior": `${AUTOSCALE}behavior`,
