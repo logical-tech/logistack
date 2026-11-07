@@ -8,6 +8,7 @@ import {
 	CircleDashed,
 	CopyIcon,
 	ListChecks,
+	LockKeyhole,
 	MessageSquarePlus,
 	Trash2,
 	TriangleAlert,
@@ -76,6 +77,7 @@ import {
 	ToolOutput,
 } from "@/components/ai-elements/tool";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -83,7 +85,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { aiModelsQuery } from "@/lib/api/ai";
+import { ApiError } from "@/lib/api";
+import { aiModelsQuery, aiSettingsQuery } from "@/lib/api/ai";
 import {
 	type AiAgentConversation,
 	type AiAgentDetail,
@@ -108,10 +111,30 @@ const SUGGESTIONS = [
 /** The chat with the Agent: history on the left, the open conversation on the right. */
 export function AgentPage({ conversationId }: { conversationId?: string }) {
 	const navigate = useNavigate();
+	const { error } = useQuery(aiSettingsQuery);
 	const open = (c?: string) =>
-		navigate({ to: "/ai/agent", search: c ? { c } : {} });
+		navigate({ to: "/agent", search: c ? { c } : {} });
+	if (error)
+		return (
+			<div className="p-6">
+				<EmptyState
+					icon={LockKeyhole}
+					title={
+						error instanceof ApiError && error.status === 403
+							? "Your role doesn't include AI"
+							: "Couldn't load the AI settings"
+					}
+					description={
+						error instanceof ApiError && error.status === 403
+							? "The Agent is open to owners and admins, and to anyone whose role grants the AI permission. Ask an admin to add it to your role."
+							: error.message
+					}
+				/>
+			</div>
+		);
+	// Fills the content area below the 3.5rem top bar; only the conversation scrolls.
 	return (
-		<div className="grid h-[calc(100dvh-15rem)] min-h-[32rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border bg-card md:grid-cols-[16rem_minmax(0,1fr)] md:grid-rows-1">
+		<div className="grid h-[calc(100dvh-3.5rem)] min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:grid-cols-[16rem_minmax(0,1fr)] md:grid-rows-1">
 			<History selected={conversationId} onOpen={open} />
 			<MobileBar selected={conversationId} onOpen={open} />
 			<Chat key={conversationId ?? "new"} id={conversationId} onOpen={open} />
@@ -132,7 +155,7 @@ function History({
 	return (
 		<nav
 			aria-label="Conversations"
-			className="flex min-h-0 flex-col border-r bg-muted/30 max-md:hidden"
+			className="flex min-h-0 flex-col border-r bg-sidebar/40 max-md:hidden"
 		>
 			<div className="p-2">
 				<Button

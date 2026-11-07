@@ -1,15 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
-import { AgentPage } from "@/components/ai/agent";
 
+// The Agent used to be a tab of the AI page; old links land on its own page.
 export const Route = createFileRoute("/_app/ai/agent")({
-	staticData: { crumb: "Agent" },
-	// The open conversation is in the URL, so a refresh lands on it again.
 	validateSearch: z.object({ c: z.string().optional() }),
-	component: Agent,
+	beforeLoad: ({ search }) => {
+		throw redirect({ to: "/agent", search, replace: true });
+	},
 });
-
-function Agent() {
-	const { c } = Route.useSearch();
-	return <AgentPage conversationId={c} />;
-}
