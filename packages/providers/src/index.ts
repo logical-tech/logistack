@@ -11,4 +11,5 @@ export * from "./s3/destination.ts";
 export * from "./s3/madmin.ts";
 export * from "./s3/retention.ts";
 export * from "./s3/storage.ts";
+export * from "./secrets/index.ts";
 export * from "./sigv4.ts";
