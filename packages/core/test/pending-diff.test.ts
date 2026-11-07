@@ -122,6 +122,17 @@ describe("diffSpecs", () => {
 		expect(body).not.toContain("NEWVALUE");
 	});
 
+	test("drain timeout in seconds, not nanoseconds", () => {
+		expect(
+			diffSpecs(snap(), snap({ spec: { drainTimeout: 30 } })),
+		).toContainEqual({
+			area: "other",
+			path: "TaskTemplate.ContainerSpec.StopGracePeriod",
+			before: "10s",
+			after: "30s",
+		});
+	});
+
 	test("image", () => {
 		expect(summaries({}, { image: "nginx:1.28" })).toEqual([
 			"image nginx:1.27 → nginx:1.28",

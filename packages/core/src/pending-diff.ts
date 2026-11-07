@@ -161,9 +161,21 @@ function leafDiff(
 			leafDiff(b[k], a[k], path ? `${path}.${k}` : k, out);
 		return;
 	}
-	if (!same(b, a))
-		out.push({ area: "other", path, before: b ?? null, after: a ?? null });
+	if (same(b, a)) return;
+	const human = humanUnits[path] ?? ((v: unknown) => v);
+	out.push({
+		area: "other",
+		path,
+		before: b == null ? null : human(b),
+		after: a == null ? null : human(a),
+	});
 }
+
+/** Leaves Swarm stores in machine units, shown the way the settings form takes them. */
+const humanUnits: Record<string, (v: unknown) => unknown> = {
+	"TaskTemplate.ContainerSpec.StopGracePeriod": (ns) =>
+		typeof ns === "number" ? `${ns / 1e9}s` : ns,
+};
 
 /**
  * Pure: what changes from `before` to `after`. An env value is included only when its key is
