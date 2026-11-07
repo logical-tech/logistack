@@ -3,6 +3,8 @@ import { decrypt } from "@logistack/core";
 import { notificationChannel, notificationRule } from "@logistack/db";
 import {
 	type Fetch,
+	guardedFetch,
+	type HostPolicy,
 	instantiate,
 	matchRules,
 	type NotificationChannel,
@@ -13,14 +15,9 @@ import {
 } from "@logistack/providers";
 import type { RedisClient } from "bun";
 import { eq } from "drizzle-orm";
-// shortcut: imported across apps; move ssrf.ts into a package once a third caller needs it.
-import {
-	guardedFetch,
-	type HostPolicy,
-	hostPolicy,
-} from "../../server/src/ssrf.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
+import { hostPolicy } from "./ssrf.ts";
 
 /** Same key and shape as apps/server/src/routes/notifications.ts reads. */
 export const channelStatusKey = (channelId: string) =>

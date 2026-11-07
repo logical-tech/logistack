@@ -12,3 +12,4 @@ export * from "./s3/madmin.ts";
 export * from "./s3/retention.ts";
 export * from "./s3/storage.ts";
 export * from "./sigv4.ts";
+export * from "./ssrf.ts";
