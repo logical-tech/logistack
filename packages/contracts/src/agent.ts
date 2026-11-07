@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DrainNodeStatus, DrainsConfig, LogDrainConfig } from "./drains.ts";
 import { NodeRole } from "./enums.ts";
 
 // Agent <-> server protocol. The agent dials AGENT_WS_PATH with `Authorization: Bearer <token>`
@@ -7,7 +8,9 @@ import { NodeRole } from "./enums.ts";
 // token and presents it from then on. Every frame is one JSON text message parsed with AgentMessage or
 // ServerMessage. Requests carry an `id` chosen by the server; every reply for that request
 // carries the same `id` and the stream ends with exactly one terminal message
-// (`exec.exit`, `job.result`, `disk.result`, `archive.result`, `rpc.error`, or `logs.end`).
+// (`exec.exit`, `job.result`, `disk.result`, `archive.result`, `drains.result`, `rpc.error`, or
+// `logs.end`). Capabilities gate newer requests: `log-drains` covers `drains.config` and
+// `drains.test`.
 //
 // Backpressure:
 // - Output is chunked to at most MAX_CHUNK_BYTES raw bytes (base64 in `data`) and log lines are
@@ -357,6 +360,19 @@ export const AgentMessage = z.discriminatedUnion("type", [
 	}),
 	z.object({ ...req("archive.data"), data: Base64 }),
 	z.object({ ...req("archive.result"), ...ArchiveResult.shape }),
+	/** Telemetry: per-drain delivery state on this node. */
+	z.object({
+		type: z.literal("drains.status"),
+		at: z.number(),
+		drains: z.array(DrainNodeStatus).max(500),
+	}),
+	/** Outcome of `drains.test`: the destination's HTTP status, never its body. */
+	z.object({
+		...req("drains.result"),
+		ok: z.boolean(),
+		status: z.number().int().optional(),
+		error: z.string().max(1024).optional(),
+	}),
 	z.object({
 		...req("rpc.error"),
 		code: RpcErrorCode,
@@ -420,6 +436,10 @@ export const ServerMessage = z.discriminatedUnion("type", [
 	z.object({ ...req("job.ack"), bytes: Bytes }),
 	z.object({ ...req("disk.run"), request: DiskRequest }),
 	z.object({ ...req("archive.start"), request: ArchiveRequest }),
+	/** Replaces the agent's whole drain setup; not a request, nothing answers it. */
+	z.object({ type: z.literal("drains.config"), ...DrainsConfig.shape }),
+	/** Sends one test line through `drain` from this node. */
+	z.object({ ...req("drains.test"), drain: LogDrainConfig }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
 export type ServerMessageInput = z.input<typeof ServerMessage>;
