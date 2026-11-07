@@ -15,8 +15,8 @@ import {
 } from "../src/certs.ts";
 import type { DomainRow } from "../src/load.ts";
 import {
+	attempt,
 	type DispatchDeps,
-	deliver,
 	dispatch,
 	type Outcome,
 } from "../src/notify.ts";
@@ -313,7 +313,11 @@ describe("notification dispatch", () => {
 			rules: async () => rules,
 			channel: async (id) => (id === "missing" ? null : channel(id)),
 			record: async (id, o) => void recorded.push([id, o]),
-			sleep: async (ms) => void sleeps.push(ms),
+			// Runs the retry at once; the real one waits in the notify queue.
+			retryLater: async (job, ms) => {
+				sleeps.push(ms);
+				await attempt(job, deps, { attempts: 4, baseMs: 100 });
+			},
 		};
 		return { deps, sent, sleeps, recorded };
 	}
@@ -353,42 +357,30 @@ describe("notification dispatch", () => {
 			),
 		});
 		const out = await dispatch(event, h.deps, { attempts: 4, baseMs: 100 });
-		expect(out.get("ch_flaky")).toEqual({ ok: true });
-		expect(out.get("ch_dead")).toEqual({
-			ok: false,
-			error: "x send: HTTP 503",
+		expect(out.get("ch_flaky")).toBe("retrying");
+		expect(Object.fromEntries(h.recorded)).toEqual({
+			ch_flaky: { ok: true },
+			ch_dead: { ok: false, error: "x send: HTTP 503" },
 		});
 		// flaky: 2 waits before its 3rd try; dead: 3 waits across 4 tries.
 		expect(h.sleeps.sort((a, b) => a - b)).toEqual([100, 100, 200, 200, 400]);
 	});
 
-	test("a channel's own 4xx refusal is not retried", async () => {
-		let calls = 0;
-		const r = await deliver(
-			async () => {
-				calls++;
-				throw new ProviderError(
-					"discord",
-					"send",
-					"HTTP 404: Unknown Webhook",
-					404,
-				);
-			},
-			async () => {},
-		);
-		expect(r).toEqual({
+	test("a channel's own 4xx refusal is not retried; 429 is", async () => {
+		const h = harness([rule("r1", "ch_gone"), rule("r2", "ch_busy")], {
+			ch_gone: [
+				new ProviderError("discord", "send", "HTTP 404: Unknown Webhook", 404),
+			],
+			ch_busy: Array.from(
+				{ length: 9 },
+				() => new ProviderError("slack", "send", "HTTP 429", 429),
+			),
+		});
+		const out = await dispatch(event, h.deps);
+		expect(out.get("ch_gone")).toEqual({
 			ok: false,
 			error: "discord send: HTTP 404: Unknown Webhook",
-			attempts: 1,
 		});
-		expect(calls).toBe(1);
-		const rateLimited = await deliver(
-			async () => {
-				throw new ProviderError("slack", "send", "HTTP 429", 429);
-			},
-			async () => {},
-			{ attempts: 3, baseMs: 1 },
-		);
-		expect(rateLimited.attempts).toBe(3);
+		expect(h.sleeps).toHaveLength(3);
 	});
 });

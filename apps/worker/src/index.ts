@@ -131,6 +131,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		log("error", "job failed", { queue, jobId: job?.id, error: err.message });
 
 	const schedules = await createScheduleRunner(ctx);
+	const notify = notifier(ctx);
 	const proxySync = coalesce(async () => {
 		await syncProxy(ctx);
 		// After Caddy: a tunnel hostname should already route when Cloudflare starts sending it.
@@ -193,6 +194,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			},
 			{ connection, concurrency: cfg.LS_RUN_CONCURRENCY },
 		),
+		new Worker("notify", (job) => notify.retry(job.data), {
+			connection,
+			concurrency: 8,
+		}),
 		// One cutover at a time: the wizard moves services in order, databases first.
 		new Worker<MigrationJob>(
 			MIGRATION_QUEUE,
@@ -253,8 +258,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		);
 	}
 
-	const notify = notifier(ctx);
-	ctx.bus.onEvent(notify);
+	ctx.bus.onEvent(notify.onEvent);
 	const stopSyncRequests = await listenForSyncRequests(ctx);
 
 	ctx.bus.onEvent((e) => {

@@ -1,4 +1,4 @@
-import type { EventEnvelope } from "@logistack/contracts";
+import { EventEnvelope } from "@logistack/contracts";
 import { decrypt } from "@logistack/core";
 import { notificationChannel, notificationRule } from "@logistack/db";
 import {
@@ -33,13 +33,21 @@ export type DeliveryStatus = {
 
 export type Outcome = { ok: true } | { ok: false; error: string };
 
+/** One delivery of one event to one channel; `attempt` counts from 1. */
+export type NotifyJob = {
+	event: EventEnvelope;
+	channelId: string;
+	attempt: number;
+};
+
 export type DispatchDeps = {
 	/** True for exactly one caller per event id, across every worker replica. */
 	claim(eventId: string): Promise<boolean>;
 	rules(organizationId: string): Promise<NotificationRule[]>;
 	channel(id: string): Promise<NotificationChannel | null>;
 	record(channelId: string, outcome: Outcome, at: Date): Promise<void>;
-	sleep(ms: number): Promise<void>;
+	/** Runs `job` again after `delayMs`, durably: a worker restart in between does not lose it. */
+	retryLater(job: NotifyJob, delayMs: number): Promise<void>;
 };
 
 export const RETRY = { attempts: 4, baseMs: 1_000 };
@@ -51,50 +59,56 @@ const retryable = (err: unknown) =>
 	err.status === 429 ||
 	err.status >= 500;
 
-/** Sends with exponential backoff (1 s, 2 s, 4 s by default) until it succeeds or gives up. */
-export async function deliver(
-	send: () => Promise<void>,
-	sleep: (ms: number) => Promise<void>,
+/**
+ * One try. A retryable failure before the last attempt schedules the next one with
+ * exponential backoff (1 s, 2 s, 4 s by default) and returns "retrying"; anything else is
+ * recorded as the channel's outcome.
+ */
+export async function attempt(
+	job: NotifyJob,
+	deps: DispatchDeps,
 	retry = RETRY,
-): Promise<Outcome & { attempts: number }> {
-	for (let attempt = 1; ; attempt++) {
-		try {
-			await send();
-			return { ok: true, attempts: attempt };
-		} catch (err) {
-			const error = err instanceof Error ? err.message : String(err);
-			if (attempt >= retry.attempts || !retryable(err))
-				return { ok: false, error, attempts: attempt };
-			await sleep(retry.baseMs * 2 ** (attempt - 1));
+): Promise<Outcome | "retrying" | "gone"> {
+	const ch = await deps.channel(job.channelId);
+	if (!ch) return "gone";
+	let outcome: Outcome;
+	try {
+		await ch.send(job.event, renderEvent(job.event));
+		outcome = { ok: true };
+	} catch (err) {
+		if (job.attempt < retry.attempts && retryable(err)) {
+			await deps.retryLater(
+				{ ...job, attempt: job.attempt + 1 },
+				retry.baseMs * 2 ** (job.attempt - 1),
+			);
+			return "retrying";
 		}
+		outcome = {
+			ok: false,
+			error: err instanceof Error ? err.message : String(err),
+		};
 	}
+	await deps.record(job.channelId, outcome, new Date());
+	return outcome;
 }
 
 /**
- * Routes one event to every channel a rule matches, each once. The claim dedupes by event
- * id, so a replayed or doubly-received envelope sends nothing the second time.
+ * Routes one event to every channel a rule matches, each once, and returns each first
+ * try's result. The claim dedupes by event id, so a replayed or doubly-received envelope
+ * sends nothing the second time.
  */
 export async function dispatch(
 	event: EventEnvelope,
 	deps: DispatchDeps,
 	retry = RETRY,
-): Promise<Map<string, Outcome>> {
-	const results = new Map<string, Outcome>();
+): Promise<Map<string, Outcome | "retrying">> {
+	const results = new Map<string, Outcome | "retrying">();
 	if (!(await deps.claim(event.id))) return results;
 	const channelIds = matchRules(event, await deps.rules(event.organizationId));
-	if (channelIds.length === 0) return results;
-	const rendered = renderEvent(event);
 	await Promise.all(
-		channelIds.map(async (id) => {
-			const ch = await deps.channel(id);
-			if (!ch) return;
-			const { attempts: _, ...outcome } = await deliver(
-				() => ch.send(event, rendered),
-				deps.sleep,
-				retry,
-			);
-			results.set(id, outcome);
-			await deps.record(id, outcome, new Date());
+		channelIds.map(async (channelId) => {
+			const r = await attempt({ event, channelId, attempt: 1 }, deps, retry);
+			if (r !== "gone") results.set(channelId, r);
 		}),
 	);
 	return results;
@@ -169,29 +183,48 @@ export function dispatchDeps(ctx: Ctx, fetchFor?: Fetch): DispatchDeps {
 			});
 		},
 		record: (id, outcome, at) => recordDelivery(redis, id, outcome, at),
-		sleep: Bun.sleep,
+		async retryLater(job, delayMs) {
+			await ctx.queues.notify.add("retry", job, {
+				delay: delayMs,
+				jobId: `${job.event.id}:${job.channelId}:${job.attempt}`,
+			});
+		},
 	};
 }
 
-/** The worker's bus listener. shortcut: retries live in memory, so a crash mid-backoff drops them; move to a BullMQ queue if that matters. */
+/** The worker's bus listener: the first try runs at once, retries wait in the `notify` queue. */
 export function notifier(ctx: Ctx) {
 	const deps = dispatchDeps(ctx);
-	return (event: EventEnvelope) => {
-		dispatch(event, deps)
-			.then((results) => {
-				for (const [channelId, r] of results)
-					if (!r.ok)
-						log("warn", "notification failed", {
-							event: event.type,
-							channelId,
-							error: r.error,
-						});
-			})
-			.catch((err: unknown) =>
-				log("error", "notification dispatch failed", {
-					event: event.id,
-					error: String(err),
-				}),
-			);
+	const warn = (
+		event: EventEnvelope,
+		channelId: string,
+		r: Outcome | "retrying" | "gone",
+	) => {
+		if (typeof r === "object" && !r.ok)
+			log("warn", "notification failed", {
+				event: event.type,
+				channelId,
+				error: r.error,
+			});
+	};
+	return {
+		onEvent(event: EventEnvelope) {
+			dispatch(event, deps)
+				.then((results) => {
+					for (const [channelId, r] of results) warn(event, channelId, r);
+				})
+				.catch((err: unknown) =>
+					log("error", "notification dispatch failed", {
+						event: event.id,
+						error: String(err),
+					}),
+				);
+		},
+		/** The `notify` queue's processor. */
+		async retry(data: unknown) {
+			const raw = data as NotifyJob;
+			const job = { ...raw, event: EventEnvelope.parse(raw.event) };
+			warn(job.event, job.channelId, await attempt(job, deps));
+		},
 	};
 }

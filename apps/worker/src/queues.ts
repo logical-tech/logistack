@@ -8,6 +8,7 @@ export const QUEUES = [
 	"backup",
 	"schedule",
 	"migration",
+	"notify",
 ] as const;
 export type QueueName = (typeof QUEUES)[number];
 export type Queues = Record<QueueName, Queue>;
