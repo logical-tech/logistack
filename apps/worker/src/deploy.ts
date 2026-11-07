@@ -18,7 +18,7 @@ import {
 	specSnapshot,
 	transition,
 } from "@logistack/core";
-import { deployment } from "@logistack/db";
+import { deployment, environment, project, service } from "@logistack/db";
 import { and, asc, eq, inArray, not } from "drizzle-orm";
 import {
 	desiredInput,
@@ -574,6 +574,16 @@ async function failAll(ctx: Ctx, pending: DeploymentRow[], error: string) {
 
 export const terminal = deploymentStatuses.filter(isTerminal);
 
+async function archived(ctx: Ctx, serviceId: string): Promise<boolean> {
+	const [row] = await ctx.db
+		.select({ archivedAt: project.archivedAt })
+		.from(service)
+		.innerJoin(environment, eq(environment.id, service.environmentId))
+		.innerJoin(project, eq(project.id, environment.projectId))
+		.where(eq(service.id, serviceId));
+	return Boolean(row?.archivedAt);
+}
+
 /** The `deploy` job: drains a service's deployments one at a time until none is pending. */
 export async function processService(
 	ctx: Ctx,
@@ -592,6 +602,15 @@ export async function processService(
 			.orderBy(asc(deployment.createdAt));
 		const plan = planQueue(pending);
 		if (plan.kind === "idle") return;
+		if (plan.kind === "run" && (await archived(ctx, serviceId))) {
+			// Queued before the archive, or by a trigger that does not check it (git push, schedule).
+			await failAll(
+				ctx,
+				pending.filter((d) => d.status === "queued"),
+				"the project is archived; unarchive it to deploy",
+			);
+			return;
+		}
 		let sc: ServiceContext | null;
 		try {
 			await convertLegacySecrets(ctx);

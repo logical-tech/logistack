@@ -249,6 +249,7 @@ export const services = router()
 			}),
 		),
 		async (c) => {
+			await refuseArchived(c);
 			const input = c.req.valid("json");
 			const nodeId = await guardHostSettings(c, {
 				spec: input.spec,
