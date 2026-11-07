@@ -13,17 +13,14 @@ import {
 	dumpScript,
 	newId,
 	restoreScript,
-	storageEngineDefs,
 } from "@logistack/core";
 import {
 	adoptedVolume,
 	backupPolicy,
 	backupRun,
 	environment,
-	instanceSettings,
 	node,
 	project,
-	s3Destination,
 	service,
 } from "@logistack/db";
 import {
@@ -34,9 +31,7 @@ import {
 	type Mount,
 } from "@logistack/docker";
 import {
-	instantiate,
-	type S3Destination,
-	s3Destination as s3Provider,
+	type BackupDestination,
 	selectForDeletion,
 } from "@logistack/providers";
 import { Decrypter, Encrypter, identityToRecipient } from "age-encryption";
@@ -57,10 +52,10 @@ import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import { svcName } from "./load.ts";
 import { feed, STDIN_WINDOW_BYTES, tail } from "./node-runner.ts";
-import { publicAddress } from "./ssrf.ts";
+import { openDestination as open } from "./open-destination.ts";
 
 // Backups, verify restores and restores. Every byte goes node -> agent -> bridge -> this
-// process -> S3 multipart (or back), hashed on the way; nothing touches the control plane's disk.
+// process -> the destination (or back), hashed on the way; nothing touches the control plane's disk.
 
 const JOB_TIMEOUT_S = 6 * 3600;
 /** Dump bytes the agent may run ahead of the upload; S3 pulls in 16 MiB parts. */
@@ -97,49 +92,31 @@ function progress(ctx: Ctx, runId: string, total: number | null) {
 	};
 }
 
-/** The destination with its secret decrypted; the endpoint must pass the SSRF policy. */
-export async function openDestination(
+/** The policy's destination; a local one uploads through a helper service on its node. */
+export function openDestination(
 	ctx: Ctx,
 	id: string,
-): Promise<S3Destination> {
-	const [d] = await ctx.db
-		.select()
-		.from(s3Destination)
-		.where(eq(s3Destination.id, id));
-	if (!d) throw new Error(`S3 destination ${id} is gone`);
-	const config = {
-		endpoint: d.endpoint,
-		region: d.region,
-		bucket: d.bucket,
-		prefix: d.prefix,
-		accessKeyId: d.accessKeyId,
-		secretAccessKey: await decrypt(ctx.masterKey, d.secretEncrypted),
-		forcePathStyle: d.forcePathStyle,
-	};
-	// A LogiStack storage service: the endpoint is derived from its id on the storage network, never read from the row.
-	if (d.storageServiceId) {
-		const [svc] = await ctx.db
-			.select({ spec: service.spec })
-			.from(service)
-			.where(eq(service.id, d.storageServiceId));
-		if (svc?.spec.kind !== "storage")
-			throw new Error(`S3 destination ${id}: its storage service is gone`);
-		const port = storageEngineDefs[svc.spec.engine].s3Port;
-		return instantiate(s3Provider, {
-			...config,
-			endpoint: `http://${svcName(ctx, d.storageServiceId)}:${port}`,
-			forcePathStyle: true,
-		});
-	}
-	const url = new URL(d.endpoint);
-	const [settings] = await ctx.db
-		.select({ allow: instanceSettings.allowPrivateHosts })
-		.from(instanceSettings);
-	if (url.protocol !== "https:" && !settings?.allow)
-		throw new Error("only https S3 endpoints are allowed");
-	// shortcut: checked, not pinned; Bun's S3Client takes no custom fetch.
-	await publicAddress(ctx, url.hostname);
-	return instantiate(s3Provider, config);
+	run?: { runId: string; orgId: string },
+): Promise<BackupDestination> {
+	return open(
+		ctx,
+		id,
+		run &&
+			((o, fn) =>
+				withHelper(
+					ctx,
+					{
+						runId: run.runId,
+						orgId: run.orgId,
+						kind: "dst",
+						nodeId: o.swarmNodeId,
+						image: ctx.cfg.LS_BACKUP_TOOLS_IMAGE,
+						command: ["sleep", String(JOB_TIMEOUT_S)],
+						mounts: [{ Type: "bind", Source: o.source, Target: o.target }],
+					},
+					fn,
+				)),
+	);
 }
 
 /** The service's oldest running task and its node; Swarm marks a task running only once healthy. */
@@ -396,11 +373,11 @@ async function backupIdentity(ctx: Ctx, policy: Policy) {
 		: undefined;
 }
 
-/** A backup's bytes from S3, decrypted when it is an age file. */
+/** A backup's bytes from its destination, decrypted when it is an age file. */
 async function readBackup(
 	ctx: Ctx,
 	policy: Policy,
-	dest: S3Destination,
+	dest: BackupDestination,
 	objectKey: string,
 ): Promise<ReadableStream<Uint8Array>> {
 	const body = dest.download(objectKey);
@@ -422,7 +399,10 @@ function stamp(d: Date) {
 /** Dumps or archives, streaming into a multipart upload; returns size and checksum. */
 async function backup(ctx: Ctx, l: Loaded, run: Run) {
 	const { policy, svc } = l;
-	const dest = await openDestination(ctx, policy.s3DestinationId);
+	const dest = await openDestination(ctx, policy.s3DestinationId, {
+		runId: run.id,
+		orgId: l.orgId,
+	});
 	const isVolume = policy.target === "volume";
 	const ext = isVolume ? VOLUME_EXTENSION : DUMP_EXTENSION[engineOf(svc)];
 	const identity = await backupIdentity(ctx, policy);
@@ -531,7 +511,7 @@ async function backup(ctx: Ctx, l: Loaded, run: Run) {
 export async function applyRetention(
 	ctx: Ctx,
 	policy: Policy,
-	dest: S3Destination,
+	dest: BackupDestination,
 	now = new Date(),
 ): Promise<string[]> {
 	const objects = await dest.list(`backups/${policy.id}/`);

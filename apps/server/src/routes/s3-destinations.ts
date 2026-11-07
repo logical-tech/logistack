@@ -131,7 +131,7 @@ export const s3Destinations = router()
 					config,
 					await hostPolicy(c.var.deps.db),
 				);
-				await dest.test();
+				await dest.probe();
 				const ms = Math.round(performance.now() - started);
 				return c.json(
 					{
