@@ -150,6 +150,7 @@ export function planTemplate(
 				...(s.capAdd?.length && { capAdd: s.capAdd }),
 				...(s.capDrop?.length && { capDrop: s.capDrop }),
 				...(s.restart && { restart: s.restart }),
+				...(s.drainTimeout !== undefined && { drainTimeout: s.drainTimeout }),
 			},
 			...(s.public && hostname
 				? { domain: { hostname, port: s.public.port } }

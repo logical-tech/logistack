@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { graceSeconds } from "../src/compose.ts";
 import { fromCompose, Skip } from "../src/index.ts";
 
 describe("fromCompose", () => {
@@ -110,5 +111,19 @@ services:
 
 	test("rejects YAML that does not parse", () => {
 		expect(() => fromCompose("services: [")).toThrow(Skip);
+	});
+
+	test("maps stop_grace_period to drainTimeout in seconds", () => {
+		const [app] = fromCompose(`
+services:
+  app:
+    image: ghcr.io/acme/app:1
+    stop_grace_period: 1m30s
+`);
+		expect(app?.kind === "application" && app.drainTimeout).toBe(90);
+		expect(graceSeconds("500ms")).toBe(1);
+		expect(graceSeconds(20)).toBe(20);
+		expect(graceSeconds("2h")).toBe(3600);
+		expect(graceSeconds("soon")).toBeUndefined();
 	});
 });
