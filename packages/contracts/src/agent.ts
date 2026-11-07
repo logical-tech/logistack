@@ -22,6 +22,8 @@ import { NodeRole } from "./enums.ts";
 // - A job with `ackWindowBytes` sends at most that many output bytes past the last `job.ack`
 //   (cumulative bytes its consumer has read), so a slow consumer pauses the job instead of
 //   piling output up in memory. No ack for ACK_STALL_MS fails it with code `backpressure`.
+// - An exec started with `stdinAck` answers `exec.stdin.ack` with the cumulative stdin bytes the
+//   process has taken, so a caller streaming into a slow process holds a bounded window.
 
 export const AGENT_WS_PATH = "/api/agent/ws";
 /** Swarm node id on the upgrade request, so refusals happen before the socket opens. */
@@ -335,6 +337,8 @@ export const AgentMessage = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("docker_event"), event: DockerEventPayload }),
 	z.object({ ...req("exec.output"), stream: OutputStream, data: Base64 }),
 	z.object({ ...req("exec.exit"), code: z.number().int().nullable() }),
+	/** Stdin bytes written into the process so far; sent only for an exec started with `stdinAck`. */
+	z.object({ ...req("exec.stdin.ack"), bytes: Bytes }),
 	z.object({
 		...req("logs.line"),
 		stream: OutputStream,
@@ -370,6 +374,8 @@ export const ExecStart = z.object({
 	cmd: z.array(z.string()).min(1),
 	tty: z.boolean().default(false),
 	stdin: z.boolean().default(true),
+	/** Report stdin progress with `exec.stdin.ack` (agents with the `stdin-ack` capability). */
+	stdinAck: z.boolean().optional(),
 	env: z.array(z.string()).default([]),
 	user: z.string().optional(),
 	workingDir: z.string().optional(),

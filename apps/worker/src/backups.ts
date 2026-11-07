@@ -56,7 +56,7 @@ import {
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import { svcName } from "./load.ts";
-import { feed, tail } from "./node-runner.ts";
+import { feed, STDIN_WINDOW_BYTES, tail } from "./node-runner.ts";
 import { publicAddress } from "./ssrf.ts";
 
 // Backups, verify restores and restores. Every byte goes node -> agent -> bridge -> this
@@ -602,7 +602,10 @@ async function verify(ctx: Ctx, l: Loaded, run: Run, sourceId?: string) {
 			const exec = ctx.nodes.exec(
 				nodeId,
 				{ target, cmd: ["sh", "-c", verifyRestoreScript(engine)], stdin: true },
-				{ timeoutMs: JOB_TIMEOUT_S * 1000 },
+				{
+					timeoutMs: JOB_TIMEOUT_S * 1000,
+					stdinWindowBytes: STDIN_WINDOW_BYTES,
+				},
 			);
 			await feed(
 				exec,
@@ -650,7 +653,7 @@ async function restore(ctx: Ctx, l: Loaded, run: Run, job: BackupJob) {
 				cmd: ["sh", "-c", restoreScript(engine)],
 				stdin: true,
 			},
-			{ timeoutMs: JOB_TIMEOUT_S * 1000 },
+			{ timeoutMs: JOB_TIMEOUT_S * 1000, stdinWindowBytes: STDIN_WINDOW_BYTES },
 		);
 		await feed(exec, await readBackup(ctx, policy, dest, src.objectKey), (b) =>
 			tick("restoring", b),
@@ -697,7 +700,10 @@ async function restore(ctx: Ctx, l: Loaded, run: Run, job: BackupJob) {
 						cmd: ["sh", "-c", volumeRestoreScript],
 						stdin: true,
 					},
-					{ timeoutMs: JOB_TIMEOUT_S * 1000 },
+					{
+						timeoutMs: JOB_TIMEOUT_S * 1000,
+						stdinWindowBytes: STDIN_WINDOW_BYTES,
+					},
 				);
 				await feed(
 					exec,

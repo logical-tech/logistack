@@ -242,6 +242,7 @@ async function main() {
 						"archive",
 						"host-dirs",
 						"job-ack",
+						"stdin-ack",
 					],
 					...swarm,
 				});

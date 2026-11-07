@@ -76,6 +76,11 @@ export const AgentRpcReply = z.discriminatedUnion("type", [
 		line: z.string().max(MAX_LINE_BYTES),
 	}),
 	z.object({ type: z.literal("exit"), code: z.number().int().nullable() }),
+	/** An exec's stdin bytes the process has taken (or, from an older agent, the replica has sent on). */
+	z.object({
+		type: z.literal("stdinAck"),
+		bytes: z.number().int().nonnegative(),
+	}),
 	z.object({
 		type: z.literal("result"),
 		exitCode: z.number().int().nullable(),
