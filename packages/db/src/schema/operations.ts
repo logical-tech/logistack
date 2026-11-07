@@ -1,6 +1,7 @@
 import type {
 	BackupRetention,
 	EventType,
+	LogDrainKind,
 	NotificationRuleScope,
 	ScheduleTarget,
 } from "@logistack/contracts";
@@ -159,6 +160,22 @@ export const notificationRule = pgTable("notification_rule", {
 		.notNull()
 		.references(() => notificationChannel.id, { onDelete: "cascade" }),
 	enabled: boolean("enabled").notNull().default(true),
+	...timestamps,
+});
+
+export const logDrain = pgTable("log_drain", {
+	id: id("lgd"),
+	organizationId: org(),
+	name: text("name").notNull(),
+	kind: text("kind").$type<LogDrainKind>().notNull(),
+	/** Where it ships, without credentials, for lists. */
+	target: text("target").notNull(),
+	// Encrypted JSON `LogDrainConfig`: URLs, API keys and passwords are secrets.
+	configEncrypted: text("config_encrypted").notNull(),
+	enabled: boolean("enabled").notNull().default(true),
+	/** Every service in these projects ships here. Ids of deleted ones are ignored. */
+	projectIds: text("project_ids").array().notNull().default([]),
+	serviceIds: text("service_ids").array().notNull().default([]),
 	...timestamps,
 });
 

@@ -295,6 +295,13 @@
       "when": 1793994911875,
       "tag": "0041_ai_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794055865825,
+      "tag": "0042_log_drains",
+      "breakpoints": true
     }
   ]
 }
