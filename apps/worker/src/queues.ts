@@ -8,6 +8,7 @@ export const QUEUES = [
 	"backup",
 	"schedule",
 	"migration",
+	"scan",
 ] as const;
 export type QueueName = (typeof QUEUES)[number];
 export type Queues = Record<QueueName, Queue>;
@@ -67,6 +68,14 @@ export const enqueueProxySync = (q: Queues, reason: string) =>
 		"sync",
 		{ reason },
 		{ attempts: 3, backoff: { type: "exponential", delay: 1_000 } },
+	);
+
+/** Scans a service's image after a deploy; a burst of deploys of one service shares one job. */
+export const enqueueScan = (q: Queues, serviceId: string) =>
+	q.scan.add(
+		"service",
+		{ serviceId },
+		{ deduplication: { id: `scan:${serviceId}`, ttl: 60_000 }, delay: 5_000 },
 	);
 
 export const enqueueReconcile = (q: Queues, reason: string) =>

@@ -4,7 +4,9 @@ import {
 	backupSchedulerId,
 	MIGRATION_QUEUE,
 	type MigrationJob,
+	SCAN_QUEUE,
 	SCHEDULE_QUEUE,
+	type ScanJob,
 	type ScheduleJob,
 } from "@logistack/contracts";
 import { Queue } from "bullmq";
@@ -19,6 +21,7 @@ export type RunQueues = {
 	schedule: Queue<ScheduleJob>;
 	maintenance: Queue;
 	migration: Queue<MigrationJob>;
+	scan: Queue<ScanJob & { force?: boolean }>;
 };
 
 const keep = { removeOnComplete: { count: 200 }, removeOnFail: { count: 500 } };
@@ -30,6 +33,7 @@ export function openRunQueues(redisUrl: string): RunQueues {
 		schedule: new Queue<ScheduleJob>(SCHEDULE_QUEUE, { connection }),
 		maintenance: new Queue("maintenance", { connection }),
 		migration: new Queue<MigrationJob>(MIGRATION_QUEUE, { connection }),
+		scan: new Queue<ScanJob & { force?: boolean }>(SCAN_QUEUE, { connection }),
 	};
 }
 

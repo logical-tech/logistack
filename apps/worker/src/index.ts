@@ -4,7 +4,9 @@ import {
 	type EventEnvelope,
 	MIGRATION_QUEUE,
 	type MigrationJob,
+	SCAN_QUEUE,
 	SCHEDULE_QUEUE,
+	type ScanJob,
 	type ScheduleJob,
 } from "@logistack/contracts";
 import { deriveSecretsKek, importMasterKey } from "@logistack/core";
@@ -40,6 +42,7 @@ import {
 	enqueueDeploy,
 	enqueueProxySync,
 	enqueueReconcile,
+	enqueueScan,
 	redisConnection,
 } from "./queues.ts";
 import { reconcilePass, sweepOrphans } from "./reconcile.ts";
@@ -52,6 +55,7 @@ import {
 import { createScheduleRunner } from "./schedules.ts";
 import { convertLegacySecrets } from "./secrets.ts";
 import { syncTunnels } from "./tunnels.ts";
+import { processScanJob } from "./vulnscan.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
 
@@ -78,6 +82,9 @@ async function onEvent(ctx: Ctx, e: EventEnvelope) {
 			return;
 		case "deployment.succeeded":
 			await enqueueProxySync(ctx.queues, "deployment succeeded");
+			// Its own queue, after the fact: a scan never holds up a deploy.
+			if (typeof e.payload.serviceId === "string")
+				await enqueueScan(ctx.queues, e.payload.serviceId);
 			return;
 	}
 }
@@ -193,6 +200,12 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			},
 			{ connection, concurrency: cfg.LS_RUN_CONCURRENCY },
 		),
+		// One scan at a time per worker: Trivy is heavy and its cache volume is shared.
+		new Worker<ScanJob & { force?: boolean }>(
+			SCAN_QUEUE,
+			(job) => processScanJob(ctx, job.data),
+			{ connection, concurrency: 1 },
+		),
 		// One cutover at a time: the wizard moves services in order, databases first.
 		new Worker<MigrationJob>(
 			MIGRATION_QUEUE,
@@ -245,6 +258,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			"retention-every",
 			{ every: 3_600_000 },
 			{ name: "retention" },
+		);
+		await ctx.queues.scan.upsertJobScheduler(
+			"scan-daily",
+			{ every: 86_400_000 },
+			{ name: "all", data: { all: true } },
 		);
 		await ctx.queues.maintenance.upsertJobScheduler(
 			"update-check-every",

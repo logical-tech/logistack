@@ -97,6 +97,8 @@ const ConfigSchema = z.object({
 		.string()
 		.default("ghcr.io/railwayapp/railpack-frontend:v0.43.0"),
 	LS_ZOT_IMAGE: z.string().default("ghcr.io/project-zot/zot:v2.1.23"),
+	/** Scans the images services run; its vulnerability DB is cached in a volume between scans. */
+	LS_TRIVY_IMAGE: z.string().default("aquasec/trivy:0.76.1"),
 	LS_CLOUDFLARED_IMAGE: z.string().default("cloudflare/cloudflared:2026.10.7"),
 	/** Publishes the local registry on this host port for loopback pushes (single node without DNS, tests). */
 	LS_LOCAL_REGISTRY_PORT: z.coerce.number().int().min(0).max(65535).default(0),

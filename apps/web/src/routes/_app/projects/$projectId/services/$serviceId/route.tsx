@@ -29,6 +29,7 @@ const TABS = [
 	{ id: "domains", label: "Domains", to: `${BASE}/domains` },
 	{ id: "metrics", label: "Metrics", to: `${BASE}/metrics` },
 	{ id: "backups", label: "Backups", to: `${BASE}/backups` },
+	{ id: "security", label: "Security", to: `${BASE}/security` },
 	{ id: "settings", label: "Settings", to: `${BASE}/settings` },
 ] as const;
 
