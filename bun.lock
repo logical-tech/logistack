@@ -158,6 +158,12 @@
         "hono": "4.13.16",
       },
     },
+    "examples/plugins/memory-providers": {
+      "name": "memory-providers",
+      "dependencies": {
+        "@logistack/plugin-sdk": "workspace:*",
+      },
+    },
     "packages/contracts": {
       "name": "@logistack/contracts",
       "dependencies": {
@@ -1653,6 +1659,8 @@
     "media-typer": ["media-typer@1.1.1", "", {}, "sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ=="],
 
     "memory-pager": ["memory-pager@1.5.0", "", {}, "sha512-ZS4Bp4r/Zoeq6+NLJpP+0Zzm0pR8whtGPf1XExKLJBAczGMnSi3It14OiNCStjQjM6NU1okjQGSxgEZN8eBYKg=="],
+
+    "memory-providers": ["memory-providers@workspace:examples/plugins/memory-providers"],
 
     "merge-descriptors": ["merge-descriptors@2.0.0", "", {}, "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g=="],
 
