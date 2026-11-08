@@ -56,6 +56,7 @@ import { Route as AppSettingsAuthenticationRouteImport } from './routes/_app/set
 import { Route as AppSettingsBuildsRouteImport } from './routes/_app/settings/builds'
 import { Route as AppSettingsCertificatesRouteImport } from './routes/_app/settings/certificates'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
+import { Route as AppSettingsInstanceAdminsRouteImport } from './routes/_app/settings/instance-admins'
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
 import { Route as AppSettingsMigrateRouteImport } from './routes/_app/settings/migrate'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
@@ -357,6 +358,12 @@ const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
   path: '/settings/general',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsInstanceAdminsRoute =
+  AppSettingsInstanceAdminsRouteImport.update({
+    id: '/settings/instance-admins',
+    path: '/settings/instance-admins',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppSettingsMembersRoute = AppSettingsMembersRouteImport.update({
   id: '/settings/members',
   path: '/settings/members',
@@ -745,6 +752,7 @@ export interface FileRoutesByFullPath {
   '/settings/builds': typeof AppSettingsBuildsRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
@@ -848,6 +856,7 @@ export interface FileRoutesByTo {
   '/settings/builds': typeof AppSettingsBuildsRoute
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/roles': typeof AppSettingsRolesRoute
@@ -956,6 +965,7 @@ export interface FileRoutesById {
   '/_app/settings/builds': typeof AppSettingsBuildsRoute
   '/_app/settings/certificates': typeof AppSettingsCertificatesRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
+  '/_app/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
   '/_app/settings/members': typeof AppSettingsMembersRoute
   '/_app/settings/migrate': typeof AppSettingsMigrateRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
@@ -1065,6 +1075,7 @@ export interface FileRouteTypes {
     | '/settings/builds'
     | '/settings/certificates'
     | '/settings/general'
+    | '/settings/instance-admins'
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/roles'
@@ -1168,6 +1179,7 @@ export interface FileRouteTypes {
     | '/settings/builds'
     | '/settings/certificates'
     | '/settings/general'
+    | '/settings/instance-admins'
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/roles'
@@ -1275,6 +1287,7 @@ export interface FileRouteTypes {
     | '/_app/settings/builds'
     | '/_app/settings/certificates'
     | '/_app/settings/general'
+    | '/_app/settings/instance-admins'
     | '/_app/settings/members'
     | '/_app/settings/migrate'
     | '/_app/settings/roles'
@@ -1675,6 +1688,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/instance-admins': {
+      id: '/_app/settings/instance-admins'
+      path: '/settings/instance-admins'
+      fullPath: '/settings/instance-admins'
+      preLoaderRoute: typeof AppSettingsInstanceAdminsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/members': {
@@ -2299,6 +2319,7 @@ interface AppRouteChildren {
   AppSettingsBuildsRoute: typeof AppSettingsBuildsRoute
   AppSettingsCertificatesRoute: typeof AppSettingsCertificatesRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
+  AppSettingsInstanceAdminsRoute: typeof AppSettingsInstanceAdminsRoute
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
   AppSettingsMigrateRoute: typeof AppSettingsMigrateRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
@@ -2358,6 +2379,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsBuildsRoute: AppSettingsBuildsRoute,
   AppSettingsCertificatesRoute: AppSettingsCertificatesRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
+  AppSettingsInstanceAdminsRoute: AppSettingsInstanceAdminsRoute,
   AppSettingsMembersRoute: AppSettingsMembersRoute,
   AppSettingsMigrateRoute: AppSettingsMigrateRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,

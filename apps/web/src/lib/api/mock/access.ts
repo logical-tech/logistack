@@ -457,6 +457,7 @@ export const mockAccess: AccessAdapter = {
 			grants: [{ role: "owner", scope: { kind: "organization", id: ORG } }],
 			keyScopes: null,
 			twoFactor: null,
+			instanceAdmin: true,
 		}),
 	members: {
 		list: () => delay(state.members),
