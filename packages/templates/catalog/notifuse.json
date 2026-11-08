@@ -37,6 +37,12 @@
 			"label": "Secret key",
 			"type": "base64",
 			"bytes": 64
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -46,7 +52,7 @@
 			"env": {
 				"POSTGRES_DB": "postgres",
 				"POSTGRES_USER": "postgres",
-				"POSTGRES_PASSWORD": "postgres"
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}"
 			},
 			"volumes": [
 				{
@@ -70,7 +76,7 @@
 				"DB_HOST": "${{ services.db.host }}",
 				"DB_PORT": "5432",
 				"DB_USER": "postgres",
-				"DB_PASSWORD": "postgres",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
 				"DB_PREFIX": "notifuse",
 				"DB_NAME": "postgres",
 				"DB_SSLMODE": "disable",

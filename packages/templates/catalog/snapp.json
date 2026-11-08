@@ -47,7 +47,7 @@
 				"DATABASE_URL": "file:./db.sqlite",
 				"DATABASE_PROVIDER": "sqlite",
 				"TOKEN_SECRET": "${{ inputs.tokenSecret }}",
-				"ORIGIN": "http://${{ inputs.mainDomain }}",
+				"ORIGIN": "https://${{ inputs.mainDomain }}",
 				"DISABLED_EMAIL_AND_PASSWORD": "false",
 				"LOG_LEVEL": "debug",
 				"PORT": "3000",

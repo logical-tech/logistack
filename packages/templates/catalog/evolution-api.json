@@ -44,6 +44,13 @@
 			"label": "Authenticationapikey password",
 			"type": "password",
 			"length": 32
+		},
+		{
+			"key": "webhookVerifyToken",
+			"label": "Webhook verify token",
+			"type": "secret",
+			"length": 32,
+			"charset": "alnum"
 		}
 	],
 	"services": [
@@ -109,7 +116,7 @@
 				"SQS_REGION": "",
 				"WEBSOCKET_ENABLED": "false",
 				"WEBSOCKET_GLOBAL_EVENTS": "false",
-				"WA_BUSINESS_TOKEN_WEBHOOK": "evolution",
+				"WA_BUSINESS_TOKEN_WEBHOOK": "${{ inputs.webhookVerifyToken }}",
 				"WA_BUSINESS_URL": "https://graph.facebook.com",
 				"WA_BUSINESS_VERSION": "v20.0",
 				"WA_BUSINESS_LANGUAGE": "pt_BR",

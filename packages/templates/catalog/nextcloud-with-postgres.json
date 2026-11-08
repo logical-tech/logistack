@@ -36,6 +36,13 @@
 			"label": "Postgres password",
 			"type": "password",
 			"length": 32
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -48,7 +55,7 @@
 			"env": {
 				"PUID": "1000",
 				"PGID": "1000",
-				"TZ": "Europe/Paris",
+				"TZ": "${{ inputs.timezone }}",
 				"POSTGRES_DB": "nextcloud",
 				"POSTGRES_USER": "${{ inputs.postgresUser }}",
 				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",

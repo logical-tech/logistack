@@ -92,14 +92,14 @@
 			],
 			"files": [
 				{
-					"target": "/usr/local/bin/coolify-start.sh",
+					"target": "/usr/local/bin/logistack-start.sh",
 					"content": "#!/bin/sh\n# start.sh always creates admin@example.com with the password \"changeme\".\n# Replace that password with ADMIN_PASSWORD once, while it is still the default.\n(\n  for i in $(seq 1 60); do\n    sleep 5\n    result=$(php /var/www/html/artisan tinker --no-ansi --execute='$u = Inovector\\MixpostAuth\\MixpostAuth::getUserClass()::where(\"email\", \"admin@example.com\")->first(); if (! $u) { echo \"wait\"; } elseif (Illuminate\\Support\\Facades\\Hash::check(\"changeme\", $u->password)) { $u->password = bcrypt(getenv(\"ADMIN_PASSWORD\")); $u->save(); echo \"done\"; } else { echo \"done\"; }' 2>/dev/null)\n    [ \"$result\" = \"done\" ] && break\n  done\n) &\nexec /usr/local/bin/start.sh\n"
 				}
 			],
 			"kind": "application",
 			"image": "inovector/mixpost@sha256:c54aa7b1c0c920488974c3418d98a53cf762241f46a50808ef1e8e8171435be0",
 			"entrypoint": [
-				"/usr/local/bin/coolify-start.sh"
+				"/usr/local/bin/logistack-start.sh"
 			],
 			"ports": [],
 			"healthcheck": {

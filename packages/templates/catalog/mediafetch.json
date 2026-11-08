@@ -24,6 +24,12 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "basicAuthPassword",
+			"label": "Basic auth password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -33,7 +39,7 @@
 			"env": {
 				"PORT": "3002",
 				"BASIC_AUTH_USER": "admin",
-				"BASIC_AUTH_PASS": "changeme",
+				"BASIC_AUTH_PASS": "${{ inputs.basicAuthPassword }}",
 				"PUBLIC_BASE_URL": "https://${{ inputs.mainDomain }}",
 				"OUTPUT_DIR": "/data/downloads",
 				"MAX_CONCURRENT_JOBS": "2",

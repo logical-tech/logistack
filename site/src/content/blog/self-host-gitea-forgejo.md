@@ -104,7 +104,7 @@ Then the short form works: `git clone git@git.example.com:team/app.git`.
 Three things to check:
 
 1. **Firewall.** Open TCP 22222 on the server and in your provider's firewall. If you use UFW, read [Docker and UFW](/blog/docker-ufw-firewall/) first, because Docker's published ports bypass UFW rules in surprising ways.
-2. **Clone URLs in the interface.** Forgejo's template sets `SSH_PORT=22222`, so the clone button shows the right URL. The Gitea template does not set it: add `GITEA__server__SSH_PORT=22222`, `GITEA__server__SSH_DOMAIN=git.example.com` and `GITEA__server__ROOT_URL=https://git.example.com` on the **Environment** tab and redeploy.
+2. **Clone URLs in the interface.** Both templates set the SSH port to 22222, the SSH domain and the root URL from the hostname you enter, so the clone button shows the right URL. In Gitea these are `GITEA__server__SSH_PORT`, `GITEA__server__SSH_DOMAIN` and `GITEA__server__ROOT_URL`. If you add a second hostname later, change them on the **Environment** tab and redeploy.
 3. **DNS.** SSH connects to the server's IP directly. If the hostname is proxied through a CDN, SSH fails; use a separate DNS-only hostname such as `ssh.git.example.com` for SSH.
 
 ## First start and the admin account

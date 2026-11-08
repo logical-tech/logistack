@@ -33,6 +33,12 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -41,7 +47,7 @@
 			"dependsOn": [],
 			"env": {
 				"POSTGRES_USER": "postgres",
-				"POSTGRES_PASSWORD": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
 				"POSTGRES_DATABASE": "postgres"
 			},
 			"volumes": [
@@ -65,7 +71,7 @@
 				"CORE_SECRET": "${{ inputs.secretBase }}",
 				"CORE_HOSTNAME": "0.0.0.0",
 				"CORE_PORT": "3000",
-				"DATABASE_URL": "postgres://postgres:postgres@${{ services.postgres.host }}/postgres",
+				"DATABASE_URL": "postgres://postgres:${{ inputs.dbPassword }}@${{ services.postgres.host }}/postgres",
 				"CORE_LOGGER": "true",
 				"DATASOURCE_TYPE": "local",
 				"DATASOURCE_LOCAL_DIRECTORY": "./uploads"

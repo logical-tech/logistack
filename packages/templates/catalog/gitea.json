@@ -33,7 +33,10 @@
 			"dependsOn": [],
 			"env": {
 				"USER_UID": "1000",
-				"USER_GID": "1000"
+				"USER_GID": "1000",
+				"GITEA__server__ROOT_URL": "https://${{ inputs.giteaDomain }}/",
+				"GITEA__server__SSH_DOMAIN": "${{ inputs.giteaDomain }}",
+				"GITEA__server__SSH_PORT": "22222"
 			},
 			"volumes": [
 				{

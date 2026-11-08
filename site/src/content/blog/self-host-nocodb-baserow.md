@@ -52,7 +52,7 @@ Both templates are single services with one volume, which keeps them simple to r
 | Template | Image | Port | Volume | Notes |
 | --- | --- | --- | --- | --- |
 | [NocoDB](/templates/nocodb/) | `nocodb/nocodb`, pinned by digest | 8080 | `nocodb-data` at `/usr/app/data` | Metadata in SQLite on the volume; health check on `/api/v1/health` |
-| [Baserow](/templates/baserow/) | `baserow/baserow:1.25.2` | 80 | `baserow-data` at `/baserow/data` | All-in-one image with PostgreSQL and Redis inside, data on the volume |
+| [Baserow](/templates/baserow/) | `baserow/baserow:2.4.1` | 80 | `baserow-data` at `/baserow/data` | All-in-one image with PostgreSQL and Redis inside, data on the volume |
 
 Both ask for one thing: the public domain.
 
@@ -76,9 +76,9 @@ LogiStack requests the HTTPS certificate and routes the domain to the right port
 
 ![A template detail page listing the services, ports and volumes a template creates](/docs/screens/template-detail.webp)
 
-### Fix Baserow's public URL
+### Baserow's public URL
 
-The Baserow template sets `BASEROW_PUBLIC_URL` to `http://` plus your domain. Since Caddy serves the site over HTTPS, change it to `https://tables.example.com` on the `baserow` service's **Environment** tab and deploy. Baserow uses this value to build links in emails and to validate requests, so a mismatch shows up as broken links or login problems.
+The Baserow template sets `BASEROW_PUBLIC_URL` to `https://` plus your domain, which matches the address Caddy serves. If you change the domain later, update it on the `baserow` service's **Environment** tab and deploy. Baserow uses this value to build links in emails and to validate requests, so a mismatch shows up as broken links or login problems.
 
 ### Move NocoDB metadata to PostgreSQL
 
@@ -123,7 +123,7 @@ Send backups to a bucket on a different server. The [backups guide](/docs/data/b
 
 ## Upgrades and performance
 
-- **Pin and upgrade on purpose.** The Baserow template pins 1.25.2, an older release. Read Baserow's changelog, back up, then change the image tag in the service settings and deploy. Baserow runs migrations on start. Jumping several versions is usually supported, but test it on a copy first by deploying the template in a second environment and restoring a backup into it.
+- **Pin and upgrade on purpose.** The Baserow template pins 2.4.1. To upgrade, read Baserow's changelog, back up, then change the image tag in the service settings and deploy. Baserow runs migrations on start. Jumping several versions is usually supported, but test it on a copy first by deploying the template in a second environment and restoring a backup into it.
 - **Give Baserow memory.** It runs PostgreSQL, Redis, the backend and workers in one container. Plan for at least 2 GB of RAM for Baserow itself.
 - **Keep one replica.** Both templates keep state on a local volume. Do not scale them to several replicas.
 

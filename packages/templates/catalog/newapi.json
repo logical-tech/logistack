@@ -43,6 +43,13 @@
 			"type": "secret",
 			"length": 64,
 			"charset": "alnum"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -55,7 +62,7 @@
 			"env": {
 				"SQL_DSN": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}:5432/newapi?sslmode=disable&TimeZone=Asia/Shanghai",
 				"REDIS_CONN_STRING": "redis://${{ services.redis.host }}:6379",
-				"TZ": "Asia/Shanghai",
+				"TZ": "${{ inputs.timezone }}",
 				"SESSION_SECRET": "${{ inputs.sessionSecretSecret }}",
 				"ERROR_LOG_ENABLED": "true"
 			},

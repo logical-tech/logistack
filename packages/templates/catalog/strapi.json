@@ -77,11 +77,9 @@
 				"APP_KEYS": "${{ inputs.keySecret }}",
 				"STRAPI_TELEMETRY_DISABLED": "true",
 				"STRAPI_LICENSE": "${{ inputs.strapiLicense }}",
-				"NODE_ENV": "development",
-				"BROWSER": "true",
+				"NODE_ENV": "production",
 				"STRAPI_PLUGIN_I18N_INIT_LOCALE_CODE": "en",
-				"STRAPI_ENFORCE_SOURCEMAPS": "false",
-				"FAST_REFRESH": "true"
+				"STRAPI_ENFORCE_SOURCEMAPS": "false"
 			},
 			"volumes": [
 				{
@@ -100,13 +98,6 @@
 			"files": [],
 			"kind": "application",
 			"image": "elestio/strapi-production:v5.33.4",
-			"command": [
-				"-c",
-				"cat > /opt/app/src/admin/vite.config.js << 'EOFVITE'\nconst { mergeConfig } = require('vite');\nmodule.exports = (config) => {\n  return mergeConfig(config, {\n    resolve: {\n      alias: {\n        '@': '/src',\n      },\n    },\n    server: {\n      allowedHosts: ['${{ inputs.strapiDomain }}']\n    }\n  });\n};\nEOFVITE\nexec npm run develop\n"
-			],
-			"entrypoint": [
-				"/bin/sh"
-			],
 			"ports": [],
 			"healthcheck": {
 				"type": "command",

@@ -62,9 +62,9 @@ The [Strapi template](/templates/strapi/) runs Strapi 5 with PostgreSQL:
 
 JWT secrets and app keys are generated. Telemetry is off.
 
-One honest detail matters here. The template runs Strapi with `NODE_ENV=development`. That is deliberate: in Strapi, the Content-Type Builder only edits content types in development mode, and the template keeps `src` and `config` on volumes so your models survive a restart. It is a good way to model content and try Strapi. It is not how Strapi recommends running production, where the project is built once, content types are committed to Git, and the server runs with `NODE_ENV=production`.
+The template runs Strapi with `NODE_ENV=production`, from an image whose admin panel is built ahead of time. That is how Strapi recommends running a live site, and it has one consequence: the Content-Type Builder does not edit content types in production mode. Editors can create and publish content right away, but to add or change a content type you run Strapi locally with `npm run develop`, commit the generated files, and deploy your own project.
 
-For production Strapi, keep the project in a repository and deploy it [from Git](/docs/deploy/from-git/). A minimal Dockerfile:
+For a Strapi project with your own content types, keep it in a repository and deploy it [from Git](/docs/deploy/from-git/). A minimal Dockerfile:
 
 ```dockerfile
 FROM node:22-alpine AS build
@@ -146,7 +146,7 @@ Directus uses the Business Source License. Organizations under its revenue thres
 
 ### Can I run Strapi in production from the template?
 
-The template runs in development mode so you can build content types in the admin. For production, commit your project to Git and deploy it with a Dockerfile in production mode, as shown above.
+Yes. The template runs in production mode with a prebuilt admin panel. Content types cannot be changed from the admin in production, so once you need your own content types, commit your project to Git and deploy it with a Dockerfile, as shown above.
 
 ### Do I need Redis for a headless CMS?
 

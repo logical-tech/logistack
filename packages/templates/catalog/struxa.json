@@ -141,9 +141,9 @@
 			"env": {
 				"DATABASE_URL": "mysql://struxa:${{ inputs.mysqlPassword }}@${{ services.mysql.host }}:3306/struxa",
 				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
-				"BETTER_AUTH_URL": "http://${{ inputs.mainDomain }}",
-				"CORS_ORIGIN": "http://${{ inputs.mainDomain }}",
-				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"BETTER_AUTH_URL": "https://${{ inputs.mainDomain }}",
+				"CORS_ORIGIN": "https://${{ inputs.mainDomain }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
 				"DATABASE_ENCRYPTION_KEY": "${{ inputs.dbEncryptionKey }}",
 				"MINIO_ENDPOINT": "http://${{ services.minio.host }}:9000",
 				"MINIO_ACCESS_KEY": "${{ inputs.minioAccessKey }}",

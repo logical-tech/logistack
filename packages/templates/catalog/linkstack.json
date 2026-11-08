@@ -37,6 +37,13 @@
 			"label": "Mysql root password",
 			"type": "password",
 			"length": 32
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -46,7 +53,7 @@
 				"mysql"
 			],
 			"env": {
-				"TZ": "Europe/Berlin",
+				"TZ": "${{ inputs.timezone }}",
 				"SERVER_ADMIN": "${{ inputs.adminEmail }}",
 				"HTTP_SERVER_NAME": "${{ inputs.mainDomain }}",
 				"HTTPS_SERVER_NAME": "${{ inputs.mainDomain }}",

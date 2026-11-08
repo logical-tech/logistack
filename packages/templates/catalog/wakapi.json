@@ -79,6 +79,13 @@
 			"label": "Wakapi public URL",
 			"type": "text",
 			"default": ""
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -88,7 +95,7 @@
 				"postgres"
 			],
 			"env": {
-				"TZ": "Europe/Berlin",
+				"TZ": "${{ inputs.timezone }}",
 				"WAKAPI_SERVER_LISTEN_IPV6": "\"-\"",
 				"WAKAPI_ENV": "production",
 				"WAKAPI_SECURITY_PASSWORD_SALT": "${{ inputs.passwordsaltSecret }}",

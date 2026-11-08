@@ -63,7 +63,7 @@
 				"IMGPROXY_USER_AGENT": "",
 				"IMGPROXY_USE_ETAG": "true",
 				"IMGPROXY_QUALITY": "80",
-				"IMGPROXY_ALLOWED_SOURCES": "http://${{ inputs.mainDomain }},https://${{ inputs.mainDomain }}",
+				"IMGPROXY_ALLOWED_SOURCES": "https://${{ inputs.mainDomain }}",
 				"IMGPROXY_ALLOW_ORIGIN": "*",
 				"IMGPROXY_MAX_SRC_FILE_SIZE": "20971520",
 				"IMGPROXY_MAX_SRC_RESOLUTION": "50",

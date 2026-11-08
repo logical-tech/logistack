@@ -25,6 +25,13 @@
 			"label": "Jellyfin domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -34,7 +41,7 @@
 			"env": {
 				"PUID": "1000",
 				"PGID": "1000",
-				"TZ": "Europe/Madrid",
+				"TZ": "${{ inputs.timezone }}",
 				"JELLYFIN_PublishedServerUrl": "https://${{ inputs.jellyfinDomain }}"
 			},
 			"volumes": [

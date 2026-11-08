@@ -95,12 +95,13 @@ DB_POSTGRESDB_USER=<generated>
 DB_POSTGRESDB_PASSWORD=<generated>
 N8N_ENCRYPTION_KEY=<generated, 64 random bytes>
 WEBHOOK_URL=https://n8n.example.com/
-GENERIC_TIMEZONE=Europe/Berlin
+GENERIC_TIMEZONE=<Timezone setting, UTC by default>
+N8N_PROXY_HOPS=1
 ```
 
-Change `GENERIC_TIMEZONE` to your own zone on the service's **Environment** tab. Schedule trigger nodes use it, so a workflow set to run "every day at 08:00" runs at 08:00 in that zone.
+Set **Timezone** to your own zone, for example `Europe/Rome`, when you deploy, or change `GENERIC_TIMEZONE` later on the service's **Environment** tab. Schedule trigger nodes use it, so a workflow set to run "every day at 08:00" runs at 08:00 in that zone.
 
-This template also sets `N8N_PROTOCOL=http` and `N8N_SECURE_COOKIE=false`, because n8n itself listens on plain HTTP behind the proxy. Caddy still serves the editor over HTTPS. If you want the session cookie marked `Secure`, add `N8N_PROXY_HOPS=1`, remove the `N8N_SECURE_COOKIE` override, redeploy, and check that you can still sign in.
+n8n itself listens on plain HTTP behind the proxy (`N8N_PROTOCOL=http`), and Caddy serves the editor over HTTPS. `N8N_PROXY_HOPS=1` tells n8n to trust the proxy's forwarded headers, so the session cookie keeps n8n's default `Secure` flag.
 
 ## Set the webhook URL correctly
 

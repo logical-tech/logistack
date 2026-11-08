@@ -25,6 +25,13 @@
 			"label": "Audiobookshelf domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -32,7 +39,7 @@
 			"name": "audiobookshelf",
 			"dependsOn": [],
 			"env": {
-				"TZ": "America/Toronto"
+				"TZ": "${{ inputs.timezone }}"
 			},
 			"volumes": [
 				{

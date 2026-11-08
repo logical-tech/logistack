@@ -36,6 +36,12 @@
 			"label": "Viewer domain",
 			"type": "domain",
 			"role": "extra"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -45,7 +51,7 @@
 			"env": {
 				"POSTGRES_USER": "typebot",
 				"POSTGRES_DB": "typebot",
-				"POSTGRES_PASSWORD": "typebot"
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}"
 			},
 			"volumes": [
 				{
@@ -65,9 +71,9 @@
 			],
 			"env": {
 				"ENCRYPTION_SECRET": "${{ inputs.encryptionSecret }}",
-				"DATABASE_URL": "postgresql://typebot:typebot@${{ services.typebot-db.host }}:5432/typebot",
-				"NEXTAUTH_URL": "http://${{ inputs.builderDomain }}",
-				"NEXT_PUBLIC_VIEWER_URL": "http://${{ inputs.viewerDomain }}",
+				"DATABASE_URL": "postgresql://typebot:${{ inputs.dbPassword }}@${{ services.typebot-db.host }}:5432/typebot",
+				"NEXTAUTH_URL": "https://${{ inputs.builderDomain }}",
+				"NEXT_PUBLIC_VIEWER_URL": "https://${{ inputs.viewerDomain }}",
 				"ADMIN_EMAIL": "typebot@example.com",
 				"SMTP_HOST": "'Fill'",
 				"SMTP_PORT": "25",
@@ -92,9 +98,9 @@
 			"dependsOn": [],
 			"env": {
 				"ENCRYPTION_SECRET": "${{ inputs.encryptionSecret }}",
-				"DATABASE_URL": "postgresql://typebot:typebot@${{ services.typebot-db.host }}:5432/typebot",
-				"NEXTAUTH_URL": "http://${{ inputs.builderDomain }}",
-				"NEXT_PUBLIC_VIEWER_URL": "http://${{ inputs.viewerDomain }}",
+				"DATABASE_URL": "postgresql://typebot:${{ inputs.dbPassword }}@${{ services.typebot-db.host }}:5432/typebot",
+				"NEXTAUTH_URL": "https://${{ inputs.builderDomain }}",
+				"NEXT_PUBLIC_VIEWER_URL": "https://${{ inputs.viewerDomain }}",
 				"ADMIN_EMAIL": "typebot@example.com",
 				"SMTP_HOST": "'Fill'",
 				"SMTP_PORT": "25",

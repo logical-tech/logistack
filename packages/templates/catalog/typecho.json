@@ -24,6 +24,25 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "dbRootPassword",
+			"label": "DB root password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -33,7 +52,7 @@
 				"db"
 			],
 			"env": {
-				"PHP_TZ": "Asia/Shanghai",
+				"PHP_TZ": "${{ inputs.timezone }}",
 				"PHP_MAX_EXECUTION_TIME": "600"
 			},
 			"volumes": [
@@ -58,8 +77,8 @@
 			"env": {
 				"MYSQL_DATABASE": "typecho",
 				"MYSQL_USER": "typecho",
-				"MYSQL_PASSWORD": "typecho_password",
-				"MYSQL_ROOT_PASSWORD": "root_password"
+				"MYSQL_PASSWORD": "${{ inputs.dbPassword }}",
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbRootPassword }}"
 			},
 			"volumes": [
 				{

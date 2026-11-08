@@ -53,9 +53,10 @@ Then:
 1. Open a project, select **New service**, then the **Templates** tile.
 2. Search for `nextcloud` and select **Nextcloud with Postgres**.
 3. Enter your hostname in **Public URL**, for example `cloud.example.com`. The Postgres user and password are generated.
-4. Review and select **Deploy**, then point the DNS record at the server.
+4. Set **Timezone** to your zone, for example `Europe/Rome`. It defaults to `UTC` and becomes `TZ` on the `nextcloud` service.
+5. Review and select **Deploy**, then point the DNS record at the server.
 
-The template sets `TZ` to `Europe/Paris`. Change it to your zone on the `nextcloud` service's **Environment** tab before you go further. See [Deploy an app from a template](/docs/deploy/templates/) for the full flow.
+See [Deploy an app from a template](/docs/deploy/templates/) for the full flow.
 
 ## Run the installer with Postgres
 

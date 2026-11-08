@@ -31,6 +31,13 @@
 			"label": "Pihole password",
 			"type": "password",
 			"length": 32
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -38,7 +45,7 @@
 			"name": "pihole",
 			"dependsOn": [],
 			"env": {
-				"TZ": "Europe/London",
+				"TZ": "${{ inputs.timezone }}",
 				"FTLCONF_webserver_api_password": "${{ inputs.piholePassword }}",
 				"FTLCONF_dns_listeningMode": "all"
 			},

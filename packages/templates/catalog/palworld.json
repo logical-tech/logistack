@@ -551,6 +551,12 @@
 			"key": "itemContainerForceMarkDirtyInterval",
 			"label": "Item container force mark dirty interval",
 			"type": "text"
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -566,7 +572,7 @@
 				"SERVER_NAME": "${{ inputs.serverName }}",
 				"SERVER_DESCRIPTION": "${{ inputs.serverDescription }}",
 				"SERVER_PASSWORD": "${{ inputs.serverPassword }}",
-				"ADMIN_PASSWORD": "adminPassword",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
 				"COMMUNITY": "${{ inputs.community }}",
 				"PUBLIC_IP": "",
 				"PUBLIC_PORT": "${{ inputs.publicPort }}",

@@ -26,7 +26,7 @@
 			"name": "enshrouded",
 			"dependsOn": [],
 			"env": {
-				"SERVER_NAME": "Enshrouded Dokploy",
+				"SERVER_NAME": "Enshrouded",
 				"SERVER_PASSWORD": "${{ inputs.serverPassword }}",
 				"SERVER_SLOT_COUNT": "6",
 				"UPDATE_CRON": "0 3 * * *",

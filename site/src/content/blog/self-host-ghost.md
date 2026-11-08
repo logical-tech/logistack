@@ -6,9 +6,9 @@ category: Self-hosting
 keywords: self-host ghost, ghost docker, ghost cms self hosted, ghost mysql, ghost newsletter self hosted, ghost mailgun
 ---
 
-You want a blog and a newsletter on your own domain, with members, without a platform taking a cut of your subscriptions or deciding what your theme can do. Ghost covers that, and Ghost(Pro) hosts it for you, but the monthly price climbs with your member count. Self-hosting Ghost puts the same software on a server you pay for directly. The work is in a few settings people get wrong: the site URL, the database credentials, and email.
+You want a blog and a newsletter on your own domain, with members, without a platform taking a cut of your subscriptions or deciding what your theme can do. Ghost covers that, and Ghost(Pro) hosts it for you, but the monthly price climbs with your member count. Self-hosting Ghost puts the same software on a server you pay for directly. The template sets the site URL and generates the database password; the work left is email, backups and updates.
 
-This guide shows how to self-host Ghost with Docker and MySQL in production, using the LogiStack Ghost template as the starting point, then fixing what a template cannot know about your setup.
+This guide shows how to self-host Ghost with Docker and MySQL in production, using the LogiStack Ghost template as the starting point, then adding what a template cannot know about your setup.
 
 ## What you get with self-hosted Ghost
 
@@ -36,12 +36,12 @@ Ghost's official image reads its config from environment variables, using double
 database__client=mysql
 database__connection__host=db
 database__connection__user=root
-database__connection__password=example
+database__connection__password=<generated>
 database__connection__database=ghost
-url=http://blog.example.com
+url=https://blog.example.com
 ```
 
-Two of those need changing before you publish anything: the `url` uses `http`, and the database password is the placeholder `example`. Both are covered in the steps below.
+The database password is generated at deploy time and shared by both services, and `url` is the HTTPS address of the domain you enter. What the template cannot know about is your email setup and, if you want one, a database user with fewer rights than root. Both are covered below.
 
 MySQL 8 is the only database Ghost supports in production. SQLite works for local development only.
 
@@ -63,36 +63,26 @@ Then:
 
 The full flow, including where generated values live, is in [Deploy an app from a template](/docs/deploy/templates/).
 
-## Set the Ghost URL to HTTPS
+## The Ghost URL
 
-Ghost uses `url` to build every link it renders: post URLs, image URLs, the sitemap, RSS, and the links in newsletter emails. With `http://` in it, readers get mixed-content warnings and emails link to an insecure address.
-
-Open the `ghost` service, select **Environment**, change `url` to the HTTPS address, and select **Save and redeploy**:
-
-```bash
-url=https://blog.example.com
-```
+Ghost uses `url` to build every link it renders: post URLs, image URLs, the sitemap, RSS, and the links in newsletter emails. The template sets it to `https://` plus your domain, so links and emails point at the secure address.
 
 Caddy terminates HTTPS and forwards the request to Ghost with `X-Forwarded-Proto: https`, so Ghost knows the request was secure and does not redirect in a loop.
 
-If you later move to a new domain, change `url` again and add the new hostname on the **Domains** tab. Ghost stores absolute URLs only in a few places, so most content follows the new value. Set up a redirect from the old hostname so existing links and search rankings carry over.
+If you later move to a new domain, change `url` on the `ghost` service's **Environment** tab, select **Save and redeploy**, and add the new hostname on the **Domains** tab. Ghost stores absolute URLs only in a few places, so most content follows the new value. Set up a redirect from the old hostname so existing links and search rankings carry over.
 
-## Replace the default database password
+## Give Ghost its own database user
 
-The template ships the MySQL root password as `example`. The database is not exposed outside the environment network, but a placeholder password is still a bad idea. MySQL reads `MYSQL_ROOT_PASSWORD` only when it creates an empty data directory, so changing the variable alone does nothing. Change it inside the database first, then in both services.
-
-Better still, give Ghost its own user instead of root:
+The template generates the MySQL root password and Ghost connects as root. The database is not exposed outside the environment network, so that is safe to start with. If you want Ghost to have only the rights it needs, give it its own user. MySQL reads `MYSQL_ROOT_PASSWORD` only when it creates an empty data directory, so to change the root password later, change it inside the database first, then on the `db` service.
 
 1. Open the `db` service and its **Database** tab. In the **Roles** view, create a user, for example `ghost`, with a long random password and rights on the `ghost` database.
 2. On the `ghost` service's **Environment** tab, set `database__connection__user=ghost` and `database__connection__password` to the new password, marked as secret. Save and redeploy.
-3. Back in **Roles**, change the root password, then update `MYSQL_ROOT_PASSWORD` on the `db` service to match.
 
 If you prefer SQL, open the `db` service's **Terminal** tab and run:
 
 ```sql
 CREATE USER 'ghost'@'%' IDENTIFIED BY 'a-long-generated-password';
 GRANT ALL PRIVILEGES ON ghost.* TO 'ghost'@'%';
-ALTER USER 'root'@'%' IDENTIFIED BY 'another-long-generated-password';
 FLUSH PRIVILEGES;
 ```
 

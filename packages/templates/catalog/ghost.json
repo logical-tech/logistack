@@ -26,6 +26,12 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -36,9 +42,9 @@
 				"database__client": "mysql",
 				"database__connection__host": "${{ services.db.host }}",
 				"database__connection__user": "root",
-				"database__connection__password": "example",
+				"database__connection__password": "${{ inputs.dbPassword }}",
 				"database__connection__database": "ghost",
-				"url": "http://${{ inputs.mainDomain }}"
+				"url": "https://${{ inputs.mainDomain }}"
 			},
 			"volumes": [
 				{
@@ -60,7 +66,7 @@
 			"name": "db",
 			"dependsOn": [],
 			"env": {
-				"MYSQL_ROOT_PASSWORD": "example"
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.dbPassword }}"
 			},
 			"volumes": [
 				{

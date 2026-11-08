@@ -25,6 +25,19 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "basicAuthPassword",
+			"label": "Basic auth password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "sessionSecret",
+			"label": "Session secret",
+			"type": "secret",
+			"length": 48,
+			"charset": "alnum"
 		}
 	],
 	"services": [
@@ -34,14 +47,14 @@
 			"env": {
 				"APP_NAME": "Ollama Chat Tone",
 				"ADDR": ":8080",
-				"SESSION_SECRET": "change-me......32charsOrMore",
+				"SESSION_SECRET": "${{ inputs.sessionSecret }}",
 				"DB_PATH": "/data/app.db",
 				"OLLAMA_URL": "http://your-ollama-host:11434",
 				"OLLAMA_TIMEOUT": "5",
 				"DEFAULT_MODEL": "llama3.2",
 				"OPEN_BROWSER": "false",
 				"BASIC_AUTH_USER": "admin",
-				"BASIC_AUTH_PASSWORD": "change-me"
+				"BASIC_AUTH_PASSWORD": "${{ inputs.basicAuthPassword }}"
 			},
 			"volumes": [
 				{

@@ -69,7 +69,7 @@
 				"rote-backend"
 			],
 			"env": {
-				"VITE_API_BASE": "http://${{ inputs.backendDomain }}"
+				"VITE_API_BASE": "https://${{ inputs.backendDomain }}"
 			},
 			"volumes": [],
 			"files": [],

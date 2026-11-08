@@ -37,6 +37,13 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -49,8 +56,8 @@
 				"NODE_ENV": "production",
 				"NEXTAUTH_SECRET": "${{ inputs.nextauthSecret }}",
 				"DATABASE_URL": "postgresql://postgres:${{ inputs.postgresPassword }}@${{ services.blinko-postgres.host }}:5432/postgres",
-				"NEXTAUTH_URL": "http://${{ inputs.mainDomain }}",
-				"NEXT_PUBLIC_BASE_URL": "http://${{ inputs.mainDomain }}"
+				"NEXTAUTH_URL": "https://${{ inputs.mainDomain }}",
+				"NEXT_PUBLIC_BASE_URL": "https://${{ inputs.mainDomain }}"
 			},
 			"volumes": [],
 			"files": [],
@@ -75,7 +82,7 @@
 				"POSTGRES_DB": "postgres",
 				"POSTGRES_USER": "postgres",
 				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
-				"TZ": "Asia/Shanghai"
+				"TZ": "${{ inputs.timezone }}"
 			},
 			"volumes": [
 				{
