@@ -196,6 +196,7 @@ export function TrafficCharts({
 					},
 				]}
 				format={formatMs}
+				axisFormat={(v) => (v === 0 ? "0" : formatMs(v))}
 				detail="p50, time to the last byte"
 			/>
 			<MetricChart

@@ -28,7 +28,7 @@ export function MonitoringPage({
 		<Page className="max-w-7xl">
 			<PageHeader
 				title="Monitoring"
-				description="CPU, memory, disk and network for every node, sampled every 10 seconds."
+				description="Nodes, traffic and resource usage across the cluster."
 				actions={
 					<Button asChild>
 						<Link to="/monitoring/nodes/new">

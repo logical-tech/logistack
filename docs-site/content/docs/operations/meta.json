@@ -6,6 +6,7 @@
 		"logs-and-terminal",
 		"log-drains",
 		"metrics",
+		"traffic-analytics",
 		"nodes",
 		"alerts-and-notifications",
 		"vulnerability-scanning",

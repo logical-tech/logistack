@@ -1,0 +1,117 @@
+---
+title: Traffic analytics
+description: See requests per second, status codes, latency percentiles, unique visitors, top paths, referrers and countries for every service, from the proxy's access log, with no cookies.
+---
+
+LogiStack counts the traffic that reaches your services through its proxy, with nothing to install in your app. Use it to see how busy a service is, how fast it answers, which pages people open and where they come from. It sets no cookies and keeps no IP address. An optional script adds accurate pageviews, campaign sources and custom events for websites.
+
+## How traffic is counted
+
+- Caddy, the proxy in front of every domain, writes one access log line per request.
+- The LogiStack agent on each proxy node reads those lines and adds them up per minute and per domain. Only the totals leave the node: never a log line, an IP address or a user agent.
+- A unique visitor is a hash of the visitor's IP address and user agent with a salt that changes every day at midnight UTC. The agent counts these hashes in a compact sketch and then drops them. LogiStack deletes each day's salt after 48 hours, so it cannot link a visitor across days.
+- Latency is the time Caddy takes to answer, from the request to the last byte of the response.
+- Countries come from the [DB-IP](https://db-ip.com) IP-to-Country Lite database, which each node downloads once a month. Without internet access on the node, the **Countries** list stays empty.
+- Requests from user agents that look automated (crawlers, `curl`, uptime monitors) count as requests and as **from bots**. They never count as visitors or pageviews.
+- Without the script, a pageview is a `GET` request for an HTML page that succeeded.
+
+Totals appear about a minute after the minute they cover ends.
+
+## Read a service's traffic
+
+<Steps>
+<Step>
+### Open the Analytics tab
+
+Open the project, select the service, and select **Analytics**. The service needs at least one domain.
+
+![The Analytics tab of the web service over 24 hours, with requests by status, latency, bandwidth, pageviews, top paths, referrers and countries](/screens/service-analytics.webp)
+</Step>
+<Step>
+### Pick a domain and a range
+
+With more than one domain, choose one in the list or keep **All domains**. Select **1h**, **6h**, **24h**, **7d** or **30d**. The default is **24h**.
+</Step>
+<Step>
+### Read the figures
+
+The top row sums the whole range. Hover a chart to read one bucket.
+</Step>
+</Steps>
+
+| Figure | What it shows |
+| --- | --- |
+| **Requests** | Every request the proxy answered for the service, and how many came **from bots**. |
+| **Unique visitors** | Distinct visitors over the whole range, within about 3%. |
+| **Pageviews** | Page loads, and the bytes served in total. |
+| **5xx errors** | The share of responses with a 5xx status. |
+| **Latency p95** | 95% of requests were answered faster than this. The hint shows p50 and p99. |
+| **Requests** chart | Requests per second, split into **2xx**, **3xx**, **4xx** and **5xx**. |
+| **Latency** chart | **p50**, **p95** and **p99** per bucket. |
+| **Bandwidth out** | Bytes per second sent to clients. |
+| **Top paths**, **Referrers**, **Countries** | The ten largest over the range. Paths never include the query string. |
+
+### Example: find a slow page
+
+Your shop's **Latency p95** jumps from 180 ms to 2.4 s every evening. On **24h**, the **Latency** chart shows **p99** rising with the **Requests** chart while **p50** stays flat: most requests stay fast, but some are slow under load. **Top paths** shows `/api/search` near the top. Check that endpoint first, and consider [autoscaling](../deploy/service-settings.mdx) the service.
+
+## Add the web analytics script
+
+Turn on the script to count pageviews in single-page apps, read `utm_source` from campaign links, and track your own events. The proxy serves the script from your own domain, so ad blockers that block third-party trackers do not affect it. It is about 800 bytes, sets no cookie and stores nothing in the browser.
+
+<Steps>
+<Step>
+### Turn it on for a domain
+
+On the **Analytics** tab, under **Web analytics script**, turn on the switch next to the domain. The proxy now answers `/_ls/a.js` and `/_ls/e` on that domain itself. Your app never receives those two paths.
+</Step>
+<Step>
+### Add the tag to your pages
+
+Select the copy button next to the tag and paste it into the `<head>` of every page:
+
+```html title="index.html"
+<script defer src="https://shop.example.com/_ls/a.js"></script>
+```
+</Step>
+<Step>
+### Send custom events
+
+Call `lsa` with an event name, up to 64 characters:
+
+```js
+document.querySelector("#signup").addEventListener("click", () => lsa("signup"));
+```
+</Step>
+</Steps>
+
+With the script on, **Pageviews** and **Referrers** come from the script only. New lists appear as data arrives: **Campaigns** for `utm_source` values and **Events** for `lsa` calls. The script sends nothing from `localhost`, nor from browsers driven by automation tools.
+
+<Callout type="info">
+A domain with a path prefix, such as `shop.example.com/blog`, serves the script under that prefix: `/blog/_ls/a.js`.
+</Callout>
+
+## See traffic across all services
+
+Select **Monitoring** › **Traffic**. The page sums every service with a domain and lists them **By service** with requests, visitors, the 5xx share and p95. Select a service name to open its **Analytics** tab.
+
+![The Traffic page of Monitoring, with requests and latency for the whole organization and a table by service](/screens/monitoring-traffic.webp)
+
+## Read traffic through the API
+
+```bash
+curl -H "Authorization: Bearer $LOGISTACK_API_KEY" \
+  "https://logistack.example.com/api/services/svc_abc123/traffic?range=24h"
+```
+
+The response has `totals`, a `series` with one point per bucket (`requests`, `rps`, `s2` to `s5`, `bytesOut`, `pageviews`, `p50`, `p95`, `p99`), and the ranked `paths`, `referrers`, `countries`, `utmSources` and `events`. Add `domainId` to read one domain. `GET /api/traffic?range=7d` returns the organization overview. To turn the script on or off, call `PUT /api/domains/{id}/web-analytics` with `{"enabled": true}`. See the [REST API](../automation/rest-api.mdx).
+
+## How long traffic is kept
+
+Traffic follows the metrics retention in **Monitoring** › **Settings** › **Retention**: per-minute totals for the **1-minute rollups** days, hourly totals for the **1-hour rollups** days. See [Service and node metrics](./metrics.mdx#change-how-long-metrics-are-kept).
+
+## Common problems
+
+- **No domain, no traffic to show.** Analytics come from the proxy. Add a domain in the **Domains** tab. Services reached only through a published port, and game servers, have no traffic data.
+- **Countries is empty.** The node running the proxy could not download the GeoIP database. It retries daily. To turn country lookups off, set `LOGISTACK_AGENT_GEOIP=false` on the agent.
+- **Unique visitors read low behind a CDN.** When Cloudflare or another CDN proxies the domain, Caddy sees the CDN's addresses instead of your visitors', so many visitors share a few hashes. Requests, latency, paths and referrers are still right.
