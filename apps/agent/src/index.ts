@@ -14,6 +14,7 @@ import { createDockerClient } from "@logistack/docker";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 import { type CpuPrev, collectContainers, shouldForward } from "./docker.ts";
+import { createDrains } from "./drains.ts";
 import { type CpuSample, readHost } from "./host.ts";
 import { Link } from "./link.ts";
 import { renderPrometheus } from "./prometheus.ts";
@@ -47,6 +48,12 @@ const Config = z.object({
 		.int()
 		.min(100)
 		.default(30_000),
+	/** Log drain buffer per drain; past it the oldest lines are dropped. */
+	LOGISTACK_AGENT_DRAIN_BUFFER_BYTES: z.coerce
+		.number()
+		.int()
+		.min(64 * 1024)
+		.default(8 * 1024 * 1024),
 });
 type Config = z.infer<typeof Config>;
 
@@ -128,6 +135,16 @@ async function main() {
 	const paths = { proc: cfg.HOST_PROC, sys: cfg.HOST_SYS, root: cfg.HOST_ROOT };
 
 	let link: Link | undefined;
+	const drains = createDrains(docker, {
+		node: cfg.LOGISTACK_NODE_HOSTNAME,
+		limits: { maxQueueBytes: cfg.LOGISTACK_AGENT_DRAIN_BUFFER_BYTES },
+		onError: (msg, fields) => log("warn", msg, fields),
+	});
+	setInterval(() => {
+		const statuses = drains.statuses();
+		if (statuses.length)
+			link?.send({ type: "drains.status", at: Date.now(), drains: statuses });
+	}, 15_000);
 	let sessions: ReturnType<typeof createSessions> | undefined;
 	const latest: { host: HostMetrics | null; containers: ContainerMetrics[] } = {
 		host: null,
@@ -160,6 +177,11 @@ async function main() {
 			try {
 				for await (const e of docker.events()) {
 					attempt = 0;
+					if (
+						e.Type === "container" &&
+						(e.Action === "start" || e.Action === "die")
+					)
+						drains.containerEvent();
 					if (shouldForward(e))
 						link?.send({
 							type: "docker_event",
@@ -242,6 +264,7 @@ async function main() {
 						"archive",
 						"host-dirs",
 						"job-ack",
+						"log-drains",
 					],
 					...swarm,
 				});
@@ -260,6 +283,19 @@ async function main() {
 					m = parseFrame(ServerMessage, String(ev.data));
 				} catch (e) {
 					log("warn", "bad server message", { error: errMsg(e) });
+					return;
+				}
+				if (m.type === "drains.config") {
+					void drains.apply(m);
+					return;
+				}
+				if (m.type === "drains.test") {
+					const reply = link;
+					void drains
+						.test(m.drain)
+						.then((r) =>
+							reply?.send({ type: "drains.result", id: m.id, ...r }),
+						);
 					return;
 				}
 				if (m.type !== "hello.ok") return sessions?.handle(m);

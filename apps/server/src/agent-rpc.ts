@@ -48,7 +48,7 @@ export async function serveAgentRpc(
 		nodeId: string,
 		m: Extract<
 			AgentRpcRequest,
-			{ type: "job" | "exec" | "logs" | "disk" | "archive" }
+			{ type: "job" | "exec" | "logs" | "disk" | "archive" | "drain-test" }
 		>,
 		a: Active,
 	) {
@@ -72,6 +72,11 @@ export async function serveAgentRpc(
 				await reply(m.id, {
 					type: "disk",
 					...(await agents.disk(nodeId, m.req, { signal })),
+				});
+			} else if (m.type === "drain-test") {
+				await reply(m.id, {
+					type: "drain",
+					...(await agents.testDrain(nodeId, m.drain, { signal })),
 				});
 			} else if (m.type === "archive") {
 				const h = agents.archive(nodeId, m.req, { signal });
@@ -132,7 +137,8 @@ export async function serveAgentRpc(
 			m.type === "exec" ||
 			m.type === "logs" ||
 			m.type === "disk" ||
-			m.type === "archive"
+			m.type === "archive" ||
+			m.type === "drain-test"
 		) {
 			if (active.has(m.id)) return;
 			const a: Active = {

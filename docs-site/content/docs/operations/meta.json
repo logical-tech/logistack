@@ -4,6 +4,7 @@
 	"pages": [
 		"index",
 		"logs-and-terminal",
+		"log-drains",
 		"metrics",
 		"nodes",
 		"alerts-and-notifications",

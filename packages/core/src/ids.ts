@@ -25,6 +25,7 @@ export const idPrefixes = {
 	scheduleRun: "scr",
 	notificationChannel: "nch",
 	notificationRule: "nrl",
+	logDrain: "lgd",
 	auditLog: "aud",
 	roleGrant: "grt",
 	event: "evt",

@@ -6,6 +6,7 @@ export * from "./autoscale.ts";
 export * from "./build-platforms.ts";
 export * from "./database.ts";
 export * from "./dns.ts";
+export * from "./drains.ts";
 export * from "./enums.ts";
 export * from "./errors.ts";
 export * from "./events.ts";

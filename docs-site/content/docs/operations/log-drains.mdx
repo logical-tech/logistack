@@ -1,0 +1,135 @@
+---
+title: Ship logs to Loki, Datadog or OpenTelemetry
+description: Send service logs to Grafana Loki, an OpenTelemetry collector, Datadog, syslog or any HTTP endpoint, labelled by project, environment, service and node.
+---
+
+A log drain sends your services' logs to an observability tool you already use, so you can keep them longer than the containers do and search them next to metrics and traces. You add a drain once for the organization, then choose which projects or services ship to it. Each node's agent reads its own containers' logs and sends them straight to the destination, in batches.
+
+## Drain kinds
+
+| Kind | Where it sends | What you need |
+| --- | --- | --- |
+| **Grafana Loki** | The push API, `<url>/loki/api/v1/push` | The Loki base URL, plus a tenant ID, username and password, or bearer token when your Loki needs them. On Grafana Cloud the username is the Loki instance ID and the password is an access policy token. |
+| **OpenTelemetry** | OTLP/HTTP JSON, `<url>/v1/logs` | The collector's OTLP/HTTP base URL (port `4318` by default) and any headers it needs. |
+| **Datadog** | `https://http-intake.logs.<site>/api/v2/logs` | Your Datadog site and an API key (not an application key). |
+| **HTTP JSON** | A POST of a JSON array per batch | Any URL, and optional headers such as `Authorization`. |
+| **Syslog** | RFC 5424 messages | A host, a port (`514` by default) and a transport: TCP, TLS or UDP. TCP and TLS use octet-counting framing. |
+
+## What every line carries
+
+| Field | Loki label | OpenTelemetry resource attribute | Datadog |
+| --- | --- | --- | --- |
+| Organization | `organization` | `logistack.organization` | tag `organization` |
+| Project | `project` | `service.namespace` | tag `project` |
+| Environment | `environment` | `deployment.environment.name` | tag `env` |
+| Service | `service`, `service_id` | `service.name`, `logistack.service_id` | `service`, tag `service_id` |
+| Deployment ID | `deployment_id` | `logistack.deployment_id` | tag `deployment_id` |
+| Node | `node` | `host.name` | `hostname` |
+| Output stream | `stream` (`stdout` or `stderr`) | log attribute `log.iostream` | tag `stream` |
+
+Loki streams also carry `source="logistack"`. Syslog puts the same fields in a `[logistack@32473 ...]` structured-data element, with the node as hostname and the service as app name. The HTTP JSON kind sends one object per line:
+
+```json title="One HTTP JSON record"
+{
+  "timestamp": "2026-11-07T10:00:00.123Z",
+  "message": "GET /checkout 200 12ms",
+  "stream": "stdout",
+  "organization": "Acme",
+  "organizationId": "org_01",
+  "project": "Storefront",
+  "projectId": "prj_01",
+  "environment": "production",
+  "environmentId": "env_01",
+  "service": "web",
+  "serviceId": "svc_01",
+  "deploymentId": "dep_01",
+  "node": "fra-1"
+}
+```
+
+## Add a drain
+
+You need the **admin** role in the organization.
+
+<Steps>
+<Step>
+### Open Log drains
+
+Select **Integrations** › **Log drains** in the sidebar, then select **Add drain**.
+
+![The Log drains page with a Grafana Cloud drain that is delivering and a Datadog drain that is degraded on one node](/screens/log-drains.webp)
+</Step>
+<Step>
+### Pick the destination
+
+On **Where should logs go?**, select **Grafana Loki**, **OpenTelemetry**, **Datadog**, **HTTP JSON** or **Syslog**.
+
+![The first step of the Add a log drain wizard, with the five destination kinds](/screens/log-drain-new.webp)
+</Step>
+<Step>
+### Connect it
+
+On **Connect it**, enter the URL or host and the credentials. For Loki, a URL like `https://loki.example.com` is enough: LogiStack adds `/loki/api/v1/push`. Credentials are encrypted at rest and never shown again.
+</Step>
+<Step>
+### Send a test event
+
+On **Send a test event**, select **Send test event**. One node sends the line `LogiStack test event: this drain is reachable.` as the service `logistack-test`. Continue unlocks when the destination accepts it.
+</Step>
+<Step>
+### Choose which logs
+
+On **Which logs?**, select whole projects or single services. A whole project also covers services you add to it later.
+</Step>
+<Step>
+### Name it and add it
+
+Give the drain a name, check the summary, and select **Add drain**. Nodes start shipping within a few seconds.
+</Step>
+</Steps>
+
+## Check that logs arrive
+
+The drain's status on the Log drains page comes from the nodes' own reports, every 15 seconds:
+
+| Status | Meaning |
+| --- | --- |
+| **Delivering** | Every node that ships to it delivered its last batch. |
+| **Degraded** | Some nodes deliver, others fail. The failing node and its error show under the name. |
+| **Failing** | No node delivered its last batch. |
+| **No logs yet** | No node has sent a batch yet, for example because the chosen services have no running containers. |
+| **Paused** | You turned the drain off with its switch. |
+
+In Grafana, query Loki with labels, for example:
+
+```logql
+{project="Storefront", environment="production", service="web"} |= "error"
+```
+
+## Change or remove a drain
+
+On the Log drains page, each row has:
+
+- A switch to pause and resume the drain.
+- A send button for another test event.
+- A sliders button to change which projects and services ship to it.
+- A delete button. Nodes stop shipping within seconds; logs already delivered stay at the destination.
+
+To change the URL or credentials, use `PATCH /api/log-drains/{id}` with a new `config` of the same kind, or delete the drain and add it again. See [REST API](../automation/rest-api.mdx).
+
+## When a destination is down
+
+Containers never wait for a drain. Each node keeps up to 8 MB of unsent logs per drain and retries with backoff, up to once a minute. When the buffer is full, the oldest lines are dropped first, and the count shows on the drain's row. A destination that is only slow makes the node read logs more slowly instead of dropping them; Docker keeps the lines in its log files meanwhile.
+
+To give a node a bigger buffer, set `LOGISTACK_AGENT_DRAIN_BUFFER_BYTES` on the agent.
+
+## Common problems
+
+- **"resolves to a private address"**: by default a drain cannot point at a private or loopback address, the same rule that applies to webhooks. An instance owner can allow private hosts in **Settings** › **General** when Loki or a collector runs on your own network.
+- **"no online node can send a test event"**: no node agent is connected, or every agent predates log drains. Update LogiStack on the nodes.
+- **The destination answered 401 or 403**: the credentials are wrong or lack write access. LogiStack shows only the status code, never the response body.
+- **Lines out of order in Loki**: each node sends its own lines, so lines from different nodes interleave by arrival. Filter by `node` to read one node in order.
+
+## Automate it
+
+The same operations are in the [REST API](../automation/rest-api.mdx) under `/api/log-drains`, and as MCP tools on the [MCP server](../automation/mcp-server.mdx): `get_log_drains`, `log_drain_create`, `log_drain_update`, `log_drain_delete`, `log_drain_test` for an unsaved config and `post_log_drains_by_id_test` for a saved drain.
