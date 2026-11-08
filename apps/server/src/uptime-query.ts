@@ -59,8 +59,11 @@ export async function monitorStats(
 		}>(sql`
 			select monitor_id, at, ok, latency_ms from (
 				select *, row_number() over (partition by monitor_id order by at desc) as n
-				from monitor_check where monitor_id in ${ids}
-					and at > ${new Date(now.getTime() - day)}::timestamptz
+				from monitor_check where monitor_id in (${sql.join(
+					ids.map((i) => sql`${i}`),
+					sql`, `,
+				)})
+					and at > ${new Date(now.getTime() - day).toISOString()}::timestamptz
 			) r where n <= 40 order by at`),
 	]);
 	for (const id of ids) {
@@ -166,7 +169,7 @@ export async function incidentsWithUpdates(
 		);
 	if (opts.since)
 		conds.push(
-			sql`(${incident.resolvedAt} is null or ${incident.resolvedAt} >= ${opts.since})`,
+			sql`(${incident.resolvedAt} is null or ${incident.resolvedAt} >= ${opts.since.toISOString()})`,
 		);
 	const rows = await db
 		.select()

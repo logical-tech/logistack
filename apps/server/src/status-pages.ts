@@ -301,7 +301,7 @@ export function statusHostRouter(deps: Deps): MiddlewareHandler<Env> {
 	return async (c, next) => {
 		const host = hostOf(c.req.header("host"));
 		const h = await statusHosts(deps.db).catch(() => undefined);
-		if (!h || !h.set.has(host) || host === h.dashboard) return next();
+		if (!h?.set.has(host) || host === h.dashboard) return next();
 		const path = new URL(c.req.url).pathname;
 		if (c.req.method !== "GET" && c.req.method !== "HEAD")
 			return c.text("method not allowed", 405);

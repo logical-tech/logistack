@@ -103,7 +103,7 @@ export async function recordResult(
 			.from(monitor)
 			.where(eq(monitor.id, monitorId))
 			.for("update");
-		if (!m || !m.enabled) return undefined;
+		if (!m?.enabled) return undefined;
 		org = m.organizationId;
 		const maint = inMaintenance(
 			await activeWindows(tx as unknown as Db, m.organizationId),
@@ -128,11 +128,15 @@ export async function recordResult(
 		const fail = result.ok ? 0 : 1;
 		const inMaint = maint ? 1 : 0;
 		for (const [table, key, bucket] of [
-			["monitor_hourly", "hour", sql`date_trunc('hour', ${now}::timestamptz)`],
+			[
+				"monitor_hourly",
+				"hour",
+				sql`date_trunc('hour', ${now.toISOString()}::timestamptz)`,
+			],
 			[
 				"monitor_daily",
 				"day",
-				sql`(${now}::timestamptz at time zone 'UTC')::date`,
+				sql`(${now.toISOString()}::timestamptz at time zone 'UTC')::date`,
 			],
 		] as const)
 			await tx.execute(sql`

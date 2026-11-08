@@ -24,11 +24,11 @@ export async function claimDue(
 	now = new Date(),
 ): Promise<{ id: string; kind: string }[]> {
 	const rows = await ctx.db.execute<{ id: string; kind: string }>(sql`
-		update monitor m set next_check_at = ${now}::timestamptz
+		update monitor m set next_check_at = ${now.toISOString()}::timestamptz
 			+ make_interval(secs => greatest(m.interval_sec, m.timeout_ms / 1000 + 5))
 		where m.id in (
 			select id from monitor
-			where enabled and next_check_at <= ${now}::timestamptz
+			where enabled and next_check_at <= ${now.toISOString()}::timestamptz
 			order by next_check_at
 			limit ${CLAIM_LIMIT}
 			for update skip locked)

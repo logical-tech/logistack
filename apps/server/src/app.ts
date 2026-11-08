@@ -128,8 +128,6 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		c.req.path.startsWith("/api/webhooks/") ||
 		// The sealed token in the path is the credential.
 		c.req.path.startsWith("/api/storage/shared/") ||
-		// Push monitors: the token in the path is the credential.
-		c.req.path.startsWith("/api/push/") ||
 		c.req.path === AGENT_WS_PATH
 			? next()
 			: identify(c, next),
@@ -152,7 +150,9 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	});
 	app.get("/api/docs", Scalar({ url: "/api/openapi.json" }));
 
-	app.route("/api/push", push);
+	// Heartbeats from cron jobs, outside /api: the token is the credential, and a ping is
+	// telemetry like a metric sample, not an audited change.
+	app.route("/push", push);
 
 	const routes = app
 		.route("/api", health)
@@ -224,6 +224,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 			p === "/mcp" ||
 			p === "/api" ||
 			p.startsWith("/status/") ||
+			p.startsWith("/push/") ||
 			p.startsWith("/api/") ||
 			p.startsWith("/v1/");
 		// A file when one matches, else the app shell for client-side routes.

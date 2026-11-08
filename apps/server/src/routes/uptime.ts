@@ -285,6 +285,12 @@ async function views(db: Db, rows: MonitorRow[]) {
 	});
 }
 
+async function viewOf(db: Db, row: MonitorRow) {
+	const [view] = await views(db, [row]);
+	if (!view) throw new Error("monitor view missing");
+	return view;
+}
+
 /** The scope a monitor or page belongs to: its project when it has one, else the organization. */
 async function scopeOf(db: Db, orgId: string, projectId: string | null) {
 	return projectId
@@ -542,21 +548,24 @@ export const uptime = router()
 		},
 	)
 	.openapi(
-		createRoute({
-			method: "post",
-			path: "/monitors/test",
-			tags,
-			security,
-			summary: "Run a check once without saving it (the wizard's test step)",
-			middleware: [requirePermission("write", inOrganization)],
-			request: body(
-				z.object({
-					config: MonitorConfig,
-					timeoutMs: Int(1_000, 60_000).optional(),
-				}),
-			),
-			responses: { 200: json(TestResult, "Result"), ...errors },
-		}),
+		mutation(
+			"monitor.test",
+			createRoute({
+				method: "post",
+				path: "/monitors/test",
+				tags,
+				security,
+				summary: "Run a check once without saving it (the wizard's test step)",
+				middleware: [requirePermission("write", inOrganization)],
+				request: body(
+					z.object({
+						config: MonitorConfig,
+						timeoutMs: Int(1_000, 60_000).optional(),
+					}),
+				),
+				responses: { 200: json(TestResult, "Result"), ...errors },
+			}),
+		),
 		async (c) => {
 			const { config, timeoutMs } = c.req.valid("json");
 			if (config.kind === "push") return c.json({ ok: true }, 200);
@@ -611,8 +620,8 @@ export const uptime = router()
 					.returning(),
 			);
 			c.set("auditResourceId", row.id);
-			const [view] = await views(db, [row]);
-			return c.json({ ...view!, ...(token && { pushToken: token }) }, 201);
+			const view = await viewOf(db, row);
+			return c.json({ ...view, ...(token && { pushToken: token }) }, 201);
 		},
 	)
 	.openapi(
@@ -629,7 +638,7 @@ export const uptime = router()
 		async (c) => {
 			const row = await ownMonitor(c, c.req.valid("param").id, "read");
 			const { db } = c.var.deps;
-			const [view] = await views(db, [row]);
+			const view = await viewOf(db, row);
 			const [bars, latency, checks] = await Promise.all([
 				dailyBars(db, [row.id], 90),
 				hourlyLatency(db, row.id, 24 * 7),
@@ -637,7 +646,7 @@ export const uptime = router()
 			]);
 			return c.json(
 				{
-					...view!,
+					...view,
 					bars: bars.get(row.id) ?? [],
 					latency: latency.map((l) => ({ ...l, hour: l.hour.toISOString() })),
 					checks: checks.map((x) => ({ ...x, at: x.at.toISOString() })),
@@ -700,8 +709,8 @@ export const uptime = router()
 					.where(eq(monitor.id, prev.id))
 					.returning(),
 			);
-			const [view] = await views(db, [row]);
-			return c.json(view!, 200);
+			const view = await viewOf(db, row);
+			return c.json(view, 200);
 		},
 	)
 	.openapi(
