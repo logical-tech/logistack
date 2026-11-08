@@ -20,6 +20,9 @@ const enc = (s: string) => new TextEncoder().encode(s);
 const out = (s: string): OutputChunk => ({ stream: "stdout", data: enc(s) });
 const err = (s: string): OutputChunk => ({ stream: "stderr", data: enc(s) });
 
+/** MAX_RESTORE_BYTES for this suite. */
+const LIMIT = 4096;
+
 /** What the fake node answers: output chunks then an exit code. */
 type Plan = { chunks: OutputChunk[]; code: number };
 
@@ -155,6 +158,9 @@ describe.skipIf(!hasDocker)("database dump and restore API", () => {
 				cookie: who,
 				origin: h.config.WEB_ORIGIN,
 				"content-type": "application/octet-stream",
+				...(body instanceof Uint8Array && {
+					"content-length": String(body.byteLength),
+				}),
 				...headers,
 			},
 			body,
@@ -168,7 +174,11 @@ describe.skipIf(!hasDocker)("database dump and restore API", () => {
 			.orderBy(desc(auditLog.at));
 
 	beforeAll(async () => {
-		h = await startHarness({ area: "dbx5", label: "dbx5" });
+		h = await startHarness({
+			area: "dbx5",
+			label: "dbx5",
+			env: { MAX_RESTORE_BYTES: String(LIMIT) },
+		});
 		real = h.deps.nodes;
 		h.deps.nodes = fake;
 		await h.call("POST", "/api/setup", { body: setupBody });
@@ -345,5 +355,62 @@ describe.skipIf(!hasDocker)("database dump and restore API", () => {
 			((await r.json()) as { error: { message: string } }).error.message,
 		).toBe("restore is not supported for redis");
 		expect(execs.length).toBe(before);
+	});
+
+	test("an upload streams into the tool: the first chunk arrives before the second is sent", async () => {
+		plan = { chunks: [], code: 0 };
+		const first = enc("PGDMP-first-");
+		const second = enc("second");
+		const before = execs.length;
+		let firstSeenBeforeSecond = false;
+		const body = new ReadableStream<Uint8Array>({
+			async start(c) {
+				c.enqueue(first);
+				// A server that buffered the whole body would never write before it ends: the wait times out.
+				for (let i = 0; i < 200; i++) {
+					const rec = execs[before];
+					if (rec?.input.length) {
+						firstSeenBeforeSecond = true;
+						break;
+					}
+					await Bun.sleep(10);
+				}
+				c.enqueue(second);
+				c.close();
+			},
+		});
+		const res = await restore(pgId, body, cookie, {
+			"content-length": String(first.byteLength + second.byteLength),
+		});
+		expect(res.status).toBe(200);
+		expect(firstSeenBeforeSecond).toBe(true);
+		expect(
+			new TextDecoder().decode(Buffer.concat(execs[before]?.input ?? [])),
+		).toBe("PGDMP-first-second");
+	});
+
+	test("a dump above the limit, or without a length, is a 413 before the tool starts", async () => {
+		const before = execs.length;
+		const big = await restore(pgId, new Uint8Array(LIMIT + 1));
+		expect(big.status).toBe(413);
+		expect(
+			((await big.json()) as { error: { details: unknown } }).error.details,
+		).toEqual({ reason: "too_large", maxBytes: LIMIT });
+		const unsized = await restore(
+			pgId,
+			new ReadableStream<Uint8Array>({
+				start(c) {
+					c.enqueue(enc("PGDMP"));
+					c.close();
+				},
+			}),
+		);
+		expect(unsized.status).toBe(413);
+		expect(
+			((await unsized.json()) as { error: { details: { reason: string } } })
+				.error.details.reason,
+		).toBe("length_required");
+		expect(execs.length).toBe(before);
+		expect((await restore(pgId, new Uint8Array(LIMIT))).status).toBe(200);
 	});
 });

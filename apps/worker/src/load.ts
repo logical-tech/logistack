@@ -418,6 +418,7 @@ export function compileInput(
 		| "bridgeLabels"
 		| "bridgeContainerLabels"
 		| "bridgeAliases"
+		| "tls"
 	>,
 ): CompileServiceInput {
 	return {
@@ -444,6 +445,9 @@ export function compileInput(
 		context: deploymentContext(sc, deployment),
 		mounts: sc.mounts,
 		adoptedVolumes: sc.adoptedVolumes,
+		...(sc.service.dataVolumeId && {
+			dataVolumeOwner: sc.service.dataVolumeId,
+		}),
 		...(sc.disposable && { disposable: true }),
 		domains: sc.domains,
 		...refs,

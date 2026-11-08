@@ -10,6 +10,7 @@ export * from "./compile-release.ts";
 export * from "./compile-service.ts";
 export * from "./crypto.ts";
 export * from "./database-credentials.ts";
+export * from "./db-access.ts";
 export * from "./db-scripts.ts";
 export * from "./deployment.ts";
 export * from "./deployment-context.ts";

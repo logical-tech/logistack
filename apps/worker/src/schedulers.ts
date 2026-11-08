@@ -2,6 +2,8 @@ import {
 	BACKUP_QUEUE,
 	type BackupJob,
 	backupSchedulerId,
+	DBOPS_QUEUE,
+	type DbOpsJob,
 	MIGRATION_QUEUE,
 	type MigrationJob,
 	SCAN_QUEUE,
@@ -22,6 +24,7 @@ export type RunQueues = {
 	maintenance: Queue;
 	migration: Queue<MigrationJob>;
 	scan: Queue<ScanJob & { force?: boolean }>;
+	dbops: Queue<DbOpsJob>;
 };
 
 const keep = { removeOnComplete: { count: 200 }, removeOnFail: { count: 500 } };
@@ -34,6 +37,7 @@ export function openRunQueues(redisUrl: string): RunQueues {
 		maintenance: new Queue("maintenance", { connection }),
 		migration: new Queue<MigrationJob>(MIGRATION_QUEUE, { connection }),
 		scan: new Queue<ScanJob & { force?: boolean }>(SCAN_QUEUE, { connection }),
+		dbops: new Queue<DbOpsJob>(DBOPS_QUEUE, { connection }),
 	};
 }
 

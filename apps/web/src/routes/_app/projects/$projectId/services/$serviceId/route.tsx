@@ -21,6 +21,7 @@ const TABS = [
 	{ id: "game", label: "Game", to: `${BASE}/game` },
 	{ id: "storage", label: "Storage", to: `${BASE}/storage` },
 	{ id: "database", label: "Database", to: `${BASE}/database` },
+	{ id: "operations", label: "Operations", to: `${BASE}/operations` },
 	{ id: "files", label: "Files", to: `${BASE}/files` },
 	{ id: "deployments", label: "Deployments", to: `${BASE}/deployments` },
 	{ id: "logs", label: "Logs", to: `${BASE}/logs` },
@@ -86,6 +87,7 @@ function ServiceLayout() {
 						(t) =>
 							(t.id !== "storage" || service.kind === "storage") &&
 							(t.id !== "database" || service.kind === "database") &&
+							(t.id !== "operations" || service.kind === "database") &&
 							(t.id !== "game" || service.kind === "game") &&
 							// Game traffic is not HTTP: Caddy domains don't reach it.
 							(t.id !== "domains" || service.kind !== "game"),

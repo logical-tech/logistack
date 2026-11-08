@@ -3,8 +3,12 @@ import {
 	type PortMapping,
 	type ServiceSpec,
 } from "@logistack/contracts";
-import { ingressPortHolder, publishedPortConflicts } from "@logistack/core";
-import { node, service } from "@logistack/db";
+import {
+	ingressPortHolder,
+	type PortHolder,
+	publishedPortConflicts,
+} from "@logistack/core";
+import { databaseAccess, node, service } from "@logistack/db";
 import { eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "./actor.ts";
@@ -131,16 +135,39 @@ export async function guardHostSettings(
 }
 
 /** Every service publishing ports, as port holders: applications and game servers. */
-export async function portHolders(c: Context<Env>) {
+export async function portHolders(c: Context<Env>): Promise<PortHolder[]> {
 	const rows = await c.var.deps.db
 		.select({ id: service.id, nodeId: service.nodeId, spec: service.spec })
 		.from(service)
 		.where(inArray(service.kind, ["application", "game"]));
-	return rows.map((r) => ({
-		id: r.id,
-		nodeId: r.nodeId,
-		ports: publishedPorts(r.spec),
-	}));
+	// Database gateways hold a host port on the database's node (docs/plans/database-ops.md).
+	const gateways = await c.var.deps.db
+		.select({
+			id: databaseAccess.id,
+			nodeId: service.nodeId,
+			port: databaseAccess.port,
+		})
+		.from(databaseAccess)
+		.innerJoin(service, eq(service.id, databaseAccess.serviceId));
+	return [
+		...rows.map((r) => ({
+			id: r.id,
+			nodeId: r.nodeId,
+			ports: publishedPorts(r.spec),
+		})),
+		...gateways.map((g) => ({
+			id: g.id,
+			nodeId: g.nodeId,
+			ports: [
+				{
+					target: g.port,
+					published: g.port,
+					protocol: "tcp" as const,
+					mode: "host" as const,
+				},
+			],
+		})),
+	];
 }
 
 /** Refuses ports another service (or Caddy) already publishes where this one would. */

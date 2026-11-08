@@ -29,6 +29,12 @@ const ConfigSchema = z.object({
 		.int()
 		.positive()
 		.default(50 * 1024 ** 3),
+	/** Largest dump the database restore route takes; the body must declare its length. */
+	MAX_RESTORE_BYTES: z.coerce
+		.number()
+		.int()
+		.positive()
+		.default(20 * 1024 ** 3),
 	/** The built web app, served with an SPA fallback when its index.html exists. */
 	WEB_DIST_DIR: z
 		.string()

@@ -2,6 +2,7 @@ import {
 	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
+	orgDbNetworkName,
 	serviceFiles,
 } from "@logistack/core";
 import { migration, migrationBridge, node, service } from "@logistack/db";
@@ -19,6 +20,7 @@ import {
 import { and, eq, ne } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
+import { databaseTls } from "./db-access.ts";
 import {
 	compileInput,
 	type DeploymentRef,
@@ -106,10 +108,20 @@ export async function ensureStackNetwork(
 				Labels: { "com.docker.stack.namespace": stack },
 			}),
 	);
+	await attachServices(ctx, net.Id, name, names);
+}
+
+/** Adds the network to each named Swarm service that lacks it; a rolling update of each. */
+async function attachServices(
+	ctx: Ctx,
+	netId: string,
+	name: string,
+	names: string[],
+) {
 	for (const svcName of names) {
 		const svc = await inspectService(ctx, svcName);
 		const nets = svc?.Spec.TaskTemplate.Networks ?? [];
-		if (!svc || nets.some((n) => n.Target === net.Id || n.Target === name))
+		if (!svc || nets.some((n) => n.Target === netId || n.Target === name))
 			continue;
 		log("info", "attaching service to a shared network", {
 			service: svcName,
@@ -121,11 +133,49 @@ export async function ensureStackNetwork(
 				...current.Spec.TaskTemplate,
 				Networks: [
 					...(current.Spec.TaskTemplate.Networks ?? []),
-					{ Target: net.Id },
+					{ Target: netId },
 				],
 			},
 		}));
 	}
+}
+
+/**
+ * The organization's database network, created on first use, with the api attached so the
+ * explorer reaches its databases. Databases of other organizations are not on it.
+ */
+export async function ensureOrgDbNetwork(
+	ctx: Ctx,
+	organizationId: string,
+): Promise<string> {
+	const name = orgDbNetworkName(organizationId, ctx.cfg.LS_NAME_PREFIX);
+	const net = await ensure(
+		() =>
+			ctx.docker.networks.inspect(name).catch((e) => {
+				if (notFound(e)) return undefined;
+				throw e;
+			}),
+		() =>
+			ctx.docker.networks.create({
+				Name: name,
+				Driver: "overlay",
+				Attachable: true,
+				Scope: "swarm",
+				Labels: {
+					...managedLabels({
+						resource: organizationId,
+						kind: "network",
+						org: organizationId,
+					}),
+					...scope(ctx).labels,
+				},
+			}),
+	);
+	// Only on a stack install; dev machines and test harnesses run the api outside Swarm.
+	await attachServices(ctx, net.Id, name, [
+		`${ctx.cfg.LS_STACK_NAME}_logistack-api`,
+	]);
+	return net.Id;
 }
 
 async function ensureFiles(
@@ -229,7 +279,6 @@ export async function desiredInput(
 		sc.service.spec.kind === "storage"
 			? await ctx.docker.networks.inspect(ctx.cfg.LS_STORAGE_NETWORK)
 			: undefined;
-	// Optional: without ls-db (dev machines, test harnesses) the database deploys, the explorer just can't reach it.
 	const optionalNetwork = (name: string) =>
 		ctx.docker.networks.inspect(name).catch((e) => {
 			if (notFound(e)) return undefined;
@@ -237,7 +286,11 @@ export async function desiredInput(
 		});
 	const db =
 		sc.service.spec.kind === "database"
-			? await optionalNetwork(ctx.cfg.LS_DB_NETWORK)
+			? await ensureOrgDbNetwork(ctx, sc.organizationId)
+			: undefined;
+	const tls =
+		sc.service.spec.kind === "database"
+			? await databaseTls(ctx, sc.service.id)
 			: undefined;
 	// Optional too: without ls-game the server plays, only the panel's console and status can't reach it.
 	const game =
@@ -274,7 +327,7 @@ export async function desiredInput(
 			environment: envNet,
 			ingress: ingress.Id,
 			...(storage ? { storage: storage.Id } : {}),
-			...(db ? { db: db.Id } : {}),
+			...(db ? { db } : {}),
 			...(game ? { game: game.Id } : {}),
 			...(bridge ? { bridge: bridge.Id } : {}),
 		},
@@ -296,6 +349,7 @@ export async function desiredInput(
 				}
 			: {}),
 		...(pin ? { pinNodeId: pin } : {}),
+		...(tls ? { tls } : {}),
 		scope: scope(ctx),
 	});
 	input.fileIds = await ensureFiles(ctx, input);
