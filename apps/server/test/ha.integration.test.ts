@@ -297,6 +297,9 @@ describe.skipIf(!hasDocker)("two api replicas behind Caddy", () => {
 			`logistack.test=${AREA}`,
 			"-p",
 			"127.0.0.1::80",
+			// Docker Desktop and OrbStack define host.docker.internal; Linux engines (CI) need it mapped.
+			"--add-host",
+			"host.docker.internal:host-gateway",
 			"-v",
 			`${caddyfile}:/etc/caddy/Caddyfile:ro`,
 			"caddy:2-alpine",
