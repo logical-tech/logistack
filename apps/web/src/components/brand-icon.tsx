@@ -19,6 +19,7 @@ import {
 	siClickhouse,
 	siCloudflare,
 	siCounterstrike,
+	siDatadog,
 	siDeno,
 	siDigitalocean,
 	siDirectus,
@@ -68,6 +69,7 @@ import {
 	siOdoo,
 	siOllama,
 	siOpenjdk,
+	siOpentelemetry,
 	siOutline,
 	siOvh,
 	siPaperlessngx,
@@ -269,6 +271,8 @@ const BRANDS = {
 	github: siGithub,
 	gitlab: siGitlab,
 	bitbucket: siBitbucket,
+	datadog: siDatadog,
+	opentelemetry: siOpentelemetry,
 } satisfies Record<ServiceIcon, Brand> & Record<string, Brand>;
 
 export type BrandSlug = keyof typeof BRANDS;

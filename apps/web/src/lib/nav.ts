@@ -22,6 +22,7 @@ import {
 	type LucideIcon,
 	Network,
 	Palette,
+	ScrollText,
 	Settings2,
 	ShieldCheck,
 	Sparkles,
@@ -216,6 +217,26 @@ export const NAV: NavGroup[] = [
 				description:
 					"Publish services through Cloudflare without opening ports on the server.",
 				keywords: ["cloudflared", "homelab", "nat", "zero trust"],
+			},
+			{
+				to: "/integrations/log-drains",
+				title: "Log drains",
+				icon: ScrollText,
+				description:
+					"Ship service logs to Loki, OpenTelemetry, Datadog, syslog or any HTTP endpoint.",
+				empty: {
+					title: "Logs stay on the servers",
+					body: "Add a drain to keep service logs past container restarts, next to your metrics and traces.",
+					action: "Add drain",
+				},
+				keywords: [
+					"logs",
+					"loki",
+					"datadog",
+					"otel",
+					"syslog",
+					"observability",
+				],
 			},
 			{
 				to: "/integrations/notifications",

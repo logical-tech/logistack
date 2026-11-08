@@ -1,4 +1,11 @@
-import { type LucideIcon, Mail, Webhook } from "lucide-react";
+import type { LogDrainKind } from "@logistack/contracts";
+import {
+	Braces,
+	type LucideIcon,
+	Mail,
+	ScrollText,
+	Webhook,
+} from "lucide-react";
 import { brandMark } from "@/components/brand-icon";
 import type {
 	AcmeDirectory,
@@ -229,3 +236,34 @@ export function fieldLabel(key: string): string {
 	const [first = "", ...rest] = words;
 	return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(" ");
 }
+
+export const DRAIN_KINDS: Record<
+	LogDrainKind,
+	{ label: string; icon: LucideIcon; blurb: string }
+> = {
+	loki: {
+		label: "Grafana Loki",
+		icon: brandMark("grafana"),
+		blurb: "Push API, labelled by project, service and node.",
+	},
+	otlp: {
+		label: "OpenTelemetry",
+		icon: brandMark("opentelemetry"),
+		blurb: "OTLP/HTTP to a collector or any OTLP backend.",
+	},
+	datadog: {
+		label: "Datadog",
+		icon: brandMark("datadog"),
+		blurb: "Logs intake with an API key, tagged by env.",
+	},
+	http: {
+		label: "HTTP JSON",
+		icon: Braces,
+		blurb: "A JSON array POSTed to any URL.",
+	},
+	syslog: {
+		label: "Syslog",
+		icon: ScrollText,
+		blurb: "RFC 5424 over TCP, TLS or UDP.",
+	},
+};

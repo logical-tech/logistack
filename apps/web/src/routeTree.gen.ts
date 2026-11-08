@@ -35,6 +35,7 @@ import { Route as AppAiProvidersRouteImport } from './routes/_app/ai/providers'
 import { Route as AppDomainsNewRouteImport } from './routes/_app/domains_.new'
 import { Route as AppIntegrationsDnsRouteImport } from './routes/_app/integrations/dns'
 import { Route as AppIntegrationsGitRouteImport } from './routes/_app/integrations/git'
+import { Route as AppIntegrationsLogDrainsRouteImport } from './routes/_app/integrations/log-drains'
 import { Route as AppIntegrationsNotificationsRouteImport } from './routes/_app/integrations/notifications'
 import { Route as AppIntegrationsRegistriesRouteImport } from './routes/_app/integrations/registries'
 import { Route as AppIntegrationsS3RouteImport } from './routes/_app/integrations/s3'
@@ -67,6 +68,7 @@ import { Route as AppBackupsServiceIdNewRouteImport } from './routes/_app/backup
 import { Route as AppBackupsServiceIdRestoreRouteImport } from './routes/_app/backups/$serviceId/restore'
 import { Route as AppIntegrationsDnsNewRouteImport } from './routes/_app/integrations/dns_.new'
 import { Route as AppIntegrationsGitNewRouteImport } from './routes/_app/integrations/git_.new'
+import { Route as AppIntegrationsLogDrainsNewRouteImport } from './routes/_app/integrations/log-drains_.new'
 import { Route as AppIntegrationsNotificationsNewRouteImport } from './routes/_app/integrations/notifications_.new'
 import { Route as AppIntegrationsRegistriesNewRouteImport } from './routes/_app/integrations/registries_.new'
 import { Route as AppIntegrationsS3NewRouteImport } from './routes/_app/integrations/s3_.new'
@@ -238,6 +240,12 @@ const AppIntegrationsGitRoute = AppIntegrationsGitRouteImport.update({
   path: '/integrations/git',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIntegrationsLogDrainsRoute =
+  AppIntegrationsLogDrainsRouteImport.update({
+    id: '/integrations/log-drains',
+    path: '/integrations/log-drains',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppIntegrationsNotificationsRoute =
   AppIntegrationsNotificationsRouteImport.update({
     id: '/integrations/notifications',
@@ -404,6 +412,12 @@ const AppIntegrationsGitNewRoute = AppIntegrationsGitNewRouteImport.update({
   path: '/integrations/git/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIntegrationsLogDrainsNewRoute =
+  AppIntegrationsLogDrainsNewRouteImport.update({
+    id: '/integrations/log-drains_/new',
+    path: '/integrations/log-drains/new',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppIntegrationsNotificationsNewRoute =
   AppIntegrationsNotificationsNewRouteImport.update({
     id: '/integrations/notifications_/new',
@@ -678,6 +692,7 @@ export interface FileRoutesByFullPath {
   '/domains/new': typeof AppDomainsNewRoute
   '/integrations/dns': typeof AppIntegrationsDnsRoute
   '/integrations/git': typeof AppIntegrationsGitRoute
+  '/integrations/log-drains': typeof AppIntegrationsLogDrainsRoute
   '/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/integrations/s3': typeof AppIntegrationsS3Route
@@ -709,6 +724,7 @@ export interface FileRoutesByFullPath {
   '/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
   '/integrations/dns/new': typeof AppIntegrationsDnsNewRoute
   '/integrations/git/new': typeof AppIntegrationsGitNewRoute
+  '/integrations/log-drains/new': typeof AppIntegrationsLogDrainsNewRoute
   '/integrations/notifications/new': typeof AppIntegrationsNotificationsNewRoute
   '/integrations/registries/new': typeof AppIntegrationsRegistriesNewRoute
   '/integrations/s3/new': typeof AppIntegrationsS3NewRoute
@@ -774,6 +790,7 @@ export interface FileRoutesByTo {
   '/domains/new': typeof AppDomainsNewRoute
   '/integrations/dns': typeof AppIntegrationsDnsRoute
   '/integrations/git': typeof AppIntegrationsGitRoute
+  '/integrations/log-drains': typeof AppIntegrationsLogDrainsRoute
   '/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/integrations/s3': typeof AppIntegrationsS3Route
@@ -805,6 +822,7 @@ export interface FileRoutesByTo {
   '/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
   '/integrations/dns/new': typeof AppIntegrationsDnsNewRoute
   '/integrations/git/new': typeof AppIntegrationsGitNewRoute
+  '/integrations/log-drains/new': typeof AppIntegrationsLogDrainsNewRoute
   '/integrations/notifications/new': typeof AppIntegrationsNotificationsNewRoute
   '/integrations/registries/new': typeof AppIntegrationsRegistriesNewRoute
   '/integrations/s3/new': typeof AppIntegrationsS3NewRoute
@@ -875,6 +893,7 @@ export interface FileRoutesById {
   '/_app/domains_/new': typeof AppDomainsNewRoute
   '/_app/integrations/dns': typeof AppIntegrationsDnsRoute
   '/_app/integrations/git': typeof AppIntegrationsGitRoute
+  '/_app/integrations/log-drains': typeof AppIntegrationsLogDrainsRoute
   '/_app/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/_app/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/_app/integrations/s3': typeof AppIntegrationsS3Route
@@ -906,6 +925,7 @@ export interface FileRoutesById {
   '/_app/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
   '/_app/integrations/dns_/new': typeof AppIntegrationsDnsNewRoute
   '/_app/integrations/git_/new': typeof AppIntegrationsGitNewRoute
+  '/_app/integrations/log-drains_/new': typeof AppIntegrationsLogDrainsNewRoute
   '/_app/integrations/notifications_/new': typeof AppIntegrationsNotificationsNewRoute
   '/_app/integrations/registries_/new': typeof AppIntegrationsRegistriesNewRoute
   '/_app/integrations/s3_/new': typeof AppIntegrationsS3NewRoute
@@ -977,6 +997,7 @@ export interface FileRouteTypes {
     | '/domains/new'
     | '/integrations/dns'
     | '/integrations/git'
+    | '/integrations/log-drains'
     | '/integrations/notifications'
     | '/integrations/registries'
     | '/integrations/s3'
@@ -1008,6 +1029,7 @@ export interface FileRouteTypes {
     | '/backups/$serviceId/restore'
     | '/integrations/dns/new'
     | '/integrations/git/new'
+    | '/integrations/log-drains/new'
     | '/integrations/notifications/new'
     | '/integrations/registries/new'
     | '/integrations/s3/new'
@@ -1073,6 +1095,7 @@ export interface FileRouteTypes {
     | '/domains/new'
     | '/integrations/dns'
     | '/integrations/git'
+    | '/integrations/log-drains'
     | '/integrations/notifications'
     | '/integrations/registries'
     | '/integrations/s3'
@@ -1104,6 +1127,7 @@ export interface FileRouteTypes {
     | '/backups/$serviceId/restore'
     | '/integrations/dns/new'
     | '/integrations/git/new'
+    | '/integrations/log-drains/new'
     | '/integrations/notifications/new'
     | '/integrations/registries/new'
     | '/integrations/s3/new'
@@ -1173,6 +1197,7 @@ export interface FileRouteTypes {
     | '/_app/domains_/new'
     | '/_app/integrations/dns'
     | '/_app/integrations/git'
+    | '/_app/integrations/log-drains'
     | '/_app/integrations/notifications'
     | '/_app/integrations/registries'
     | '/_app/integrations/s3'
@@ -1204,6 +1229,7 @@ export interface FileRouteTypes {
     | '/_app/backups/$serviceId/restore'
     | '/_app/integrations/dns_/new'
     | '/_app/integrations/git_/new'
+    | '/_app/integrations/log-drains_/new'
     | '/_app/integrations/notifications_/new'
     | '/_app/integrations/registries_/new'
     | '/_app/integrations/s3_/new'
@@ -1439,6 +1465,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIntegrationsGitRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/integrations/log-drains': {
+      id: '/_app/integrations/log-drains'
+      path: '/integrations/log-drains'
+      fullPath: '/integrations/log-drains'
+      preLoaderRoute: typeof AppIntegrationsLogDrainsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/integrations/notifications': {
       id: '/_app/integrations/notifications'
       path: '/integrations/notifications'
@@ -1661,6 +1694,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations/git/new'
       fullPath: '/integrations/git/new'
       preLoaderRoute: typeof AppIntegrationsGitNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/integrations/log-drains_/new': {
+      id: '/_app/integrations/log-drains_/new'
+      path: '/integrations/log-drains/new'
+      fullPath: '/integrations/log-drains/new'
+      preLoaderRoute: typeof AppIntegrationsLogDrainsNewRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/integrations/notifications_/new': {
@@ -2140,6 +2180,7 @@ interface AppRouteChildren {
   AppDomainsNewRoute: typeof AppDomainsNewRoute
   AppIntegrationsDnsRoute: typeof AppIntegrationsDnsRoute
   AppIntegrationsGitRoute: typeof AppIntegrationsGitRoute
+  AppIntegrationsLogDrainsRoute: typeof AppIntegrationsLogDrainsRoute
   AppIntegrationsNotificationsRoute: typeof AppIntegrationsNotificationsRoute
   AppIntegrationsRegistriesRoute: typeof AppIntegrationsRegistriesRoute
   AppIntegrationsS3Route: typeof AppIntegrationsS3Route
@@ -2164,6 +2205,7 @@ interface AppRouteChildren {
   AppBackupsServiceIdRestoreRoute: typeof AppBackupsServiceIdRestoreRoute
   AppIntegrationsDnsNewRoute: typeof AppIntegrationsDnsNewRoute
   AppIntegrationsGitNewRoute: typeof AppIntegrationsGitNewRoute
+  AppIntegrationsLogDrainsNewRoute: typeof AppIntegrationsLogDrainsNewRoute
   AppIntegrationsNotificationsNewRoute: typeof AppIntegrationsNotificationsNewRoute
   AppIntegrationsRegistriesNewRoute: typeof AppIntegrationsRegistriesNewRoute
   AppIntegrationsS3NewRoute: typeof AppIntegrationsS3NewRoute
@@ -2193,6 +2235,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDomainsNewRoute: AppDomainsNewRoute,
   AppIntegrationsDnsRoute: AppIntegrationsDnsRoute,
   AppIntegrationsGitRoute: AppIntegrationsGitRoute,
+  AppIntegrationsLogDrainsRoute: AppIntegrationsLogDrainsRoute,
   AppIntegrationsNotificationsRoute: AppIntegrationsNotificationsRoute,
   AppIntegrationsRegistriesRoute: AppIntegrationsRegistriesRoute,
   AppIntegrationsS3Route: AppIntegrationsS3Route,
@@ -2217,6 +2260,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBackupsServiceIdRestoreRoute: AppBackupsServiceIdRestoreRoute,
   AppIntegrationsDnsNewRoute: AppIntegrationsDnsNewRoute,
   AppIntegrationsGitNewRoute: AppIntegrationsGitNewRoute,
+  AppIntegrationsLogDrainsNewRoute: AppIntegrationsLogDrainsNewRoute,
   AppIntegrationsNotificationsNewRoute: AppIntegrationsNotificationsNewRoute,
   AppIntegrationsRegistriesNewRoute: AppIntegrationsRegistriesNewRoute,
   AppIntegrationsS3NewRoute: AppIntegrationsS3NewRoute,
