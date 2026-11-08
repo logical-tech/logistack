@@ -149,6 +149,7 @@ To make two-factor optional again, turn off **Require two-factor authentication*
 ## Troubleshooting
 
 - **"Enter all six digits."** The code field isn't full. Wait for a fresh code if the current one is about to expire.
+- **"too many sign-in attempts; try again in 40s".** One address may try to sign in, sign up, verify a code or reset a password 30 times a minute, counted across every api replica. Wait the seconds shown. On your own server the `RATE_LIMIT_LOGIN_PER_MINUTE` environment variable of the api service changes the limit.
 - **The code is always rejected.** Your phone's clock is off. Turn on automatic date and time, then try a new code.
 - **The passkey prompt doesn't appear.** Your browser or device has no passkey support, or the page isn't served over HTTPS on the instance URL.
 - **A member is locked out after the grace period.** They sign in and add an authenticator app or passkey from **Account and security**, which stays reachable. Or lengthen the **Grace period**.

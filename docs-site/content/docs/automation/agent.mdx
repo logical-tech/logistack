@@ -13,7 +13,7 @@ The Agent is in alpha. Check what it did in the chat and in the [audit log](../t
 
 - Your role needs the **AI** permission. Owners and admins have it. Other members need a role that grants it, see [Roles and permissions](../team/roles-and-permissions.mdx).
 - The Agent uses the models of the LogiStack AI gateway. An owner or admin adds model providers on the **AI** page, in the **Providers** tab.
-- Every answer spends your AI budget, set by an owner or admin in the **Budgets** tab of the **AI** page.
+- Every answer spends your AI budget, set by an owner or admin in the **Budgets** tab of the **AI** page. While a model call runs, its highest possible cost is held against the budget, so answers running side by side can't spend past it together.
 
 ## Start a conversation
 

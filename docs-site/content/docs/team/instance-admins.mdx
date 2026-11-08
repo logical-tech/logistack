@@ -1,0 +1,55 @@
+---
+title: Instance admins
+description: Choose who may update LogiStack, add and remove servers and change instance-wide settings, apart from organization owners and admins.
+---
+
+An instance admin manages the LogiStack server itself, not one organization on it. Organization roles stop at the organization: an organization **Owner** or **Admin** manages its projects, members and keys, but cannot change what every organization on the server shares. Add instance admins when you host several organizations, or when a client's admin should not be able to update or reconfigure your server.
+
+Whoever completes the [setup wizard](../getting-started/setup-wizard.mdx) is the first instance admin. An instance always keeps at least one.
+
+## What needs an instance admin
+
+These actions need an instance admin who is also an **Admin** or **Owner** of the organization they are working in:
+
+- [Updates](../operations/updates.mdx): updating LogiStack, automatic checks and the beta channel.
+- Servers: adding a node, renaming or removing one, pruning its disk and browsing its folders. Every member can still see the nodes.
+- Instance-wide settings: **Network safety** (private hosts), the ACME directory certificates are issued from, the built-in registry, build platforms and QEMU, and metric retention and node cleanup on the **Monitoring** settings. Alert thresholds stay with organization admins.
+- The sponsor key.
+- Migrations from Coolify or Dokploy, which read the old panel on the server and switch its proxy.
+- Bind mounts and extra Linux capabilities on a service, which reach the host every organization shares.
+
+An organization admin without the flag gets `403` with `only an instance admin can do this`. API keys of an instance admin carry the flag, unless they are scoped to part of the organization; service accounts never do. The [MCP server](../automation/mcp-server.mdx) and the [Agent](../automation/agent.mdx) call the REST API, so the same rule applies to them.
+
+## Open Instance admins
+
+In the sidebar, under **Settings**, select **Instance admins**.
+
+![The Instance admins page with an Email field and an Add admin button above the list of admins, where the signed-in owner is marked You](/screens/settings-instance-admins.webp)
+
+Members who are not instance admins see that the page is closed to them.
+
+## Add an instance admin
+
+<Steps>
+<Step>
+### Make sure they have an account
+
+The person must already have an account on this server: they accepted an invitation to an organization, signed up, or signed in with SSO.
+</Step>
+<Step>
+### Enter their email
+
+Under **Add an admin**, type their email in **Email**, for example `ana@example.com`, and select **Add admin**.
+</Step>
+</Steps>
+
+They appear in the **Admins** list. The change is recorded in the [audit log](audit-log.mdx) as `instance.admin_add`.
+
+## Remove an instance admin
+
+Select the trash icon on their row, then **Remove admin**. They keep their organization role. You can remove yourself while another admin remains. The last admin's trash icon is disabled, and the API refuses to remove the last one with `409`.
+
+## Troubleshooting
+
+- **"No account uses this email"**: the person has no account on this server yet. Invite them to an organization first, then add them once they have accepted.
+- **An organization admin cannot update LogiStack or add a node**: they are not an instance admin. Add them here if they should manage the server.

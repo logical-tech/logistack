@@ -110,6 +110,7 @@ export const shots: Record<string, Shot> = {
 	"certificate-new": "/settings/certificates/new",
 	"certificate-origin": "/settings/certificates/origin",
 	"settings-ssh-keys": "/settings/ssh-keys",
+	"settings-instance-admins": "/settings/instance-admins",
 	"settings-updates": "/settings/updates",
 	"settings-appearance": "/settings/appearance",
 	"settings-variables": "/settings/variables",

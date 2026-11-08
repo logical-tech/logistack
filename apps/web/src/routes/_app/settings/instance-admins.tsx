@@ -137,7 +137,7 @@ function InstanceAdminsPage() {
 					description="Ask an instance admin to add you. You keep your role in your organization either way."
 				/>
 			) : (
-				<>
+				<div className="grid gap-8">
 					<Panel title="Add an admin" id="add-instance-admin">
 						<div className="p-4">
 							<AddAdminForm />
@@ -160,7 +160,7 @@ function InstanceAdminsPage() {
 							<SkeletonRows rows={2} />
 						)}
 					</Panel>
-				</>
+				</div>
 			)}
 			<ConfirmDialog
 				open={removing !== null}

@@ -115,7 +115,10 @@ function VersionCell({
 function Updates() {
 	const { data: s, isPending, error } = useUpdateStatus();
 	const { data: me } = useQuery(meQuery);
-	const admin = !!me?.roles.some((r) => r === "owner" || r === "admin");
+	// Updates change the server every organization shares: an instance admin's call.
+	const admin =
+		!!me?.instanceAdmin &&
+		!!me?.roles.some((r) => r === "owner" || r === "admin");
 	const check = useCheckNow();
 	const start = useStartUpdate();
 	const autoCheck = useSetAutoCheck();
@@ -238,7 +241,7 @@ function Updates() {
 										</Button>
 									) : (
 										<p className="text-[13px] text-muted-foreground">
-											An admin can update this instance.
+											An instance admin can update this instance.
 										</p>
 									))}
 							</div>
@@ -280,7 +283,7 @@ function Updates() {
 									instance.update_available
 								</span>{" "}
 								to the notification rules that include it. Nothing updates until
-								an admin chooses to.
+								an instance admin chooses to.
 							</p>
 						</div>
 						<Switch

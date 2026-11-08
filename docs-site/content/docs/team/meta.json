@@ -5,6 +5,7 @@
 		"index",
 		"members-and-invitations",
 		"roles-and-permissions",
+		"instance-admins",
 		"sso",
 		"two-factor-and-passkeys",
 		"api-keys",
