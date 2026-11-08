@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PluginManifest } from "@logistack/contracts";
 import {
 	compilePlugin,
+	manifestDiff,
 	maskConfig,
 	memoryMb,
 	mergeConfig,
@@ -108,5 +109,17 @@ describe("helpers", () => {
 			url: "https://b",
 			token: "t0p",
 		});
+	});
+});
+
+test("manifestDiff", () => {
+	expect(
+		manifestDiff(
+			{ permissions: ["read"], egress: ["a.com", "b.com"] },
+			{ permissions: ["read", "write"], egress: ["b.com"] },
+		),
+	).toEqual({
+		permissions: { added: ["write"], removed: [] },
+		egress: { added: [], removed: ["a.com"] },
 	});
 });

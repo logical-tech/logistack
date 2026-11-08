@@ -428,6 +428,13 @@
       "when": 1794175691914,
       "tag": "0060_plugin_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794175692914,
+      "tag": "0061_plugin_marketplace",
+      "breakpoints": true
     }
   ]
 }

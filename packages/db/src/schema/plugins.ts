@@ -1,4 +1,9 @@
-import type { PluginManifest, PluginStatus } from "@logistack/contracts";
+import type {
+	PluginIndexEntry,
+	PluginIndexVersion,
+	PluginManifest,
+	PluginStatus,
+} from "@logistack/contracts";
 import {
 	boolean,
 	jsonb,
@@ -46,10 +51,44 @@ export const pluginInstall = pgTable(
 		statusMessage: text("status_message"),
 		/** User id of whoever installed it. */
 		installedBy: text("installed_by"),
+		/** The marketplace index it came from; null for an image or dev URL ("Unlisted"). */
+		indexId: text("index_id").references(() => pluginIndex.id, {
+			onDelete: "set null",
+		}),
+		/** The index marked this version reviewed when it was installed. */
+		verified: boolean("verified").notNull().default(false),
+		/** The index yanked this version (seen at the last refresh); a warning, never a removal. */
+		yanked: boolean("yanked").notNull().default(false),
+		/** What the last update replaced, for rollback. */
+		previousImage: text("previous_image"),
+		previousVersion: text("previous_version"),
+		previousManifest: jsonb("previous_manifest").$type<PluginManifest>(),
 		...timestamps,
 	},
 	(t) => [unique("plugin_install_org_plugin").on(t.organizationId, t.pluginId)],
 );
+
+/** What an index refresh caches: the listing, plus every version of a plugin once something needed them. */
+export type PluginIndexCache = (PluginIndexEntry & {
+	versions?: PluginIndexVersion[];
+})[];
+
+/**
+ * A marketplace index this instance trusts (instance-wide). The official one is `builtin` and
+ * kept in step with the server's config; private ones are added by an instance admin.
+ */
+export const pluginIndex = pgTable("plugin_index", {
+	id: id("pidx"),
+	url: text("url").notNull().unique(),
+	name: text("name").notNull(),
+	/** base64url raw Ed25519 public keys; an envelope's `keyId` must be one of them. */
+	publicKeys: jsonb("public_keys").$type<string[]>().notNull(),
+	builtin: boolean("builtin").notNull().default(false),
+	fetchedAt: tstz("fetched_at"),
+	entries: jsonb("entries").$type<PluginIndexCache>().notNull().default([]),
+	lastError: text("last_error"),
+	...timestamps,
+});
 
 /** UI state a plugin page keeps over the bridge, per user and install. Not for secrets. */
 export const pluginUiStorage = pgTable(

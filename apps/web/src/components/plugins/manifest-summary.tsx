@@ -6,7 +6,7 @@ import type {
 import { CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { DataChip } from "@/components/integrations/parts";
-import { UnlistedBadge } from "@/components/plugins/plugin-icon";
+import { SourceBadge } from "@/components/plugins/plugin-icon";
 import { ACTION_LABELS } from "@/lib/api/access";
 
 export const LOCATION_LABEL: Record<PluginPageLocation, string> = {
@@ -66,13 +66,14 @@ export function ManifestSummary({
 	image,
 	devUrl,
 	missingPermissions = [],
-	unlisted = true,
+	source = { indexId: null, verified: false },
 }: {
 	manifest: PluginManifest;
 	image: string | null;
 	devUrl: string | null;
 	missingPermissions?: string[];
-	unlisted?: boolean;
+	/** The marketplace index and its review state; no index means Unlisted. */
+	source?: { indexId: string | null; verified: boolean };
 }) {
 	const c = m.contributes;
 	const providers = (
@@ -86,7 +87,7 @@ export function ManifestSummary({
 				<Row label="Name">
 					<span className="inline-flex flex-wrap items-center gap-2">
 						{m.name}
-						{unlisted && <UnlistedBadge />}
+						<SourceBadge {...source} />
 					</span>
 				</Row>
 				{m.description && <Row label="Description">{m.description}</Row>}

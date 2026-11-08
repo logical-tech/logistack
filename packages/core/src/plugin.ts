@@ -160,3 +160,21 @@ export function mergeConfig(
 		if (out[k] === SECRET_MASK) out[k] = stored[k];
 	return out;
 }
+
+export type ListDiff = { added: string[]; removed: string[] };
+
+const listDiff = (from: string[], to: string[]): ListDiff => ({
+	added: to.filter((x) => !from.includes(x)),
+	removed: from.filter((x) => !to.includes(x)),
+});
+
+/** What an update changes in what the plugin may do: its token's actions and declared egress. */
+export function manifestDiff(
+	from: Pick<PluginManifest, "permissions" | "egress">,
+	to: Pick<PluginManifest, "permissions" | "egress">,
+): { permissions: ListDiff; egress: ListDiff } {
+	return {
+		permissions: listDiff(from.permissions, to.permissions),
+		egress: listDiff(from.egress, to.egress),
+	};
+}

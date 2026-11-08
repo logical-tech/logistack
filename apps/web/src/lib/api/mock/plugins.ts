@@ -2,9 +2,12 @@ import type { PluginManifest } from "@logistack/contracts";
 import { ApiError } from "../adapter";
 import type {
 	PluginContribution,
+	PluginIndex,
 	PluginInstall,
-	PluginPolicy,
+	PluginMarketEntry,
+	PluginPolicySettings,
 	PluginsApi,
+	PluginUpdate,
 } from "../plugins";
 
 const MASK = "••••••••";
@@ -163,7 +166,125 @@ function masked(
 	) as PluginInstall["config"];
 }
 
-let policy: PluginPolicy = "any";
+/** Deploy alerts 0.2.0: posts back to the deploy and talks to one more host. */
+const DEPLOY_ALERTS_NEXT: PluginManifest = {
+	...DEPLOY_ALERTS,
+	version: "0.2.0",
+	permissions: ["read", "write"],
+	egress: [...DEPLOY_ALERTS.egress, "api.telegram.org"],
+};
+
+const HETZNER_DNS: PluginManifest = {
+	...COST_REPORT,
+	id: "dev.logistack.hetzner-dns",
+	version: "1.0.3",
+	name: "Hetzner DNS",
+	description:
+		"Manages records in Hetzner DNS, so certificates can use DNS-01 and wildcards.",
+	author: { name: "LogiStack", url: "https://stack.logicaltech.it" },
+	license: "MIT",
+	permissions: [],
+	egress: ["dns.hetzner.com"],
+	config: {
+		type: "object",
+		properties: {
+			apiToken: { type: "string", title: "API token", secret: true },
+		},
+		required: ["apiToken"],
+	},
+	contributes: { ...COST_REPORT.contributes, pages: [], tools: [] },
+};
+
+const digest = (seed: string) =>
+	`sha256:${seed
+		.repeat(64)
+		.slice(0, 64)
+		.replace(/[^a-f0-9]/g, "a")}`;
+
+let settings: PluginPolicySettings = { policy: "any", installPing: false };
+let indexes: PluginIndex[] = [
+	{
+		id: "pidx_official",
+		url: "https://stack.logicaltech.it/plugins/api",
+		name: "LogiStack",
+		builtin: true,
+		publicKeys: ["Yl3rT0bXq2CkV9Pp7mZ8wA1sE4uH6jN5oR2dF3gK7cL"],
+		fetchedAt: iso(20 * 60_000),
+		lastError: null,
+		plugins: 2,
+	},
+	{
+		id: "pidx_acme",
+		url: "https://plugins.acme.internal/api",
+		name: "Acme internal",
+		builtin: false,
+		publicKeys: ["Qm4nB8vC2xZ6lK1jH9gF5dS3aP7oI0uY4tR8eW2qE6r"],
+		fetchedAt: iso(3 * DAY),
+		lastError: null,
+		plugins: 1,
+	},
+];
+const entry = (
+	indexId: string,
+	m: PluginManifest,
+	verified: boolean,
+	extra: Partial<PluginMarketEntry> = {},
+): PluginMarketEntry => ({
+	indexId,
+	indexName: indexes.find((i) => i.id === indexId)?.name ?? "",
+	id: m.id,
+	name: m.name,
+	description: m.description,
+	author: m.author?.name ?? null,
+	publisher: m.author?.name ?? "Unknown",
+	installs: verified ? 214 : 3,
+	iconUrl: null,
+	verified,
+	latestVerified: verified ? m.version : null,
+	latest: {
+		version: m.version,
+		image: `ghcr.io/acme/${m.id}@${digest(m.id.length.toString(16))}`,
+		changelog: null,
+		publishedAt: iso(6 * DAY),
+		manifest: m,
+	},
+	compatible: true,
+	installed: null,
+	...extra,
+});
+const entries = (): PluginMarketEntry[] =>
+	[
+		entry("pidx_official", DEPLOY_ALERTS_NEXT, true),
+		entry("pidx_official", HETZNER_DNS, true),
+		entry("pidx_acme", COST_REPORT, false),
+	].map((e) => {
+		const i = installs.find((x) => x.pluginId === e.id);
+		return {
+			...e,
+			installed: i
+				? { installId: i.id, version: i.version, indexId: i.indexId }
+				: null,
+		};
+	});
+const UPDATES: Record<string, PluginUpdate[]> = {
+	[DEPLOY_ALERTS.id]: [
+		{
+			version: "0.2.0",
+			changelog:
+				"- Marks the failed deployment with a link back to the chat thread.\n- Telegram as a target.",
+			publishedAt: iso(6 * DAY),
+			verified: true,
+			compatible: true,
+			permissions: { added: ["write"], removed: [] },
+			egress: { added: ["api.telegram.org"], removed: [] },
+			missingPermissions: [],
+		},
+	],
+};
+const MANIFESTS: Record<string, PluginManifest> = {
+	[`${DEPLOY_ALERTS.id}@0.2.0`]: DEPLOY_ALERTS_NEXT,
+	[`${DEPLOY_ALERTS.id}@0.1.0`]: DEPLOY_ALERTS,
+};
 let installs: PluginInstall[] = [
 	{
 		id: "plg_deployalerts",
@@ -185,6 +306,10 @@ let installs: PluginInstall[] = [
 		statusMessage: null,
 		serviceAccountId: "sa_plugin_deployalerts",
 		serviceName: "ls-plg-deployalerts",
+		indexId: "pidx_official",
+		verified: true,
+		yanked: false,
+		previousVersion: null,
 		createdAt: iso(9 * DAY),
 		updatedAt: iso(2 * DAY),
 	},
@@ -210,7 +335,7 @@ export const mockPlugins: PluginsApi = {
 						pluginId: i.pluginId,
 						pluginName: i.name,
 						author: i.manifest.author?.name ?? null,
-						unlisted: true,
+						unlisted: !i.indexId,
 						pages: i.manifest.contributes.pages,
 						providers: {
 							dnsProviders: i.manifest.contributes.dnsProviders,
@@ -220,12 +345,124 @@ export const mockPlugins: PluginsApi = {
 					}),
 				),
 		),
-	policy: () => delay(policy),
-	setPolicy: async (next) => {
-		policy = next;
-		return delay(policy);
+	policy: () => delay(settings),
+	setPolicy: async (patch) => {
+		settings = { ...settings, ...patch };
+		return delay(settings);
+	},
+	marketplace: () =>
+		delay({ policy: settings.policy, indexes, entries: entries() }, 500),
+	addIndex: async ({ url, name, publicKeys }) => {
+		await delay(null, 700);
+		if (url.includes("bad"))
+			throw new ApiError(
+				400,
+				"the index signed with a key this instance does not trust",
+				"bad_request",
+			);
+		const row: PluginIndex = {
+			id: `pidx_${Math.random().toString(36).slice(2, 10)}`,
+			url,
+			name: name || new URL(url).host,
+			builtin: false,
+			publicKeys,
+			fetchedAt: iso(),
+			lastError: null,
+			plugins: 0,
+		};
+		indexes = [...indexes, row];
+		return delay(row);
+	},
+	removeIndex: async (id) => {
+		indexes = indexes.filter((i) => i.id !== id);
+		for (const i of installs) if (i.indexId === id) i.indexId = null;
+		return delay(undefined);
+	},
+	refreshIndex: async (id) => {
+		const row = indexes.find((i) => i.id === id);
+		if (!row) throw new ApiError(404, "plugin index not found", "not_found");
+		await delay(null, 600);
+		row.fetchedAt = iso();
+		row.lastError = null;
+		return delay(row);
+	},
+	updates: async (id) => {
+		const row = find(id);
+		return delay({
+			current: row.version,
+			yanked: row.yanked,
+			previousVersion: row.previousVersion,
+			versions: (UPDATES[row.pluginId] ?? []).filter(
+				(u) => u.version > row.version,
+			),
+		});
+	},
+	updateVersion: async (id, { version, acceptPermissions }) => {
+		const row = find(id);
+		const next = MANIFESTS[`${row.pluginId}@${version}`];
+		if (!next)
+			throw new ApiError(404, `${version} is not in this index`, "not_found");
+		const added = next.permissions.filter(
+			(a) => !row.manifest.permissions.includes(a),
+		);
+		if (added.length && !acceptPermissions)
+			throw new ApiError(
+				409,
+				`${version} also asks for ${added.join(", ")}; accept the new permissions to update`,
+				"conflict",
+			);
+		await delay(null, 900);
+		row.previousVersion = row.version;
+		row.version = next.version;
+		row.manifest = next;
+		row.yanked = false;
+		row.status = "pending";
+		row.updatedAt = iso();
+		setTimeout(() => {
+			row.status = "running";
+		}, 2500);
+		return delay(row);
+	},
+	rollback: async (id) => {
+		const row = find(id);
+		const back = row.previousVersion;
+		const prev = back && MANIFESTS[`${row.pluginId}@${back}`];
+		if (!back || !prev)
+			throw new ApiError(
+				409,
+				"there is no previous version to go back to",
+				"conflict",
+			);
+		await delay(null, 700);
+		row.previousVersion = row.version;
+		row.version = back;
+		row.manifest = prev;
+		row.updatedAt = iso();
+		return delay(row);
 	},
 	inspect: async (source) => {
+		if (source.kind === "index") {
+			const e = entries().find(
+				(x) => x.indexId === source.indexId && x.id === source.pluginId,
+			);
+			if (!e) throw new ApiError(404, "not in this index", "not_found");
+			if (settings.policy === "verified" && !e.verified)
+				throw new ApiError(
+					403,
+					"this instance only allows verified marketplace plugins",
+					"forbidden",
+				);
+			await delay(null, 600);
+			return delay({
+				manifest: e.latest.manifest,
+				image: e.latest.image,
+				devUrl: null,
+				missingPermissions: [],
+				installedId: e.installed?.installId ?? null,
+				indexId: e.indexId,
+				verified: e.verified,
+			});
+		}
 		const ref = source.kind === "image" ? source.image : source.url;
 		const base = ref.includes("deploy-notifier") ? DEPLOY_ALERTS : COST_REPORT;
 		// An image ref with "admin" in it asks for more than the mock user holds.
@@ -248,6 +485,8 @@ export const mockPlugins: PluginsApi = {
 			devUrl: source.kind === "url" ? source.url : null,
 			missingPermissions: ref.includes("admin") ? ["admin"] : [],
 			installedId: installs.find((i) => i.pluginId === manifest.id)?.id ?? null,
+			indexId: null,
+			verified: false,
 		});
 	},
 	create: async ({ source, config }) => {
@@ -268,6 +507,10 @@ export const mockPlugins: PluginsApi = {
 			statusMessage: null,
 			serviceAccountId: `sa_${id}`,
 			serviceName: inspected.image ? `ls-${id.replace("_", "-")}` : null,
+			indexId: inspected.indexId,
+			verified: inspected.verified,
+			yanked: false,
+			previousVersion: null,
 			createdAt: iso(),
 			updatedAt: iso(),
 		};

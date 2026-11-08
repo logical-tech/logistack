@@ -274,12 +274,31 @@ Decisions taken while building:
 - **The first-run setup wizard offers built-in DNS providers only**: no plugin can be installed before the first sign-in.
 - **The api resolves plugin providers with name prefix `""`**, like `callInstall`; only the worker passes `LS_NAME_PREFIX` (test isolation).
 
+Phase 3, LogiStack side (marketplace client):
+
+- Verifier and payload schemas are shared with the index Worker: `verifyIndexResponse`, `readPluginIndex`, `readPluginDetail` in `packages/core/src/plugin-index.ts`, schemas at the end of `packages/contracts/src/plugin.ts`. `satisfiesRange` (`packages/core/src/version.ts`) checks a manifest's `logistack` range; `manifestDiff` (`packages/core/src/plugin.ts`) gives the permission and egress diff.
+- Data: `plugin_index` (url, name, `public_keys` as a list of base64url keys, `builtin`, `fetched_at`, `entries` cache, `last_error`); on `plugin_install` `index_id`, `verified`, `yanked`, `previous_image`/`previous_version`/`previous_manifest`; `instance_settings.plugin_install_ping` (migration 0060, additive).
+- Official index: row `pidx_official`, URL `https://stack.logicaltech.it/plugins/api` (`/plugins/sandbox-api` with `LOGISTACK_PLUGIN_INDEX_SANDBOX=1`). Keys: `PLUGIN_INDEX_KEYS` (empty until a release bundles the production key) plus `LS_PLUGIN_INDEX_PUBLIC_KEY` (comma-separated). With no key it is never fetched and shows "no public key is configured".
+- API (`apps/server/src/routes/plugins.ts`, `apps/server/src/plugin-index.ts`): `GET/POST /plugins/indexes`, `DELETE /plugins/indexes/{id}` (instance admin; add fetches and verifies first), `POST /plugins/indexes/{id}/refresh`, `GET /plugins/marketplace` (refreshes indexes older than an hour on open, never on a schedule), install source `{kind: "index", indexId, pluginId, version}`, `GET /plugins/{id}/updates`, `POST /plugins/{id}/update` (`acceptPermissions` for added permissions), `POST /plugins/{id}/rollback`. `PUT /plugins/policy` also takes `installPing`.
+- Web: Marketplace tab on Settings → Plugins (search, Verified/Unverified/Unlisted badges, Install opens the wizard at Review), Indexes panel for instance admins, update dialog with changelog, permission and egress diff and consent, rollback, yanked warning. Mock fixtures cover all of it.
+- Test: `apps/server/test/plugin-marketplace.test.ts` against a fake signed index and a fake registry on loopback.
+
+Decisions taken while building the client:
+
+- **An index install still reads the registry.** The signed digest must be what the registry serves, and the image's manifest label must equal the signed manifest; otherwise the install or update is refused.
+- **`verified` policy is checked on the index's word before the registry is touched**, and again on every update and rollback.
+- **Updates and rollbacks rotate the plugin's API token** (a new key, the old ones deleted) and rewrite its role's actions to the new manifest, in one transaction. Rollback swaps current and previous, so it can be undone the same way.
+- **Yanked flags come from the listing's `yanked` list at refresh.** Installs keep running; the UI warns. Installing or updating to a yanked version is refused; rolling back to one is allowed.
+- **Versions of a plugin are fetched on demand** (install of a non-latest version, the update dialog) and cached until the next refresh, which drops them so new releases show.
+- **A cached index is per instance, installs are per organization**: the marketplace merges the cache with the caller's organization's installs.
+- **The `logistack` range is enforced at inspect, install and update** against `LOGISTACK_VERSION`; a dev build (`dev`) skips the check.
+- **The install ping** (`POST /v1/ping` with the plugin id and the install's random id) is sent only when an instance admin turns it on.
+
 Not built yet:
 
 - Phase 0 (community templates index).
 - **Backup destinations from plugins (deferred).** `BackupDestination` streams every byte (`upload` pulls a `ReadableStream` only as fast as the store takes it, `download` returns one), and backups run to many gigabytes. The JSON `{ config, args }` contract cannot carry that. Doing it honestly needs a second, binary contract: streamed request and response bodies with backpressure, a signature that does not need the whole body in memory, errors partway through a stream, timeouts sized for hours, and restores that run on nodes. Revisit with that contract, or with plugins that hand back an rclone remote config instead of bytes.
 - A real Let's Encrypt issuance through a plugin DNS provider: it needs a public zone and a running Caddy built with acmeproxy.
 - The provider list pages show plugin rows as kind "Plugin"; they do not name or link the plugin yet.
-- Phase 3, server side: the marketplace UI, fetching and caching the index in `plugin_index`, the verified policy, updates with a permission diff, and sending opt-in pings. On the index: deploying it and filling `PLUGIN_INDEX_KEYS`, unsuspend and un-yank, pruning old pings, rate limits beyond one sign-in link a minute per address, and private registries. 
-- Phase 4.
-- Token rotation on update, `logistack` version range enforcement, project-tab pages, the review pipeline's headless page check, publishing the SDK to npm (it imports the private contracts package today).
+- Phase 3 leftovers: deploying the index and the production signing key in `PLUGIN_INDEX_KEYS` (release task), refusing an index older than the cached one (`issuedAt`), updating plugins installed from an image or dev URL, private-registry credentials for index images, an end-to-end run against the real index Worker. On the index: unsuspend and un-yank, pruning old pings, rate limits beyond one sign-in link a minute per address, private registries.
+- Phase 4, the review pipeline's headless page check, publishing the SDK to npm (it imports the private contracts package today).

@@ -62,6 +62,8 @@ export const instanceSettings = pgTable(
 			.$type<PluginPolicy>()
 			.notNull()
 			.default("any"),
+		/** Opt-in: tell the index a plugin was installed (plugin id and version, nothing else). */
+		pluginInstallPing: boolean("plugin_install_ping").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [
