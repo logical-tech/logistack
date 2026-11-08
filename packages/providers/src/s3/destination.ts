@@ -85,7 +85,7 @@ export const s3Destination = defineProvider({
 			init: {
 				query?: Record<string, string>;
 				headers?: Record<string, string>;
-				body?: Uint8Array | string;
+				body?: Uint8Array<ArrayBuffer> | string;
 				timeout?: boolean;
 			} = {},
 		): Promise<Response> {
@@ -135,7 +135,7 @@ export const s3Destination = defineProvider({
 			it: AsyncIterator<Uint8Array>,
 			carry: { rest?: Uint8Array },
 			size: number,
-		): Promise<{ part: Uint8Array; done: boolean }> {
+		): Promise<{ part: Uint8Array<ArrayBuffer>; done: boolean }> {
 			const part = new Uint8Array(size);
 			let len = 0;
 			let done = false;
