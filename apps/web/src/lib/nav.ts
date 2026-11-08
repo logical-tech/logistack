@@ -21,7 +21,9 @@ import {
 	LockKeyhole,
 	type LucideIcon,
 	Network,
+	Orbit,
 	Palette,
+	ScrollText,
 	Settings2,
 	ShieldCheck,
 	Sparkles,
@@ -185,16 +187,26 @@ export const NAV: NavGroup[] = [
 			},
 			{
 				to: "/integrations/s3",
-				title: "S3 destinations",
+				title: "Backup destinations",
 				icon: Database,
 				description:
-					"Buckets for database and volume backups. Any S3-compatible endpoint.",
+					"Where database and volume backups go: S3, SFTP, WebDAV, Azure Blob, Google Drive, B2 or a folder on a node.",
 				empty: {
 					title: "Backups need somewhere to go",
-					body: "Add AWS S3, Cloudflare R2, Backblaze B2, Hetzner or MinIO. The connection is tested before it's saved.",
+					body: "Add an S3 bucket, a NAS over SFTP or WebDAV, Azure Blob, Google Drive, Backblaze B2 or a folder on a node. Every destination is tested before it's saved.",
 					action: "Add destination",
 				},
-				keywords: ["backup", "r2", "bucket"],
+				keywords: [
+					"backup",
+					"r2",
+					"bucket",
+					"s3",
+					"sftp",
+					"nas",
+					"webdav",
+					"azure",
+					"drive",
+				],
 			},
 			{
 				to: "/integrations/dns",
@@ -218,6 +230,34 @@ export const NAV: NavGroup[] = [
 				keywords: ["cloudflared", "homelab", "nat", "zero trust"],
 			},
 			{
+				to: "/integrations/log-drains",
+				title: "Log drains",
+				icon: ScrollText,
+				description:
+					"Ship service logs to Loki, OpenTelemetry, Datadog, syslog or any HTTP endpoint.",
+				empty: {
+					title: "Logs stay on the servers",
+					body: "Add a drain to keep service logs past container restarts, next to your metrics and traces.",
+					action: "Add drain",
+				},
+				keywords: [
+					"logs",
+					"loki",
+					"datadog",
+					"otel",
+					"syslog",
+					"observability",
+				],
+			},
+			{
+				to: "/integrations/tailscale",
+				title: "Tailscale",
+				icon: Orbit,
+				description:
+					"Join servers to your tailnet and publish services on tailnet hostnames.",
+				keywords: ["tailnet", "vpn", "wireguard", "homelab", "private"],
+			},
+			{
 				to: "/integrations/notifications",
 				title: "Notifications",
 				icon: Bell,
@@ -229,6 +269,19 @@ export const NAV: NavGroup[] = [
 					action: "Add channel",
 				},
 				keywords: ["slack", "email", "alerts"],
+			},
+			{
+				to: "/integrations/secret-providers",
+				title: "Secret providers",
+				icon: KeyRound,
+				description:
+					"Read secrets from Vault, Infisical or 1Password at deploy time, without a copy here.",
+				empty: {
+					title: "No secret providers connected",
+					body: "Connect HashiCorp Vault, Infisical or a 1Password Connect server, then reference its secrets with secret://<name>/<path>#<key>.",
+					action: "Add provider",
+				},
+				keywords: ["vault", "infisical", "1password", "hashicorp", "external"],
 			},
 		],
 	},

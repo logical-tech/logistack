@@ -54,7 +54,7 @@
 				"redis"
 			],
 			"env": {
-				"APP_URL": "http://${{ inputs.mainDomain }}:3000",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
 				"APP_SECRET": "${{ inputs.appSecret }}",
 				"DATABASE_URL": "postgresql://docmost:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/docmost?schema=public",
 				"REDIS_URL": "redis://${{ services.redis.host }}:6379"

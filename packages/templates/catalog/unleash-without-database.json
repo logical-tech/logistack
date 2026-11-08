@@ -37,6 +37,20 @@
 			"label": "Database URL",
 			"type": "text",
 			"default": ""
+		},
+		{
+			"key": "clientApiToken",
+			"label": "Client API token",
+			"type": "secret",
+			"length": 48,
+			"charset": "hex"
+		},
+		{
+			"key": "frontendApiToken",
+			"label": "Frontend API token",
+			"type": "secret",
+			"length": 48,
+			"charset": "hex"
 		}
 	],
 	"services": [
@@ -49,8 +63,8 @@
 				"DATABASE_URL": "${{ inputs.databaseUrl }}",
 				"DATABASE_SSL": "false",
 				"LOG_LEVEL": "warn",
-				"INIT_FRONTEND_API_TOKENS": "default:default:development.unleash-insecure-frontend-api-token",
-				"INIT_CLIENT_API_TOKENS": "default:development.unleash-insecure-api-token"
+				"INIT_FRONTEND_API_TOKENS": "default:development.${{ inputs.frontendApiToken }}",
+				"INIT_CLIENT_API_TOKENS": "default:development.${{ inputs.clientApiToken }}"
 			},
 			"volumes": [],
 			"files": [],

@@ -138,7 +138,7 @@ describe.skipIf(!dockerUp)("against real servers", () => {
 	}, 30_000);
 
 	test("s3 test() probe", async () => {
-		await dest.test();
+		await dest.probe();
 		expect(await dest.list()).toEqual([]);
 	});
 
@@ -191,7 +191,10 @@ describe.skipIf(!dockerUp)("against real servers", () => {
 			accessKeyId: creds.accessKeyId,
 			secretAccessKey: "wrong-secret-key",
 		});
-		const err = await bad.test().catch((e) => e);
+		const err = await bad.probe().then(
+			() => new Error("no error"),
+			(e: Error) => e,
+		);
 		expect(err).toBeInstanceOf(ProviderError);
 		expect(err.message).not.toContain("wrong-secret-key");
 	});

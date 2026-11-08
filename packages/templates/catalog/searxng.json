@@ -51,7 +51,7 @@
 				"redis"
 			],
 			"env": {
-				"INSTANCE_NAME": "coolify",
+				"INSTANCE_NAME": "SearXNG",
 				"BASE_URL": "https://${{ inputs.searxngDomain }}",
 				"SEARXNG_URL": "https://${{ inputs.searxngDomain }}",
 				"SEARXNG_BIND_ADDRESS": "0.0.0.0",

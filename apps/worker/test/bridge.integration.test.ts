@@ -20,6 +20,7 @@ import { setLogLevel } from "../../server/src/log.ts";
 import { revokeNode } from "../../server/src/node-tokens.ts";
 import {
 	createNodeRunner,
+	feed,
 	type NodeRunner,
 	type OutputChunk,
 } from "../src/node-runner.ts";
@@ -393,6 +394,36 @@ describe.skipIf(!hasDocker || !process.env.BRIDGE_IT)(
 			expect(text(out.filter((c) => c.stream === "stderr"))).toBe("oops\n");
 			expect(await h.result).toEqual({ code: 3 });
 		}, 30_000);
+
+		test("feeding a slow process holds the source to the stdin window", async () => {
+			const total = 64 * 1024 * 1024;
+			const chunk = 64 * 1024;
+			let produced = 0;
+			const source = new ReadableStream<Uint8Array>(
+				{
+					pull(c) {
+						if (produced >= total) return c.close();
+						produced += chunk;
+						c.enqueue(new Uint8Array(chunk));
+					},
+				},
+				{ highWaterMark: 0 },
+			);
+			const h = runner.exec(
+				nodeId,
+				{
+					target: { kind: "task", taskId },
+					cmd: ["sh", "-c", "sleep 4; cat >/dev/null"],
+				},
+				{ stdinWindowBytes: 1024 * 1024 },
+			);
+			const fed = feed(h, source);
+			await Bun.sleep(3_000);
+			// The window plus what the kernel and Docker hold in their socket buffers; never the whole source.
+			expect(produced).toBeLessThan(8 * 1024 * 1024);
+			await fed;
+			expect(produced).toBe(total);
+		}, 60_000);
 
 		test("followLogs by service; leaving the loop stops the stream", async () => {
 			const lines: string[] = [];

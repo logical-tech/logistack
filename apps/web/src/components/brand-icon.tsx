@@ -6,6 +6,7 @@
 import type { ServiceIcon } from "@logistack/contracts";
 import { createLucideIcon, type LucideIcon } from "lucide-react";
 import {
+	si1password,
 	siAngular,
 	siApachekafka,
 	siAppwrite,
@@ -19,6 +20,7 @@ import {
 	siClickhouse,
 	siCloudflare,
 	siCounterstrike,
+	siDatadog,
 	siDeno,
 	siDigitalocean,
 	siDirectus,
@@ -68,6 +70,7 @@ import {
 	siOdoo,
 	siOllama,
 	siOpenjdk,
+	siOpentelemetry,
 	siOutline,
 	siOvh,
 	siPaperlessngx,
@@ -100,6 +103,7 @@ import {
 	siTurso,
 	siUmami,
 	siUptimekuma,
+	siVault,
 	siVaultwarden,
 	siVite,
 	siVuedotjs,
@@ -185,6 +189,8 @@ const BRANDS = {
 	rabbitmq: siRabbitmq,
 	apachekafka: siApachekafka,
 	docker: siDocker,
+	vault: siVault,
+	onepassword: si1password,
 	nginx: siNginx,
 	caddy: siCaddy,
 	traefikproxy: siTraefikproxy,
@@ -269,6 +275,8 @@ const BRANDS = {
 	github: siGithub,
 	gitlab: siGitlab,
 	bitbucket: siBitbucket,
+	datadog: siDatadog,
+	opentelemetry: siOpentelemetry,
 } satisfies Record<ServiceIcon, Brand> & Record<string, Brand>;
 
 export type BrandSlug = keyof typeof BRANDS;

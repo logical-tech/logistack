@@ -213,6 +213,8 @@ export const TemplateApplication = z.object({
 	capAdd: z.array(Capability).optional(),
 	capDrop: z.array(Capability).optional(),
 	restart: RestartCondition.optional(),
+	/** Seconds after SIGTERM, from compose `stop_grace_period`. */
+	drainTimeout: z.int().min(0).max(3600).optional(),
 	resources: Resources.optional(),
 });
 export type TemplateApplication = z.infer<typeof TemplateApplication>;

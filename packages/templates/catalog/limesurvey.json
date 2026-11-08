@@ -80,6 +80,13 @@
 			"label": "Mysqlroot password",
 			"type": "password",
 			"length": 32
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -105,7 +112,7 @@
 				"LIMESURVEY_SMTP_SSL": "${{ inputs.limesurveySmtpSsl }}",
 				"LIMESURVEY_PHP_SESSION_SAVE_HANDLER": "redis",
 				"LIMESURVEY_PHP_SESSION_SAVE_PATH": "tcp://${{ services.redis.host }}:6379",
-				"TZ": "America/Jamaica"
+				"TZ": "${{ inputs.timezone }}"
 			},
 			"volumes": [
 				{

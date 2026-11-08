@@ -171,3 +171,14 @@ export const TONE_TEXT: Record<Tone, string> = {
 	bad: "text-bad-text",
 	idle: "text-idle-text",
 };
+
+export type Severity = "critical" | "high" | "medium" | "low" | "unknown";
+
+/** Vulnerability severity; only critical and high take a status colour. */
+export const VULN_SEVERITY: Record<Severity, StatusMeta> = {
+	critical: { label: "Critical", tone: "bad" },
+	high: { label: "High", tone: "warn" },
+	medium: { label: "Medium", tone: "idle" },
+	low: { label: "Low", tone: "idle" },
+	unknown: { label: "Unknown", tone: "idle" },
+};

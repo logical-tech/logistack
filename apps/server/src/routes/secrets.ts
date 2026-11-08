@@ -22,9 +22,11 @@ import {
 	folder,
 	project,
 	secret,
+	secretProvider,
 	secretVersion,
 	service,
 } from "@logistack/db";
+import { referenceOf } from "@logistack/worker/external-secrets";
 import {
 	createSecret,
 	readSecretValue,
@@ -34,7 +36,7 @@ import {
 import { and, asc, count, desc, eq, inArray, or } from "drizzle-orm";
 import type { Context } from "hono";
 import type { Actor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import {
 	Failure,
@@ -60,6 +62,7 @@ import {
 	type ResolveResource,
 	requirePermission,
 } from "../scope.ts";
+import { externalColumns } from "../secret-refs.ts";
 
 const ScopeRef = z.object({ scope: SecretScope, scopeId: z.string() });
 type ScopeRef = z.infer<typeof ScopeRef>;
@@ -163,6 +166,35 @@ async function present(db: Db, rows: (typeof secret.$inferSelect)[]) {
 		db,
 		rows.map((r) => r.id),
 	);
+	const providerIds = [
+		...new Set(rows.flatMap((r) => (r.providerId ? [r.providerId] : []))),
+	];
+	const providers = new Map(
+		(providerIds.length
+			? await db
+					.select({
+						id: secretProvider.id,
+						name: secretProvider.name,
+						kind: secretProvider.kind,
+					})
+					.from(secretProvider)
+					.where(inArray(secretProvider.id, providerIds))
+			: []
+		).map((p) => [p.id, p]),
+	);
+	const external = (r: typeof secret.$inferSelect) => {
+		const p = r.providerId ? providers.get(r.providerId) : undefined;
+		return p
+			? {
+					providerId: p.id,
+					providerName: p.name,
+					kind: p.kind,
+					reference: referenceOf(p.name, r.externalRef ?? ""),
+					checkedAt: r.externalCheckedAt,
+					error: r.externalError,
+				}
+			: null;
+	};
 	return rows.map((r) => ({
 		id: r.id,
 		scope: r.scope,
@@ -171,6 +203,7 @@ async function present(db: Db, rows: (typeof secret.$inferSelect)[]) {
 		description: r.description,
 		version: r.currentVersion,
 		usedBy: used.get(r.id) ?? 0,
+		external: external(r),
 		updatedBy: r.updatedBy,
 		createdAt: r.createdAt,
 		updatedAt: r.updatedAt,
@@ -239,6 +272,14 @@ export async function availableSecrets(db: Db, actor: Actor, r: Resource) {
 				a.key.localeCompare(b.key) ||
 				secretScopeRank(b.scope) - secretScopeRank(a.scope),
 		);
+}
+
+/** Values of external secrets are never read through the API: they live in the provider. */
+function externalOnly(row: typeof secret.$inferSelect): never {
+	throw new Failure(
+		"bad_request",
+		`${row.key} is read from an external provider at deploy time; change its value there`,
+	);
 }
 
 const tags = ["secrets"];
@@ -319,19 +360,50 @@ export const secrets = router()
 			}),
 		),
 		async (c) => {
-			const { value, ...input } = c.req.valid("json");
+			const { value, reference, ...input } = c.req.valid("json");
 			rejectReservedEnvKeys([input.key]);
 			const actor = c.get("actor") as Actor;
 			const { db } = c.var.deps;
-			const row = await db.transaction((tx) =>
-				createSecret(
-					{ ...secretsCtx(c), db: tx },
-					{ ...input, value, organizationId: actor.organizationId },
-					actor.userId,
-				),
-			);
-			c.set("auditResourceId", row.id);
-			c.set("auditDiff", { scope: input.scope, key: input.key, version: 1 });
+			const row = await db.transaction(async (tx) => {
+				const created =
+					reference !== undefined
+						? one(
+								await tx
+									.insert(secret)
+									.values({
+										...input,
+										description: input.description ?? null,
+										organizationId: actor.organizationId,
+										...(await externalColumns(
+											tx,
+											actor.organizationId,
+											reference,
+										)),
+										currentVersion: 0,
+										createdBy: actor.userId,
+										updatedBy: actor.userId,
+									})
+									.returning(),
+							)
+						: await createSecret(
+								{ ...secretsCtx(c), db: tx },
+								{
+									...input,
+									value: value as string,
+									organizationId: actor.organizationId,
+								},
+								actor.userId,
+							);
+				await auditInTx(c, tx, {
+					resourceId: created.id,
+					diff: {
+						scope: input.scope,
+						key: input.key,
+						...(reference !== undefined ? { reference } : { version: 1 }),
+					},
+				});
+				return created;
+			});
 			const [out] = await present(db, [row]);
 			return c.json(out, 201);
 		},
@@ -371,11 +443,28 @@ export const secrets = router()
 		),
 		async (c) => {
 			const actor = c.get("actor") as Actor;
-			const { value, description } = c.req.valid("json");
+			const { value, reference, description } = c.req.valid("json");
 			const { db } = c.var.deps;
 			const prev = await loadRow(c, actor);
+			if (value !== undefined && prev.providerId) externalOnly(prev);
+			if (reference !== undefined && !prev.providerId)
+				throw new Failure(
+					"bad_request",
+					"only an external secret has a reference; create a new secret to read one from a provider",
+				);
 			const row = await db.transaction(async (tx) => {
 				let r = prev;
+				if (reference !== undefined)
+					r = one(
+						await tx
+							.update(secret)
+							.set({
+								...(await externalColumns(tx, actor.organizationId, reference)),
+								updatedBy: actor.userId,
+							})
+							.where(eq(secret.id, prev.id))
+							.returning(),
+					);
 				if (description !== undefined)
 					r = one(
 						await tx
@@ -391,15 +480,18 @@ export const secrets = router()
 						value,
 						actor.userId,
 					);
+				await auditInTx(c, tx, {
+					resourceId: r.id,
+					diff: {
+						key: r.key,
+						...(value !== undefined && {
+							version: { from: prev.currentVersion, to: r.currentVersion },
+						}),
+						...(description !== undefined && { description }),
+						...(reference !== undefined && { reference }),
+					},
+				});
 				return r;
-			});
-			c.set("auditResourceId", row.id);
-			c.set("auditDiff", {
-				key: row.key,
-				...(value !== undefined && {
-					version: { from: prev.currentVersion, to: row.currentVersion },
-				}),
-				...(description !== undefined && { description }),
 			});
 			const [out] = await present(db, [row]);
 			return c.json(out, 200);
@@ -415,7 +507,7 @@ export const secrets = router()
 				security,
 				summary: "Read a secret's value",
 				description:
-					"Needs `read:secrets` on the scope that defines it. Every call is recorded in the audit log.",
+					"Needs `read:secrets` on the scope that defines it. Every call is recorded in the audit log. Refused for an external secret, whose value stays in its provider.",
 				middleware: [requirePermission("read:secrets", fromRow)],
 				request: {
 					params: IdParam,
@@ -426,6 +518,7 @@ export const secrets = router()
 		),
 		async (c) => {
 			const row = await loadRow(c, c.get("actor") as Actor);
+			if (row.providerId) externalOnly(row);
 			const version = c.req.valid("json").version ?? row.currentVersion;
 			if (version > row.currentVersion) throw notFound("secret version");
 			const value = await readSecretValue(secretsCtx(c), row, version);
@@ -487,6 +580,7 @@ export const secrets = router()
 		async (c) => {
 			const actor = c.get("actor") as Actor;
 			const prev = await loadRow(c, actor);
+			if (prev.providerId) externalOnly(prev);
 			const { version } = c.req.valid("json");
 			if (version >= prev.currentVersion)
 				throw new Failure(
@@ -497,13 +591,12 @@ export const secrets = router()
 			const row = await db.transaction(async (tx) => {
 				const t = { ...secretsCtx(c), db: tx };
 				const value = await readSecretValue(t, prev, version);
-				return setSecretValue(t, prev.id, value, actor.userId);
-			});
-			c.set("auditResourceId", row.id);
-			c.set("auditDiff", {
-				key: row.key,
-				restored: version,
-				version: row.currentVersion,
+				const r = await setSecretValue(t, prev.id, value, actor.userId);
+				await auditInTx(c, tx, {
+					resourceId: r.id,
+					diff: { key: r.key, restored: version, version: r.currentVersion },
+				});
+				return r;
 			});
 			const [out] = await present(db, [row]);
 			return c.json(out, 200);

@@ -24,6 +24,8 @@ export type CaddyRedisStorage = {
 	db: number;
 	key_prefix: string;
 	tls_enabled: boolean;
+	/** AES-256-GCM over each stored value; the key's 32 characters are its bytes. */
+	encryption_key?: string;
 };
 
 export type CaddyHttpApp = {

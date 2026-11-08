@@ -66,7 +66,7 @@
 				"NODE_ENV": "production",
 				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
 				"AUTH_SECRET": "${{ inputs.authSecret }}",
-				"SITE_URL": "http://${{ inputs.mainDomain }}",
+				"SITE_URL": "https://${{ inputs.mainDomain }}",
 				"DB_CONNECTION_URI": "postgres://infisical:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/infisical",
 				"REDIS_URL": "redis://${{ services.redis.host }}:6379",
 				"SMTP_HOST": "",

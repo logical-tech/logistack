@@ -4,9 +4,11 @@
 	"pages": [
 		"index",
 		"logs-and-terminal",
+		"log-drains",
 		"metrics",
 		"nodes",
 		"alerts-and-notifications",
+		"vulnerability-scanning",
 		"usage",
 		"updates",
 		"migrate-from-dokploy",

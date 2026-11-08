@@ -18,7 +18,7 @@ import {
 	specSnapshot,
 	transition,
 } from "@logistack/core";
-import { deployment } from "@logistack/db";
+import { deployment, environment, project, service } from "@logistack/db";
 import { and, asc, eq, inArray, not } from "drizzle-orm";
 import {
 	desiredInput,
@@ -39,6 +39,7 @@ import {
 import { dockerConfig, probeBuildkit } from "./build-platforms.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
+import { probeImageShell } from "./image-shell.ts";
 import {
 	deploymentContext,
 	imageRef,
@@ -307,6 +308,7 @@ async function runDeployment(
 	let commit = { commitSha: d.commitSha, commitMessage: d.commitMessage };
 	const state = { id: d.id, status: d.status };
 	let platforms = d.platforms;
+	let imageShell = d.imageShell;
 	let pushedByBuild = false;
 
 	const target = () => ({
@@ -314,6 +316,7 @@ async function runDeployment(
 		imageRef: ref,
 		gitRef: d.gitRef,
 		platforms,
+		imageShell,
 		...commit,
 	});
 	const rollout = async (): Promise<RolloutResult> => {
@@ -346,11 +349,24 @@ async function runDeployment(
 				error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
 				rolledBack: true,
 			};
+		// Only the tcp and http checks need a shell; a command check runs as argv.
+		if (
+			spec.kind === "application" &&
+			spec.healthcheck?.type !== "command" &&
+			imageShell === null
+		) {
+			imageShell = await probeImageShell(ctx, sc, ref, signal);
+			if (imageShell === false)
+				line(
+					"==> the image has no /bin/sh: no default healthcheck, the task counts as healthy once it runs",
+				);
+		}
 		const input = await desiredInput(ctx, sc, target());
 		const snapshot = specSnapshot(input, sc.env);
 		await ctx.db
 			.update(deployment)
 			.set({
+				imageShell,
 				specSnapshotEncrypted: await encrypt(
 					ctx.masterKey,
 					JSON.stringify(snapshot),
@@ -574,6 +590,16 @@ async function failAll(ctx: Ctx, pending: DeploymentRow[], error: string) {
 
 export const terminal = deploymentStatuses.filter(isTerminal);
 
+async function archived(ctx: Ctx, serviceId: string): Promise<boolean> {
+	const [row] = await ctx.db
+		.select({ archivedAt: project.archivedAt })
+		.from(service)
+		.innerJoin(environment, eq(environment.id, service.environmentId))
+		.innerJoin(project, eq(project.id, environment.projectId))
+		.where(eq(service.id, serviceId));
+	return Boolean(row?.archivedAt);
+}
+
 /** The `deploy` job: drains a service's deployments one at a time until none is pending. */
 export async function processService(
 	ctx: Ctx,
@@ -592,6 +618,15 @@ export async function processService(
 			.orderBy(asc(deployment.createdAt));
 		const plan = planQueue(pending);
 		if (plan.kind === "idle") return;
+		if (plan.kind === "run" && (await archived(ctx, serviceId))) {
+			// Queued before the archive, or by a trigger that does not check it (git push, schedule).
+			await failAll(
+				ctx,
+				pending.filter((d) => d.status === "queued"),
+				"the project is archived; unarchive it to deploy",
+			);
+			return;
+		}
 		let sc: ServiceContext | null;
 		try {
 			await convertLegacySecrets(ctx);

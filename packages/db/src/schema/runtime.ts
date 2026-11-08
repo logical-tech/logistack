@@ -5,6 +5,7 @@ import type {
 } from "@logistack/contracts";
 import {
 	type AnyPgColumn,
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -70,6 +71,8 @@ export const deployment = pgTable(
 		imageRef: text("image_ref"),
 		/** Platforms the image was built for (`linux/amd64`, ...); null when unknown (image sources, older builds). */
 		platforms: text("platforms").array().$type<BuildPlatform[]>(),
+		/** Whether the image has `/bin/sh`, which the tcp and http healthchecks run in; null when not probed. */
+		imageShell: boolean("image_shell"),
 		/** Encrypted `SpecSnapshot` JSON of what the deploy applied; the pending diff's baseline. */
 		specSnapshotEncrypted: text("spec_snapshot_encrypted"),
 		startedAt: tstz("started_at"),

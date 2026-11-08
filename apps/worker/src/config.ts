@@ -97,11 +97,19 @@ const ConfigSchema = z.object({
 		.string()
 		.default("ghcr.io/railwayapp/railpack-frontend:v0.43.0"),
 	LS_ZOT_IMAGE: z.string().default("ghcr.io/project-zot/zot:v2.1.23"),
+	/** Scans the images services run; its vulnerability DB is cached in a volume between scans. */
+	LS_TRIVY_IMAGE: z.string().default("aquasec/trivy:0.76.1"),
 	LS_CLOUDFLARED_IMAGE: z.string().default("cloudflare/cloudflared:2026.10.7"),
+	LS_TAILSCALE_IMAGE: z.string().default("tailscale/tailscale:v1.104.4"),
 	/** Publishes the local registry on this host port for loopback pushes (single node without DNS, tests). */
 	LS_LOCAL_REGISTRY_PORT: z.coerce.number().int().min(0).max(65535).default(0),
 	/** Allows `file://` git sources; only for tests, a clone of the worker's own disk is a leak. */
 	LS_ALLOW_LOCAL_GIT: z.stringbool().default(false),
+	/**
+	 * Encrypts certificate keys in Caddy's Redis storage. One way: a worker from before this
+	 * setting pushes Caddy a config without the key, and Caddy then cannot read what it stored.
+	 */
+	LS_CADDY_STORAGE_ENCRYPTION: z.stringbool().default(false),
 	/** Test isolation: prefix for every Docker name and labels added to every object. */
 	LS_NAME_PREFIX: z.string().default(""),
 	LS_SCOPE_LABELS: json(z.record(z.string(), z.string())).default({}),

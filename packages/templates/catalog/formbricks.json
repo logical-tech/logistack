@@ -40,6 +40,12 @@
 			"label": "Cron secret",
 			"type": "base64",
 			"bytes": 32
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -47,7 +53,7 @@
 			"name": "postgres",
 			"dependsOn": [],
 			"env": {
-				"POSTGRES_PASSWORD": "postgres"
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}"
 			},
 			"volumes": [
 				{
@@ -67,9 +73,9 @@
 				"postgres"
 			],
 			"env": {
-				"WEBAPP_URL": "http://${{ inputs.mainDomain }}",
-				"NEXTAUTH_URL": "http://${{ inputs.mainDomain }}",
-				"DATABASE_URL": "postgresql://postgres:postgres@${{ services.postgres.host }}:5432/formbricks?schema=public",
+				"WEBAPP_URL": "https://${{ inputs.mainDomain }}",
+				"NEXTAUTH_URL": "https://${{ inputs.mainDomain }}",
+				"DATABASE_URL": "postgresql://postgres:${{ inputs.dbPassword }}@${{ services.postgres.host }}:5432/formbricks?schema=public",
 				"NEXTAUTH_SECRET": "${{ inputs.secretBase }}",
 				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
 				"CRON_SECRET": "${{ inputs.cronSecret }}",

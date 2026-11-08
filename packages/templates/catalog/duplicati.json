@@ -36,6 +36,13 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -45,7 +52,7 @@
 			"env": {
 				"PUID": "0",
 				"PGID": "0",
-				"TZ": "Europe/Vienna",
+				"TZ": "${{ inputs.timezone }}",
 				"SETTINGS_ENCRYPTION_KEY": "${{ inputs.settingsEncryptionKey }}",
 				"DUPLICATI__WEBSERVICE_PASSWORD": "${{ inputs.duplicatiWebservicePassword }}",
 				"DUPLICATI__WEBSERVICE_ALLOWED_HOSTNAMES": "*"

@@ -32,8 +32,8 @@
 			"name": "storyden",
 			"dependsOn": [],
 			"env": {
-				"PUBLIC_WEB_ADDRESS": "http://${{ inputs.mainDomain }}",
-				"PUBLIC_API_ADDRESS": "http://${{ inputs.mainDomain }}"
+				"PUBLIC_WEB_ADDRESS": "https://${{ inputs.mainDomain }}",
+				"PUBLIC_API_ADDRESS": "https://${{ inputs.mainDomain }}"
 			},
 			"volumes": [
 				{

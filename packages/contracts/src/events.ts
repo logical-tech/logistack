@@ -31,6 +31,8 @@ export const eventTypes = [
 	"instance.update_failed",
 	/** A migration item changed status; resource `migration:<id>`, payload names the item. */
 	"migration.item_changed",
+	/** A scan found critical vulnerabilities not seen before in a service's image; resource `service:<id>`. */
+	"image.vulnerable",
 ] as const;
 export const EventType = z.enum(eventTypes);
 export type EventType = z.infer<typeof EventType>;

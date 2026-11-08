@@ -25,6 +25,13 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -35,7 +42,7 @@
 				"DISPLAY_WIDTH": "1920",
 				"DISPLAY_HEIGHT": "1080",
 				"KEEP_APP_RUNNING": "1",
-				"TZ": "Europe/Vienna"
+				"TZ": "${{ inputs.timezone }}"
 			},
 			"volumes": [],
 			"files": [],

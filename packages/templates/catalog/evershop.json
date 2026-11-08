@@ -23,6 +23,12 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -34,7 +40,7 @@
 			"env": {
 				"DB_HOST": "${{ services.database.host }}",
 				"DB_PORT": "5432",
-				"DB_PASSWORD": "postgres",
+				"DB_PASSWORD": "${{ inputs.dbPassword }}",
 				"DB_USER": "postgres",
 				"DB_NAME": "evershop"
 			},
@@ -58,7 +64,7 @@
 			"name": "database",
 			"dependsOn": [],
 			"env": {
-				"POSTGRES_PASSWORD": "postgres",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
 				"POSTGRES_USER": "postgres",
 				"POSTGRES_DB": "evershop"
 			},

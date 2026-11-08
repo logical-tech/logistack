@@ -101,7 +101,7 @@
 				"DATABASE_URL": "postgres://mcpspan:${{ inputs.postgresPassword }}@${{ services.db.host }}:5432/mcpspan",
 				"PORT": "6271",
 				"API_KEY_SECRET": "${{ inputs.apiKeySecret }}",
-				"MCPSPAN_DASHBOARD_URL": "http://${{ inputs.mainDomain }}"
+				"MCPSPAN_DASHBOARD_URL": "https://${{ inputs.mainDomain }}"
 			},
 			"volumes": [],
 			"files": [],
@@ -134,7 +134,7 @@
 			],
 			"env": {
 				"CORE_API_URL": "http://${{ services.api.host }}:6271",
-				"MCPSPAN_INGEST_URL": "http://${{ inputs.apiDomain }}"
+				"MCPSPAN_INGEST_URL": "https://${{ inputs.apiDomain }}"
 			},
 			"volumes": [],
 			"files": [],

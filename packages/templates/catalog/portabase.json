@@ -100,6 +100,13 @@
 			"label": "Postgres DB",
 			"type": "text",
 			"default": ""
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -113,7 +120,7 @@
 				"PROJECT_SECRET": "${{ inputs.portabasePassword }}",
 				"DATABASE_URL": "postgresql://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/portabase?schema=public",
 				"PROJECT_NAME": "Portabase",
-				"TZ": "Europe/Paris",
+				"TZ": "${{ inputs.timezone }}",
 				"LOG_LEVEL": "info",
 				"RETENTION_CRON": "0 7 * * *",
 				"STALE_BACKUP_THRESHOLD_HOURS": "6",

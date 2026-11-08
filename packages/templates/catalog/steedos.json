@@ -30,7 +30,7 @@
 			"name": "steedos",
 			"dependsOn": [],
 			"env": {
-				"ROOT_URL": "http://${{ inputs.mainDomain }}"
+				"ROOT_URL": "https://${{ inputs.mainDomain }}"
 			},
 			"volumes": [
 				{

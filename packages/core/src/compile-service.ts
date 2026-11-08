@@ -97,6 +97,8 @@ export type CompileServiceInput = {
 	pinNodeId?: string;
 	/** Platforms the image was built for; tasks only land on nodes of these architectures. */
 	platforms?: BuildPlatform[];
+	/** False when the image has no `/bin/sh` (distroless, scratch): the tcp and http checks cannot run in it. */
+	imageShell?: boolean;
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
 	fileIds: Record<string, string>;
 	/** Test isolation: a prefix for every derived name and extra labels on every object. */
@@ -270,18 +272,33 @@ function shellQuote(v: string): string {
 /** Listening check without nc or curl: any image with a shell and grep has /proc/net/tcp. */
 function tcpCheck(port: number): string[] {
 	const hex = port.toString(16).toUpperCase().padStart(4, "0");
-	// shortcut: needs sh + grep in the image (not distroless); such images must declare a command healthcheck.
 	return [
 		"CMD-SHELL",
 		`grep -sqE ':${hex} [0-9A-F]{8,32}:0000 0A' /proc/net/tcp /proc/net/tcp6`,
 	];
 }
 
+/**
+ * The port checked for listening when an application declares no healthcheck: only a service
+ * behind a domain gets one, on its first port or the domain's.
+ */
+export const fallbackHealthPort = (
+	app: { ports: { target: number }[] },
+	domains: { port: number }[],
+): number | undefined =>
+	domains.length ? (app.ports[0]?.target ?? domains[0]?.port) : undefined;
+
 function healthcheckTest(
 	check: HealthcheckSpec | undefined,
 	fallbackPort: number | undefined,
+	shell: boolean,
 ): string[] | undefined {
-	if (!check) return fallbackPort ? tcpCheck(fallbackPort) : undefined;
+	// Without a shell the default check can never pass; Swarm then counts the task healthy once it runs.
+	if (!check) return fallbackPort && shell ? tcpCheck(fallbackPort) : undefined;
+	if (!shell && check.type !== "command")
+		throw new Error(
+			`the image has no /bin/sh, so a ${check.type} healthcheck cannot run in it; use a command healthcheck`,
+		);
 	switch (check.type) {
 		case "tcp":
 			return tcpCheck(check.port);
@@ -417,9 +434,8 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				? gdef.healthcheck(game.port)
 				: healthcheckTest(
 						app?.healthcheck,
-						hasIngress
-							? (app?.ports[0]?.target ?? input.domains[0]?.port)
-							: undefined,
+						app ? fallbackHealthPort(app, input.domains) : undefined,
+						input.imageShell !== false,
 					);
 
 	const deploymentLabel = { "logistack.deployment": input.deploymentId };

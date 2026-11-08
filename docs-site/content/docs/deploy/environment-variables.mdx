@@ -8,7 +8,7 @@ Environment variables configure a service without changing its image: database U
 - **Secrets** are encrypted, versioned and audited. You define a secret once, at the level that owns it, and every service below that level can reference it. A service gets a secret only when its **Environment** tab references it.
 - **Variables** are plain configuration. They cascade to every service in their scope.
 
-Both are applied on the next deployment.
+Both are applied on the next deployment. Secrets can also live in HashiCorp Vault, Infisical or 1Password and be read at deploy time: see [External secrets](./external-secrets.mdx).
 
 ## Where secrets live
 

@@ -132,6 +132,8 @@ export function autoscaleChecks(i: {
 	volumes: number;
 	/** Nodes in the organization. */
 	nodes: number;
+	/** The port the compiler checks when the spec declares no healthcheck (`fallbackHealthPort`). */
+	fallbackPort?: number;
 }): AutoscaleCheck[] {
 	const hostPort = i.spec.ports.find(
 		(p) => p.published && (p.mode ?? "host") === "host",
@@ -166,10 +168,12 @@ export function autoscaleChecks(i: {
 		{
 			id: "healthcheck",
 			level: "warning",
-			ok: !!i.spec.healthcheck,
+			ok: !!i.spec.healthcheck || i.fallbackPort !== undefined,
 			message: i.spec.healthcheck
 				? "New copies get traffic once their healthcheck passes."
-				: "No healthcheck: new copies get traffic before they are ready. Add one to avoid errors while scaling up.",
+				: i.fallbackPort !== undefined
+					? `New copies get traffic once port ${i.fallbackPort} accepts connections.`
+					: "No healthcheck: new copies get traffic before they are ready. Add one to avoid errors while scaling up.",
 		},
 		{
 			id: "nodes",

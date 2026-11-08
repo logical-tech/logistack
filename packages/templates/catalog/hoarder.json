@@ -44,7 +44,7 @@
 			"dependsOn": [],
 			"env": {
 				"DISABLE_SIGNUPS": "",
-				"NEXTAUTH_URL": "http://${{ inputs.mainDomain }}",
+				"NEXTAUTH_URL": "https://${{ inputs.mainDomain }}",
 				"NEXTAUTH_SECRET": "${{ inputs.nextSecret }}",
 				"MEILI_ADDR": "http://${{ services.meilisearch.host }}:7700",
 				"BROWSER_WEB_URL": "http://${{ services.chrome.host }}:9222",

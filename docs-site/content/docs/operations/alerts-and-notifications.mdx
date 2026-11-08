@@ -130,6 +130,7 @@ The rule appears as a sentence, for example **Deployment failed, Node down, Back
 | | Service crash-looping | `service.crash_loop`, when tasks keep failing, and again when it settles |
 | | Service threshold crossed | `service.threshold` |
 | | Service scaled automatically | `service.scaled`, each time [automatic scaling](../deploy/autoscaling.mdx) changes the count |
+| | Critical vulnerability found | `image.vulnerable`, when a [scan](./vulnerability-scanning.mdx) finds a new critical vulnerability in a service's image |
 | | Node threshold crossed | `metric.threshold` |
 | Backups and schedules | Backup failed, Backup succeeded | `backup.failed`, `backup.succeeded` |
 | | Schedule failed, Schedule succeeded | `schedule.failed`, `schedule.succeeded` |

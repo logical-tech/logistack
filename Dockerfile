@@ -24,26 +24,36 @@ ARG BUILDKIT_SHA256_ARM64=c8c97b84baf89dfe0ea85063ac24ad88eb909979ea476ce3ef9e8e
 ARG RAILPACK_VERSION=v0.43.0
 ARG RAILPACK_SHA256_AMD64=248a8f60f36854aabed6124113631078a802de3461660855fc4de9c26065c1fb
 ARG RAILPACK_SHA256_ARM64=732ece14eb4f4676a43ebba19431f954edf7b130acb76159ef0f2ff86ac42ac9
+# rclone reads RCLONE_* variables as flags, hence RCLONE_RELEASE, not RCLONE_VERSION.
+# rclone backs the SFTP, WebDAV, Azure Blob, Google Drive and B2 backup destinations (api probes, worker streams).
+ARG RCLONE_RELEASE=v1.75.1
+ARG RCLONE_RELEASE_SHA256_AMD64=982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab
+ARG RCLONE_RELEASE_SHA256_ARM64=03f2504174034b6d004152ed7369251c9a9ec1f7e0836eda420f5c7a5ec0dff9
 RUN set -eu; \
 	case "$TARGETARCH" in \
-	amd64) bk=$BUILDKIT_SHA256_AMD64 rp=$RAILPACK_SHA256_AMD64 rparch=x86_64 ;; \
-	arm64) bk=$BUILDKIT_SHA256_ARM64 rp=$RAILPACK_SHA256_ARM64 rparch=arm64 ;; \
+	amd64) bk=$BUILDKIT_SHA256_AMD64 rp=$RAILPACK_SHA256_AMD64 rc=$RCLONE_RELEASE_SHA256_AMD64 rparch=x86_64 ;; \
+	arm64) bk=$BUILDKIT_SHA256_ARM64 rp=$RAILPACK_SHA256_ARM64 rc=$RCLONE_RELEASE_SHA256_ARM64 rparch=arm64 ;; \
 	*) echo "unsupported TARGETARCH '$TARGETARCH'" >&2; exit 1 ;; \
 	esac; \
 	wget -qO /tmp/buildkit.tgz "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-${TARGETARCH}.tar.gz"; \
 	echo "$bk  /tmp/buildkit.tgz" | sha256sum -c -; \
 	wget -qO /tmp/railpack.tgz "https://github.com/railwayapp/railpack/releases/download/${RAILPACK_VERSION}/railpack-${RAILPACK_VERSION}-${rparch}-unknown-linux-musl.tar.gz"; \
 	echo "$rp  /tmp/railpack.tgz" | sha256sum -c -; \
-	mkdir -p /out; \
+	wget -qO /tmp/rclone.zip "https://github.com/rclone/rclone/releases/download/${RCLONE_RELEASE}/rclone-${RCLONE_RELEASE}-linux-${TARGETARCH}.zip"; \
+	echo "$rc  /tmp/rclone.zip" | sha256sum -c -; \
+	mkdir -p /out /rclone; \
 	tar -xzf /tmp/buildkit.tgz -C /out --strip-components=1 bin/buildctl; \
 	tar -xzf /tmp/railpack.tgz -C /out railpack; \
-	/out/buildctl --version; /out/railpack --version
+	unzip -p /tmp/rclone.zip "rclone-${RCLONE_RELEASE}-linux-${TARGETARCH}/rclone" > /rclone/rclone; \
+	chmod 0755 /rclone/rclone; \
+	/out/buildctl --version; /out/railpack --version; /rclone/rclone version
 
 FROM oven/bun:${BUN_VERSION}-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
 	PORT=3000
 COPY --from=build /app /app
+COPY --from=tools /rclone/rclone /usr/local/bin/rclone
 RUN chmod 0755 /app/install/entrypoint.sh
 ENTRYPOINT ["/app/install/entrypoint.sh"]
 

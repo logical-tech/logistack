@@ -5,38 +5,25 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
-import {
-	KindTile,
-	S3_PROVIDER,
-	s3ProviderOf,
-} from "@/components/integration-kinds";
+import { destinationKindOf, KindTile } from "@/components/integration-kinds";
 import { Page, PageHeader } from "@/components/page-header";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import {
-	type S3Destination,
-	s3DestinationsQuery,
-	useDeleteS3Destination,
+	type BackupDestination,
+	destinationsQuery,
+	useDeleteDestination,
 } from "@/lib/api/backups";
 import { section } from "@/lib/nav";
 
 export const Route = createFileRoute("/_app/integrations/s3")({
-	staticData: { crumb: "S3 destinations" },
-	loader: ({ context }) =>
-		context.queryClient.prefetchQuery(s3DestinationsQuery),
-	component: S3Page,
+	staticData: { crumb: "Backup destinations" },
+	loader: ({ context }) => context.queryClient.prefetchQuery(destinationsQuery),
+	component: DestinationsPage,
 });
 
 const SECTION = section("/integrations/s3");
-
-const host = (endpoint: string) => {
-	try {
-		return new URL(endpoint).host;
-	} catch {
-		return endpoint;
-	}
-};
 
 const usedBy = (n: number) =>
 	n === 0 ? "Not used yet" : `Used by ${n} ${n === 1 ? "policy" : "policies"}`;
@@ -45,10 +32,10 @@ function DeleteDestination({
 	target,
 	onClose,
 }: {
-	target: S3Destination | null;
+	target: BackupDestination | null;
 	onClose: () => void;
 }) {
-	const remove = useDeleteS3Destination();
+	const remove = useDeleteDestination();
 	const [refusal, setRefusal] = useState<{
 		title: string;
 		message: string;
@@ -65,8 +52,8 @@ function DeleteDestination({
 			title={`Remove ${target?.name ?? "destination"}?`}
 			description={
 				target?.usedBy
-					? `${usedBy(target.usedBy)}. Move those policies to another destination or delete them first; backups already in the bucket stay there.`
-					: "Backups already in the bucket stay there. LogiStack forgets the credentials."
+					? `${usedBy(target.usedBy)}. Move those policies to another destination or delete them first; backups already written stay where they are.`
+					: "Backups already written stay where they are. LogiStack forgets the credentials."
 			}
 			confirmLabel="Remove destination"
 			pending={remove.isPending}
@@ -115,35 +102,25 @@ function DestinationRow({
 	d,
 	onDelete,
 }: {
-	d: S3Destination;
+	d: BackupDestination;
 	onDelete: () => void;
 }) {
-	const provider = S3_PROVIDER[s3ProviderOf(d.endpoint)];
+	const kind = destinationKindOf(d);
 	return (
-		<li className="grid items-center gap-x-6 gap-y-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_10rem]">
+		<li className="grid items-center gap-x-6 gap-y-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)_10rem]">
 			<div className="flex min-w-0 items-center gap-3">
-				<KindTile icon={provider.icon} />
+				<KindTile icon={kind.icon} />
 				<div className="min-w-0">
 					<p className="truncate text-sm font-medium">{d.name}</p>
-					<p className="truncate text-xs text-muted-foreground">
-						{provider.label}
-						<span aria-hidden> · </span>
-						<span className="font-mono">{host(d.endpoint)}</span>
-					</p>
+					<p className="truncate text-xs text-muted-foreground">{kind.label}</p>
 				</div>
 			</div>
-			<div className="min-w-0 max-sm:pl-11">
-				<p className="truncate font-mono text-xs">
-					{d.bucket}
-					{d.prefix && (
-						<span className="text-muted-foreground">/{d.prefix}</span>
-					)}
-				</p>
-				<p className="truncate text-xs text-muted-foreground">
-					{d.region}
-					{d.forcePathStyle && " · path-style"}
-				</p>
-			</div>
+			<p
+				className="min-w-0 truncate font-mono text-xs max-sm:pl-11"
+				title={d.location}
+			>
+				{d.location}
+			</p>
 			<div className="flex items-center justify-end gap-3 max-sm:justify-between max-sm:pl-11">
 				<span className="text-xs whitespace-nowrap text-muted-foreground tabular">
 					{usedBy(d.usedBy)}
@@ -162,9 +139,9 @@ function DestinationRow({
 	);
 }
 
-function S3Page() {
-	const { data } = useQuery(s3DestinationsQuery);
-	const [deleting, setDeleting] = useState<S3Destination | null>(null);
+function DestinationsPage() {
+	const { data } = useQuery(destinationsQuery);
+	const [deleting, setDeleting] = useState<BackupDestination | null>(null);
 	const empty = SECTION.empty;
 	const add = (
 		<Button asChild>

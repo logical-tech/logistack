@@ -1,0 +1,53 @@
+---
+title: Archive a project
+description: Archive a project to stop all its services and hide it from the projects list without deleting anything, then unarchive it to start the same services again.
+---
+
+Archiving puts a project to sleep. Every running service stops, the project leaves the projects list, and deploys pause. Nothing is deleted: data, volumes, variables, domains, configuration and replica counts stay. Use it for a demo, a client project on hold or anything you may need again, when you want its memory and CPU back but don't want to lose it.
+
+## Archive a project
+
+<Steps>
+<Step>
+
+### Open the project's actions
+
+Open the project and select the actions menu next to its name.
+
+</Step>
+<Step>
+
+### Archive it
+
+Select **Archive project…**, then **Archive project** to confirm.
+
+</Step>
+</Steps>
+
+The project's services scale to zero replicas. The project page shows **This project is archived**, and the project disappears from the default projects list.
+
+## What an archived project refuses
+
+While a project is archived, LogiStack refuses everything that would start something in it:
+
+- Deploys, redeploys, restarts and rollbacks.
+- Starting a stopped service.
+- Creating a service. The **New service** button is hidden.
+- Restoring a backup into a new database.
+
+Deployments that were already queued when you archived the project, or that a trigger queues later, such as a git push or a schedule, fail with the reason `the project is archived; unarchive it to deploy`.
+
+## Find archived projects
+
+On the **Projects** page, select **Archived**. The list then shows only archived projects. Select **Archived** again to go back to the active ones.
+
+## Unarchive a project
+
+Open the archived project and select **Unarchive** in the banner, or **Unarchive project** in the actions menu.
+
+LogiStack starts again exactly the services that archiving stopped, at their configured replica counts. Services that were already stopped before you archived the project stay stopped. Deploys work again right away.
+
+## Common problems
+
+- **"the project is archived; unarchive it to deploy"**: a deploy, a new service or a restore into a new database was refused, or a queued deployment failed. Unarchive the project first.
+- **A service did not start after unarchiving**: it was stopped before the project was archived. Start it from its page; that works again once the project is unarchived.

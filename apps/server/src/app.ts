@@ -21,6 +21,7 @@ import { aiAgent } from "./routes/ai-agent.ts";
 import { apiKeys } from "./routes/api-keys.ts";
 import { audit } from "./routes/audit-log.ts";
 import { autoscale } from "./routes/autoscale.ts";
+import { backupDestinations } from "./routes/backup-destinations.ts";
 import { backups } from "./routes/backups.ts";
 import { buildPlatforms } from "./routes/build-platforms.ts";
 import { certificates } from "./routes/certificates.ts";
@@ -37,6 +38,7 @@ import { git } from "./routes/git.ts";
 import { health } from "./routes/health.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
+import { logDrains } from "./routes/log-drains.ts";
 import { manifests } from "./routes/manifest.ts";
 import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
@@ -50,6 +52,7 @@ import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
 import { s3Destinations } from "./routes/s3-destinations.ts";
 import { schedules } from "./routes/schedules.ts";
+import { secretProviderRoutes } from "./routes/secret-providers.ts";
 import { secrets } from "./routes/secrets.ts";
 import { serviceAuth } from "./routes/service-auth.ts";
 import { serviceOps } from "./routes/service-ops.ts";
@@ -60,10 +63,12 @@ import { sshKeys } from "./routes/ssh-keys.ts";
 import { sso } from "./routes/sso.ts";
 import { stacks } from "./routes/stacks.ts";
 import { storage } from "./routes/storage.ts";
+import { tailscale } from "./routes/tailscale.ts";
 import { templates } from "./routes/templates.ts";
 import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
 import { usage } from "./routes/usage.ts";
+import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
 import { realtime } from "./ws.ts";
 
@@ -156,11 +161,14 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", dnsProviders)
 		.route("/api", certificates)
 		.route("/api", notifications)
+		.route("/api", secretProviderRoutes)
+		.route("/api", logDrains)
 		.route("/api", integrations)
 		.route("/api", audit)
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
 		.route("/api", autoscale)
+		.route("/api", vulnerabilities)
 		.route("/api", usage)
 		.route("/api", nodes)
 		.route("/api", networkMapRoutes)
@@ -177,7 +185,9 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", registries)
 		.route("/api", webhooks)
 		.route("/api", s3Destinations)
+		.route("/api", backupDestinations)
 		.route("/api", tunnels)
+		.route("/api", tailscale)
 		.route("/api", serviceAuth)
 		.route("/api", backups)
 		.route("/api", schedules)

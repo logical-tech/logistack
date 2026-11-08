@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+	type ApplicationSpec,
 	type DatabaseEngine,
 	deploymentContextVars,
+	type Healthcheck,
 } from "@logistack/contracts";
 import {
 	bridgeRouterLabels,
@@ -434,6 +436,51 @@ describe("healthcheck", () => {
 			"/bin/check",
 			"-q",
 		]);
+	});
+
+	describe("image without /bin/sh", () => {
+		const distroless: CompileServiceInput = {
+			...app,
+			domains: [{ port: 8080 }],
+			imageShell: false,
+		};
+		const withCheck = (healthcheck: Healthcheck): CompileServiceInput => ({
+			...distroless,
+			service: {
+				...distroless.service,
+				spec: { ...(app.service.spec as ApplicationSpec), healthcheck },
+			},
+		});
+
+		test("snapshot: no default check, so Swarm counts the running task healthy", () => {
+			const spec = compileService(distroless);
+			expect(spec.TaskTemplate.ContainerSpec.Healthcheck).toBeUndefined();
+			expect(spec).toMatchSnapshot();
+		});
+
+		test("a tcp or http check refuses to compile and points at a command check", () => {
+			for (const check of [
+				{ type: "tcp" as const, port: 8080 },
+				{ type: "http" as const, port: 8080, path: "/healthz" },
+			])
+				expect(() => compileService(withCheck(check))).toThrow(
+					/no \/bin\/sh.*use a command healthcheck/,
+				);
+		});
+
+		test("a command check runs as argv", () => {
+			expect(
+				test_(
+					withCheck({ type: "command", command: ["/server", "-healthcheck"] }),
+				),
+			).toEqual(["CMD", "/server", "-healthcheck"]);
+		});
+
+		test("unknown (not probed) keeps the default check", () => {
+			expect(test_({ ...distroless, imageShell: undefined })?.[0]).toBe(
+				"CMD-SHELL",
+			);
+		});
 	});
 });
 

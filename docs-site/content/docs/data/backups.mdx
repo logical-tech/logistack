@@ -7,7 +7,7 @@ A backup policy copies one thing from a service to an S3 bucket on a schedule: a
 
 ## Before you start
 
-- Add at least one [S3 destination](./s3-destinations.mdx). Pick a bucket that doesn't live on the same server: a backup on the machine you lose doesn't help.
+- Add at least one destination: an [S3 bucket](./s3-destinations.mdx), or an [SFTP server, WebDAV share, Azure container, Google Drive folder, B2 bucket or node folder](./backup-destinations.mdx). Pick a bucket that doesn't live on the same server: a backup on the machine you lose doesn't help.
 - You need write access to the service.
 
 ## What a policy backs up
@@ -53,7 +53,7 @@ In **What to back up**, pick the database (marked **Recommended**) or one of the
 
 ### Choose where it goes
 
-In **Where it goes**, pick a destination. If there is none, select **Add an S3 destination**; the wizard keeps your answers, so come back when it's saved.
+In **Where it goes**, pick a destination. If there is none, select **Add a destination**; the wizard keeps your answers, so come back when it's saved.
 
 </Step>
 <Step>
@@ -147,7 +147,7 @@ aws s3 cp "s3://acme-backups/logistack/backups/bkp_7f3a/2026-11-06T03-00-00-000Z
   | age -d -i backup-key.txt > "2026-11-06T03-00-00-000Z-bkr_91c2.dump"
 ```
 
-Save the key as `backup-key.txt`, and run the command with the [age](https://age-encryption.org) CLI and the AWS CLI. See [Restore a backup](./restore.mdx#decrypt-and-restore-a-backup-by-hand) for the rest.
+Save the key as `backup-key.txt`, and run the command with the [age](https://age-encryption.org) CLI and the AWS CLI. For a destination that isn't S3, copy the `.age` file off it first (with `scp`, the share or the Drive web page); the command is then `age -d -i backup-key.txt < <file>.age > <file>`. See [Restore a backup](./restore.mdx#decrypt-and-restore-a-backup-by-hand) for the rest.
 
 ## Alerts
 
@@ -155,7 +155,7 @@ Failed backups and failed verifies are sent to the channels whose rules include 
 
 ## Troubleshooting
 
-- **No S3 destination yet** in the wizard: add one first under [S3 destinations](./s3-destinations.mdx).
+- **No backup destination yet** in the wizard: add one first under **Backup destinations** ([S3](./s3-destinations.mdx) or [other kinds](./backup-destinations.mdx)).
 - A run fails with an access error: the destination's keys lost a permission. Backups need put, get, delete and list on the bucket. Run the destination's test again.
 - A volume backup of a busy service restores with half-written files: turn on **Stop &lt;service&gt; while archiving**, or back up the database with a dump instead.
 - A backup you want is missing: check the run's status for **Pruned by retention**, and raise **Keep the newest**.

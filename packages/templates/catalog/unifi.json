@@ -17,7 +17,14 @@
 		"path": "blueprints/unifi",
 		"license": "MIT"
 	},
-	"inputs": [],
+	"inputs": [
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
+		}
+	],
 	"services": [
 		{
 			"name": "unifi-network-application",
@@ -30,7 +37,7 @@
 				"TZ": "Etc/UTC",
 				"MONGO_HOST": "${{ services.unifi-db.host }}",
 				"MONGO_USER": "unifi",
-				"MONGO_PASS": "unifi_password",
+				"MONGO_PASS": "${{ inputs.dbPassword }}",
 				"MONGO_PORT": "27017",
 				"MONGO_DBNAME": "unifi",
 				"MEM_LIMIT": "1024",
@@ -70,7 +77,7 @@
 			"files": [
 				{
 					"target": "/docker-entrypoint-initdb.d/init-mongo.sh",
-					"content": "#!/bin/bash\nmongo <<EOF\nuse unifi\ndb.createUser({\nuser: \"unifi\",\npwd: \"unifi_password\",\nroles: [\n    { db: \"unifi\", role: \"dbOwner\" },\n    { db: \"unifi_stat\", role: \"dbOwner\" }\n]\n})\nEOF \n"
+					"content": "#!/bin/bash\nmongo <<EOF\nuse unifi\ndb.createUser({\nuser: \"unifi\",\npwd: \"${{ inputs.dbPassword }}\",\nroles: [\n    { db: \"unifi\", role: \"dbOwner\" },\n    { db: \"unifi_stat\", role: \"dbOwner\" }\n]\n})\nEOF \n"
 				}
 			],
 			"kind": "application",

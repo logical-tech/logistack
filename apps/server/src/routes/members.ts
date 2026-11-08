@@ -21,7 +21,7 @@ import {
 	scopeResource,
 } from "../access.ts";
 import { customActions, KeyScope, requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
@@ -269,6 +269,7 @@ export const members = router()
 						),
 					);
 				await tx.delete(member).where(eq(member.id, id));
+				await auditInTx(c, tx);
 			});
 			return c.body(null, 204);
 		},
@@ -346,6 +347,7 @@ export const members = router()
 			const id = crypto.randomUUID();
 			const row = one(
 				await db.transaction(async (tx) => {
+					await auditInTx(c, tx, { resourceId: id });
 					// Re-inviting replaces the pending invitation instead of stacking a second one.
 					await tx
 						.update(invitation)
@@ -371,7 +373,6 @@ export const members = router()
 						.returning();
 				}),
 			);
-			c.set("auditResourceId", id);
 			return c.json(
 				{
 					id,

@@ -97,6 +97,12 @@ describe.skipIf(!hasDocker)(
 				const refused = await h.call("POST", path, as());
 				expect(refused.status).toBe(409);
 			}
+			const created = await h.call(
+				"POST",
+				`/api/environments/${prodId}/services`,
+				as({ name: "Late", spec: spec(1) }),
+			);
+			expect(created.status).toBe(409);
 		});
 
 		test("archiving twice keeps the first timestamp and the restore set", async () => {

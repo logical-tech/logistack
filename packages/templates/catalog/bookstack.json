@@ -54,7 +54,7 @@
 			"env": {
 				"PUID": "1000",
 				"PGID": "1000",
-				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
 				"DB_HOST": "${{ services.bookstack-db.host }}",
 				"DB_USERNAME": "mariadb",
 				"DB_PASSWORD": "${{ inputs.dbPassword }}",

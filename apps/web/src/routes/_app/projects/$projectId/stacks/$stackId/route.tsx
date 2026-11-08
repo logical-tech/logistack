@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { Page } from "@/components/page-header";
 import { SlidingTabs } from "@/components/sliding-tabs";
+import { GitSyncError } from "@/components/stack/git-sync-error";
 import { StackHeader } from "@/components/stack/stack-header";
 import { ApiError } from "@/lib/api";
 import { type StackId, stackQuery } from "@/lib/api/stacks";
@@ -60,6 +61,7 @@ function StackLayout() {
 	return (
 		<Page className="max-w-6xl">
 			<StackHeader stack={stack} projectId={projectId} />
+			{stack.gitSyncError && <GitSyncError error={stack.gitSyncError} />}
 			<div className="mb-6 border-b">
 				<SlidingTabs
 					label="Stack sections"

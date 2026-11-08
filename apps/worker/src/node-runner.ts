@@ -1,4 +1,5 @@
 import {
+	ACK_STALL_MS,
 	AGENT_RPC_PING_MS,
 	type AgentRpcErrorCode,
 	AgentRpcReply,
@@ -11,6 +12,7 @@ import {
 	type DiskUsage,
 	type ExecStartInput,
 	type JobSpecInput,
+	type LogDrainConfig,
 	type LogsFollowInput,
 	MAX_CHUNK_BYTES,
 	type PruneReport,
@@ -45,6 +47,11 @@ export type RunOptions = {
 	signal?: AbortSignal;
 	/** Fails with code `timeout` and cancels. Default: none, or the job's timeoutSec plus a minute. */
 	timeoutMs?: number;
+	/**
+	 * An exec's stdin: `write` waits while this many bytes are sent but not yet taken by the
+	 * process, so a fast source feeding a slow one stays bounded. Default: no wait.
+	 */
+	stdinWindowBytes?: number;
 };
 
 /** Iterate for the output; `result` settles at the end whether or not anything iterates. Leaving the loop early cancels. */
@@ -86,7 +93,13 @@ export class ExecFailed extends Error {
 	}
 }
 
-/** Streams `source` into the exec's stdin, then waits for its exit; throws `ExecFailed` on a non-zero one. */
+/** Stdin a fed exec may have in flight: what sits between the source and the process at most. */
+export const STDIN_WINDOW_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Streams `source` into the exec's stdin, then waits for its exit; throws `ExecFailed` on a non-zero one.
+ * Open the exec with `stdinWindowBytes` so a slow process holds the source back instead of buffering it.
+ */
 export async function feed(
 	exec: NodeExec,
 	source: AsyncIterable<Uint8Array>,
@@ -137,14 +150,21 @@ export type NodeRunner = {
 	): Promise<DiskResult>;
 	/** A container filesystem operation through the engine's archive endpoint (contracts/agent.ts). */
 	archive(nodeId: string, req: ArchiveRequest, opts?: RunOptions): NodeArchive;
+	/** One test line through a log drain, sent from that node. */
+	testDrain(
+		nodeId: string,
+		drain: LogDrainConfig,
+		opts?: RunOptions,
+	): Promise<DrainTestResult>;
 	close(): void;
 };
 
 export type DiskResult = { usage: DiskUsage; report: PruneReport | null };
+export type DrainTestResult = { ok: boolean; status?: number; error?: string };
 
 type Start = Extract<
 	AgentRpcRequest,
-	{ type: "job" | "exec" | "logs" | "disk" | "archive" }
+	{ type: "job" | "exec" | "logs" | "disk" | "archive" | "drain-test" }
 >;
 type Step<T, R> = { item: T } | { done: R } | undefined;
 
@@ -383,24 +403,78 @@ export async function createNodeRunner(
 			).iterator.result;
 		},
 
+		testDrain(nodeId, drain, run = {}) {
+			return open<never, DrainTestResult>(
+				nodeId,
+				{ type: "drain-test", id: crypto.randomUUID(), drain },
+				(m) =>
+					m.type === "drain"
+						? { done: { ok: m.ok, status: m.status, error: m.error } }
+						: undefined,
+				{ timeoutMs: 30_000, ...run },
+			).iterator.result;
+		},
+
 		exec(nodeId, req, run = {}) {
 			const id = crypto.randomUUID();
+			let sent = 0;
+			let taken = 0;
+			let credit: (() => void) | undefined;
 			const { iterator, control, fail, writer } = open<
 				OutputChunk,
 				{ code: number | null }
 			>(
 				nodeId,
 				{ type: "exec", id, req },
-				(m) =>
-					m.type === "output"
+				(m) => {
+					if (m.type === "stdinAck") {
+						taken = m.bytes;
+						credit?.();
+						return undefined;
+					}
+					return m.type === "output"
 						? { item: { stream: m.stream, data: decode(m.data) } }
 						: m.type === "exit"
 							? { done: { code: m.code } }
-							: undefined,
+							: undefined;
+				},
 				run,
 			);
+			const window = run.stdinWindowBytes;
+			let done = false;
+			const over = () => {
+				done = true;
+				credit?.();
+			};
+			iterator.result.then(over, over);
+			/** Resolves once the process is less than a window behind, or the exec is over. */
+			async function room() {
+				while (window && !done && sent - taken >= window) {
+					let stalled: Timer | undefined;
+					const moved = await new Promise<boolean>((r) => {
+						credit = () => r(true);
+						stalled = setTimeout(() => r(false), ACK_STALL_MS);
+					});
+					clearTimeout(stalled);
+					credit = undefined;
+					if (!moved)
+						fail(
+							new NodeRunnerError(
+								"backpressure",
+								`the process took no stdin for ${ACK_STALL_MS / 1000}s`,
+							),
+							true,
+						);
+				}
+			}
 			return Object.assign(iterator, {
-				...writer,
+				write: async (data: string | Uint8Array) => {
+					await room();
+					sent +=
+						typeof data === "string" ? Buffer.byteLength(data) : data.length;
+					await writer.write(data);
+				},
+				end: writer.end,
 				resize: async (rows: number, cols: number) => {
 					await control({ type: "resize", id, rows, cols });
 				},

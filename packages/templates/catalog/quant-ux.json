@@ -50,6 +50,13 @@
 			"label": "Ws domain",
 			"type": "domain",
 			"role": "extra"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -115,7 +122,7 @@
 				"QUX_JWT_PASSWORD": "${{ inputs.quxJwtPassword }}",
 				"QUX_IMAGE_FOLDER_USER": "/app-data/qux-images",
 				"QUX_IMAGE_FOLDER_APPS": "/app-data/qux-image-apps",
-				"TZ": "America/Chicago",
+				"TZ": "${{ inputs.timezone }}",
 				"QUX_AUTH_SERVICE": "qux",
 				"QUX_KEYCLOAK_SERVER": "",
 				"QUX_KEYCLOAK_REALM": "",

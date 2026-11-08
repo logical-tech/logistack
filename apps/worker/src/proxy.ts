@@ -32,6 +32,7 @@ import { RedisClient } from "bun";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { log } from "./bus.ts";
+import { caddyStorageKey } from "./caddy-storage.ts";
 import { refreshCertSnapshot } from "./certs.ts";
 import type { Ctx } from "./ctx.ts";
 import type { DomainRow } from "./load.ts";
@@ -439,11 +440,16 @@ export async function syncProxy(
 		return { instances: 0, failures: [] };
 	}
 	const [apiHost, apiPort] = ctx.cfg.LS_API_UPSTREAM.split(":");
+	const encryptionKey = await caddyStorageKey(ctx);
 	const common = (ip: string): Omit<ProxyInput, "routes"> => ({
 		settings: {
 			adminListen: `${ip}:${ADMIN_PORT}`,
 			acmeEmail: settings.letsencryptEmail ?? "",
-			storage: { redisUrl: ctx.cfg.REDIS_URL, keyPrefix: "caddy" },
+			storage: {
+				redisUrl: ctx.cfg.REDIS_URL,
+				keyPrefix: "caddy",
+				...(encryptionKey && { encryptionKey }),
+			},
 		},
 		dashboard: {
 			hostname: dashboardHost,

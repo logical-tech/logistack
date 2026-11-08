@@ -21,6 +21,7 @@ export async function closeRunQueues() {
 			q.schedule.close(),
 			q.maintenance.close(),
 			q.migration.close(),
+			q.scan.close(),
 		]),
 	);
 }

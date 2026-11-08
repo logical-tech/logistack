@@ -12,7 +12,7 @@
 	],
 	"logo": "logos/opentodo.svg",
 	"website": "https://open-todo.app/",
-	"docs": "https://open-todo.app/docs/self-hosting/dokploy/",
+	"docs": "https://open-todo.app/docs/",
 	"version": "0.13.0",
 	"source": {
 		"kind": "dokploy",

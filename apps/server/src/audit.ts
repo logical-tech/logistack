@@ -2,7 +2,7 @@ import { isIP } from "node:net";
 import type { RouteConfig } from "@hono/zod-openapi";
 import type { AuditOutcome } from "@logistack/contracts";
 import type { Resource } from "@logistack/core";
-import { auditLog } from "@logistack/db";
+import { auditLog, type Db } from "@logistack/db";
 import type { Context, Hono, MiddlewareHandler } from "hono";
 import type { Env } from "./env.ts";
 import { log } from "./log.ts";
@@ -10,7 +10,8 @@ import { log } from "./log.ts";
 export type AuditAction = `${string}.${string}`;
 
 // `config` holds a whole channel config (webhook URLs carry tokens), so it goes wholesale.
-const SECRET_KEY = /password|secret|token|credential|private|^value$|^config$/i;
+const SECRET_KEY =
+	/password|secret|token|credential|private|authkey|^value$|^config$/i;
 
 /** Replaces every value under a secret-looking key with "[redacted]", at any depth. */
 export function redact(value: unknown): unknown {
@@ -63,11 +64,16 @@ async function requestInput(c: Context<Env>): Promise<unknown> {
 
 const auditHandlers = new WeakSet<object>();
 
-function auditMiddleware(action: AuditAction): MiddlewareHandler<Env> {
-	const resourceType = action.slice(0, action.indexOf("."));
+const resourceIdOf = (c: Context<Env>, action: AuditAction) =>
+	c.get("auditResourceId") ??
 	// A create's permission resource is the parent, not the new row.
-	const isCreate = action.endsWith(".create");
+	(action.endsWith(".create")
+		? null
+		: ownId(c.get("resource"), action.slice(0, action.indexOf("."))));
+
+function auditMiddleware(action: AuditAction): MiddlewareHandler<Env> {
 	const mw: MiddlewareHandler<Env> = async (c, next) => {
+		c.set("auditAction", action);
 		await next();
 		// Unauthenticated requests have no organization to file the row under.
 		const actor = c.get("actor");
@@ -75,19 +81,47 @@ function auditMiddleware(action: AuditAction): MiddlewareHandler<Env> {
 		const status = c.res.status;
 		const outcome: AuditOutcome =
 			status === 403 ? "denied" : status >= 400 ? "error" : "success";
+		if (outcome === "success" && c.get("audited")) return;
 		const diff = c.get("auditDiff") ?? { input: await requestInput(c) };
-		// shortcut: written after the mutation commits, not inside its transaction; a failed insert is logged, not retried.
+		// shortcut: a mutation without `auditInTx` is recorded after it commits; a failed insert is logged, not retried.
 		await recordAudit(c, {
 			action,
-			resourceId:
-				c.get("auditResourceId") ??
-				(isCreate ? null : ownId(c.get("resource"), resourceType)),
+			resourceId: resourceIdOf(c, action),
 			diff,
 			outcome,
 		});
 	};
 	auditHandlers.add(mw);
 	return mw;
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/**
+ * Writes the request's success row inside the mutation's own transaction, so the change and
+ * its audit commit or roll back together. Call it last in the transaction; `resourceId` names
+ * a row the transaction created. A request that still fails afterwards gets its error row too.
+ */
+export async function auditInTx(
+	c: Context<Env>,
+	tx: Tx,
+	o: { resourceId?: string; diff?: unknown } = {},
+) {
+	const action = c.get("auditAction");
+	const actor = c.get("actor");
+	if (!action) throw new Error("auditInTx outside a mutation() route");
+	if (!actor) return;
+	if (o.resourceId) c.set("auditResourceId", o.resourceId);
+	if (o.diff !== undefined) c.set("auditDiff", o.diff);
+	await tx.insert(auditLog).values(
+		auditRow(c, {
+			action,
+			resourceId: resourceIdOf(c, action),
+			diff: c.get("auditDiff") ?? { input: await requestInput(c) },
+			outcome: "success",
+		}),
+	);
+	c.set("audited", true);
 }
 
 /**
@@ -103,23 +137,10 @@ export async function recordAudit(
 		outcome: AuditOutcome;
 	},
 ) {
-	const actor = c.get("actor");
-	if (!actor) return;
+	if (!c.get("actor")) return;
 	await c.var.deps.db
 		.insert(auditLog)
-		.values({
-			organizationId: actor.organizationId,
-			actorKind: actor.kind,
-			actorId: actor.id,
-			action: row.action,
-			resourceType: row.action.slice(0, row.action.indexOf(".")),
-			resourceId: row.resourceId,
-			diff: redact(row.diff) ?? null,
-			ip: clientIp(c),
-			userAgent: c.req.header("user-agent") ?? null,
-			requestId: c.get("requestId"),
-			outcome: row.outcome,
-		})
+		.values(auditRow(c, row))
 		.catch((error: unknown) =>
 			log("error", "audit insert failed", {
 				requestId: c.get("requestId"),
@@ -127,6 +148,31 @@ export async function recordAudit(
 				error: String(error),
 			}),
 		);
+}
+
+function auditRow(
+	c: Context<Env>,
+	row: {
+		action: AuditAction;
+		resourceId: string | null;
+		diff: unknown;
+		outcome: AuditOutcome;
+	},
+) {
+	const actor = c.get("actor") as NonNullable<Env["Variables"]["actor"]>;
+	return {
+		organizationId: actor.organizationId,
+		actorKind: actor.kind,
+		actorId: actor.id,
+		action: row.action,
+		resourceType: row.action.slice(0, row.action.indexOf(".")),
+		resourceId: row.resourceId,
+		diff: redact(row.diff) ?? null,
+		ip: clientIp(c),
+		userAgent: c.req.header("user-agent") ?? null,
+		requestId: c.get("requestId"),
+		outcome: row.outcome,
+	};
 }
 
 /**

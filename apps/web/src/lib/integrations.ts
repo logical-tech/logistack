@@ -1,4 +1,12 @@
-import { type LucideIcon, Mail, Webhook } from "lucide-react";
+import type { LogDrainKind } from "@logistack/contracts";
+import {
+	Braces,
+	KeyRound,
+	type LucideIcon,
+	Mail,
+	ScrollText,
+	Webhook,
+} from "lucide-react";
 import { brandMark } from "@/components/brand-icon";
 import type {
 	AcmeDirectory,
@@ -7,6 +15,7 @@ import type {
 	EventType,
 	TlsMode,
 } from "@/lib/api/networking";
+import type { SecretProviderKind } from "@/lib/api/secrets";
 
 /** One registry for every kind the UI names: label, icon and where the credential comes from. */
 export const DNS_KINDS: Record<
@@ -113,6 +122,40 @@ export const CHANNEL_KINDS: Record<
 	},
 };
 
+export const SECRET_PROVIDER_KINDS: Record<
+	SecretProviderKind,
+	{
+		label: string;
+		icon: LucideIcon;
+		blurb: string;
+		/** The reference shape, after `secret://<name>/`. */
+		path: string;
+		example: string;
+	}
+> = {
+	vault: {
+		label: "HashiCorp Vault",
+		icon: brandMark("vault"),
+		blurb: "KV version 2, with a token that can read the paths you reference.",
+		path: "<mount>/<path>#<field>",
+		example: "secret/app/db#password",
+	},
+	infisical: {
+		label: "Infisical",
+		icon: KeyRound,
+		blurb: "A machine identity with Universal Auth on one project.",
+		path: "<environment>[/<folder>…]#<name>",
+		example: "prod/api#DATABASE_URL",
+	},
+	onepassword: {
+		label: "1Password",
+		icon: brandMark("onepassword"),
+		blurb: "A Connect server and an access token for the vaults you need.",
+		path: "<vault>/<item>#<field>",
+		example: "Production/Postgres#password",
+	},
+};
+
 export const EVENT_GROUPS: {
 	label: string;
 	events: { type: EventType; label: string }[];
@@ -147,6 +190,7 @@ export const EVENT_GROUPS: {
 			{ type: "service.crash_loop", label: "Service crash-looping" },
 			{ type: "service.threshold", label: "Service threshold crossed" },
 			{ type: "service.scaled", label: "Service scaled automatically" },
+			{ type: "image.vulnerable", label: "Critical vulnerability found" },
 			{ type: "metric.threshold", label: "Node threshold crossed" },
 		],
 	},
@@ -229,3 +273,34 @@ export function fieldLabel(key: string): string {
 	const [first = "", ...rest] = words;
 	return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(" ");
 }
+
+export const DRAIN_KINDS: Record<
+	LogDrainKind,
+	{ label: string; icon: LucideIcon; blurb: string }
+> = {
+	loki: {
+		label: "Grafana Loki",
+		icon: brandMark("grafana"),
+		blurb: "Push API, labelled by project, service and node.",
+	},
+	otlp: {
+		label: "OpenTelemetry",
+		icon: brandMark("opentelemetry"),
+		blurb: "OTLP/HTTP to a collector or any OTLP backend.",
+	},
+	datadog: {
+		label: "Datadog",
+		icon: brandMark("datadog"),
+		blurb: "Logs intake with an API key, tagged by env.",
+	},
+	http: {
+		label: "HTTP JSON",
+		icon: Braces,
+		blurb: "A JSON array POSTed to any URL.",
+	},
+	syslog: {
+		label: "Syslog",
+		icon: ScrollText,
+		blurb: "RFC 5424 over TCP, TLS or UDP.",
+	},
+};

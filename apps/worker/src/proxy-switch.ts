@@ -26,6 +26,8 @@ import { firstTarFile } from "@logistack/docker";
 import { and, eq, inArray } from "drizzle-orm";
 import { planAcmeImport, storeInCaddy } from "./acme-import.ts";
 import { log } from "./bus.ts";
+import { caddyStorageKey } from "./caddy-storage.ts";
+import { CADDY_PREFIX } from "./certs.ts";
 import { freeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { scale, unlessAlready, waitStopped } from "./migration.ts";
@@ -147,7 +149,13 @@ async function importCertificates(
 			await migratedHostnames(ctx, migrationId),
 			new Date(),
 		);
-		const imported = await storeInCaddy(ctx.bus.redis, plan);
+		const imported = await storeInCaddy(
+			ctx.bus.redis,
+			plan,
+			new Date(),
+			CADDY_PREFIX,
+			await caddyStorageKey(ctx),
+		);
 		return { imported, skipped: plan.skipped };
 	} catch (e) {
 		// Caddy then issues the certificates itself: slower, never wrong.

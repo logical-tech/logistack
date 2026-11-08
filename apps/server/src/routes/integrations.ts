@@ -1,5 +1,9 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { dnsProviders, notificationChannels } from "@logistack/providers";
+import {
+	dnsProviders,
+	notificationChannels,
+	secretProviders,
+} from "@logistack/providers";
 import { json, router } from "../openapi.ts";
 
 const jsonSchemas = (defs: Record<string, { configSchema: z.ZodType }>) =>
@@ -18,6 +22,7 @@ const jsonSchemas = (defs: Record<string, { configSchema: z.ZodType }>) =>
 const schemas = {
 	dns: jsonSchemas(dnsProviders),
 	notify: jsonSchemas(notificationChannels),
+	secrets: jsonSchemas(secretProviders),
 };
 
 const SchemaMap = z.record(z.string(), z.record(z.string(), z.unknown()));
@@ -28,13 +33,13 @@ export const integrations = router().openapi(
 		path: "/integrations/schemas",
 		tags: ["integrations"],
 		summary:
-			"JSON Schema of each DNS provider's and notification channel's config",
+			"JSON Schema of each DNS provider's, notification channel's and secret provider's config",
 		description:
 			"Fields marked `secret: true` are credentials: forms mask them and the API never returns them.",
 		responses: {
 			200: json(
 				z
-					.object({ dns: SchemaMap, notify: SchemaMap })
+					.object({ dns: SchemaMap, notify: SchemaMap, secrets: SchemaMap })
 					.openapi("IntegrationSchemas"),
 				"Schemas",
 			),

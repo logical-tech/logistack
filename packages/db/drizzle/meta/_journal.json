@@ -295,6 +295,55 @@
       "when": 1793994911875,
       "tag": "0041_ai_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794055726545,
+      "tag": "0042_image_scan",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794056314472,
+      "tag": "0043_stack_git_sync_error",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794056314473,
+      "tag": "0044_external_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794056314474,
+      "tag": "0045_log_drains",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794056314475,
+      "tag": "0046_tailscale",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794057508523,
+      "tag": "0047_backup_destinations",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794154667026,
+      "tag": "0048_image_shell",
+      "breakpoints": true
     }
   ]
 }

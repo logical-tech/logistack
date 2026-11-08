@@ -41,6 +41,10 @@ import {
 } from "@logistack/providers";
 import { and, asc, eq, or } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
+import {
+	resolveExternalSecrets,
+	storedPlaceholder,
+} from "./external-secrets.ts";
 import { readSecretValues } from "./secrets.ts";
 
 export type ServiceRow = typeof service.$inferSelect;
@@ -150,11 +154,18 @@ async function folderChain(
 
 type LoadCtx = Pick<Ctx, "db" | "masterKey" | "secretsKek">;
 
-/** `gitAuth: false` skips minting clone credentials, for callers that only compile. */
+/**
+ * `gitAuth: false` skips minting clone credentials, for callers that only compile.
+ * `external: "placeholder"` does not contact secret providers: external secrets get the
+ * placeholder of the value last read, which only fits a comparison, never a rollout.
+ */
 export async function loadService(
 	ctx: LoadCtx,
 	serviceId: string,
-	{ gitAuth: withGit = true } = {},
+	{
+		gitAuth: withGit = true,
+		external = "resolve",
+	}: { gitAuth?: boolean; external?: "resolve" | "placeholder" } = {},
 ): Promise<ServiceContext | null> {
 	const [row] = await ctx.db
 		.select({
@@ -197,6 +208,22 @@ export async function loadService(
 		ctx,
 		vars.flatMap((v) => (v.secretId ? [v.secretId] : [])),
 	);
+	const externals =
+		external === "resolve"
+			? await resolveExternalSecrets(
+					ctx,
+					[...secrets.values()].filter((s) => s.organizationId === orgId),
+				)
+			: new Map(
+					await Promise.all(
+						[...secrets.values()]
+							.filter((s) => s.providerId)
+							.map(async (s) => {
+								const placeholder = await storedPlaceholder(ctx, s);
+								return [s.id, { value: placeholder, placeholder }] as const;
+							}),
+					),
+				);
 	const chainOf: Resource = {
 		type: "service",
 		organizationId: orgId,
@@ -222,12 +249,16 @@ export async function loadService(
 					throw new Error(
 						`${v.key} references a secret this service cannot use; pick another in its Environment tab`,
 					);
+				const ext = externals.get(s.id);
+				if (s.value === null && !ext)
+					throw new Error(`${v.key}: external secret ${s.id} was not read`);
 				return {
 					scope: v.scope,
 					key: v.key,
-					value: s.value,
+					value: ext?.value ?? (s.value as string),
 					isSecret: true,
 					isBuildTime: v.isBuildTime,
+					...(ext ? { snapshotValue: ext.placeholder } : {}),
 				};
 			}),
 		),
@@ -369,6 +400,7 @@ export type DeploymentRef = {
 	id: string;
 	imageRef: string | null;
 	platforms: BuildPlatform[] | null;
+	imageShell: boolean | null;
 	commitSha: string | null;
 	commitMessage: string | null;
 	gitRef: string | null;
@@ -403,6 +435,9 @@ export function compileInput(
 		deploymentId: deployment.id,
 		...(deployment.imageRef ? { image: deployment.imageRef } : {}),
 		...(deployment.platforms ? { platforms: deployment.platforms } : {}),
+		...(deployment.imageShell !== null
+			? { imageShell: deployment.imageShell }
+			: {}),
 		env: Object.fromEntries(
 			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
 		),

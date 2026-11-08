@@ -66,7 +66,7 @@
 			],
 			"env": {
 				"PUBLIC_SERVER_URL": "${{ inputs.backendDomain }}",
-				"ORIGIN": "http://${{ inputs.frontendDomain }}",
+				"ORIGIN": "https://${{ inputs.frontendDomain }}",
 				"BODY_SIZE_LIMIT": "Infinity"
 			},
 			"volumes": [],
@@ -115,9 +115,9 @@
 				"DJANGO_ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
 				"DJANGO_ADMIN_EMAIL": "${{ inputs.adminEmail }}",
 				"DEBUG": "False",
-				"CSRF_TRUSTED_ORIGINS": "http://${{ inputs.backendDomain }},http://${{ inputs.frontendDomain }}",
-				"FRONTEND_URL": "http://${{ inputs.frontendDomain }}",
-				"PUBLIC_URL": "http://${{ inputs.backendDomain }}"
+				"CSRF_TRUSTED_ORIGINS": "https://${{ inputs.backendDomain }},https://${{ inputs.frontendDomain }}",
+				"FRONTEND_URL": "https://${{ inputs.frontendDomain }}",
+				"PUBLIC_URL": "https://${{ inputs.backendDomain }}"
 			},
 			"volumes": [
 				{
