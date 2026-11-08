@@ -83,7 +83,7 @@ function auditMiddleware(action: AuditAction): MiddlewareHandler<Env> {
 			status === 403 ? "denied" : status >= 400 ? "error" : "success";
 		if (outcome === "success" && c.get("audited")) return;
 		const diff = c.get("auditDiff") ?? { input: await requestInput(c) };
-		// shortcut: a mutation without `auditInTx` is recorded after it commits; a failed insert is logged, not retried.
+		// shortcut: about 125 mutations that write the database still skip `auditInTx` and are recorded here after they commit, so a failed insert loses their row (logged, not retried); convert them route by route once the parallel branches have landed (follow-up on the board).
 		await recordAudit(c, {
 			action,
 			resourceId: resourceIdOf(c, action),
@@ -150,7 +150,7 @@ export async function recordAudit(
 		);
 }
 
-function auditRow(
+export function auditRow(
 	c: Context<Env>,
 	row: {
 		action: AuditAction;

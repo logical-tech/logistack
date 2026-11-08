@@ -185,19 +185,22 @@ export const members = router()
 				and(eq(member.organizationId, orgId), eq(member.userId, u.id)),
 			);
 			if (existing > 0) throw new Failure("conflict", "already a member");
-			const row = one(
-				await db
-					.insert(member)
-					.values({
-						id: crypto.randomUUID(),
-						organizationId: orgId,
-						userId: u.id,
-						role: input.role,
-						createdAt: new Date(),
-					})
-					.returning(),
-			);
-			c.set("auditResourceId", row.id);
+			const row = await db.transaction(async (tx) => {
+				const row = one(
+					await tx
+						.insert(member)
+						.values({
+							id: crypto.randomUUID(),
+							organizationId: orgId,
+							userId: u.id,
+							role: input.role,
+							createdAt: new Date(),
+						})
+						.returning(),
+				);
+				await auditInTx(c, tx, { resourceId: row.id });
+				return row;
+			});
 			return c.json(
 				{
 					...row,
@@ -234,8 +237,12 @@ export const members = router()
 			const current = await memberRow(c, id);
 			await resolveRole(c, role);
 			await assertOwnershipChange(c, current.role, role);
-			await c.var.deps.db.update(member).set({ role }).where(eq(member.id, id));
-			c.set("auditDiff", { before: { role: current.role }, after: { role } });
+			await c.var.deps.db.transaction(async (tx) => {
+				await tx.update(member).set({ role }).where(eq(member.id, id));
+				await auditInTx(c, tx, {
+					diff: { before: { role: current.role }, after: { role } },
+				});
+			});
 			return c.json({ id, role }, 200);
 		},
 	)
@@ -404,19 +411,22 @@ export const members = router()
 		async (c) => {
 			const { id } = c.req.valid("param");
 			c.set("auditResourceId", id);
-			one(
-				await c.var.deps.db
-					.update(invitation)
-					.set({ status: "canceled" })
-					.where(
-						and(
-							eq(invitation.id, id),
-							eq(invitation.organizationId, requireActor(c).organizationId),
-						),
-					)
-					.returning({ id: invitation.id }),
-				"invitation",
-			);
+			await c.var.deps.db.transaction(async (tx) => {
+				one(
+					await tx
+						.update(invitation)
+						.set({ status: "canceled" })
+						.where(
+							and(
+								eq(invitation.id, id),
+								eq(invitation.organizationId, requireActor(c).organizationId),
+							),
+						)
+						.returning({ id: invitation.id }),
+					"invitation",
+				);
+				await auditInTx(c, tx);
+			});
 			return c.body(null, 204);
 		},
 	)
@@ -495,20 +505,23 @@ export const members = router()
 				),
 			);
 			if (isMember === 0) throw notFound("member");
-			const row = one(
-				await db
-					.insert(roleGrant)
-					.values({
-						organizationId: actor.organizationId,
-						userId: input.userId,
-						role: input.role,
-						scopeKind: input.scope.kind,
-						scopeId: input.scope.id,
-						createdBy: actor.userId,
-					})
-					.returning(),
-			);
-			c.set("auditResourceId", row.id);
+			const row = await db.transaction(async (tx) => {
+				const row = one(
+					await tx
+						.insert(roleGrant)
+						.values({
+							organizationId: actor.organizationId,
+							userId: input.userId,
+							role: input.role,
+							scopeKind: input.scope.kind,
+							scopeId: input.scope.id,
+							createdBy: actor.userId,
+						})
+						.returning(),
+				);
+				await auditInTx(c, tx, { resourceId: row.id });
+				return row;
+			});
 			return c.json(
 				{
 					id: row.id,
@@ -560,8 +573,12 @@ export const members = router()
 				}),
 			);
 			check(c, "admin", resource);
-			c.set("auditDiff", { before: { role: g.role, scope, userId: g.userId } });
-			await db.delete(roleGrant).where(eq(roleGrant.id, id));
+			await db.transaction(async (tx) => {
+				await tx.delete(roleGrant).where(eq(roleGrant.id, id));
+				await auditInTx(c, tx, {
+					diff: { before: { role: g.role, scope, userId: g.userId } },
+				});
+			});
 			return c.body(null, 204);
 		},
 	)
@@ -645,18 +662,20 @@ export const members = router()
 			);
 			if (exists > 0) throw new Failure("conflict", `role '${name}' exists`);
 			const ordered = permissionActions.filter((a) => actions.includes(a));
-			const row = one(
-				await c.var.deps.db
-					.insert(organizationRole)
-					.values({
-						id: crypto.randomUUID(),
-						organizationId: orgId,
-						role: name,
-						permission: JSON.stringify({ logistack: ordered }),
-					})
-					.returning(),
-			);
-			c.set("auditResourceId", row.id);
+			await c.var.deps.db.transaction(async (tx) => {
+				const row = one(
+					await tx
+						.insert(organizationRole)
+						.values({
+							id: crypto.randomUUID(),
+							organizationId: orgId,
+							role: name,
+							permission: JSON.stringify({ logistack: ordered }),
+						})
+						.returning(),
+				);
+				await auditInTx(c, tx, { resourceId: row.id });
+			});
 			return c.json({ name, builtin: false, actions: ordered, usage: 0 }, 201);
 		},
 	)
@@ -688,13 +707,17 @@ export const members = router()
 			const row = await customRoleRow(c, name);
 			c.set("auditResourceId", row.id);
 			const ordered = permissionActions.filter((a) => actions.includes(a));
-			await c.var.deps.db
-				.update(organizationRole)
-				.set({ permission: JSON.stringify({ logistack: ordered }) })
-				.where(eq(organizationRole.id, row.id));
-			c.set("auditDiff", {
-				before: { actions: customActions(row.permission) },
-				after: { actions: ordered },
+			await c.var.deps.db.transaction(async (tx) => {
+				await tx
+					.update(organizationRole)
+					.set({ permission: JSON.stringify({ logistack: ordered }) })
+					.where(eq(organizationRole.id, row.id));
+				await auditInTx(c, tx, {
+					diff: {
+						before: { actions: customActions(row.permission) },
+						after: { actions: ordered },
+					},
+				});
 			});
 			return c.json({ name, actions: ordered }, 200);
 		},
@@ -737,7 +760,12 @@ export const members = router()
 					"conflict",
 					`role '${name}' is held by ${holders + granted} member(s) or grant(s)`,
 				);
-			await db.delete(organizationRole).where(eq(organizationRole.id, row.id));
+			await db.transaction(async (tx) => {
+				await tx
+					.delete(organizationRole)
+					.where(eq(organizationRole.id, row.id));
+				await auditInTx(c, tx);
+			});
 			return c.body(null, 204);
 		},
 	);

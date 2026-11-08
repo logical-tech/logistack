@@ -20,6 +20,7 @@ import { apiKeyFrom } from "./auth.ts";
 import type { Deps, Env } from "./env.ts";
 import { Failure } from "./errors.ts";
 import { log } from "./log.ts";
+import { limitApiKey } from "./rate-limit.ts";
 import {
 	auditBlocked,
 	type MemberTwoFactor,
@@ -45,7 +46,16 @@ export type Actor = {
 	keyId?: string;
 	/** Set for a signed-in person when the organization requires a second factor; keys and machines are exempt. */
 	twoFactor?: MemberTwoFactor;
+	/** May change the instance itself (updates, nodes, instance settings): see {@link isInstanceAdminRole}. */
+	instanceAdmin?: boolean;
 };
+
+/**
+ * Instance admins are users whose better-auth `user.role` lists `admin`: the role the admin plugin
+ * already trusts with every user account. Setup grants it to the first owner.
+ */
+export const isInstanceAdminRole = (role: string | null | undefined) =>
+	(role ?? "").split(",").some((r) => r.trim() === "admin");
 
 export const scopeKinds = [
 	"organization",
@@ -204,7 +214,7 @@ export async function resolveActor(
 		const { organizationId } = meta;
 		const userId = res.key.referenceId;
 		const [u] = await db
-			.select({ kind: user.kind })
+			.select({ kind: user.kind, role: user.role })
 			.from(user)
 			.where(eq(user.id, userId));
 		if (!u) return undefined;
@@ -226,7 +236,19 @@ export async function resolveActor(
 		const keyScopes = meta.scopes
 			? await toGrants(db, organizationId, id, meta.scopes)
 			: undefined;
-		return { kind, id, userId, organizationId, grants, keyScopes, keyId };
+		// A machine or a key narrowed to scopes never carries its owner's instance role.
+		const instanceAdmin =
+			kind === "apikey" && !meta.scopes && isInstanceAdminRole(u.role);
+		return {
+			kind,
+			id,
+			userId,
+			organizationId,
+			grants,
+			keyScopes,
+			keyId,
+			instanceAdmin,
+		};
 	}
 	const session = await auth.api.getSession({ headers });
 	if (!session) return undefined;
@@ -245,6 +267,7 @@ export async function resolveActor(
 		organizationId,
 		grants,
 		twoFactor,
+		instanceAdmin: isInstanceAdminRole(session.user.role),
 	};
 }
 
@@ -267,6 +290,10 @@ export async function systemActor(
 	);
 	if (!owner) return undefined;
 	const grants = await grantsFor(db, id, owner.userId, organizationId);
+	const [u] = await db
+		.select({ role: user.role })
+		.from(user)
+		.where(eq(user.id, owner.userId));
 	return (
 		grants && {
 			kind: "system",
@@ -274,6 +301,8 @@ export async function systemActor(
 			userId: owner.userId,
 			organizationId,
 			grants,
+			// The owner's instance role too, so an import does what the owner could do by hand.
+			instanceAdmin: isInstanceAdminRole(u?.role),
 		}
 	);
 }
@@ -284,6 +313,7 @@ export async function systemActor(
  */
 export const authenticate: MiddlewareHandler<Env> = async (c, next) => {
 	const actor = await resolveActor(c.var.deps, c.req.raw.headers, clientIp(c));
+	if (actor?.keyId) await limitApiKey(c, actor.keyId);
 	c.set("actor", actor);
 	if (actor?.twoFactor?.kind === "blocked")
 		await auditBlocked(c, actor.twoFactor);

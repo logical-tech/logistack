@@ -157,7 +157,8 @@ Select the trash icon on its row, then **Remove destination**. LogiStack forgets
 
 ## Troubleshooting
 
-- **Use the full URL, starting with https://**: paste the endpoint with its scheme.
+- **Use the full URL, starting with https://**: paste the endpoint with its scheme. Plain `http://` works only for a store on a private address, such as a MinIO on your LAN, and only after an instance admin allows private hosts in **Settings > General**.
+- The test fails with a private address error: the endpoint's name resolves to a private or loopback address. LogiStack checks the address on every request and connects only to the one it checked.
 - **Fill in your account ID**: replace `<account-id>` in the R2 endpoint.
 - The test fails with access denied: the key lacks put, get or delete on the bucket, or is scoped to another bucket.
 - The test fails with a DNS or bucket-not-found error on a self-hosted store: turn on **Path-style addressing**.

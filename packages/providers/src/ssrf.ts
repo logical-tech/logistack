@@ -115,3 +115,15 @@ export async function guardedFetch(
 		tls: { serverName: url.hostname },
 	} as RequestInit);
 }
+
+/**
+ * {@link guardedFetch} bound to a policy, as the `fetch` a provider takes: every request resolves,
+ * checks and pins its own host, so no later DNS answer is ever dialled.
+ */
+export const pinnedFetch =
+	(
+		policy: HostPolicy,
+		opts: { privateHttp?: boolean; resolve?: Lookup } = {},
+	) =>
+	(input: string | URL, init: RequestInit = {}): Promise<Response> =>
+		guardedFetch(input, init, policy, opts.resolve, opts.privateHttp ?? false);

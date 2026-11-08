@@ -404,11 +404,11 @@ export const storage = router()
 				security,
 				summary: "Delete a bucket and every object in it",
 				description:
-					"`confirm` must repeat the bucket name. Every object (and version) is deleted first.",
+					"`confirmName` must repeat the bucket name. Every object (and version) is deleted first.",
 				middleware: [requirePermission("delete", svc)],
 				request: {
 					params: BucketParams,
-					query: z.object({ confirm: z.string() }),
+					query: z.object({ confirmName: z.string() }),
 				},
 				responses: {
 					200: json(z.object({ deletedObjects: z.int() }), "Deleted"),
@@ -418,7 +418,7 @@ export const storage = router()
 		),
 		async (c) => {
 			const { id, bucket } = c.req.valid("param");
-			if (c.req.valid("query").confirm !== bucket)
+			if (c.req.valid("query").confirmName !== bucket)
 				throw new Failure("bad_request", "type the bucket name to confirm");
 			const s = await openStorage(c, id);
 			const inUse = await c.var.deps.db.$count(

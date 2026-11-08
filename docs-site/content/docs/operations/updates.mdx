@@ -23,7 +23,7 @@ When an update is available, the sidebar also shows a card such as **v0.2.0 avai
 
 ## Update from the dashboard
 
-Only an admin can start an update. Other members see **An admin can update this instance.**
+Only an [instance admin](../team/instance-admins.mdx) who is an organization **Owner** or **Admin** can start an update or change these settings. Other members see **An instance admin can update this instance.**
 
 <Steps>
 <Step>
@@ -74,7 +74,7 @@ The **Version** panel shows the new release under **This instance** and the stat
 
 ## Check for updates automatically
 
-In the **Settings** panel, **Check daily** is on by default. Once a day LogiStack asks GitHub for the latest release and, when it is newer, sends `instance.update_available` to the notification rules that include **Update available**. Nothing updates until an admin chooses to.
+In the **Settings** panel, **Check daily** is on by default. Once a day LogiStack asks GitHub for the latest release and, when it is newer, sends `instance.update_available` to the notification rules that include **Update available**. Nothing updates until an instance admin chooses to.
 
 To get an email for each new release, add a rule with **Update available** sent to an email channel. See [Alerts and notifications](./alerts-and-notifications.mdx).
 

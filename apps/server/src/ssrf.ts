@@ -8,6 +8,7 @@ export {
 	type HostPolicy,
 	isPrivateAddress,
 	type Lookup,
+	pinnedFetch,
 	resolvePublic,
 } from "@logistack/providers";
 

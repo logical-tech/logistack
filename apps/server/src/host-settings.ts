@@ -10,7 +10,7 @@ import type { Context } from "hono";
 import { requireActor } from "./actor.ts";
 import type { Env } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
-import { check } from "./scope.ts";
+import { assertInstanceAdmin, check } from "./scope.ts";
 
 // Docker grants these to every container already, so adding them changes nothing.
 const DEFAULT_CAPS = new Set([
@@ -113,6 +113,8 @@ export async function guardHostSettings(
 				"bind mounts and extra capabilities need an admin to apply them",
 			);
 		check(c, "admin", resource);
+		// A bind mount or a capability reaches the host every organization shares.
+		assertInstanceAdmin(c);
 	}
 
 	let nodeId = o.nodeId;

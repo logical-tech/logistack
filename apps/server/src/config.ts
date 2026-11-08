@@ -29,6 +29,14 @@ const ConfigSchema = z.object({
 		.int()
 		.positive()
 		.default(50 * 1024 ** 3),
+	/** Sign-in, sign-up, second-factor and password-reset attempts per client address and minute. */
+	RATE_LIMIT_LOGIN_PER_MINUTE: z.coerce.number().int().positive().default(30),
+	/** Requests per API key and minute, across every api replica. */
+	RATE_LIMIT_API_KEY_PER_MINUTE: z.coerce
+		.number()
+		.int()
+		.positive()
+		.default(600),
 	/** The built web app, served with an SPA fallback when its index.html exists. */
 	WEB_DIST_DIR: z
 		.string()

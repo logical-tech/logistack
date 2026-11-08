@@ -24,6 +24,7 @@ import {
 	Orbit,
 	Palette,
 	ScrollText,
+	ServerCog,
 	Settings2,
 	ShieldCheck,
 	Sparkles,
@@ -407,6 +408,14 @@ export const NAV: NavGroup[] = [
 					action: "Upload certificate",
 				},
 				keywords: ["tls", "ssl"],
+			},
+			{
+				to: "/settings/instance-admins",
+				title: "Instance admins",
+				icon: ServerCog,
+				description:
+					"Who may update LogiStack, manage servers and change instance-wide settings.",
+				keywords: ["superuser", "root", "server admin", "instance"],
 			},
 			{
 				to: "/settings/updates",

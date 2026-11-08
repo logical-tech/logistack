@@ -476,13 +476,22 @@ export const apiKeys = router()
 					.from(member)
 					.where(and(eq(member.userId, id), eq(member.organizationId, orgId)));
 				await assertOwnershipChange(c, m?.role, input.role);
-				await db
-					.update(member)
-					.set({ role: input.role })
-					.where(and(eq(member.userId, id), eq(member.organizationId, orgId)));
 			}
-			if (input.name)
-				await db.update(user).set({ name: input.name }).where(eq(user.id, id));
+			await db.transaction(async (tx) => {
+				if (input.role)
+					await tx
+						.update(member)
+						.set({ role: input.role })
+						.where(
+							and(eq(member.userId, id), eq(member.organizationId, orgId)),
+						);
+				if (input.name)
+					await tx
+						.update(user)
+						.set({ name: input.name })
+						.where(eq(user.id, id));
+				await auditInTx(c, tx);
+			});
 			return c.json({ id }, 200);
 		},
 	)
