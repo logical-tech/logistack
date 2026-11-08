@@ -103,6 +103,8 @@ export const organizationRoutes = router()
 								deadline: z.string(),
 							})
 							.nullable(),
+						/** May change the instance itself: updates, nodes, instance settings. */
+						instanceAdmin: z.boolean(),
 						/** Set when the credential is a scoped API key: it may act only within these. */
 						keyScopes: z
 							.array(
@@ -124,6 +126,7 @@ export const organizationRoutes = router()
 				keyScopes,
 				keyId: _,
 				twoFactor,
+				instanceAdmin,
 				...actor
 			} = currentActor(c);
 			const bindings = (gs: Grant[]) =>
@@ -131,6 +134,7 @@ export const organizationRoutes = router()
 			return c.json(
 				{
 					...actor,
+					instanceAdmin: instanceAdmin ?? false,
 					roles: grants
 						.filter((g) => g.scope.kind === "organization")
 						.map(roleName),

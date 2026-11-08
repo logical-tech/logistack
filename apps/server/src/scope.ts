@@ -196,6 +196,20 @@ export function requirePermission(
 }
 
 /**
+ * Instance-level routes (updates, nodes, instance settings): the organization check alone would
+ * let any organization's admin change a server every organization shares.
+ */
+export const requireInstanceAdmin: MiddlewareHandler<Env> = async (c, next) => {
+	assertInstanceAdmin(c);
+	await next();
+};
+
+export function assertInstanceAdmin(c: Context<Env>) {
+	if (!requireActor(c).instanceAdmin)
+		throw new Failure("forbidden", "only an instance admin can do this");
+}
+
+/**
  * Throws 409 when the project this request resolved (via `requirePermission` or `check`) is
  * archived: an archived project takes no deploys and starts nothing.
  */

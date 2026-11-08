@@ -132,6 +132,10 @@ export function createAuth(config: Config, db: Db) {
 			"/sso/delete-provider",
 			"/sso/request-domain-verification",
 			"/sso/verify-domain",
+			// The admin role is the instance-admin flag: /api/instance/admins changes it, audited, and never removes the last one.
+			"/admin/set-role",
+			"/admin/remove-user",
+			"/admin/ban-user",
 		],
 		socialProviders: social,
 		hooks: {

@@ -21,7 +21,11 @@ import { mutation } from "../audit.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import { live } from "../live.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	inOrganization,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 
 const tags = ["nodes"];
 
@@ -233,7 +237,10 @@ export const nodes = router()
 			summary: "Browse the directories on a node's host",
 			description:
 				"Admins only, like bind mounts. The directories (and symlinks to directories) under `path` on the node's own filesystem, read by its agent from a read-only view of `/` with symlinks resolved; the first 1,000 by name (`truncated`). Picks a bind mount source.",
-			middleware: [requirePermission("admin", inOrganization)],
+			middleware: [
+				requirePermission("admin", inOrganization),
+				requireInstanceAdmin,
+			],
 			request: {
 				params: IdParam,
 				query: z.object({ path: z.string().min(1).max(4096).default("/") }),
@@ -280,7 +287,10 @@ export const nodes = router()
 				security,
 				summary:
 					"Remove unused images, build cache and stopped LogiStack containers on a node",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: { params: IdParam, ...body(PruneInput) },
 				responses: { 200: json(DiskResult, "Pruned"), ...errors },
 			}),
@@ -312,7 +322,10 @@ export const nodes = router()
 				security,
 				summary:
 					"Set labels (applied to Swarm by the worker) or drain / activate",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: { params: IdParam, ...body(NodeUpdate) },
 				responses: { 200: json(NodeView, "Updated"), ...errors },
 			}),
@@ -355,7 +368,10 @@ export const nodes = router()
 				tags,
 				security,
 				summary: "Remove a server: drain, leave the swarm, delete the node",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: { params: IdParam },
 				responses: { 202: json(NodeView, "Removal started"), ...errors },
 			}),
@@ -391,7 +407,10 @@ export const nodes = router()
 				tags,
 				security,
 				summary: "Start the Add-server wizard; queues the SSH test",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(NodeJoinInput),
 				responses: { 201: json(NodeJoin, "Queued"), ...errors },
 			}),
@@ -440,7 +459,10 @@ export const nodes = router()
 				tags,
 				security,
 				summary: "Change the connection details; restarts from the SSH test",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: { params: IdParam, ...body(NodeJoinInput) },
 				responses: { 200: json(NodeJoin, "Queued"), ...errors },
 			}),
@@ -483,7 +505,10 @@ export const nodes = router()
 				tags,
 				security,
 				summary: "Queue the next wizard step (test, preflight or bootstrap)",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: { params: IdParam, ...body(z.object({ step: NodeJoinStep })) },
 				responses: { 202: json(NodeJoin, "Queued"), ...errors },
 			}),

@@ -1,5 +1,5 @@
 import { type Db, member, organization } from "@logistack/db";
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { log } from "./log.ts";
 
 /*
@@ -85,19 +85,19 @@ export async function joinOrganization(
 		return "skipped";
 	const role = (await defaultRoles(db, organizationId))[provider.providerId];
 	if (!role) return "skipped";
-	const existing = await db.$count(
-		member,
-		and(eq(member.organizationId, organizationId), eq(member.userId, user.id)),
-	);
-	if (existing > 0) return "already-member";
-	// shortcut: no unique (organization, user) index; two first sign-ins racing could both insert, add the index if that is ever seen.
-	await db.insert(member).values({
-		id: crypto.randomUUID(),
-		organizationId,
-		userId: user.id,
-		role,
-		createdAt: new Date(),
-	});
+	// member_org_user_uidx makes a racing second sign-in a no-op instead of a duplicate row.
+	const joined = await db
+		.insert(member)
+		.values({
+			id: crypto.randomUUID(),
+			organizationId,
+			userId: user.id,
+			role,
+			createdAt: new Date(),
+		})
+		.onConflictDoNothing()
+		.returning({ id: member.id });
+	if (joined.length === 0) return "already-member";
 	log("info", "sso user joined organization", {
 		userId: user.id,
 		organizationId,

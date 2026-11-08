@@ -14,7 +14,11 @@ import { Failure } from "../errors.ts";
 import { live } from "../live.ts";
 import { log } from "../log.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	inOrganization,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 
 const tags = ["updates"];
 
@@ -166,7 +170,10 @@ export const updates = router()
 				summary:
 					"Update every LogiStack service to a release, api first and worker last",
 				// shortcut: any organization admin updates the instance; split out an instance-admin role once instances host several organizations.
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(z.object({ version: z.string().min(1).max(64) })),
 				responses: { 202: json(UpdateRun, "Update queued"), ...errors },
 			}),
@@ -211,7 +218,10 @@ export const updates = router()
 				tags,
 				security,
 				summary: "Check GitHub daily and notify when a newer release is out",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(z.object({ enabled: z.boolean() })),
 				responses: {
 					200: json(z.object({ enabled: z.boolean() }), "Saved"),
@@ -239,7 +249,10 @@ export const updates = router()
 				security,
 				summary:
 					"Offer staging builds (prereleases) as updates, not only stable releases",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(z.object({ enabled: z.boolean() })),
 				responses: {
 					200: json(z.object({ enabled: z.boolean() }), "Saved"),

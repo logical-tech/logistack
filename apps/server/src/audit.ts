@@ -150,7 +150,7 @@ export async function recordAudit(
 		);
 }
 
-function auditRow(
+export function auditRow(
 	c: Context<Env>,
 	row: {
 		action: AuditAction;

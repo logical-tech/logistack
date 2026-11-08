@@ -45,7 +45,16 @@ export type Actor = {
 	keyId?: string;
 	/** Set for a signed-in person when the organization requires a second factor; keys and machines are exempt. */
 	twoFactor?: MemberTwoFactor;
+	/** May change the instance itself (updates, nodes, instance settings): see {@link isInstanceAdminRole}. */
+	instanceAdmin?: boolean;
 };
+
+/**
+ * Instance admins are users whose better-auth `user.role` lists `admin`: the role the admin plugin
+ * already trusts with every user account. Setup grants it to the first owner.
+ */
+export const isInstanceAdminRole = (role: string | null | undefined) =>
+	(role ?? "").split(",").some((r) => r.trim() === "admin");
 
 export const scopeKinds = [
 	"organization",
@@ -204,7 +213,7 @@ export async function resolveActor(
 		const { organizationId } = meta;
 		const userId = res.key.referenceId;
 		const [u] = await db
-			.select({ kind: user.kind })
+			.select({ kind: user.kind, role: user.role })
 			.from(user)
 			.where(eq(user.id, userId));
 		if (!u) return undefined;
@@ -226,7 +235,19 @@ export async function resolveActor(
 		const keyScopes = meta.scopes
 			? await toGrants(db, organizationId, id, meta.scopes)
 			: undefined;
-		return { kind, id, userId, organizationId, grants, keyScopes, keyId };
+		// A machine or a key narrowed to scopes never carries its owner's instance role.
+		const instanceAdmin =
+			kind === "apikey" && !meta.scopes && isInstanceAdminRole(u.role);
+		return {
+			kind,
+			id,
+			userId,
+			organizationId,
+			grants,
+			keyScopes,
+			keyId,
+			instanceAdmin,
+		};
 	}
 	const session = await auth.api.getSession({ headers });
 	if (!session) return undefined;
@@ -245,6 +266,7 @@ export async function resolveActor(
 		organizationId,
 		grants,
 		twoFactor,
+		instanceAdmin: isInstanceAdminRole(session.user.role),
 	};
 }
 

@@ -11,7 +11,11 @@ import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure } from "../errors.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	inOrganization,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 
 const tags = ["settings"];
 
@@ -100,7 +104,10 @@ export const sponsor = router()
 				security,
 				summary:
 					"Activate a sponsor key from the sponsorship email or the thank-you page",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(z.object({ key: z.string().min(1).max(2048) })),
 				responses: { 200: json(SponsorStatus, "Sponsor status"), ...errors },
 			}),
@@ -142,7 +149,10 @@ export const sponsor = router()
 				tags,
 				security,
 				summary: "Remove the sponsor key",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				responses: { 200: json(SponsorStatus, "Sponsor status"), ...errors },
 			}),
 		),
