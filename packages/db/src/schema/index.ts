@@ -22,3 +22,4 @@ export * from "./storage.ts";
 export * from "./triggers.ts";
 export * from "./uptime.ts";
 export * from "./vulnscan.ts";
+export * from "./work.ts";
