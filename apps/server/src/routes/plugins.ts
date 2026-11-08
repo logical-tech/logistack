@@ -219,7 +219,7 @@ const policy = async (c: Context<Env>): Promise<PluginPolicy> =>
 const PolicyView = z
 	.object({
 		policy: PluginPolicy,
-		/** Opt-in: tell the index on each marketplace install (plugin id and version only). */
+		/** Opt-in: tell the index on each marketplace install (plugin id and a random install id only). */
 		installPing: z.boolean(),
 	})
 	.openapi("PluginPolicySettings");
@@ -815,7 +815,7 @@ export const plugins = router()
 				security,
 				summary: "Set who may install plugins on this instance",
 				description:
-					"`off`: no installs. `verified`: versions a trusted index marks verified. `any`: any image or dev URL. Existing installs keep running. `installPing` (default off) lets marketplace installs tell the index the plugin id and version, nothing else.",
+					"`off`: no installs. `verified`: versions a trusted index marks verified. `any`: any image or dev URL. Existing installs keep running. `installPing` (default off) lets marketplace installs tell the index the plugin id and a random install id, nothing else.",
 				middleware: [requireInstanceAdmin],
 				request: body(
 					z.object({
