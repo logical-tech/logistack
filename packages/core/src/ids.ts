@@ -44,6 +44,7 @@ export const idPrefixes = {
 	aiGatewayKey: "agk",
 	aiUsage: "aiu",
 	aiBudget: "aib",
+	aiBudgetReservation: "air",
 	aiAgentConversation: "aac",
 	aiAgentMessage: "aam",
 } as const;

@@ -209,6 +209,42 @@ describe.skipIf(!hasDocker)("AI gateway", () => {
 		expect(res.json.totals.unpublished).toBe(1);
 	});
 
+	test("parallel calls never spend past the cap", async () => {
+		const budgets = (await h.call("GET", "/api/ai/budgets", as())).json;
+		const userId = budgets.find(
+			(b: { email: string }) => b.email === owner.email,
+		).userId;
+		const spent = async () =>
+			(await h.call("GET", "/api/ai/settings", as())).json.me.spent.free;
+		const before = await spent();
+		// Each call costs $0.002 and holds a bit more ($0.002 for 1000 output tokens, plus its prompt).
+		const cap = before + 0.007;
+		await h.call("PUT", `/api/ai/budgets/${userId}`, {
+			...as(),
+			body: { free: cap, paid: 0 },
+		});
+		const results = await Promise.all(
+			Array.from({ length: 10 }, () =>
+				h.call("POST", "/v1/chat/completions", {
+					...gw(),
+					body: {
+						model: "custom/ok",
+						max_tokens: 1000,
+						messages: [{ role: "user", content: "hi" }],
+					},
+				}),
+			),
+		);
+		const statuses = results.map((r) => r.status);
+		expect(statuses.filter((s) => s === 200).length).toBeGreaterThan(0);
+		expect(statuses.filter((s) => s === 429).length).toBeGreaterThan(0);
+		expect(await spent()).toBeLessThanOrEqual(cap);
+		await h.call("PUT", `/api/ai/budgets/${userId}`, {
+			...as(),
+			body: { free: null, paid: null },
+		});
+	});
+
 	test("a member over the free cap is refused", async () => {
 		const me = await h.call("GET", "/api/ai/settings", as());
 		const userId = (await h.call("GET", "/api/ai/budgets", as())).json.find(

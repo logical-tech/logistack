@@ -39,7 +39,7 @@ import type { Env } from "../env.ts";
 import { log } from "../log.ts";
 import { organizationResource } from "../scope.ts";
 import { BlockedHostError } from "../ssrf.ts";
-import { openTiers } from "./budget.ts";
+import { openTiers, reserve, settle } from "./budget.ts";
 import { priceCatalog } from "./catalog.ts";
 import {
 	backOff,
@@ -204,7 +204,32 @@ function callerOf(c: Context<Env>) {
 	return who ?? caller(c.var.deps.db, c.req.raw.headers);
 }
 
-type Attempt = { res: Response; cand: Candidate; fallbacks: number };
+/** `reservation` holds the call's estimated cost until `record` settles it. */
+type Attempt = {
+	res: Response;
+	cand: Candidate;
+	fallbacks: number;
+	reservation?: string;
+};
+
+/** Output a call may produce when it names no limit; used only to size the budget hold. */
+const DEFAULT_OUTPUT_TOKENS = 4096;
+
+/** The most this call can cost: its prompt at about 4 bytes a token, plus its output ceiling. */
+async function estimate(cand: Candidate, payload: string, embeddings: boolean) {
+	const parsed = JSON.parse(payload) as Record<string, unknown>;
+	const limit = [
+		parsed.max_tokens,
+		parsed.max_completion_tokens,
+		parsed.max_output_tokens,
+	].find((v): v is number => typeof v === "number");
+	const price = priceFor(await priceCatalog(), cand.def.catalogId, cand.model);
+	return costMicros(price, {
+		input: Math.ceil(payload.length / 4),
+		output: embeddings ? 0 : (limit ?? DEFAULT_OUTPUT_TOKENS),
+		cached: 0,
+	});
+}
 
 /** Calls candidates in order until one answers with something other than a retryable failure. */
 async function route(
@@ -252,9 +277,26 @@ async function route(
 	}
 	const trail: string[] = [];
 	let fallbacks = 0;
+	let overBudget = 0;
 	for (const cand of list) {
 		if (await isCooling(config.REDIS_URL, cand)) continue;
 		const label = `${cand.def.id}/${cand.model}`;
+		const payload = JSON.stringify(body(cand));
+		// Held before the call so racing calls cannot all pass the cap; `record` settles it.
+		const reservation = await reserve(
+			db,
+			who,
+			cand.tier,
+			await estimate(cand, payload, path(cand).includes("embeddings")),
+		);
+		if (!reservation) {
+			overBudget++;
+			continue;
+		}
+		const release = () =>
+			settle(db, reservation, who).catch((error: unknown) =>
+				log("error", "ai budget hold not released", { error: String(error) }),
+			);
 		try {
 			const { baseUrl, headers, fetch } = await endpointFor(
 				db,
@@ -268,15 +310,16 @@ async function route(
 			const res = await fetch(`${baseUrl}${path(cand)}`, {
 				method: "POST",
 				headers: { ...headers, "content-type": "application/json" },
-				body: JSON.stringify(body(cand)),
+				body: payload,
 				signal: AbortSignal.any([ctl.signal, c.req.raw.signal]),
 			}).finally(() => clearTimeout(timer));
 			void observeLimits(config.REDIS_URL, cand, res.headers).catch(() => {});
 			if (res.ok) {
 				void recovered(config.REDIS_URL, cand).catch(() => {});
-				return { res, cand, fallbacks };
+				return { res, cand, fallbacks, reservation };
 			}
 			const why = await failureText(res);
+			await release();
 			const kind = classifyFailure(res.status, why);
 			// The client's own mistake: every provider would refuse it, so say so now.
 			if (kind === "request")
@@ -300,6 +343,7 @@ async function route(
 				await backOff(config.REDIS_URL, cand, res.headers);
 			else if (kind === "transient") await coolDown(config.REDIS_URL, cand, 30);
 		} catch (err) {
+			await release();
 			if (c.req.raw.signal.aborted) throw err;
 			trail.push(
 				`${label}: ${err instanceof BlockedHostError ? err.message : "unreachable"}`,
@@ -308,6 +352,12 @@ async function route(
 		}
 		fallbacks++;
 	}
+	if (overBudget > 0 && trail.length === 0)
+		throw new GatewayError(
+			429,
+			"quota_exceeded",
+			"Your monthly AI budget for this model is used up, counting calls still running. Ask an admin to raise it.",
+		);
 	log("warn", "ai gateway: every upstream failed", { model, trail });
 	throw new GatewayError(
 		503,
@@ -340,7 +390,7 @@ async function record(
 			a.cand.def.catalogId,
 			a.cand.model,
 		);
-		await db.insert(aiUsage).values({
+		const row = {
 			organizationId: who.organizationId,
 			userId: who.userId,
 			gatewayKeyId: who.keyId,
@@ -355,7 +405,9 @@ async function record(
 			latencyMs: Date.now() - started,
 			fallbacks: a.fallbacks,
 			ok,
-		});
+		};
+		if (a.reservation) await settle(db, a.reservation, who, row);
+		else await db.insert(aiUsage).values(row);
 		if (who.keyId)
 			await db
 				.update(aiGatewayKey)

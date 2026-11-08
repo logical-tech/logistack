@@ -351,6 +351,13 @@
       "when": 1794162386485,
       "tag": "0049_security_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794163121596,
+      "tag": "0050_ai_budget_reservation",
+      "breakpoints": true
     }
   ]
 }
