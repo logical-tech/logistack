@@ -128,7 +128,7 @@ describe.skipIf(!enabled)("plugin reconciler on Swarm", () => {
 			.where(eq(pluginInstall.id, INSTALL));
 		await reconcilePlugins(ctx);
 		const svc = await docker.services.inspect(name());
-		expect(svc.Spec.Mode?.Replicated?.Replicas).toBe(0);
+		expect(svc.Spec.Mode).toMatchObject({ Replicated: { Replicas: 0 } });
 		expect((await row())?.status).toBe("disabled");
 	});
 

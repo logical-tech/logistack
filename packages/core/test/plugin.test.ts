@@ -64,7 +64,7 @@ describe("compilePlugin", () => {
 			env,
 			network: "net1",
 		});
-		expect(spec.Mode?.Replicated?.Replicas).toBe(0);
+		expect(spec.Mode).toEqual({ Replicated: { Replicas: 0 } });
 	});
 
 	test("the test scope prefixes names", () => {
