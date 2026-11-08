@@ -14,11 +14,15 @@ import {
  */
 export const PLUGIN_INDEX_URL = "https://stack.logicaltech.it/plugins/api";
 
-/**
- * Public keys of the official index. Empty until the production key is generated at deploy
- * (plugin-index/README.md, "Deploy"): with no key, every response fails verification.
- */
-export const PLUGIN_INDEX_KEYS: readonly string[] = [];
+/** Public keys of the official index (generated at deploy, 2026-11-09; plugin-index/README.md). */
+export const PLUGIN_INDEX_KEYS: readonly string[] = [
+	"gQ_dPyISF8twX84LNy9qmbMTRlTt0KWLDL2WJr0NPi8",
+];
+
+/** Public keys of the official index's sandbox (`LOGISTACK_PLUGIN_INDEX_SANDBOX=1`). */
+export const PLUGIN_INDEX_SANDBOX_KEYS: readonly string[] = [
+	"_YeDic33G6pPhXBm4blK3jGaOJ06W3B6XDRQ4N72eL8",
+];
 
 export type IndexCheck =
 	| { ok: true; keyId: string; payload: unknown }

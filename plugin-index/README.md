@@ -75,7 +75,7 @@ To publish from a plugin folder, run `LOGISTACK_INDEX_URL=http://localhost:8787 
 
 ## Deploy
 
-None of this has been run. Do it in this order, from `plugin-index/`:
+Ran on 2026-11-09 (steps 1-3 and 5-8; step 4, the Resend key, is still to do). For a fresh account, do it in this order, from `plugin-index/`:
 
 1. Create the databases, then put each printed id in `wrangler.jsonc` (production, and `env.sandbox`):
    ```sh
