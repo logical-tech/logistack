@@ -123,6 +123,13 @@ function Updates() {
 	const [confirming, setConfirming] = useState(false);
 
 	const busy = isActive(s?.run);
+	// A finished update stays in the status forever; its reload prompt only matters to a tab opened before it ended.
+	const run =
+		s?.run &&
+		(s.run.state !== "succeeded" ||
+			Date.parse(s.run.updatedAt) > performance.timeOrigin)
+			? s.run
+			: null;
 	const target = s?.latest && s.updateAvailable ? s.latest : null;
 
 	const update = () => {
@@ -239,17 +246,22 @@ function Updates() {
 					)}
 				</Panel>
 
-				{s?.run && <RunPanel run={s.run} />}
+				{run && <RunPanel run={run} />}
 
 				{s?.latest?.notes && (
-					<Panel id="notes" title={`What's new in ${tag(s.latest.version)}`}>
-						<div className="px-4 py-4 sm:px-5">
-							<Markdown source={s.latest.notes} />
-						</div>
+					<Panel
+						id="notes"
+						title={
+							target
+								? `What's new in ${tag(s.latest.version)}`
+								: `Release notes for ${tag(s.latest.version)}`
+						}
+					>
+						<Notes key={s.latest.version} source={s.latest.notes} />
 					</Panel>
 				)}
 
-				<Panel id="auto-check" title="Automatic checks">
+				<Panel id="settings" title="Settings" bodyClassName="divide-y">
 					<div className="flex items-start justify-between gap-6 p-4 sm:px-5">
 						<div className="min-w-0">
 							<label
@@ -288,9 +300,6 @@ function Updates() {
 							}
 						/>
 					</div>
-				</Panel>
-
-				<Panel id="channel" title="Release channel">
 					<div className="flex items-start justify-between gap-6 p-4 sm:px-5">
 						<div className="min-w-0">
 							<label htmlFor="beta-switch" className="text-sm font-medium">
@@ -324,7 +333,7 @@ function Updates() {
 						/>
 					</div>
 					{s?.beta && (
-						<div className="px-4 pb-4 sm:px-5">
+						<div className="border-t-0! px-4 pb-4 sm:px-5">
 							<div className="t-reveal flex items-start gap-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm">
 								<TriangleAlert
 									className="mt-0.5 size-4 shrink-0 text-warn-text"
@@ -367,6 +376,41 @@ function Updates() {
 				</ConfirmDialog>
 			)}
 		</Page>
+	);
+}
+
+/** Release notes run long; show the top and let the reader open the rest. */
+function Notes({ source }: { source: string }) {
+	const [open, setOpen] = useState(false);
+	const [long, setLong] = useState(false);
+	return (
+		<div>
+			<div
+				ref={(el) => {
+					if (el) setLong(el.scrollHeight > 320);
+				}}
+				className={cn(
+					"relative px-4 py-4 sm:px-5",
+					!open &&
+						long &&
+						"max-h-80 overflow-hidden mask-b-from-60% mask-b-to-100%",
+				)}
+			>
+				<Markdown source={source} />
+			</div>
+			{long && (
+				<div className="border-t bg-muted/40 px-4 py-2.5 sm:px-5">
+					<button
+						type="button"
+						aria-expanded={open}
+						onClick={() => setOpen((o) => !o)}
+						className="rounded-sm text-[13px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+					>
+						{open ? "Show less" : "Show all notes"}
+					</button>
+				</div>
+			)}
+		</div>
 	);
 }
 
