@@ -153,7 +153,7 @@ export function defaultViews(projectId: string): WorkView[] {
 	return [
 		{
 			...base,
-			id: `wvw_${projectId}_list`,
+			id: `wvw_${projectId.slice(4)}_list`,
 			name: "List",
 			kind: "table",
 			config: defaultViewConfig(),
@@ -162,7 +162,7 @@ export function defaultViews(projectId: string): WorkView[] {
 		},
 		{
 			...base,
-			id: `wvw_${projectId}_board`,
+			id: `wvw_${projectId.slice(4)}_board`,
 			name: "Board",
 			kind: "board",
 			config: defaultViewConfig(),
@@ -170,7 +170,7 @@ export function defaultViews(projectId: string): WorkView[] {
 		},
 		{
 			...base,
-			id: `wvw_${projectId}_timeline`,
+			id: `wvw_${projectId.slice(4)}_timeline`,
 			name: "Timeline",
 			kind: "timeline",
 			config: defaultViewConfig({ groupBy: null }),
@@ -178,7 +178,7 @@ export function defaultViews(projectId: string): WorkView[] {
 		},
 		{
 			...base,
-			id: `wvw_${projectId}_calendar`,
+			id: `wvw_${projectId.slice(4)}_calendar`,
 			name: "Calendar",
 			kind: "calendar",
 			config: defaultViewConfig({ groupBy: null }),
