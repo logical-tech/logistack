@@ -242,3 +242,89 @@ export const PLUGIN_STORAGE_LIMITS = {
 	valueBytes: 16 * 1024,
 	keys: 256,
 } as const;
+
+// ---- Plugin index (marketplace, phase 3) --------------------------------------------------
+// What the index API (`plugin-index/`) signs for LogiStack servers. Envelope and signature
+// format: plugin-index/README.md; verifier: packages/core/src/plugin-index.ts.
+
+/** A version's review state on the index. Servers only ever see unverified, verified and yanked. */
+export const pluginVersionStatuses = [
+	"pending",
+	"unverified",
+	"verified",
+	"rejected",
+	"yanked",
+] as const;
+export const PluginVersionStatus = z.enum(pluginVersionStatuses);
+export type PluginVersionStatus = z.infer<typeof PluginVersionStatus>;
+
+/** `ghcr.io/acme/x@sha256:<64 hex>`: the only image form the index takes (rule 6). */
+export const PluginImageDigestRef = z
+	.string()
+	.max(300)
+	.regex(
+		/^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?\/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$/,
+		"registry/repository@sha256:<digest>",
+	);
+
+export const PluginIndexVersion = z.object({
+	version: SemVer,
+	image: PluginImageDigestRef,
+	manifest: PluginManifest,
+	verified: z.boolean(),
+	yanked: z.boolean(),
+	iconUrl: z.url().nullable(),
+	/** ISO 8601. */
+	publishedAt: z.string(),
+	/** Only in `GET /v1/plugins/{id}`. */
+	readme: z.string().optional(),
+	changelog: z.string().optional(),
+});
+export type PluginIndexVersion = z.infer<typeof PluginIndexVersion>;
+
+export const PluginIndexEntry = z.object({
+	id: PluginId,
+	/** The publisher's display name. */
+	publisher: z.string(),
+	/** Installs that pinged in the last 30 days (opt-in, anonymous). */
+	installs: z.int().min(0),
+	/** Newest listed version, verified or not; null when every version is yanked. */
+	latest: PluginIndexVersion.nullable(),
+	latestVerified: PluginIndexVersion.nullable(),
+	/** Yanked versions, so a server can warn about installs of them. */
+	yanked: z.array(z.object({ version: SemVer, image: PluginImageDigestRef })),
+});
+export type PluginIndexEntry = z.infer<typeof PluginIndexEntry>;
+
+/** Signed body of `GET /v1/index`. Entries stay `unknown` so one a server cannot read is skipped, not fatal. */
+export const PluginIndexPayload = z.object({
+	v: z.literal(1),
+	kind: z.literal("index"),
+	/** ISO 8601; lets a server refuse an index older than the one it cached. */
+	issuedAt: z.string(),
+	plugins: z.array(z.unknown()),
+});
+
+/** Signed body of `GET /v1/plugins/{id}`: every listed version, newest first. */
+export const PluginDetailPayload = z.object({
+	v: z.literal(1),
+	kind: z.literal("plugin"),
+	issuedAt: z.string(),
+	plugin: z.object({
+		id: PluginId,
+		publisher: z.string(),
+		installs: z.int().min(0),
+		versions: z.array(z.unknown()),
+	}),
+});
+
+/** The response envelope: `payload` is the exact JSON text that was signed. */
+export const SignedIndexResponse = z.object({
+	/** base64url raw Ed25519 public key of the signer. */
+	keyId: z.string().min(1).max(100),
+	payload: z.string(),
+	/** base64url Ed25519 signature over the UTF-8 bytes of `payload`. */
+	signature: z.string().min(1).max(200),
+});
+export type SignedIndexResponse = z.infer<typeof SignedIndexResponse>;
+// ---- end plugin index ---------------------------------------------------------------------

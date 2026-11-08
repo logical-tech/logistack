@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { PLUGIN_MANIFEST_LABEL } from "@logistack/contracts";
 import { contractTest } from "./testing.ts";
@@ -12,7 +12,15 @@ const usage = `logistack-plugin <command>
   dev [entry]                          Run the plugin locally with a dev signing secret
   test <url> --secret <s>              Run the contract test against a running plugin
   build <tag> [entry]                  docker build, with the manifest as the image label
+  publish <image@sha256:…> [entry]     Submit a version to the plugin index
+          [--readme README.md] [--changelog CHANGELOG.md] [--icon https://…]
+          Token from LOGISTACK_INDEX_TOKEN; index from LOGISTACK_INDEX_URL
 `;
+
+const INDEX_URL = "https://stack.logicaltech.it/plugins/api";
+
+const readIf = (path: string | undefined) =>
+	path && existsSync(path) ? readFileSync(path, "utf8") : "";
 
 function flag(args: string[], name: string): string | undefined {
 	const i = args.indexOf(`--${name}`);
@@ -151,6 +159,57 @@ the LOGISTACK_TOKEN and LOGISTACK_SIGNING_SECRET the wizard shows. Until then th
 				{ stdio: ["inherit", "inherit", "inherit"] },
 			);
 			process.exit(await p.exited);
+			return;
+		}
+		case "publish": {
+			const image = rest[0];
+			if (!image?.includes("@sha256:"))
+				throw new Error(
+					"publish <registry/repo@sha256:…> [entry]: the index takes digests only (docker buildx imagetools inspect <tag> prints it)",
+				);
+			const token = process.env.LOGISTACK_INDEX_TOKEN;
+			if (!token)
+				throw new Error(
+					"set LOGISTACK_INDEX_TOKEN to an API token from the index dashboard",
+				);
+			const entry =
+				rest[1] && !rest[1].startsWith("--") ? rest[1] : "src/main.ts";
+			const manifest = await loadManifest(entry);
+			const base = (process.env.LOGISTACK_INDEX_URL ?? INDEX_URL).replace(
+				/\/+$/,
+				"",
+			);
+			const res = await fetch(
+				`${base}/me/plugins/${encodeURIComponent(manifest.id)}/versions`,
+				{
+					method: "POST",
+					headers: {
+						authorization: `Bearer ${token}`,
+						"content-type": "application/json",
+					},
+					body: JSON.stringify({
+						image,
+						manifest,
+						readme: readIf(flag(rest, "readme") ?? "README.md"),
+						changelog: readIf(flag(rest, "changelog") ?? "CHANGELOG.md"),
+						iconUrl: flag(rest, "icon"),
+					}),
+				},
+			);
+			const out = (await res.json().catch(() => ({}))) as {
+				status?: string;
+				version?: string;
+				notes?: string;
+				error?: string;
+			};
+			if (!res.ok)
+				throw new Error(out.error ?? `the index answered ${res.status}`);
+			console.log(
+				out.status === "rejected"
+					? `✗ ${out.version} rejected: ${out.notes}`
+					: `✓ ${manifest.id} ${out.version} is listed as ${out.status}; a maintainer review marks it verified`,
+			);
+			process.exit(out.status === "rejected" ? 1 : 0);
 			return;
 		}
 		default:
