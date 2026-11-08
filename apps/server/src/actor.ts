@@ -20,6 +20,7 @@ import { apiKeyFrom } from "./auth.ts";
 import type { Deps, Env } from "./env.ts";
 import { Failure } from "./errors.ts";
 import { log } from "./log.ts";
+import { limitApiKey } from "./rate-limit.ts";
 import {
 	auditBlocked,
 	type MemberTwoFactor,
@@ -306,6 +307,7 @@ export async function systemActor(
  */
 export const authenticate: MiddlewareHandler<Env> = async (c, next) => {
 	const actor = await resolveActor(c.var.deps, c.req.raw.headers, clientIp(c));
+	if (actor?.keyId) await limitApiKey(c, actor.keyId);
 	c.set("actor", actor);
 	if (actor?.twoFactor?.kind === "blocked")
 		await auditBlocked(c, actor.twoFactor);

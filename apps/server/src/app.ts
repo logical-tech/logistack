@@ -16,6 +16,7 @@ import { onError, validationHook } from "./errors.ts";
 import { terminal } from "./exec-ws.ts";
 import { requestLogger } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
+import { limitCredentials } from "./rate-limit.ts";
 import { ai } from "./routes/ai.ts";
 import { aiAgent } from "./routes/ai-agent.ts";
 import { apiKeys } from "./routes/api-keys.ts";
@@ -114,6 +115,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		"/api/*",
 		cors({ origin: deps.config.WEB_ORIGIN, credentials: true }),
 	);
+	app.use("/api/auth/*", limitCredentials);
 	app.on(["GET", "POST"], "/api/auth/*", (c) => deps.auth.handler(c.req.raw));
 	// Health must answer even when the session store is unreachable; agents present node tokens.
 	app.use("/api/*", async (c, next) =>

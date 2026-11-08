@@ -124,6 +124,8 @@ export function createAuth(config: Config, db: Db) {
 		logger: { disabled: config.LOG_LEVEL === "silent" },
 		database: drizzleAdapter(db, { provider: "pg", schema }),
 		emailAndPassword: { enabled: true },
+		// better-auth's own limiter counts in this process only; limitCredentials counts in Redis instead.
+		rateLimit: { enabled: false },
 		// Organization profile and SSO provider mutations go through /api, which checks LogiStack permissions, validates and audits them.
 		disabledPaths: [
 			"/organization/update",
@@ -208,6 +210,7 @@ export function createAuth(config: Config, db: Db) {
 			apiKey({
 				defaultPrefix: API_KEY_PREFIX,
 				enableMetadata: true,
+				// Counted in Redis by the api (rate-limit.ts), shared by every replica.
 				rateLimit: { enabled: false },
 				customAPIKeyGetter: (ctx) =>
 					ctx.headers ? apiKeyFrom(ctx.headers) : null,
