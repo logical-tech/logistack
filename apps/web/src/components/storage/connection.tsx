@@ -204,7 +204,7 @@ function BackupDestination({ serviceId }: { serviceId: string }) {
 				toast.success("Backup destination added", {
 					description: `Backups can now go to ${parsed.data}. Pick it when you set up a backup policy.`,
 					action: {
-						label: "S3 destinations",
+						label: "Backup destinations",
 						onClick: () => navigate({ to: "/integrations/s3" }),
 					},
 				});

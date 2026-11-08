@@ -116,10 +116,19 @@ export function localDestination(o: LocalEnv): BackupDestination {
 		let out = "";
 		let err = "";
 		const dec = new TextDecoder();
-		for await (const c of j)
-			if (c.stream === "stdout") out += dec.decode(c.data, { stream: true });
-			else err = tail(err + dec.decode(c.data, { stream: true }));
-		const r = await j.result;
+		// An agent or Docker refusal (offline node, missing folder) is the destination's failure too.
+		const r = await (async () => {
+			for await (const c of j)
+				if (c.stream === "stdout") out += dec.decode(c.data, { stream: true });
+				else err = tail(err + dec.decode(c.data, { stream: true }));
+			return j.result;
+		})().catch((e: unknown) => {
+			throw new ProviderError(
+				"local",
+				op,
+				e instanceof Error ? e.message : String(e),
+			);
+		});
 		if (r.exitCode !== 0)
 			throw new ProviderError(
 				"local",
