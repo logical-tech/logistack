@@ -1,3 +1,4 @@
+-- logistack:contract no row changes at migrate time: the DELETEs run in triggers when a scope row is deleted, and the previous release only gains cleanup of rows it would orphan.
 -- env_var and secret point at their scope polymorphically (scope, scope_id), so no FK removes
 -- them with the scope. These triggers do: a deleted service, environment, project or folder
 -- takes its variables and secrets with it. A secret still referenced from elsewhere stops the
