@@ -69,6 +69,12 @@ const DEPLOY_ALERTS: PluginManifest = {
 				location: "service-tab",
 				path: "/ui/service",
 			},
+			{
+				id: "project",
+				title: "Deploy alerts",
+				location: "project-tab",
+				path: "/ui/project",
+			},
 		],
 		tools: [],
 		dnsProviders: [],

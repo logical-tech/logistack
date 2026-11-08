@@ -104,6 +104,8 @@ export function pluginPageHref(
 		context.serviceId
 	)
 		return `/projects/${context.projectId}/services/${context.serviceId}/plugin/${installId}/${tail}`;
+	if (target.location === "project-tab" && context.projectId)
+		return `/projects/${context.projectId}/plugin/${installId}/${tail}`;
 	return null;
 }
 
