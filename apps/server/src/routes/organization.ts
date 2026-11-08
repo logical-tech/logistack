@@ -18,7 +18,7 @@ import {
 } from "@logistack/db";
 import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { currentActor, requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import {
 	body,
 	Deployment,
@@ -242,14 +242,16 @@ export const organizationRoutes = router()
 			}),
 		),
 		async (c) => {
-			const { before, after } = await writeTwoFactorPolicy(
-				c.var.deps.db,
-				requireActor(c).organizationId,
-				c.req.valid("json"),
-			);
-			c.set("auditDiff", {
-				before: settingJson(before),
-				after: settingJson(after),
+			const after = await c.var.deps.db.transaction(async (tx) => {
+				const { before, after } = await writeTwoFactorPolicy(
+					tx,
+					requireActor(c).organizationId,
+					c.req.valid("json"),
+				);
+				await auditInTx(c, tx, {
+					diff: { before: settingJson(before), after: settingJson(after) },
+				});
+				return after;
 			});
 			return c.json(settingJson(after), 200);
 		},

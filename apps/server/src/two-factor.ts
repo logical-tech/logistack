@@ -41,7 +41,7 @@ export const defaultTwoFactorPolicy: StoredTwoFactorPolicy = {
 const metadataJson = sql`coalesce(${organization.metadata}::jsonb, '{}'::jsonb)`;
 
 export async function readTwoFactorPolicy(
-	db: Db,
+	db: Pick<Db, "select">,
 	organizationId: string,
 ): Promise<StoredTwoFactorPolicy> {
 	const [row] = await db
@@ -54,7 +54,7 @@ export async function readTwoFactorPolicy(
 
 /** Saves `next`; the grace clock starts when the mode turns to required and keeps running across edits. */
 export async function writeTwoFactorPolicy(
-	db: Db,
+	db: Pick<Db, "select" | "update">,
 	organizationId: string,
 	next: TwoFactorPolicy,
 	now = new Date(),
