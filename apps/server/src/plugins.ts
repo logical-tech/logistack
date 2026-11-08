@@ -171,10 +171,13 @@ export function parseManifest(raw: unknown): PluginManifest {
 	return parsed.data;
 }
 
-/** The fetch a dev URL is called with: the SSRF guard, like webhooks. */
+/**
+ * The fetch a dev URL is called with: the SSRF guard, like webhooks. Plain http is allowed to a
+ * private address once the instance allows private hosts (a plugin on the developer's machine).
+ */
 export async function devFetch(db: Db): Promise<Fetch> {
 	const policy = await hostPolicy(db);
-	return (url, init) => guardedFetch(url, init ?? {}, policy);
+	return (url, init) => guardedFetch(url, init ?? {}, policy, undefined, true);
 }
 
 /** A dev-URL plugin serves its manifest at `GET /v1/manifest`. */

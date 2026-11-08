@@ -416,7 +416,18 @@ export const plugins = router()
 						config: z.record(z.string(), z.unknown()).default({}),
 					}),
 				),
-				responses: { 201: json(InstallView, "Installed"), ...errors },
+				responses: {
+					201: json(
+						InstallView.extend({
+							/** Only for a dev-URL install, only here: what the plugin running elsewhere needs. */
+							devCredentials: z
+								.object({ token: z.string(), signingSecret: z.string() })
+								.optional(),
+						}),
+						"Installed",
+					),
+					...errors,
+				},
 			}),
 		),
 		async (c) => {
@@ -502,22 +513,100 @@ export const plugins = router()
 					},
 				});
 			});
-			// better-auth writes the key through its own adapter, outside the transaction above.
-			const key = await auth.api.createApiKey({
-				body: {
-					userId: accountId,
-					name: `plugin ${r.manifest.id}`,
-					expiresIn: null,
-					metadata: { organizationId: actor.organizationId },
-				},
-			});
+			// better-auth writes the key through its own adapter, outside the transaction above;
+			// if it fails, undo the rows so a retry starts clean.
+			const key = await auth.api
+				.createApiKey({
+					body: {
+						userId: accountId,
+						name: "plugin",
+						expiresIn: null,
+						metadata: { organizationId: actor.organizationId },
+					},
+				})
+				.catch(async (e: unknown) => {
+					await db.transaction(async (tx) => {
+						await tx
+							.delete(pluginInstall)
+							.where(eq(pluginInstall.id, installId));
+						await tx.delete(user).where(eq(user.id, accountId));
+						await tx
+							.delete(organizationRole)
+							.where(
+								and(
+									eq(organizationRole.organizationId, actor.organizationId),
+									eq(organizationRole.role, role),
+								),
+							);
+					});
+					throw e;
+				});
 			const [row] = await db
 				.update(pluginInstall)
 				.set({ tokenEncrypted: await encrypt(masterKey, key.key) })
 				.where(eq(pluginInstall.id, installId))
 				.returning();
 			await converge(c);
-			return c.json(await view(c, one(row ? [row] : [], "plugin")), 201);
+			return c.json(
+				{
+					...(await view(c, one(row ? [row] : [], "plugin"))),
+					...(r.devUrl
+						? { devCredentials: { token: key.key, signingSecret } }
+						: {}),
+				},
+				201,
+			);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/plugins/self",
+			tags: ["plugins"],
+			security,
+			summary: "The calling plugin's own install and settings",
+			description:
+				"For a plugin's own API key only. Returns its settings with secrets in clear, so a settings change needs no restart.",
+			responses: {
+				200: json(
+					z.object({
+						installId: z.string(),
+						pluginId: z.string(),
+						enabled: z.boolean(),
+						config: z.record(z.string(), z.unknown()),
+					}),
+					"Install",
+				),
+				...errors,
+			},
+		}),
+		async (c) => {
+			const actor = requireActor(c);
+			const [row] =
+				actor.kind === "machine"
+					? await c.var.deps.db
+							.select()
+							.from(pluginInstall)
+							.where(
+								and(
+									eq(pluginInstall.serviceAccountId, actor.userId),
+									eq(pluginInstall.organizationId, actor.organizationId),
+								),
+							)
+					: [];
+			if (!row)
+				throw new Failure("forbidden", "only a plugin's own key can read this");
+			return c.json(
+				{
+					installId: row.id,
+					pluginId: row.pluginId,
+					enabled: row.enabled,
+					config: JSON.parse(
+						await decrypt(c.var.deps.masterKey, row.configEncrypted),
+					) as Record<string, unknown>,
+				},
+				200,
+			);
 		},
 	)
 	.openapi(

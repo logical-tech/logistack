@@ -1,0 +1,24 @@
+{
+	"name": "@logistack/plugin-sdk",
+	"version": "0.1.0",
+	"description": "Write LogiStack plugins: signed request checks, event, tool and page handlers, and the page bridge.",
+	"type": "module",
+	"license": "MIT",
+	"exports": {
+		".": "./src/index.ts",
+		"./ui": "./src/ui.ts",
+		"./ui.css": "./src/ui.css",
+		"./testing": "./src/testing.ts"
+	},
+	"bin": {
+		"logistack-plugin": "./src/cli.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc -p ."
+	},
+	"dependencies": {
+		"@logistack/contracts": "workspace:*",
+		"hono": "4.13.16",
+		"zod": "4.6.7"
+	}
+}

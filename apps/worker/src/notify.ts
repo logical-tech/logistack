@@ -49,7 +49,7 @@ async function pluginChannel(
 	const f: Fetch =
 		fetchFor ??
 		(policy
-			? (url, init) => guardedFetch(url, init ?? {}, policy)
+			? (url, init) => guardedFetch(url, init ?? {}, policy, undefined, true)
 			: (url, init) => fetch(url, init));
 	return channel(async (event) => {
 		await callPlugin(target, "/v1/events", { event }, { fetch: f });
