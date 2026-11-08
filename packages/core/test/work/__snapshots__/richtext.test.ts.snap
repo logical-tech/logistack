@@ -1,0 +1,94 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`sanitizeDoc snapshot 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "Title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "bold",
+            },
+          ],
+          "text": "bad",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "https://ok.dev",
+              },
+              "type": "link",
+            },
+          ],
+          "text": " good",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "attrs": {
+                "href": "mailto:a@b.c",
+              },
+              "type": "link",
+            },
+          ],
+          "text": " mail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "alt": "shot",
+        "src": "/api/work/attachments/wat_1",
+      },
+      "type": "image",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "<b>one</b>",
+                  "type": "text",
+                },
+                {
+                  "attrs": {
+                    "id": "u1",
+                    "label": "Sara",
+                  },
+                  "type": "mention",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`docToEmailHtml escapes and sanitises 1`] = `"<h2>Title</h2><p><strong>bad</strong><a href="https://ok.dev"> good</a><a href="mailto:a@b.c"> mail</a></p><img src="https://stack.example/api/work/attachments/wat_1" alt="shot" style="max-width:100%"><ul><li><p>&lt;b&gt;one&lt;/b&gt;@Sara</p></li></ul>"`;
