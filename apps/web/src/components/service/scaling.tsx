@@ -1,13 +1,15 @@
 import type { AutoscaleBehavior } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleX, WandSparkles } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Slider } from "radix-ui";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { AnimatedNumber } from "@/components/animated-number";
 import { MetricChart, seriesColor } from "@/components/charts/metric-chart";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Field } from "@/components/field";
 import { Segmented } from "@/components/segmented";
 import { Button } from "@/components/ui/button";
@@ -18,10 +20,11 @@ import {
 	type AutoscaleView,
 	autoscalePreviewQuery,
 	autoscaleQuery,
+	useApplyAutoscaleFix,
 	useSaveAutoscale,
 } from "@/lib/api/autoscale";
 import type { ServiceOverview } from "@/lib/api/service-ops";
-import type { ProjectId } from "@/lib/api/types";
+import type { ProjectId, ServiceId } from "@/lib/api/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -81,45 +84,209 @@ function costLine(o: ServiceOverview, max: number) {
 	return parts.length ? parts.join(" and ") : undefined;
 }
 
-function Checks({ checks }: { checks: AutoscaleView["checks"] }) {
+type Check = AutoscaleView["checks"][number];
+type Fix = NonNullable<Check["fix"]>;
+
+const iconMotion = {
+	initial: { opacity: 0, scale: 0.25, filter: "blur(4px)" },
+	animate: { opacity: 1, scale: 1, filter: "blur(0px)" },
+	exit: { opacity: 0, scale: 0.25, filter: "blur(4px)" },
+	transition: { type: "spring", duration: 0.3, bounce: 0 },
+} as const;
+
+function Checks({
+	serviceId,
+	checks,
+}: {
+	serviceId: ServiceId;
+	checks: AutoscaleView["checks"];
+}) {
+	const [open, setOpen] = useState<Fix | undefined>();
 	return (
-		<ul className="grid gap-3">
-			{checks.map((c) => {
-				const Icon = c.ok
-					? CircleCheck
-					: c.level === "blocker"
-						? CircleX
-						: CircleAlert;
-				return (
-					<li key={c.id} className="flex items-start gap-2.5 text-sm">
-						<Icon
-							aria-hidden
-							strokeWidth={1.75}
-							className={cn(
-								"mt-0.5 size-4 shrink-0",
-								c.ok
-									? "text-ok-text"
-									: c.level === "blocker"
-										? "text-bad-text"
-										: "text-warn-text",
-							)}
-						/>
-						<span
-							className={cn("text-pretty", c.ok && "text-muted-foreground")}
-						>
-							<span className="sr-only">
-								{c.ok
-									? "Passed: "
-									: c.level === "blocker"
-										? "Blocks: "
-										: "Warning: "}
+		<>
+			<ul className="grid gap-3">
+				{checks.map((c) => {
+					const tone = c.ok ? "ok" : c.level === "blocker" ? "bad" : "warn";
+					const Icon =
+						tone === "ok"
+							? CircleCheck
+							: tone === "bad"
+								? CircleX
+								: CircleAlert;
+					return (
+						<li key={c.id} className="flex items-start gap-2.5 text-sm">
+							<span aria-hidden className="relative mt-0.5 size-4 shrink-0">
+								<AnimatePresence initial={false}>
+									<motion.span
+										key={tone}
+										className="absolute inset-0"
+										{...iconMotion}
+									>
+										<Icon
+											strokeWidth={1.75}
+											className={cn(
+												"size-4",
+												tone === "ok"
+													? "text-ok-text"
+													: tone === "bad"
+														? "text-bad-text"
+														: "text-warn-text",
+											)}
+										/>
+									</motion.span>
+								</AnimatePresence>
 							</span>
-							{c.message}
-						</span>
-					</li>
-				);
-			})}
-		</ul>
+							<span className="min-w-0 flex-1">
+								<span
+									className={cn(
+										"block text-pretty",
+										c.ok && "text-muted-foreground",
+									)}
+								>
+									<span className="sr-only">
+										{c.ok
+											? "Passed: "
+											: c.level === "blocker"
+												? "Blocks: "
+												: "Warning: "}
+									</span>
+									{c.message}
+								</span>
+								{!c.ok && c.fixUnavailable && (
+									<span className="mt-1 block text-pretty text-muted-foreground text-xs">
+										{c.fixUnavailable}
+									</span>
+								)}
+							</span>
+							<AnimatePresence initial={false}>
+								{!c.ok && c.fix && (
+									<motion.span
+										key="fix"
+										className="-mt-1 shrink-0"
+										exit={{ opacity: 0 }}
+										transition={{ duration: 0.15, ease: "easeOut" }}
+									>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											className="active:scale-[0.96]"
+											onClick={() => setOpen(c.fix)}
+										>
+											<WandSparkles
+												data-icon="inline-start"
+												strokeWidth={1.75}
+											/>
+											AutoFix
+										</Button>
+									</motion.span>
+								)}
+							</AnimatePresence>
+							{!c.ok && !c.fix && c.link && (
+								<Button
+									asChild
+									variant="outline"
+									size="sm"
+									className="-mt-1 shrink-0"
+								>
+									<Link to={c.link.to}>{c.link.label}</Link>
+								</Button>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+			<AutoFixDialog
+				serviceId={serviceId}
+				fix={open}
+				onClose={() => setOpen(undefined)}
+			/>
+		</>
+	);
+}
+
+/** Says what an AutoFix changes and what happens next; the user applies it or cancels. */
+function AutoFixDialog({
+	serviceId,
+	fix,
+	onClose,
+}: {
+	serviceId: ServiceId;
+	fix: Fix | undefined;
+	onClose: () => void;
+}) {
+	const apply = useApplyAutoscaleFix(serviceId);
+	// Keeps the content on screen while the dialog closes.
+	const [shown, setShown] = useState(fix);
+	if (fix && fix !== shown) setShown(fix);
+	const f = fix ?? shown;
+	return (
+		<ConfirmDialog
+			open={!!fix}
+			onOpenChange={(o) => {
+				if (!o && !apply.isPending) {
+					apply.reset();
+					onClose();
+				}
+			}}
+			title={f?.title ?? ""}
+			description={f?.summary ?? ""}
+			confirmLabel={f?.redeploy ? "Apply and redeploy" : "Apply"}
+			destructive={false}
+			pending={apply.isPending}
+			onConfirm={() => {
+				if (!f) return;
+				apply.mutate(f.id, {
+					onSuccess: (r) => {
+						onClose();
+						apply.reset();
+						toast.success(
+							r.deploymentId ? `${f.title}: done. Deploying…` : "Already fixed",
+						);
+					},
+				});
+			}}
+		>
+			{f && (
+				<div className="grid gap-4 text-sm">
+					<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-lg bg-muted/50 p-3">
+						{f.changes.map((ch) => (
+							<Fragment key={ch.label}>
+								<dt className="text-muted-foreground">{ch.label}</dt>
+								<dd className="flex flex-wrap items-baseline gap-x-2 tabular-nums">
+									<span className="text-muted-foreground line-through decoration-muted-foreground/50">
+										{ch.before}
+									</span>
+									<span aria-hidden className="text-muted-foreground">
+										→
+									</span>
+									<span className="sr-only">becomes</span>
+									<span className="font-medium">{ch.after}</span>
+								</dd>
+							</Fragment>
+						))}
+					</dl>
+					{f.notes.length > 0 && (
+						<ul className="grid gap-1.5 text-pretty text-muted-foreground">
+							{f.notes.map((n) => (
+								<li key={n}>{n}</li>
+							))}
+						</ul>
+					)}
+					{f.redeploy && (
+						<p className="text-pretty text-muted-foreground">
+							Saving starts a new deployment. Copies are replaced one at a time;
+							if the new one fails its healthcheck, the previous version stays.
+						</p>
+					)}
+					{apply.error && (
+						<p role="alert" className="text-pretty text-bad-text">
+							{apply.error.message}
+						</p>
+					)}
+				</div>
+			)}
+		</ConfirmDialog>
 	);
 }
 
@@ -318,9 +485,15 @@ export function AutoscaleWizard({
 				"Copies of a service must be interchangeable, and each needs a CPU limit to measure against.",
 			ready: () =>
 				blockers.length
-					? `Fix ${blockers.length === 1 ? "the check marked in red" : "the checks marked in red"} in the service settings first.`
+					? `Fix ${blockers.length === 1 ? "the check marked in red" : "the checks marked in red"} first, ${
+							blockers.every((b) => b.fix)
+								? "with AutoFix"
+								: blockers.some((b) => b.fix)
+									? "with AutoFix or in the service settings"
+									: "in the service settings"
+						}.`
 					: true,
-			render: () => <Checks checks={view.checks} />,
+			render: () => <Checks serviceId={o.id} checks={view.checks} />,
 		},
 		{
 			id: "range",

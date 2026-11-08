@@ -48,6 +48,7 @@ export const shots: Record<string, Shot> = {
 	"service-scaling": `${SVC}/settings#scaling`,
 	"service-security": `${SVC}/security`,
 	"autoscale-checks": `${AUTOSCALE}ready`,
+	"autoscale-autofix": `${P}/services/svc_storefront_production_worker/settings?scaling=setup&step=ready`,
 	"autoscale-range": `${AUTOSCALE}range`,
 	"autoscale-behavior": `${AUTOSCALE}behavior`,
 	"autoscale-review": `${AUTOSCALE}review`,
