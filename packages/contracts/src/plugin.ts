@@ -242,3 +242,64 @@ export const PLUGIN_STORAGE_LIMITS = {
 	valueBytes: 16 * 1024,
 	keys: 256,
 } as const;
+
+// ---- PluginIndexPayload: the marketplace index contract (docs/plans/plugins.md, "Marketplace") ----
+// Every response is an envelope whose `payload` is JSON text, signed with Ed25519 over its UTF-8
+// bytes. `GET {indexUrl}/v1/index` carries `PluginIndexPayload`, `GET {indexUrl}/v1/plugins/{id}`
+// carries `PluginDetailPayload`.
+
+export const PluginIndexEnvelope = z.object({
+	payload: z.string(),
+	keyId: z.string().min(1).max(128),
+	/** base64url Ed25519 signature over the UTF-8 bytes of `payload`. */
+	signature: z.string().min(1),
+});
+export type PluginIndexEnvelope = z.infer<typeof PluginIndexEnvelope>;
+
+/** A digest-pinned image, `repo@sha256:…`. */
+const PinnedImage = z
+	.string()
+	.max(512)
+	.regex(/^[^\s@]+@sha256:[a-f0-9]{64}$/, "repo@sha256:<64 hex>");
+
+export const PluginIndexVersion = z.object({
+	version: SemVer,
+	image: PinnedImage,
+	manifest: PluginManifest,
+	changelog: z.string().max(20_000).optional(),
+	publishedAt: z.string(),
+	yanked: z.boolean(),
+});
+export type PluginIndexVersion = z.infer<typeof PluginIndexVersion>;
+
+const PluginIndexListing = z.object({
+	id: PluginId,
+	name: z.string().min(1).max(60),
+	description: z.string().max(300).default(""),
+	author: z.string().max(80).optional(),
+	iconUrl: z.url().max(2048).optional(),
+});
+
+export const PluginIndexEntry = PluginIndexListing.extend({
+	verified: z.boolean(),
+	latest: PluginIndexVersion,
+});
+export type PluginIndexEntry = z.infer<typeof PluginIndexEntry>;
+
+export const PluginIndexPayload = z.object({
+	generatedAt: z.string(),
+	indexName: z.string().min(1).max(80),
+	plugins: z.array(PluginIndexEntry),
+});
+export type PluginIndexPayload = z.infer<typeof PluginIndexPayload>;
+
+export const PluginDetailVersion = PluginIndexVersion.extend({
+	verified: z.boolean(),
+});
+export type PluginDetailVersion = z.infer<typeof PluginDetailVersion>;
+
+export const PluginDetailPayload = PluginIndexListing.extend({
+	versions: z.array(PluginDetailVersion),
+});
+export type PluginDetailPayload = z.infer<typeof PluginDetailPayload>;
+// ---- end PluginIndexPayload ----
