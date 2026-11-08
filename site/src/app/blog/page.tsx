@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BlogSearch } from "@/components/blog-search";
 import { PageHead, PageShell } from "@/components/page-shell";
 import { FinalCta } from "@/components/sections/closing";
 import { site } from "@/content/site";
@@ -57,64 +58,77 @@ export default function Blog() {
 				</p>
 			</PageHead>
 
-			<nav
-				aria-label="Blog topics"
-				className="mx-auto w-full max-w-[1440px] px-4 sm:px-10"
+			<BlogSearch
+				posts={posts.map(
+					({ slug, title, description, category, keywords, minutes }) => ({
+						slug,
+						title,
+						description,
+						category,
+						keywords,
+						minutes,
+					}),
+				)}
 			>
-				<ul className="flex flex-wrap gap-2">
-					{groups.map((g) => (
-						<li key={g.id}>
-							<a
-								href={`#${g.id}`}
-								className="pressable inline-flex h-9 items-center gap-2 rounded-full bg-raised px-3.5 text-[13px] font-medium text-muted hover:text-fg"
+				<nav
+					aria-label="Blog topics"
+					className="mx-auto w-full max-w-[1440px] px-4 pt-4 sm:px-10"
+				>
+					<ul className="flex flex-wrap gap-2">
+						{groups.map((g) => (
+							<li key={g.id}>
+								<a
+									href={`#${g.id}`}
+									className="pressable inline-flex h-9 items-center gap-2 rounded-full bg-raised px-3.5 text-[13px] font-medium text-muted hover:text-fg"
+								>
+									{g.c}
+									<span className="text-faint tabular-nums">
+										{g.items.length}
+									</span>
+								</a>
+							</li>
+						))}
+					</ul>
+				</nav>
+
+				<div className="mx-auto flex w-full max-w-[1440px] flex-col gap-2 px-4 pt-16 sm:px-10 sm:pt-24">
+					{groups.map((g, i) => (
+						<section
+							key={g.id}
+							id={g.id}
+							aria-labelledby={`${g.id}-title`}
+							className={`grid gap-6 rounded-[28px] p-6 sm:p-10 lg:grid-cols-[300px_1fr] lg:gap-12 xl:grid-cols-[400px_1fr] xl:gap-16 ${i % 2 === 0 ? "bg-step" : ""}`}
+						>
+							<h2
+								id={`${g.id}-title`}
+								className="reveal text-[32px] leading-[1.05] font-medium tracking-[-0.03em] sm:text-[40px] lg:sticky lg:top-[96px] lg:self-start"
 							>
 								{g.c}
-								<span className="text-faint tabular-nums">
-									{g.items.length}
-								</span>
-							</a>
-						</li>
+							</h2>
+							<ul className="flex flex-col">
+								{g.items.map((p) => (
+									<li key={p.slug} className="reveal">
+										<a
+											href={`/blog/${p.slug}/`}
+											className="group -mx-4 flex flex-col gap-1.5 rounded-[18px] px-4 py-4 transition-colors duration-150 hover:bg-raised"
+										>
+											<span className="text-[19px] leading-snug font-medium tracking-[-0.01em]">
+												{p.title}
+											</span>
+											<span className="max-w-[70ch] text-[15px] leading-relaxed text-muted">
+												{p.description}
+											</span>
+											<span className="text-[13px] text-faint tabular-nums">
+												{p.minutes} min read
+											</span>
+										</a>
+									</li>
+								))}
+							</ul>
+						</section>
 					))}
-				</ul>
-			</nav>
-
-			<div className="mx-auto flex w-full max-w-[1440px] flex-col gap-2 px-4 pt-16 sm:px-10 sm:pt-24">
-				{groups.map((g, i) => (
-					<section
-						key={g.id}
-						id={g.id}
-						aria-labelledby={`${g.id}-title`}
-						className={`grid gap-6 rounded-[28px] p-6 sm:p-10 lg:grid-cols-[300px_1fr] lg:gap-12 xl:grid-cols-[400px_1fr] xl:gap-16 ${i % 2 === 0 ? "bg-step" : ""}`}
-					>
-						<h2
-							id={`${g.id}-title`}
-							className="reveal text-[32px] leading-[1.05] font-medium tracking-[-0.03em] sm:text-[40px] lg:sticky lg:top-[96px] lg:self-start"
-						>
-							{g.c}
-						</h2>
-						<ul className="flex flex-col">
-							{g.items.map((p) => (
-								<li key={p.slug} className="reveal">
-									<a
-										href={`/blog/${p.slug}/`}
-										className="group -mx-4 flex flex-col gap-1.5 rounded-[18px] px-4 py-4 transition-colors duration-150 hover:bg-raised"
-									>
-										<span className="text-[19px] leading-snug font-medium tracking-[-0.01em]">
-											{p.title}
-										</span>
-										<span className="max-w-[70ch] text-[15px] leading-relaxed text-muted">
-											{p.description}
-										</span>
-										<span className="text-[13px] text-faint tabular-nums">
-											{p.minutes} min read
-										</span>
-									</a>
-								</li>
-							))}
-						</ul>
-					</section>
-				))}
-			</div>
+				</div>
+			</BlogSearch>
 
 			<FinalCta />
 		</PageShell>
