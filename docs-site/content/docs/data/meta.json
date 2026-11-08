@@ -4,6 +4,7 @@
 	"pages": [
 		"index",
 		"database-editor",
+		"database-operations",
 		"backups",
 		"restore",
 		"s3-destinations",

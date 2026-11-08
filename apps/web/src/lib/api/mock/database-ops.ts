@@ -115,7 +115,7 @@ export const mockDatabaseOps: DatabaseOpsApi = {
 				"an upgrade of this database is running",
 				"conflict",
 			);
-		const from = versions.get(id) ?? "16";
+		const from = versions.get(id) ?? "17.6";
 		if ((Number.parseInt(version, 10) || 0) <= (Number.parseInt(from, 10) || 0))
 			throw new ApiError(
 				400,

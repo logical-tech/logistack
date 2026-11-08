@@ -845,8 +845,8 @@ describe("database TLS for public access", () => {
 			...db("postgres", "17"),
 			dataVolumeOwner: "dbu_up0000000000000000000000",
 		});
-		expect(spec.TaskTemplate.ContainerSpec?.Mounts?.[0]?.Source).toBe(
-			"ls-vol-up0000000000000000000000",
-		);
+		expect(spec.TaskTemplate.ContainerSpec?.Mounts?.[0]).toMatchObject({
+			Source: "ls-vol-up0000000000000000000000",
+		});
 	});
 });

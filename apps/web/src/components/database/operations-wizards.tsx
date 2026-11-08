@@ -4,7 +4,8 @@ import {
 	IpRange,
 	PublicAccessInput,
 } from "@logistack/contracts";
-import { DATABASE_PORTS, isLaterVersion } from "@logistack/core";
+import { DATABASE_PORTS } from "@logistack/core/db-access";
+import { isLaterVersion } from "@logistack/core/db-scripts";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -392,7 +393,7 @@ export function UpgradeWizard({
 		{
 			id: "version",
 			title: "Version",
-			description: `The image tag to move to from ${from}.`,
+			description: `Running ${from} now. Pick the image tag to move to.`,
 			schema: z.object({
 				version: DatabaseUpgradeInput.shape.version.refine(
 					(v) => isLaterVersion(from, v),

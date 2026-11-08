@@ -5,6 +5,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./sql": "./src/sql.ts",
+		"./db-access": "./src/db-access.ts",
+		"./db-scripts": "./src/db-scripts.ts",
 		"./drains": "./src/drains.ts",
 		"./network-map": "./src/network-map.ts",
 		"./ai-providers": "./src/ai-providers.ts"

@@ -3,8 +3,8 @@ import type {
 	DatabaseEngine,
 	DatabaseUpgradeView,
 } from "@logistack/contracts";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowUpCircle, Globe, Plug, Timer } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowUpCircle, Globe, Timer } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -17,7 +17,7 @@ import {
 	upgradesQuery,
 	useDatabaseOps,
 } from "@/lib/api/database-ops";
-import type { ServiceOverview } from "@/lib/api/service-ops";
+import { overviewQuery, type ServiceOverview } from "@/lib/api/service-ops";
 import type { StatusMeta } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { UPGRADE_STEPS } from "./operations-wizards";
@@ -109,11 +109,13 @@ function AccessRow({
 					Close
 				</Button>
 			</div>
-			{a.statusMessage && a.status !== "active" && (
-				<p className="text-sm text-pretty text-muted-foreground">
-					{a.statusMessage}
-				</p>
-			)}
+			{a.statusMessage &&
+				a.status !== "active" &&
+				a.status !== "waiting_certificate" && (
+					<p className="text-sm text-pretty text-muted-foreground">
+						{a.statusMessage}
+					</p>
+				)}
 			{a.uri && <Uri uri={a.uri} />}
 			<p className="text-xs text-muted-foreground">
 				{a.tlsRequired ? "TLS required" : "Plain, without TLS"} · open to{" "}
@@ -136,14 +138,20 @@ export function DatabaseOperations({
 	const upgrades = useQuery(upgradesQuery(service.id));
 	const ops = useDatabaseOps(service.id);
 	const [closing, setClosing] = useState<DatabaseAccessView | null>(null);
-	if (!spec) return null;
-
 	const rows = access.data?.access ?? [];
 	const pub = rows.find((a) => a.kind === "public");
 	const forwards = rows.filter((a) => a.kind === "forward");
 	const exposable = access.data?.exposable ?? true;
 	const running = upgrades.data?.find((u) => u.status === "running");
 	const last = upgrades.data?.[0];
+	const qc = useQueryClient();
+	const lastState = last ? `${last.id}:${last.status}` : "";
+	// A finished upgrade changed the version (or put it back): reread the service.
+	useEffect(() => {
+		if (lastState && !lastState.endsWith(":running"))
+			qc.invalidateQueries({ queryKey: overviewQuery(service.id).queryKey });
+	}, [lastState, qc, service.id]);
+	if (!spec) return null;
 
 	const close = async () => {
 		if (!closing) return;
@@ -223,8 +231,7 @@ export function DatabaseOperations({
 						))}
 					</ul>
 				) : (
-					<p className="flex items-center gap-3 px-4 py-5 text-sm text-pretty text-muted-foreground">
-						<Plug className="size-4 shrink-0" aria-hidden />
+					<p className="px-4 py-5 text-sm text-pretty text-muted-foreground">
 						Connect a local tool for a while: a port open to your address only,
 						closed on its own when the time runs out.
 					</p>
