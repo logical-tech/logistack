@@ -220,7 +220,8 @@ export function ManifestSummary({
 						<span className="grid gap-1.5">
 							<Chips items={m.egress} />
 							<span className="text-xs text-muted-foreground">
-								Only these hosts are reachable: other traffic is refused by the egress proxy.
+								Only these hosts are reachable: other traffic is refused by the
+								egress proxy.
 							</span>
 						</span>
 					) : (
