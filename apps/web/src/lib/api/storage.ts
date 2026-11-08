@@ -49,7 +49,7 @@ export type StorageApi = {
 		list(id: string): Promise<Bucket[]>;
 		create(id: string, name: string): Promise<void>;
 		update(id: string, bucket: string, patch: BucketPatch): Promise<void>;
-		/** Deletes every object first; the server checks `confirm` equals the name. */
+		/** Deletes every object first; the server checks `confirmName` equals the name. */
 		remove(id: string, bucket: string): Promise<void>;
 	};
 	objects: {
@@ -144,7 +144,9 @@ const http: StorageApi = {
 		},
 		update: (id, bucket, json) => done(b.$patch({ ...pb(id, bucket), json })),
 		remove: async (id, bucket) => {
-			await ok(b.$delete({ ...pb(id, bucket), query: { confirm: bucket } }));
+			await ok(
+				b.$delete({ ...pb(id, bucket), query: { confirmName: bucket } }),
+			);
 		},
 	},
 	objects: {
