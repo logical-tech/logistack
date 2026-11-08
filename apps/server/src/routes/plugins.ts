@@ -5,6 +5,7 @@ import {
 	type PluginManifest,
 	PluginPage,
 	PluginPolicy,
+	PluginProvider,
 	PluginStatus,
 	permissionActions,
 } from "@logistack/contracts";
@@ -40,6 +41,8 @@ import {
 	installRow,
 	manifestFromImage,
 	manifestFromUrl,
+	providerRowsOf,
+	randomSecret,
 	signSession,
 	validateConfig,
 } from "../plugins.ts";
@@ -121,6 +124,12 @@ const Contribution = z
 		/** Not from a reviewed marketplace entry; always true until the marketplace ships. */
 		unlisted: z.boolean(),
 		pages: z.array(PluginPage),
+		/** Providers the plugin adds to the DNS, notification channel and secret provider wizards. */
+		providers: z.object({
+			dnsProviders: z.array(PluginProvider),
+			notificationChannels: z.array(PluginProvider),
+			secretProviders: z.array(PluginProvider),
+		}),
 	})
 	.openapi("PluginContribution");
 
@@ -339,7 +348,8 @@ export const plugins = router()
 			path: "/plugins/contributions",
 			tags: ["plugins"],
 			security,
-			summary: "Pages of enabled plugins, for the dashboard's navigation",
+			summary:
+				"Pages and providers of enabled plugins, for the dashboard's navigation and wizards",
 			middleware: [requirePermission("read", inOrganization)],
 			responses: {
 				200: json(z.array(Contribution), "Contributions"),
@@ -365,6 +375,11 @@ export const plugins = router()
 					author: r.manifest.author?.name ?? null,
 					unlisted: true,
 					pages: r.manifest.contributes.pages,
+					providers: {
+						dnsProviders: r.manifest.contributes.dnsProviders,
+						notificationChannels: r.manifest.contributes.notificationChannels,
+						secretProviders: r.manifest.contributes.secretProviders,
+					},
 				})),
 				200,
 			);
@@ -581,9 +596,7 @@ export const plugins = router()
 			const installId = newId("plg");
 			const accountId = crypto.randomUUID();
 			const role = pluginRoleName(installId);
-			const signingSecret = Buffer.from(
-				crypto.getRandomValues(new Uint8Array(32)),
-			).toString("base64url");
+			const signingSecret = randomSecret();
 			const ordered = permissionActions.filter((a) =>
 				r.manifest.permissions.includes(a),
 			);
@@ -833,7 +846,7 @@ export const plugins = router()
 				security,
 				summary: "Uninstall a plugin",
 				description:
-					"Removes the install, its service account and keys, and its pages' stored UI state; the worker removes the container. The data volume is kept.",
+					"Removes the install, its service account and keys, and its pages' stored UI state; the worker removes the container. The data volume is kept. Refused (409) while a DNS provider, notification channel or secret provider uses one of its providers.",
 				middleware: [requirePermission("plugins", inOrganization)],
 				request: { params: IdParam },
 				responses: { 204: { description: "Uninstalled" }, ...errors },
@@ -842,6 +855,13 @@ export const plugins = router()
 		async (c) => {
 			const row = await byInstall(c);
 			c.set("auditResourceId", row.id);
+			const users = await providerRowsOf(c.var.deps.db, row.id);
+			if (users.length)
+				throw new Failure(
+					"conflict",
+					`${row.manifest.name} is still used by ${users.join(", ")}; remove them first`,
+					{ usedBy: users },
+				);
 			await c.var.deps.db.transaction(async (tx) => {
 				if (row.serviceAccountId) {
 					const keys = await tx

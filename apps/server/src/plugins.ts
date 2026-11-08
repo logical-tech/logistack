@@ -2,10 +2,18 @@ import { z } from "@hono/zod-openapi";
 import {
 	PLUGIN_MANIFEST_LABEL,
 	PluginManifest,
+	type PluginProviderKind,
 	PluginUserClaims,
 } from "@logistack/contracts";
 import { decrypt, pluginBaseUrl } from "@logistack/core";
-import { type Db, pluginInstall, registry } from "@logistack/db";
+import {
+	type Db,
+	dnsProvider,
+	notificationChannel,
+	pluginInstall,
+	registry,
+	secretProvider,
+} from "@logistack/db";
 import {
 	callPlugin,
 	type Fetch,
@@ -297,6 +305,78 @@ export async function verifySession(
 	} catch {
 		return undefined;
 	}
+}
+
+/** 32 random bytes, base64url: install signing secrets, acme-proxy passwords. */
+export const randomSecret = () =>
+	Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+
+/** The columns a provider row of kind `plugin` carries. */
+export const PluginProviderFields = {
+	/** Kind `plugin`: the install contributing the provider. */
+	pluginInstallId: z.string().optional(),
+	/** Kind `plugin`: the provider's `name` in the plugin's manifest. */
+	pluginProvider: z.string().optional(),
+};
+
+/**
+ * For a new provider row of kind `plugin`: the enabled install of this organization that
+ * contributes `name` under `kind`, and `config` checked against that provider's form.
+ */
+export async function contributedProvider(
+	db: Db,
+	organizationId: string,
+	kind: PluginProviderKind,
+	ref: { pluginInstallId?: string; pluginProvider?: string },
+	config: Record<string, unknown>,
+) {
+	if (!ref.pluginInstallId || !ref.pluginProvider)
+		throw new Failure(
+			"validation_failed",
+			"a plugin provider needs pluginInstallId and pluginProvider",
+		);
+	const install = await installRow(db, organizationId, ref.pluginInstallId);
+	if (!install.enabled) throw new Failure("bad_request", "plugin disabled");
+	const provider = install.manifest.contributes[kind].find(
+		(p) => p.name === ref.pluginProvider,
+	);
+	if (!provider)
+		throw new Failure(
+			"bad_request",
+			`${install.manifest.name} does not provide ${ref.pluginProvider}`,
+		);
+	return {
+		install,
+		provider,
+		config: validateConfig(provider.configSchema, config),
+		columns: {
+			pluginInstallId: install.id,
+			pluginProvider: provider.name,
+		},
+	};
+}
+
+/** Provider rows still pointing at an install: uninstall is refused while there are any. */
+export async function providerRowsOf(db: Db, installId: string) {
+	const [dns, channels, secrets] = await Promise.all([
+		db
+			.select({ id: dnsProvider.id, name: dnsProvider.name })
+			.from(dnsProvider)
+			.where(eq(dnsProvider.pluginInstallId, installId)),
+		db
+			.select({ id: notificationChannel.id, name: notificationChannel.name })
+			.from(notificationChannel)
+			.where(eq(notificationChannel.pluginInstallId, installId)),
+		db
+			.select({ id: secretProvider.id, name: secretProvider.name })
+			.from(secretProvider)
+			.where(eq(secretProvider.pluginInstallId, installId)),
+	]);
+	return [
+		...dns.map((r) => `DNS provider "${r.name}"`),
+		...channels.map((r) => `notification channel "${r.name}"`),
+		...secrets.map((r) => `secret provider "${r.name}"`),
+	];
 }
 
 /** Validates settings against the manifest's JSON Schema. */
