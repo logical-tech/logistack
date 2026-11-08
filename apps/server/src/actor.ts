@@ -290,6 +290,10 @@ export async function systemActor(
 	);
 	if (!owner) return undefined;
 	const grants = await grantsFor(db, id, owner.userId, organizationId);
+	const [u] = await db
+		.select({ role: user.role })
+		.from(user)
+		.where(eq(user.id, owner.userId));
 	return (
 		grants && {
 			kind: "system",
@@ -297,6 +301,8 @@ export async function systemActor(
 			userId: owner.userId,
 			organizationId,
 			grants,
+			// The owner's instance role too, so an import does what the owner could do by hand.
+			instanceAdmin: isInstanceAdminRole(u?.role),
 		}
 	);
 }
