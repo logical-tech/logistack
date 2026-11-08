@@ -44,6 +44,7 @@ import { Route as AppIntegrationsTailscaleRouteImport } from './routes/_app/inte
 import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integrations/tunnels'
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
+import { Route as AppMonitoringPatchesRouteImport } from './routes/_app/monitoring/patches'
 import { Route as AppMonitoringUsageRouteImport } from './routes/_app/monitoring/usage'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/projects/$projectId/route'
@@ -293,6 +294,11 @@ const AppMonitoringIndexRoute = AppMonitoringIndexRouteImport.update({
 const AppMonitoringAlertsRoute = AppMonitoringAlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
+const AppMonitoringPatchesRoute = AppMonitoringPatchesRouteImport.update({
+  id: '/patches',
+  path: '/patches',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
 const AppMonitoringUsageRoute = AppMonitoringUsageRouteImport.update({
@@ -735,6 +741,7 @@ export interface FileRoutesByFullPath {
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/patches': typeof AppMonitoringPatchesRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -838,6 +845,7 @@ export interface FileRoutesByTo {
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/patches': typeof AppMonitoringPatchesRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -946,6 +954,7 @@ export interface FileRoutesById {
   '/_app/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/_app/monitoring/patches': typeof AppMonitoringPatchesRoute
   '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
@@ -1055,6 +1064,7 @@ export interface FileRouteTypes {
     | '/integrations/tailscale'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/patches'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -1158,6 +1168,7 @@ export interface FileRouteTypes {
     | '/integrations/tailscale'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/patches'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -1265,6 +1276,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/tailscale'
     | '/_app/integrations/tunnels'
     | '/_app/monitoring/alerts'
+    | '/_app/monitoring/patches'
     | '/_app/monitoring/usage'
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
@@ -1591,6 +1603,13 @@ declare module '@tanstack/react-router' {
       path: '/alerts'
       fullPath: '/monitoring/alerts'
       preLoaderRoute: typeof AppMonitoringAlertsRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/patches': {
+      id: '/_app/monitoring/patches'
+      path: '/patches'
+      fullPath: '/monitoring/patches'
+      preLoaderRoute: typeof AppMonitoringPatchesRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
     '/_app/monitoring/usage': {
@@ -2124,6 +2143,7 @@ const AppAiRouteRouteWithChildren = AppAiRouteRoute._addFileChildren(
 
 interface AppMonitoringRouteRouteChildren {
   AppMonitoringAlertsRoute: typeof AppMonitoringAlertsRoute
+  AppMonitoringPatchesRoute: typeof AppMonitoringPatchesRoute
   AppMonitoringUsageRoute: typeof AppMonitoringUsageRoute
   AppMonitoringIndexRoute: typeof AppMonitoringIndexRoute
   AppMonitoringNodesNodeIdRoute: typeof AppMonitoringNodesNodeIdRoute
@@ -2133,6 +2153,7 @@ interface AppMonitoringRouteRouteChildren {
 
 const AppMonitoringRouteRouteChildren: AppMonitoringRouteRouteChildren = {
   AppMonitoringAlertsRoute: AppMonitoringAlertsRoute,
+  AppMonitoringPatchesRoute: AppMonitoringPatchesRoute,
   AppMonitoringUsageRoute: AppMonitoringUsageRoute,
   AppMonitoringIndexRoute: AppMonitoringIndexRoute,
   AppMonitoringNodesNodeIdRoute: AppMonitoringNodesNodeIdRoute,

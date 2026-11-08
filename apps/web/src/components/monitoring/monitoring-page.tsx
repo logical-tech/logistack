@@ -5,12 +5,13 @@ import { Page, PageHeader } from "@/components/page-header";
 import { SlidingTabs } from "@/components/sliding-tabs";
 import { Button } from "@/components/ui/button";
 
-type Section = "overview" | "usage" | "nodes" | "alerts";
+type Section = "overview" | "usage" | "nodes" | "patches" | "alerts";
 
 const TO = {
 	overview: "/monitoring",
 	usage: "/monitoring/usage",
 	nodes: "/monitoring/nodes",
+	patches: "/monitoring/patches",
 	alerts: "/monitoring/alerts",
 } as const;
 
@@ -48,6 +49,7 @@ export function MonitoringPage({
 						{ id: "overview", label: "Overview" },
 						{ id: "usage", label: "Usage" },
 						{ id: "nodes", label: "Nodes" },
+						{ id: "patches", label: "OS updates" },
 						{ id: "alerts", label: "Settings" },
 					]}
 				/>
