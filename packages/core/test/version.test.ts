@@ -6,9 +6,30 @@ import {
 	normalizeVersion,
 	onChannel,
 	releasesBetween,
+	satisfiesRange,
 	versionChannel,
 	withoutBreakingChanges,
 } from "../src/version.ts";
+
+test("satisfiesRange", () => {
+	expect(satisfiesRange("0.6.0", ">=0.6.0")).toBe(true);
+	expect(satisfiesRange("0.5.9", ">=0.6.0")).toBe(false);
+	expect(satisfiesRange("0.7.1", ">= 0.6.0 <1.0.0")).toBe(true);
+	expect(satisfiesRange("1.0.0", ">=0.6.0 <1.0.0")).toBe(false);
+	expect(satisfiesRange("1.0.0-rc.1", "<1.0.0")).toBe(true);
+	expect(satisfiesRange("1.4.0", "^1.2.0")).toBe(true);
+	expect(satisfiesRange("2.0.0-beta.1", "^1.2.0")).toBe(false);
+	expect(satisfiesRange("0.3.9", "^0.3.1")).toBe(true);
+	expect(satisfiesRange("0.4.0", "^0.3.1")).toBe(false);
+	expect(satisfiesRange("0.0.4", "^0.0.3")).toBe(false);
+	expect(satisfiesRange("1.2.9", "~1.2.0")).toBe(true);
+	expect(satisfiesRange("1.3.0", "~1.2.0")).toBe(false);
+	expect(satisfiesRange("2.1.0", "<1.0.0 || >=2.0.0")).toBe(true);
+	expect(satisfiesRange("1.0.0", "*")).toBe(true);
+	expect(satisfiesRange("1.0.0", "1.0.0")).toBe(true);
+	expect(satisfiesRange("1.0.0", "garbage")).toBe(false);
+	expect(satisfiesRange("1.0.0", "")).toBe(false);
+});
 
 test("compareVersions follows semver precedence", () => {
 	const ordered = [
