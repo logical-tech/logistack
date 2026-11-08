@@ -1,0 +1,26 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`proxy sync inputs a plugin DNS provider issues through acmeproxy pointed at the api 1`] = `
+{
+  "issuers": [
+    {
+      "ca": "https://acme-v02.api.letsencrypt.org/directory",
+      "challenges": {
+        "dns": {
+          "provider": {
+            "endpoint": "http://logistack-api:3000/acme-proxy/dns_plugin1",
+            "name": "acmeproxy",
+            "password": "pw",
+            "username": "dns_plugin1",
+          },
+        },
+      },
+      "email": "ops@example.com",
+      "module": "acme",
+    },
+  ],
+  "subjects": [
+    "*.apps.example.com",
+  ],
+}
+`;

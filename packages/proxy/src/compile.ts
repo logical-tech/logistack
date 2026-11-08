@@ -38,6 +38,11 @@ export type DnsChallenge =
 	| {
 			provider: "porkbun";
 			credentials: { api_key: string; api_secret_key: string };
+	  }
+	/** caddy-dns/acmeproxy: POSTs present/cleanup to our api, which asks a plugin's DNS provider. */
+	| {
+			provider: "acmeproxy";
+			credentials: { endpoint: string; username: string; password: string };
 	  };
 
 export type CustomCert = { id: string; certPem: string; keyPem: string };
