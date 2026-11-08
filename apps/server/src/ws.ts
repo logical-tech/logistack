@@ -210,6 +210,16 @@ export const realtime = new Hono<Env>().get(
 		return {
 			async onOpen(_evt, ws) {
 				const send = (m: ServerMessage) => ws.send(JSON.stringify(m));
+				unlisten = bus.onEvent((event) => {
+					if (event.organizationId !== actor.organizationId) return;
+					const channel = channelsOf(event).find((ch) => subscribed.has(ch));
+					if (channel) send({ type: "event", channel, event });
+				});
+				unlive = (await live(c.var.deps.config.REDIS_URL)).onLive((data) => {
+					if (subscribed.has(data.channel))
+						send({ type: "data", channel: data.channel, data });
+				});
+				// After the bus listener, so an event published right after subscribing is never missed.
 				unaccess = await cluster(c.var.deps.config.REDIS_URL).on(
 					ACCESS_CHANNEL,
 					(m) => {
@@ -227,16 +237,8 @@ export const realtime = new Hono<Env>().get(
 							);
 					},
 				);
-				unlisten = bus.onEvent((event) => {
-					if (event.organizationId !== actor.organizationId) return;
-					const channel = channelsOf(event).find((ch) => subscribed.has(ch));
-					if (channel) send({ type: "event", channel, event });
-				});
-				unlive = (await live(c.var.deps.config.REDIS_URL)).onLive((data) => {
-					if (subscribed.has(data.channel))
-						send({ type: "data", channel: data.channel, data });
-				});
 				if (closed) {
+					unlisten();
 					unlive();
 					unaccess();
 				}

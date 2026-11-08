@@ -1,3 +1,4 @@
+-- logistack:contract the DELETE only drops duplicate member rows from racing SSO sign-ins; N-1 never relies on a duplicate, it reads one row per user and organization.
 CREATE TABLE "two_factor_lockout" (
 	"member_id" text NOT NULL,
 	"deadline" timestamp with time zone NOT NULL,
