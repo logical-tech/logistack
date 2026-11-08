@@ -3,8 +3,10 @@ import {
 	type AccessRule,
 	type CaddyRoute,
 	compileProxy,
+	maintenancePage,
 	type ProxyRoute,
 	routeId,
+	unavailablePage,
 } from "../src/index.ts";
 import { cf, dashboard, input, routes, settings } from "./fixtures.ts";
 
@@ -410,5 +412,194 @@ describe("access rules", () => {
 			"authentication",
 			"reverse_proxy",
 		]);
+	});
+});
+
+describe("edge rules", () => {
+	const base: ProxyRoute = {
+		domainId: "e1",
+		hostname: "edge.example.com",
+		upstream: { host: "ls-svc-e1", port: 80 },
+		https: true,
+		cert: "auto",
+	};
+	const handle = (r: ProxyRoute) =>
+		byId(httpsRoutes([r]), routeId(r.domainId))?.handle ?? [];
+	const branding = { orgName: "Acme <Ops>" };
+
+	test("rate limit: snapshot, window is burst over rate, keyed on client_ip", () => {
+		const h = handle({
+			...base,
+			edge: {
+				rateLimit: { requestsPerSecond: 10, burst: 25, exemptCidrs: [] },
+			},
+		});
+		expect(h).toMatchSnapshot();
+		expect(h[0]).toEqual({
+			handler: "rate_limit",
+			rate_limits: {
+				"ls-e1": {
+					key: "{http.vars.client_ip}",
+					window: "2500ms",
+					max_events: 25,
+				},
+			},
+		});
+	});
+
+	test("rate limit exemptions wrap the limiter in a client_ip guard", () => {
+		expect(
+			handle({
+				...base,
+				edge: {
+					rateLimit: {
+						requestsPerSecond: 5,
+						burst: 5,
+						exemptCidrs: ["10.0.0.0/8", "192.0.2.1"],
+					},
+				},
+			}),
+		).toMatchSnapshot();
+	});
+
+	test("block rules: snapshot, user agents are escaped into one case-insensitive pattern", () => {
+		const h = handle({
+			...base,
+			edge: {
+				block: {
+					paths: ["/wp-admin*", "/.env"],
+					userAgents: ["sqlmap", "bad.bot(1)"],
+				},
+			},
+		});
+		expect(h).toMatchSnapshot();
+		const sub = h[0] as Extract<(typeof h)[number], { handler: "subroute" }>;
+		expect(
+			sub.routes[0]?.match?.[1]?.header_regexp?.["User-Agent"]?.pattern,
+		).toBe("(?i)(?:bad\\.bot\\(1\\)|sqlmap)");
+	});
+
+	test("empty block rules add nothing", () => {
+		expect(
+			handle({ ...base, edge: { block: { paths: [], userAgents: [] } } }),
+		).toHaveLength(1);
+	});
+
+	test("maintenance: snapshot, 503 page unless the client is allowed", () => {
+		expect(
+			handle({
+				...base,
+				maintenance: {
+					allowCidrs: ["203.0.113.0/24"],
+					page: maintenancePage(branding, "Back at 14:00"),
+				},
+			}),
+		).toMatchSnapshot();
+	});
+
+	test("maintenance without an allowlist matches every request", () => {
+		const [m] = handle({ ...base, maintenance: { allowCidrs: [], page: "x" } });
+		expect(m).toEqual({
+			handler: "subroute",
+			routes: [
+				{
+					handle: [expect.objectContaining({ status_code: 503, body: "x" })],
+				},
+			],
+		});
+	});
+
+	test("order: block, rate limit, maintenance, access, upstream", () => {
+		const h = handle({
+			...base,
+			access: [{ type: "ip_allow", cidrs: ["0.0.0.0/0"] }],
+			maintenance: { allowCidrs: [], page: "m" },
+			edge: {
+				rateLimit: { requestsPerSecond: 1, burst: 1, exemptCidrs: [] },
+				block: { paths: ["/x"], userAgents: [] },
+			},
+		});
+		expect(h.map((x) => x.handler)).toEqual([
+			"subroute",
+			"rate_limit",
+			"subroute",
+			"subroute",
+			"reverse_proxy",
+		]);
+		expect(JSON.stringify(h[2])).toContain('"body":"m"');
+	});
+
+	test("a redirect ignores edge rules and maintenance", () => {
+		const r: ProxyRoute = {
+			...base,
+			redirectTo: "https://x.example.com",
+			maintenance: { allowCidrs: [], page: "m" },
+			edge: {
+				rateLimit: { requestsPerSecond: 1, burst: 1, exemptCidrs: [] },
+				errorPage: "e",
+			},
+		};
+		expect(handle(r)).toHaveLength(1);
+		expect(compile([r]).apps.http.servers.https?.errors).toBeUndefined();
+	});
+
+	test("error pages: snapshot, one error route per distinct page, only for 502-504", () => {
+		const page = unavailablePage(branding);
+		const config = compile([
+			{ ...base, edge: { errorPage: page } },
+			{
+				...base,
+				domainId: "e2",
+				hostname: "two.example.com",
+				pathPrefix: "/api",
+				edge: { errorPage: page },
+			},
+			{
+				...base,
+				domainId: "e3",
+				hostname: "three.example.com",
+				edge: { errorPage: "<p>custom</p>" },
+			},
+			{
+				...base,
+				domainId: "e4",
+				hostname: "plain.example.com",
+				https: false,
+				cert: "none",
+				edge: { errorPage: "<p>http</p>" },
+			},
+		]);
+		const errors = config.apps.http.servers.https?.errors;
+		expect(errors).toMatchSnapshot();
+		expect(errors?.routes).toHaveLength(2);
+		expect(errors?.routes[0]?.match?.[1]).toEqual({
+			host: ["two.example.com"],
+			path: ["/api", "/api/*"],
+			expression: "{http.error.status_code} in [502, 503, 504]",
+		});
+		expect(config.apps.http.servers.http?.errors?.routes).toHaveLength(1);
+	});
+
+	test("no error pages means no errors block", () => {
+		expect(compile([base]).apps.http.servers.https?.errors).toBeUndefined();
+	});
+});
+
+describe("branded pages", () => {
+	test("escape the organization's name and message, drop a logo that is not an image data URL", () => {
+		const html = maintenancePage(
+			{ orgName: '<script>"x"</script>', logo: 'javascript:alert(1)"' },
+			"<b>soon</b>",
+		);
+		expect(html).not.toContain("<script>");
+		expect(html).not.toContain("javascript:");
+		expect(html).toContain("&lt;b&gt;soon&lt;/b&gt;");
+	});
+
+	test("inline a valid logo", () => {
+		const logo = "data:image/png;base64,iVBORw0KGgo=";
+		expect(unavailablePage({ orgName: "Acme", logo })).toContain(
+			`<img src="${logo}"`,
+		);
 	});
 });

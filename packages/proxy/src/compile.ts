@@ -56,6 +56,23 @@ export type ProxyRoute = RouteTls & {
 	redirectTo?: string;
 	/** Checks in front of the upstream, at most one per type. Not applied to a redirect. */
 	access?: AccessRule[];
+	/** Edge rules, run before `access`. None of them applies to a redirect. */
+	edge?: EdgeRules;
+	/** Set while the service is in maintenance: 503 with `page`, except for clients in `allowCidrs`. */
+	maintenance?: { allowCidrs: string[]; page: string };
+};
+
+export type EdgeRules = {
+	/** Requests per second per client IP with `burst` on top; over it, 429. `exemptCidrs` skip it. */
+	rateLimit?: {
+		requestsPerSecond: number;
+		burst: number;
+		exemptCidrs: string[];
+	};
+	/** 403 for a path matching a glob or a User-Agent containing a fragment (case-insensitive). */
+	block?: { paths: string[]; userAgents: string[] };
+	/** HTML served with the status when the proxy itself fails with 502, 503 or 504. */
+	errorPage?: string;
 };
 
 /** Compiled in a fixed order whatever the input order: IP allowlist, then forward auth, then basic auth. */
@@ -165,6 +182,7 @@ export function compileProxy(input: ProxyInput): CaddyConfig {
 						automatic_https: { disable_redirects: true },
 						logs: { default_logger_name: ACCESS_LOGGER },
 						...trustedProxies(httpsRoutes),
+						...errorRoutes(httpsRoutes),
 					},
 					http: {
 						listen: [":80"],
@@ -182,6 +200,7 @@ export function compileProxy(input: ProxyInput): CaddyConfig {
 						],
 						logs: { default_logger_name: ACCESS_LOGGER },
 						...trustedProxies(httpRoutes),
+						...errorRoutes(httpRoutes),
 					},
 				},
 			},
@@ -193,17 +212,162 @@ export function compileProxy(input: ProxyInput): CaddyConfig {
 	};
 }
 
-function compileRoute(r: ProxyRoute): CaddyRoute {
+function routeMatcher(r: ProxyRoute): CaddyMatcher {
 	const match: CaddyMatcher = { host: [r.hostname] };
 	const base = r.pathPrefix?.replace(/\/+$/, "");
 	if (base) match.path = [base, `${base}/*`];
+	return match;
+}
+
+function compileRoute(r: ProxyRoute): CaddyRoute {
 	return {
 		"@id": routeId(r.domainId),
-		match: [match],
+		match: [routeMatcher(r)],
 		handle: r.redirectTo
 			? [redirect(`${r.redirectTo.replace(/\/+$/, "")}{http.request.uri}`)]
-			: [...accessHandlers(r.access ?? []), proxyTo(r.upstream)],
+			: [
+					// Blocking first so a blocked client never spends rate budget; the maintenance page is rate limited too.
+					...(r.edge?.block ? blockHandler(r.edge.block) : []),
+					...(r.edge?.rateLimit
+						? [rateLimitHandler(r.domainId, r.edge.rateLimit)]
+						: []),
+					...(r.maintenance ? [maintenanceHandler(r.maintenance)] : []),
+					...accessHandlers(r.access ?? []),
+					proxyTo(r.upstream),
+				],
 		terminal: true,
+	};
+}
+
+const regexpEscape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function blockHandler({
+	paths,
+	userAgents,
+}: NonNullable<EdgeRules["block"]>): CaddyHandler[] {
+	const match: CaddyMatcher[] = [];
+	if (paths.length) match.push({ path: unique(paths) });
+	if (userAgents.length)
+		match.push({
+			header_regexp: {
+				"User-Agent": {
+					pattern: `(?i)(?:${unique(userAgents).map(regexpEscape).join("|")})`,
+				},
+			},
+		});
+	if (!match.length) return [];
+	return [
+		{
+			handler: "subroute",
+			routes: [
+				{
+					match,
+					handle: [
+						{ handler: "static_response", status_code: 403, body: "Forbidden" },
+					],
+				},
+			],
+		},
+	];
+}
+
+/**
+ * A sliding window of `burst` requests over `burst / rate` seconds: a client may send `burst` at once
+ * and then `rate` per second on average. Keyed on `client_ip`, which is the connection address unless
+ * the server trusts proxies.
+ */
+function rateLimitHandler(
+	domainId: string,
+	{
+		requestsPerSecond,
+		burst,
+		exemptCidrs,
+	}: NonNullable<EdgeRules["rateLimit"]>,
+): CaddyHandler {
+	const limit: CaddyHandler = {
+		handler: "rate_limit",
+		rate_limits: {
+			[`ls-${domainId}`]: {
+				key: "{http.vars.client_ip}",
+				window: `${Math.max(1, Math.round((burst * 1000) / requestsPerSecond))}ms`,
+				max_events: burst,
+			},
+		},
+	};
+	if (!exemptCidrs.length) return limit;
+	return {
+		handler: "subroute",
+		routes: [
+			{
+				match: [{ not: [{ client_ip: { ranges: unique(exemptCidrs) } }] }],
+				handle: [limit],
+			},
+		],
+	};
+}
+
+function maintenanceHandler({
+	allowCidrs,
+	page,
+}: NonNullable<ProxyRoute["maintenance"]>): CaddyHandler {
+	return {
+		handler: "subroute",
+		routes: [
+			{
+				...(allowCidrs.length && {
+					match: [{ not: [{ client_ip: { ranges: unique(allowCidrs) } }] }],
+				}),
+				handle: [
+					{
+						handler: "static_response",
+						status_code: 503,
+						headers: {
+							"Content-Type": ["text/html; charset=utf-8"],
+							"Cache-Control": ["no-store"],
+							"Retry-After": ["300"],
+						},
+						body: page,
+					},
+				],
+			},
+		],
+	};
+}
+
+const PROXY_ERRORS = "{http.error.status_code} in [502, 503, 504]";
+
+/**
+ * Pages for the proxy's own 502/503/504, such as an upstream that is down mid-deploy. Routes sharing a
+ * page share one error route, so a logo inlined in it appears once. Other errors (401, 429) keep
+ * Caddy's empty response.
+ */
+function errorRoutes(routes: ProxyRoute[]): Pick<CaddyServer, "errors"> {
+	const byPage = new Map<string, CaddyMatcher[]>();
+	for (const r of routes) {
+		if (r.redirectTo || !r.edge?.errorPage) continue;
+		const sets = byPage.get(r.edge.errorPage) ?? [];
+		sets.push({ ...routeMatcher(r), expression: PROXY_ERRORS });
+		byPage.set(r.edge.errorPage, sets);
+	}
+	if (!byPage.size) return {};
+	return {
+		errors: {
+			routes: [...byPage.entries()].map(([page, match]) => ({
+				match,
+				handle: [
+					{
+						handler: "static_response",
+						status_code: "{http.error.status_code}",
+						headers: {
+							"Content-Type": ["text/html; charset=utf-8"],
+							"Cache-Control": ["no-store"],
+						},
+						body: page,
+					},
+				],
+				terminal: true,
+			})),
+		},
 	};
 }
 

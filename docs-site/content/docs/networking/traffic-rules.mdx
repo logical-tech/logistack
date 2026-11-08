@@ -1,0 +1,173 @@
+---
+title: Rate limits, blocking, error pages and maintenance mode
+description: Limit requests per IP, block scanner paths and user agents, show a branded page during a failed deploy, and put a service in maintenance mode.
+---
+
+Traffic rules are settings the Caddy proxy applies at the edge, before a request reaches your service. Use them to slow down abusive clients, turn away vulnerability scanners, replace the blank page visitors get while a deploy fails, or close a site for maintenance while your team checks it. Saving reloads the proxy only; the service is not redeployed.
+
+| Setting | Where | Applies to | Answer |
+| --- | --- | --- | --- |
+| **Rate limit** | The gauge button on a domain's row | That hostname and path prefix | `429 Too Many Requests` |
+| **Block requests** | The gauge button on a domain's row | That hostname and path prefix | `403 Forbidden` |
+| **Custom error page** | The gauge button on a domain's row | That hostname and path prefix | Your page with `502`, `503` or `504` |
+| **Maintenance mode** | The **Maintenance mode** panel on the service's **Domains** tab | Every domain of the service | `503` with a maintenance page |
+
+For each request the proxy runs, in order: block rules, the rate limit, maintenance mode, then the [access rules](./access-control.mdx), then the service. A blocked client never uses up rate-limit budget, and the maintenance page is rate limited too. None of these apply to a domain that redirects to another one: set them on the target domain.
+
+## Limit requests per IP address
+
+<Steps>
+<Step>
+
+### Open the traffic rules
+
+Open the service's **Domains** tab and select the gauge button on the domain's row. The **Traffic rules** drawer opens.
+
+</Step>
+<Step>
+
+### Set the limit
+
+Turn on **Rate limit**. Enter **Requests per second**, the average one IP address may send, and **Burst**, how many it may send at once. A page load fetches many files together, so keep the burst well above the rate: for example 10 requests per second with a burst of 50. The burst must be at least the rate.
+
+</Step>
+<Step>
+
+### Exempt your own addresses
+
+Under **Exempt addresses**, add one address or CIDR range per line, such as your office (`203.0.113.0/24`) or an uptime monitor. They are never limited.
+
+</Step>
+<Step>
+
+### Save
+
+Select **Save**. The proxy applies the limit within a few seconds.
+
+</Step>
+</Steps>
+
+To check it, send more requests than the burst in under a second:
+
+```bash
+for i in $(seq 1 60); do curl -s -o /dev/null -w "%{http_code}\n" https://shop.example.com/; done | sort | uniq -c
+```
+
+Requests above the limit get `429` with a `Retry-After` header.
+
+The limit counts requests per client address over a sliding window of burst ÷ rate seconds: with 10 per second and a burst of 50, at most 50 requests in any 5 seconds. Each proxy instance counts on its own, so with several ingress nodes a client spread across them can send more.
+
+<Callout type="info">
+Through a [Cloudflare Tunnel](./cloudflare-tunnels.mdx) every request comes from `cloudflared`, so a per-address limit would hold back every visitor at once. The **Rate limit** switch is disabled on tunnel domains; use Cloudflare's own rate limiting there.
+</Callout>
+
+## Block paths and user agents
+
+Turn on **Block requests** in the **Traffic rules** drawer, then fill in either list:
+
+- **Paths**: one per line. Matching ignores case, and `*` matches anything: `/wp-admin*` blocks `/wp-admin` and everything under it, `/.env` blocks only that exact path.
+- **User agents**: one per line. A request whose `User-Agent` header contains the text, in any case, is blocked. `sqlmap` matches `sqlmap/1.7.2#stable`.
+
+Select **Save**. Matching requests get `403` and never reach the service. To check a path rule, open it with `curl -I https://shop.example.com/wp-admin/` and look for `403`.
+
+Block rules stop low-effort scanners. A client can send any user agent it likes, so do not rely on them to protect private pages: use [access rules](./access-control.mdx) for that.
+
+## Show a page when the service is down
+
+When the proxy cannot reach a service, for example while a new version starts after a failed deploy, it waits up to 30 seconds and then answers `502`, `503` or `504`. Instead of a blank page, visitors see a page with your organization's name and logo, saying the site is temporarily unavailable. The name and logo come from the organization settings. Every domain gets this page; you do not need to turn it on.
+
+To show your own page instead:
+
+<Steps>
+<Step>
+
+### Turn on the custom page
+
+In the **Traffic rules** drawer, turn on **Custom error page**.
+
+</Step>
+<Step>
+
+### Paste the HTML
+
+Paste a complete HTML page of at most 64 KB into **HTML**. Put styles and images inline (`<style>`, `data:` URLs): the service is down, so it cannot serve them.
+
+</Step>
+<Step>
+
+### Save
+
+Select **Save**. Turn the switch off again to go back to the branded page.
+
+</Step>
+</Steps>
+
+The page replaces only errors from the proxy itself. A `502` or `503` your application sends on its own reaches the visitor unchanged.
+
+## Put a service in maintenance mode
+
+Maintenance mode closes every domain of a service at once. Visitors get `503` with a page carrying your organization's name and logo, a `Retry-After` header and your message. The service keeps running, so the addresses you allow can check it before you reopen.
+
+<Steps>
+<Step>
+
+### Open the service's Domains tab
+
+Open the service and select the **Domains** tab. The **Maintenance mode** panel is at the bottom.
+
+![The Domains tab of the web service with the Basic auth panel switched off below the domain list](/screens/service-domains.webp)
+
+</Step>
+<Step>
+
+### Allow your team
+
+Under **Allowed addresses**, add the addresses or CIDR ranges that should still reach the service, one per line.
+
+</Step>
+<Step>
+
+### Write a message
+
+Optionally, enter a **Message** of up to 500 characters, such as `Back by 14:00 UTC.` Without one, the page says the site is down for scheduled maintenance.
+
+</Step>
+<Step>
+
+### Turn it on
+
+Turn on the switch next to **Maintenance mode** and select **Save**. Within a few seconds every domain of the service shows the maintenance page.
+
+</Step>
+</Steps>
+
+To reopen, turn the switch off and select **Save**. The allowed addresses and message are kept for next time.
+
+<Callout type="warn">
+Through a Cloudflare Tunnel, or behind a load balancer the proxy does not trust, the proxy sees the tunnel's or balancer's address instead of the visitor's. An allowlist then either lets everyone through or no one. Check from an allowed address before you rely on it.
+</Callout>
+
+## API and MCP
+
+Every setting on this page is in the REST API and the MCP server:
+
+| Operation | REST | MCP tool |
+| --- | --- | --- |
+| Read a domain's traffic rules | `GET /api/domains/{id}/edge` | `get_domains_by_id_edge` |
+| Replace them | `PUT /api/domains/{id}/edge` | `domain_edge` |
+| Read maintenance mode | `GET /api/services/{id}/maintenance` | `get_services_by_id_maintenance` |
+| Turn it on or off | `PUT /api/services/{id}/maintenance` | `service_maintenance` |
+
+```json title="PUT /api/domains/{id}/edge"
+{
+  "rateLimit": { "requestsPerSecond": 10, "burst": 50, "exemptCidrs": ["203.0.113.0/24"] },
+  "block": { "paths": ["/wp-admin*", "/.env"], "userAgents": ["sqlmap"] },
+  "errorPage": null
+}
+```
+
+A `null` field turns that feature off; `errorPage: null` shows the branded page.
+
+## How it works
+
+Stock Caddy has no rate limiter, so the LogiStack Caddy image is built with [`mholt/caddy-ratelimit`](https://github.com/mholt/caddy-ratelimit) next to the DNS and Redis storage modules, pinned to a fixed commit. The other features use Caddy's built-in matchers and error routes.

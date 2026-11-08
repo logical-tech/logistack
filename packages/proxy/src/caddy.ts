@@ -47,6 +47,8 @@ export type CaddyServer = {
 	/** Peers whose X-Forwarded-For sets `client_ip`; strict reads the header right to left. */
 	trusted_proxies?: { source: "static"; ranges: string[] };
 	trusted_proxies_strict?: 1;
+	/** Routes run when a handler returns an error, such as a dial failure (502) or a rate limit (429). */
+	errors?: { routes: CaddyRoute[] };
 };
 
 export type CaddyRoute = {
@@ -66,6 +68,10 @@ export type CaddyMatcher = {
 	/** True when none of its matcher sets match. */
 	not?: CaddyMatcher[];
 	vars?: Record<string, string[]>;
+	/** RE2 pattern per header name. */
+	header_regexp?: Record<string, { pattern: string }>;
+	/** A CEL expression; `{placeholder}` stands for a Caddy placeholder. */
+	expression?: string;
 };
 
 export type CaddyHeaderOps = {
@@ -99,9 +105,18 @@ export type CaddyHandler =
 				};
 			};
 	  }
+	/** mholt/caddy-ratelimit: a sliding window of `max_events` per `window` for each `key`; over it, a 429 error. */
+	| {
+			handler: "rate_limit";
+			rate_limits: Record<
+				string,
+				{ key: string; window: string; max_events: number }
+			>;
+	  }
 	| {
 			handler: "static_response";
-			status_code: number;
+			/** A number or a placeholder such as `{http.error.status_code}`. */
+			status_code: number | string;
 			headers?: Record<string, string[]>;
 			body?: string;
 	  };
