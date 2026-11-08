@@ -38,6 +38,8 @@ const ALL: PermissionAction[] = [
 	"delete",
 	"admin",
 	"exec",
+	"ai",
+	"plugins",
 ];
 
 // Labels for the fixture hierarchy (see fixtures.ts).

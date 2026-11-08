@@ -41,7 +41,7 @@ const files = (id: string): Record<string, string> => ({
 			private: true,
 			type: "module",
 			scripts: { dev: "logistack-plugin dev", start: "bun src/main.ts" },
-			dependencies: { "@logistack/plugin-sdk": "^0.1.0" },
+			dependencies: { "@logistack/plugin-sdk": "^0.1.0", hono: "4.13.16" },
 		},
 		null,
 		"\t",
@@ -66,9 +66,16 @@ import { manifest } from "./manifest.ts";
 
 export { manifest };
 
+// The page script, bundled once at start; the CSS kit from the SDK.
+const page = await Bun.build({ entrypoints: [\`\${import.meta.dir}/page.ts\`], target: "browser" });
+const pageJs = (await page.outputs[0]?.text()) ?? "";
+const css = await Bun.file(Bun.resolveSync("@logistack/plugin-sdk/ui.css", import.meta.dir)).text();
+
 const ui = new Hono();
 ui.get("/home", (c) => c.html(\`<!doctype html><link rel="stylesheet" href="./ui.css"><h1>Hello</h1>
-<script type="module" src="./page.js"></script>\`));
+<p id="who" class="ls-muted"></p><script type="module" src="./page.js"></script>\`));
+ui.get("/ui.css", (c) => c.body(css, 200, { "content-type": "text/css" }));
+ui.get("/page.js", (c) => c.body(pageJs, 200, { "content-type": "text/javascript" }));
 
 export const app = createPlugin({
 	manifest,
@@ -77,6 +84,12 @@ export const app = createPlugin({
 });
 
 if (import.meta.main) Bun.serve({ port: manifest.port, fetch: app.fetch });
+`,
+	"src/page.ts": `import { connect } from "@logistack/plugin-sdk/ui";
+
+const page = await connect();
+(document.getElementById("who") as HTMLElement).textContent =
+	\`Signed in as \${page.init.user.name}\`;
 `,
 	Dockerfile: `FROM oven/bun:1.4-alpine
 WORKDIR /app
