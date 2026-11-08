@@ -145,6 +145,7 @@ export const TrafficOverview = z.object({
 			serviceId: z.string(),
 			name: z.string(),
 			projectId: z.string(),
+			project: z.string(),
 			requests: z.number(),
 			visitors: z.number(),
 			errorRate: z.number(),

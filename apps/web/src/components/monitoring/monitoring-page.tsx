@@ -5,10 +5,11 @@ import { Page, PageHeader } from "@/components/page-header";
 import { SlidingTabs } from "@/components/sliding-tabs";
 import { Button } from "@/components/ui/button";
 
-type Section = "overview" | "usage" | "nodes" | "alerts";
+type Section = "overview" | "traffic" | "usage" | "nodes" | "alerts";
 
 const TO = {
 	overview: "/monitoring",
+	traffic: "/monitoring/traffic",
 	usage: "/monitoring/usage",
 	nodes: "/monitoring/nodes",
 	alerts: "/monitoring/alerts",
@@ -46,6 +47,7 @@ export function MonitoringPage({
 					onChange={(id) => navigate({ to: TO[id], search: (s) => s })}
 					items={[
 						{ id: "overview", label: "Overview" },
+						{ id: "traffic", label: "Traffic" },
 						{ id: "usage", label: "Usage" },
 						{ id: "nodes", label: "Nodes" },
 						{ id: "alerts", label: "Settings" },

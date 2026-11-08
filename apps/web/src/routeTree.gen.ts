@@ -44,6 +44,7 @@ import { Route as AppIntegrationsTailscaleRouteImport } from './routes/_app/inte
 import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integrations/tunnels'
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
+import { Route as AppMonitoringTrafficRouteImport } from './routes/_app/monitoring/traffic'
 import { Route as AppMonitoringUsageRouteImport } from './routes/_app/monitoring/usage'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/projects/$projectId/route'
@@ -100,6 +101,7 @@ import { Route as AppProjectsProjectIdStacksStackIdRouteRouteImport } from './ro
 import { Route as AppProjectsProjectIdTemplatesIndexRouteImport } from './routes/_app/projects/$projectId/templates/index'
 import { Route as AppProjectsProjectIdTemplatesTemplateIdRouteImport } from './routes/_app/projects/$projectId/templates/$templateId'
 import { Route as AppProjectsProjectIdServicesServiceIdIndexRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/index'
+import { Route as AppProjectsProjectIdServicesServiceIdAnalyticsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/analytics'
 import { Route as AppProjectsProjectIdServicesServiceIdBackupsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/backups'
 import { Route as AppProjectsProjectIdServicesServiceIdDatabaseRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/database'
 import { Route as AppProjectsProjectIdServicesServiceIdDeploymentsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/deployments'
@@ -293,6 +295,11 @@ const AppMonitoringIndexRoute = AppMonitoringIndexRouteImport.update({
 const AppMonitoringAlertsRoute = AppMonitoringAlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
+const AppMonitoringTrafficRoute = AppMonitoringTrafficRouteImport.update({
+  id: '/traffic',
+  path: '/traffic',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
 const AppMonitoringUsageRoute = AppMonitoringUsageRouteImport.update({
@@ -605,6 +612,12 @@ const AppProjectsProjectIdServicesServiceIdIndexRoute =
     path: '/',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdServicesServiceIdAnalyticsRoute =
+  AppProjectsProjectIdServicesServiceIdAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdBackupsRoute =
   AppProjectsProjectIdServicesServiceIdBackupsRouteImport.update({
     id: '/backups',
@@ -735,6 +748,7 @@ export interface FileRoutesByFullPath {
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -791,6 +805,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -838,6 +853,7 @@ export interface FileRoutesByTo {
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -892,6 +908,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -946,6 +963,7 @@ export interface FileRoutesById {
   '/_app/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/_app/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
@@ -1002,6 +1020,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/_app/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/_app/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/_app/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/_app/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/_app/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -1055,6 +1074,7 @@ export interface FileRouteTypes {
     | '/integrations/tailscale'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/traffic'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -1111,6 +1131,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates/'
+    | '/projects/$projectId/services/$serviceId/analytics'
     | '/projects/$projectId/services/$serviceId/backups'
     | '/projects/$projectId/services/$serviceId/database'
     | '/projects/$projectId/services/$serviceId/deployments'
@@ -1158,6 +1179,7 @@ export interface FileRouteTypes {
     | '/integrations/tailscale'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/traffic'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -1212,6 +1234,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates'
+    | '/projects/$projectId/services/$serviceId/analytics'
     | '/projects/$projectId/services/$serviceId/backups'
     | '/projects/$projectId/services/$serviceId/database'
     | '/projects/$projectId/services/$serviceId/deployments'
@@ -1265,6 +1288,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/tailscale'
     | '/_app/integrations/tunnels'
     | '/_app/monitoring/alerts'
+    | '/_app/monitoring/traffic'
     | '/_app/monitoring/usage'
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
@@ -1321,6 +1345,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/new'
     | '/_app/projects/$projectId/templates/$templateId'
     | '/_app/projects/$projectId/templates/'
+    | '/_app/projects/$projectId/services/$serviceId/analytics'
     | '/_app/projects/$projectId/services/$serviceId/backups'
     | '/_app/projects/$projectId/services/$serviceId/database'
     | '/_app/projects/$projectId/services/$serviceId/deployments'
@@ -1591,6 +1616,13 @@ declare module '@tanstack/react-router' {
       path: '/alerts'
       fullPath: '/monitoring/alerts'
       preLoaderRoute: typeof AppMonitoringAlertsRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/traffic': {
+      id: '/_app/monitoring/traffic'
+      path: '/traffic'
+      fullPath: '/monitoring/traffic'
+      preLoaderRoute: typeof AppMonitoringTrafficRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
     '/_app/monitoring/usage': {
@@ -1985,6 +2017,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/services/$serviceId/analytics': {
+      id: '/_app/projects/$projectId/services/$serviceId/analytics'
+      path: '/analytics'
+      fullPath: '/projects/$projectId/services/$serviceId/analytics'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdAnalyticsRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/backups': {
       id: '/_app/projects/$projectId/services/$serviceId/backups'
       path: '/backups'
@@ -2124,6 +2163,7 @@ const AppAiRouteRouteWithChildren = AppAiRouteRoute._addFileChildren(
 
 interface AppMonitoringRouteRouteChildren {
   AppMonitoringAlertsRoute: typeof AppMonitoringAlertsRoute
+  AppMonitoringTrafficRoute: typeof AppMonitoringTrafficRoute
   AppMonitoringUsageRoute: typeof AppMonitoringUsageRoute
   AppMonitoringIndexRoute: typeof AppMonitoringIndexRoute
   AppMonitoringNodesNodeIdRoute: typeof AppMonitoringNodesNodeIdRoute
@@ -2133,6 +2173,7 @@ interface AppMonitoringRouteRouteChildren {
 
 const AppMonitoringRouteRouteChildren: AppMonitoringRouteRouteChildren = {
   AppMonitoringAlertsRoute: AppMonitoringAlertsRoute,
+  AppMonitoringTrafficRoute: AppMonitoringTrafficRoute,
   AppMonitoringUsageRoute: AppMonitoringUsageRoute,
   AppMonitoringIndexRoute: AppMonitoringIndexRoute,
   AppMonitoringNodesNodeIdRoute: AppMonitoringNodesNodeIdRoute,
@@ -2144,6 +2185,7 @@ const AppMonitoringRouteRouteWithChildren =
   AppMonitoringRouteRoute._addFileChildren(AppMonitoringRouteRouteChildren)
 
 interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
+  AppProjectsProjectIdServicesServiceIdAnalyticsRoute: typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   AppProjectsProjectIdServicesServiceIdBackupsRoute: typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   AppProjectsProjectIdServicesServiceIdDatabaseRoute: typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   AppProjectsProjectIdServicesServiceIdDeploymentsRoute: typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -2162,6 +2204,8 @@ interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
 
 const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjectIdServicesServiceIdRouteRouteChildren =
   {
+    AppProjectsProjectIdServicesServiceIdAnalyticsRoute:
+      AppProjectsProjectIdServicesServiceIdAnalyticsRoute,
     AppProjectsProjectIdServicesServiceIdBackupsRoute:
       AppProjectsProjectIdServicesServiceIdBackupsRoute,
     AppProjectsProjectIdServicesServiceIdDatabaseRoute:

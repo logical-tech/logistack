@@ -111,6 +111,7 @@ export const traffic = router()
 							id: service.id,
 							name: service.name,
 							projectId: project.id,
+							project: project.name,
 						})
 						.from(service)
 						.innerJoin(environment, eq(environment.id, service.environmentId))
@@ -131,7 +132,16 @@ export const traffic = router()
 					services: byService
 						.flatMap((s) => {
 							const n = byId.get(s.serviceId);
-							return n ? [{ ...s, name: n.name, projectId: n.projectId }] : [];
+							return n
+								? [
+										{
+											...s,
+											name: n.name,
+											projectId: n.projectId,
+											project: n.project,
+										},
+									]
+								: [];
 						})
 						.sort((a, b) => b.requests - a.requests),
 				},
