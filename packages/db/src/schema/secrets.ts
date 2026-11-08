@@ -10,6 +10,7 @@ import {
 import { organization, user } from "./auth.ts";
 import { id, timestamps, tstz } from "./columns.ts";
 import { secretProviderKind, secretScope } from "./enums.ts";
+import { pluginInstall } from "./plugins.ts";
 
 /**
  * Per-organization data keys (DEK), wrapped by the KEK derived from the master key.
@@ -50,6 +51,11 @@ export const secretProvider = pgTable(
 		url: text("url").notNull(),
 		// Encrypted JSON document (v1:<iv>:<ct>): the config carries the credentials.
 		configEncrypted: text("config_encrypted").notNull(),
+		/** Kind `plugin`: the install contributing it and the provider's name in its manifest. */
+		pluginInstallId: text("plugin_install_id").references(
+			() => pluginInstall.id,
+		),
+		pluginProvider: text("plugin_provider"),
 		...timestamps,
 	},
 	(t) => [unique("secret_provider_name_unique").on(t.organizationId, t.name)],
