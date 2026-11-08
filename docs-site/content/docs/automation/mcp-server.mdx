@@ -28,6 +28,8 @@ Tool names come from the operation: an audited action such as `service.create` b
 
 Ask your client to list the tools to see all of them.
 
+[Tasks](../tasks/api-and-mcp.mdx) are tools too, such as `work_task_create` and `get_work_tasks`, so an agent can create, triage and summarize tasks with a key that holds the Tasks actions.
+
 Tools that installed [plugins](../plugins/index.mdx) contribute are reached the same way: `get_plugins_tools` lists them with their input schemas, `plugin_tool_call` runs one, and `plugin_tool_call_destructive` runs one the plugin marks destructive. The destructive one needs the Delete action and `confirm: true`.
 
 ## Create a key for the agent

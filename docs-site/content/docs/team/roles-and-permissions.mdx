@@ -1,6 +1,6 @@
 ---
 title: Roles and permissions
-description: How LogiStack permissions work, the Owner, Admin, Developer and Viewer roles, custom roles, and grants on folders, projects, environments and services.
+description: How LogiStack permissions work, the Owner, Admin, Developer, Viewer, Project manager and Guest roles, custom roles, and grants on every scope.
 ---
 
 A role is a named set of actions. You grant a role to a member or a service account on a scope: the whole organization, a folder, a project, an environment or one service. Read this page to choose the right role for someone, to create a custom role such as "can deploy but not edit", or to understand why a request was denied.
@@ -34,7 +34,7 @@ The audit log records each denied attempt with the outcome **Denied**.
 
 ## Actions
 
-Every role is a subset of these nine actions. The labels are the column headers on the **Roles** page.
+Every role is a subset of these actions. The labels are the column headers on the **Roles** page.
 
 | Action | Label | Allows |
 | --- | --- | --- |
@@ -47,8 +47,14 @@ Every role is a subset of these nine actions. The labels are the column headers 
 | `exec` | Terminal | Open a shell inside running containers. Every session is audited. |
 | `ai` | AI | Call models through the AI gateway, within the budget an admin assigns. |
 | `plugins` | Plugins | Install, configure and remove [plugins](../plugins/index.mdx), within the instance policy. |
+| `read:work` | Read tasks | See lists, tasks, comments, attachments and views, and the project's [service health](../tasks/service-health.mdx). |
+| `comment:work` | Comment on tasks | Comment, react, attach files to comments and tick checklist items assigned to you. |
+| `work` | Work on tasks | Create, edit, move, assign and archive tasks, set fields, track time, save personal views. Includes Read tasks and Comment on tasks. |
+| `work:admin` | Manage tasks | Lists, statuses, custom fields, tags, shared views, templates, imports and the project's Tasks settings. |
 
 **Read secrets**, **Administer**, **Terminal** and **Plugins** are marked **Sensitive** in the role editor. Grant them deliberately.
+
+The four Tasks actions are described in [Project manager and guest roles](../tasks/roles.mdx). Grants on an environment or a service don't give Tasks access, because tasks live at project level.
 
 ## Built-in roles
 
@@ -58,15 +64,31 @@ Every role is a subset of these nine actions. The labels are the column headers 
 | **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **Developer** | ✓ | | ✓ | ✓ | | | | | |
 | **Viewer** | ✓ | | | | | | | | |
+| **Project manager** | | | | | | | | | |
+| **Guest** | | | | | | | | | |
+
+Tasks actions per role:
+
+| Role | Read tasks | Comment on tasks | Work on tasks | Manage tasks |
+| --- | :-: | :-: | :-: | :-: |
+| **Owner**, **Admin** | ✓ | ✓ | ✓ | ✓ |
+| **Developer** | ✓ | ✓ | ✓ | |
+| **Viewer** | ✓ | ✓ | | |
+| **Project manager** | ✓ | ✓ | ✓ | ✓ |
+| **Guest** | ✓ | ✓ | | |
 
 - **Owner**: everything, including deleting the organization. Only an Owner can make or unmake Owners, and an organization always keeps at least one.
 - **Admin**: everything except deleting the organization.
 - **Developer**: ships code. Reads, deploys and edits, never sees secrets, can't delete, and can't open a terminal.
-- **Viewer**: reads everything except secrets.
+- **Viewer**: reads everything except secrets, and comments on tasks.
+- **Project manager** (`manager`): manages tasks, lists and fields; sees whether services are up. No access to deployments, logs or settings. See [Project manager and guest roles](../tasks/roles.mdx).
+- **Guest** (`guest`): reads tasks and comments on one project. For clients. Can only be granted on a project. See [Guests](../tasks/guests.mdx).
+
+Developers and Viewers gained the Tasks actions in release 0.7.0, and so did API keys that use those roles. Custom roles keep exactly the actions they list.
 
 No organization role reaches what every organization on the server shares, such as updates, nodes and instance-wide settings. Those also need an [instance admin](./instance-admins.mdx).
 
-Built-in roles can't be edited or deleted. Owner can only be held on the whole organization.
+Built-in roles can't be edited or deleted. Owner can only be held on the whole organization, and Guest only on a project.
 
 ## See the roles
 
@@ -89,7 +111,7 @@ On **Settings › Roles**, select **Create role**. The **New custom role** panel
 
 ![The role editor with a Name field and the list of allowed actions, sensitive ones marked](/screens/role-editor.webp)
 
-In **Name**, type a lowercase name with letters, digits and dashes, starting with a letter, up to 32 characters. For example `deployer` or `release-manager`. Names can't change later, and `owner`, `admin`, `developer`, `viewer` and `member` are taken.
+In **Name**, type a lowercase name with letters, digits and dashes, starting with a letter, up to 32 characters. For example `deployer` or `release-manager`. Names can't change later, and `owner`, `admin`, `developer`, `viewer`, `manager`, `guest` and `member` are taken.
 </Step>
 <Step>
 ### Pick the actions
@@ -139,6 +161,7 @@ Owner can't be granted on a scope; ownership is organization-wide.
 | On-call engineers may restart and roll back, not edit | Viewer | custom `deployer` (Read, Deploy) on the organization |
 | A security reviewer audits secrets | Viewer | custom `secrets-auditor` (Read, Read secrets) on the organization |
 | A team lead manages people on their own project | Developer | Admin on project `Booking API` |
+| A project manager plans one client's work without seeing servers | none | Project manager on folder `Clients / Acme` |
 
 <Callout type="info">
 A grant needs **Administer** on the scope itself. An Admin on project `Booking API` can add grants inside that project through the API, but not on other projects. The **Members** page in the dashboard is for organization Owners and Admins.
