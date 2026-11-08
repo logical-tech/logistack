@@ -379,6 +379,13 @@
       "when": 1794200000002,
       "tag": "0053_edge",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794200000003,
+      "tag": "0054_uptime",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,7 @@ import {
 	service,
 	serviceBasicAuth,
 	serviceMaintenance,
+	statusPage,
 } from "@logistack/db";
 import type { Task } from "@logistack/docker";
 import {
@@ -36,6 +37,7 @@ import {
 	type ProxyInput,
 	type ProxyRoute,
 	ProxySync,
+	statusPageRoutes,
 	unavailablePage,
 } from "@logistack/proxy";
 import { RedisClient } from "bun";
@@ -508,6 +510,24 @@ export async function syncProxy(
 			.from(databaseAccess)
 			.where(isNotNull(databaseAccess.hostname))
 	).flatMap((r) => (r.hostname ? [r.hostname] : []));
+	// Status pages on their own hostname: served by the API, which routes them by Host.
+	const [apiHost, apiPort] = ctx.cfg.LS_API_UPSTREAM.split(":");
+	const apiUpstream = {
+		host: apiHost as string,
+		port: Number(apiPort ?? 3000),
+	};
+	candidates.push(
+		...statusPageRoutes(
+			await ctx.db
+				.select({
+					id: statusPage.id,
+					hostname: statusPage.hostname,
+					published: statusPage.published,
+				})
+				.from(statusPage),
+			apiUpstream,
+		),
+	);
 
 	const addresses = await caddyAddresses(ctx, opts.starting);
 	if (!addresses.length) {
@@ -516,7 +536,6 @@ export async function syncProxy(
 		});
 		return { instances: 0, failures: [] };
 	}
-	const [apiHost, apiPort] = ctx.cfg.LS_API_UPSTREAM.split(":");
 	const encryptionKey = await caddyStorageKey(ctx);
 	const common = (ip: string): Omit<ProxyInput, "routes"> => ({
 		settings: {
@@ -530,7 +549,7 @@ export async function syncProxy(
 		},
 		dashboard: {
 			hostname: dashboardHost,
-			upstream: { host: apiHost as string, port: Number(apiPort ?? 3000) },
+			upstream: apiUpstream,
 		},
 	});
 	const isolated = isolateRoutes(candidates, common(addresses[0] as string));

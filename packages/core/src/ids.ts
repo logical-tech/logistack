@@ -49,6 +49,11 @@ export const idPrefixes = {
 	aiAgentMessage: "aam",
 	databaseAccess: "dba",
 	databaseUpgrade: "dbu",
+	monitor: "mon",
+	incident: "inc",
+	incidentUpdate: "inu",
+	maintenanceWindow: "mtw",
+	statusPage: "stp",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];

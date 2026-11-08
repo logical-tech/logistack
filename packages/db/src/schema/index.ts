@@ -16,4 +16,5 @@ export * from "./secrets.ts";
 export * from "./settings.ts";
 export * from "./storage.ts";
 export * from "./triggers.ts";
+export * from "./uptime.ts";
 export * from "./vulnscan.ts";

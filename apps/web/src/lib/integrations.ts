@@ -181,6 +181,13 @@ export const EVENT_GROUPS: {
 		],
 	},
 	{
+		label: "Uptime",
+		events: [
+			{ type: "monitor.down", label: "Monitor down" },
+			{ type: "monitor.up", label: "Monitor recovered" },
+		],
+	},
+	{
 		label: "Nodes and services",
 		events: [
 			{ type: "node.down", label: "Node down" },

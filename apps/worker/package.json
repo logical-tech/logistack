@@ -9,7 +9,9 @@
 		"./node-runner": "./src/node-runner.ts",
 		"./schedulers": "./src/schedulers.ts",
 		"./external-secrets": "./src/external-secrets.ts",
-		"./secrets": "./src/secrets.ts"
+		"./secrets": "./src/secrets.ts",
+		"./uptime-checks": "./src/uptime-checks.ts",
+		"./uptime-record": "./src/uptime-record.ts"
 	},
 	"scripts": {
 		"dev": "bun --watch src/index.ts",

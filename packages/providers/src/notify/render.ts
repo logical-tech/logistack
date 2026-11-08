@@ -41,6 +41,8 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 		severity: "error",
 		what: "Critical vulnerabilities found",
 	},
+	"monitor.down": { severity: "error", what: "Monitor down" },
+	"monitor.up": { severity: "success", what: "Monitor up" },
 	"instance.update_available": {
 		severity: "info",
 		what: "LogiStack update available",
@@ -68,6 +70,7 @@ const details: [key: string, label: string][] = [
 	["status", "Status"],
 	["commit", "Commit"],
 	["expiresAt", "Expires"],
+	["target", "Target"],
 ];
 
 export function renderEvent(event: EventEnvelope): Rendered {

@@ -29,4 +29,5 @@ export * from "./storage.ts";
 export * from "./template.ts";
 export * from "./two-factor.ts";
 export * from "./updates.ts";
+export * from "./uptime.ts";
 export * from "./vulnscan.ts";
