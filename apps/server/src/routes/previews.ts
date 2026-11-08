@@ -1,6 +1,12 @@
 import { createRoute } from "@hono/zod-openapi";
 import { PreviewSettings } from "@logistack/contracts";
-import { environment, instanceSettings, project, service } from "@logistack/db";
+import {
+	environment,
+	instanceSettings,
+	project,
+	service,
+	stack,
+} from "@logistack/db";
 import { and, eq } from "drizzle-orm";
 import { mutation } from "../audit.ts";
 import { Failure, one } from "../errors.ts";
@@ -63,7 +69,7 @@ export const previews = router()
 				security,
 				summary: "Set up pull request previews",
 				description:
-					"Each pull request on the followed services' repository gets a `preview` environment `pr-<number>` cloned from the source environment, with fresh volumes and databases, the followed services building the pull request's head commit, and the override variables winning over the source's. Closing the pull request, or `ttlHours` without an event, deletes it. Forks are refused unless `allowForks`: their code would run with the preview's secrets. A secret override sent without a value keeps the stored one.",
+					"Each pull request on the followed services' or stacks' repository gets a `preview` environment `pr-<number>` cloned from the source environment, with fresh volumes and databases, the followed services building the pull request's head commit, the followed git stacks reading their compose file from its branch, and the override variables winning over the source's. Every stack is copied with its own services; each exposed service gets a host from `domainPattern` (or a generated one), and every preview container gets `LOGISTACK_PREVIEW_URL` and `LOGISTACK_PREVIEW_URL_<SERVICE>`. Closing the pull request, or `ttlHours` without an event, deletes it. Forks are refused unless `allowForks`: their code would run with the preview's secrets. A secret override sent without a value keeps the stored one.",
 				middleware: [requirePermission("admin", byParam("project"))],
 				request: { params: IdParam, ...body(Settings) },
 				responses: { 200: json(Settings, "Saved"), ...errors },
@@ -103,6 +109,18 @@ export const previews = router()
 						`${slug} is not a service of ${source.name} that builds from a connected git repository`,
 					);
 			}
+			const stacks = input.stacks.length
+				? await db
+						.select({ name: stack.name, git: stack.git })
+						.from(stack)
+						.where(eq(stack.environmentId, source.id))
+				: [];
+			for (const name of input.stacks)
+				if (!stacks.find((s) => s.name === name)?.git)
+					throw new Failure(
+						"bad_request",
+						`${name} is not a stack of ${source.name} deployed from a git repository`,
+					);
 			if (input.domainPattern?.includes("{wildcard}")) {
 				const [s] = await db
 					.select({ w: instanceSettings.customWildcard })

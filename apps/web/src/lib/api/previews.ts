@@ -52,6 +52,8 @@ export function useSavePreviewSettings(projectId: string) {
 				ttlHours: 72,
 				allowForks: false,
 				...json,
+				services: json.services ?? [],
+				stacks: json.stacks ?? [],
 				variables: (json.variables ?? []).map((v) => ({
 					...v,
 					secret: v.secret ?? true,

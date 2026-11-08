@@ -68,6 +68,8 @@ export type ServiceContext = {
 	adoptedVolumes: Record<string, string>;
 	/** Runs in a pull request preview. */
 	disposable: boolean;
+	/** The URLs of the pull request preview this service is part of. */
+	preview?: DeploymentContext["preview"];
 	domains: DomainRow[];
 	registry: { host: string; flat: boolean; auth?: RegistryAuth } | null;
 	/** How the clone authenticates; absent for public https repositories. */
@@ -456,6 +458,12 @@ export async function loadService(
 		mounts: [...mounts, ...secretFiles],
 		adoptedVolumes,
 		disposable: row.preview !== null,
+		...(row.preview && {
+			preview: {
+				...(row.preview.primaryUrl && { primaryUrl: row.preview.primaryUrl }),
+				serviceUrls: row.preview.serviceUrls ?? {},
+			},
+		}),
 		domains,
 		registry: host
 			? {
@@ -497,6 +505,7 @@ export function deploymentContext(
 		project: sc.projectName,
 		service: sc.service.name,
 		domains: sc.domains,
+		...(sc.preview && { preview: sc.preview }),
 	};
 }
 
