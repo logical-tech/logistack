@@ -133,7 +133,9 @@ describe.skipIf(!hasDocker)("AI agent", () => {
 		});
 		// Billed to the member like any gateway call.
 		const usage = await h.call("GET", "/api/ai/usage?range=24h", as());
-		expect(usage.json.totals.free.requests + usage.json.totals.paid.requests).toBe(1);
+		expect(
+			usage.json.totals.free.requests + usage.json.totals.paid.requests,
+		).toBe(1);
 	});
 
 	test("runs operations as the member and waits for approval on destructive ones", async () => {
@@ -158,18 +160,26 @@ describe.skipIf(!hasDocker)("AI agent", () => {
 			input: { name: "project_delete", arguments: { id: projectId } },
 		});
 		// Nothing was deleted yet.
-		expect((await h.call("GET", `/api/projects/${projectId}`, as())).status).toBe(200);
+		expect(
+			(await h.call("GET", `/api/projects/${projectId}`, as())).status,
+		).toBe(200);
 
-		const ok = await h.call("POST", `/api/ai/agent/conversations/${id}/approvals`, {
-			...as(),
-			body: { toolCallId: "c2", approved: true },
-		});
+		const ok = await h.call(
+			"POST",
+			`/api/ai/agent/conversations/${id}/approvals`,
+			{
+				...as(),
+				body: { toolCallId: "c2", approved: true },
+			},
+		);
 		expect(ok.status).toBe(202);
 		d = await settled(id);
 		expect(d.conversation.status).toBe("idle");
 		expect(d.messages[2].parts[0].state).toBe("output-available");
 		expect(d.messages.at(-1).parts).toEqual([{ type: "text", text: "Done." }]);
-		expect((await h.call("GET", `/api/projects/${projectId}`, as())).status).toBe(404);
+		expect(
+			(await h.call("GET", `/api/projects/${projectId}`, as())).status,
+		).toBe(404);
 		// The model saw the tool catalog and every result.
 		expect(model.requests.at(-1)?.tools).toHaveLength(3);
 	});

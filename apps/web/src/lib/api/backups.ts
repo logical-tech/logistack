@@ -19,13 +19,15 @@ import { subscribe } from "./live";
 type Api = typeof client.api;
 type Ok<F, S extends 200 | 201 | 202 = 200> = InferResponseType<F, S>;
 type Body<F> = InferRequestType<F> extends { json: infer J } ? J : never;
-type S3Api = Api["s3-destinations"];
+type DestinationApi = Api["backup-destinations"];
 type PolicyApi = Api["backup-policies"][":id"];
 type ScheduleApi = Api["schedules"];
 
-export type S3Destination = Ok<S3Api["$get"]>[number];
-export type S3Connection = Body<S3Api["test"]["$post"]>;
-export type S3Check = Ok<S3Api["test"]["$post"]>;
+export type BackupDestination = Ok<DestinationApi["$get"]>[number];
+export type DestinationKind = BackupDestination["kind"];
+/** One kind's settings and secrets, as the probe and create take them. */
+export type DestinationInput = Body<DestinationApi["test"]["$post"]>;
+export type DestinationCheck = Ok<DestinationApi["test"]["$post"]>;
 export type ServiceBackups = Ok<Api["services"][":id"]["backups"]["$get"]>;
 export type BackupPolicy = ServiceBackups["policies"][number];
 export type BackupRun = ServiceBackups["runs"][number];
@@ -54,10 +56,10 @@ export type BackupProgress = Extract<LiveMessage, { kind: "progress" }>;
 export type RunOutput = Extract<LiveMessage, { kind: "output" }>;
 
 export type BackupsApi = {
-	s3: {
-		list(): Promise<S3Destination[]>;
-		test(input: S3Connection): Promise<S3Check>;
-		create(input: S3Connection & { name: string }): Promise<{ id: string }>;
+	destinations: {
+		list(): Promise<BackupDestination[]>;
+		test(input: DestinationInput): Promise<DestinationCheck>;
+		create(input: DestinationInput & { name: string }): Promise<{ id: string }>;
 		remove(id: string): Promise<void>;
 	};
 	backups: {
@@ -92,11 +94,11 @@ const param = (id: string) => ({ param: { id } });
 const a = client.api;
 
 const http: BackupsApi = {
-	s3: {
-		list: () => ok(a["s3-destinations"].$get()),
-		test: (json) => ok(a["s3-destinations"].test.$post({ json })),
-		create: (json) => ok(a["s3-destinations"].$post({ json })),
-		remove: (id) => done(a["s3-destinations"][":id"].$delete(param(id))),
+	destinations: {
+		list: () => ok(a["backup-destinations"].$get()),
+		test: (json) => ok(a["backup-destinations"].test.$post({ json })),
+		create: (json) => ok(a["backup-destinations"].$post({ json })),
+		remove: (id) => done(a["backup-destinations"][":id"].$delete(param(id))),
 	},
 	backups: {
 		forService: (id) => ok(a.services[":id"].backups.$get(param(id))),
@@ -129,9 +131,9 @@ export const backupsApi: BackupsApi = isMock
 	? (await import("./mock/backups")).mockBackups
 	: http;
 
-export const s3DestinationsQuery = queryOptions({
-	queryKey: ["s3-destinations"],
-	queryFn: () => backupsApi.s3.list(),
+export const destinationsQuery = queryOptions({
+	queryKey: ["backup-destinations"],
+	queryFn: () => backupsApi.destinations.list(),
 });
 
 export const serviceBackupsQuery = (serviceId: string) =>
@@ -188,17 +190,17 @@ function useInvalidating<A, R>(
 	});
 }
 
-export const useCreateS3Destination = () =>
-	useInvalidating(backupsApi.s3.create, ["s3-destinations"]);
-export const useDeleteS3Destination = () =>
-	useInvalidating(backupsApi.s3.remove, ["s3-destinations"]);
+export const useCreateDestination = () =>
+	useInvalidating(backupsApi.destinations.create, ["backup-destinations"]);
+export const useDeleteDestination = () =>
+	useInvalidating(backupsApi.destinations.remove, ["backup-destinations"]);
 
 export const useCreatePolicy = () =>
 	useInvalidating(
 		({ serviceId, ...input }: PolicyInput & { serviceId: string }) =>
 			backupsApi.backups.createPolicy(serviceId, input),
 		["backups"],
-		["s3-destinations"],
+		["backup-destinations"],
 	);
 export const useUpdatePolicy = () =>
 	useInvalidating(
@@ -210,7 +212,7 @@ export const useDeletePolicy = () =>
 	useInvalidating(
 		backupsApi.backups.removePolicy,
 		["backups"],
-		["s3-destinations"],
+		["backup-destinations"],
 	);
 export const useRunPolicy = () =>
 	useInvalidating(

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
 	boolean,
+	jsonb,
 	pgTable,
 	text,
 	unique,
@@ -10,6 +11,7 @@ import { organization } from "./auth.ts";
 import { id, timestamps } from "./columns.ts";
 import { gitProviderKind, registryKind } from "./enums.ts";
 import { service } from "./hierarchy.ts";
+import { node } from "./runtime.ts";
 
 const org = () =>
 	text("organization_id")
@@ -76,5 +78,17 @@ export const s3Destination = pgTable("s3_destination", {
 	storageServiceId: text("storage_service_id").references(() => service.id, {
 		onDelete: "set null",
 	}),
+	/**
+	 * `s3` uses the S3 columns above. Any other kind (sftp, webdav, azureblob, drive, b2, local)
+	 * keeps its clear settings in `config` and an encrypted JSON of its secrets in
+	 * `secret_encrypted`; its S3 columns hold empty strings.
+	 */
+	kind: text("kind").notNull().default("s3"),
+	config: jsonb("config")
+		.$type<Record<string, unknown>>()
+		.notNull()
+		.default({}),
+	/** `local`: the node whose folder holds the backups. */
+	nodeId: text("node_id").references(() => node.id, { onDelete: "set null" }),
 	...timestamps,
 });

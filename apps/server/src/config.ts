@@ -33,6 +33,8 @@ const ConfigSchema = z.object({
 	WEB_DIST_DIR: z
 		.string()
 		.default(fileURLToPath(new URL("../../web/dist", import.meta.url))),
+	/** Image of the one-shot jobs that probe a local backup destination; matches the worker's. */
+	LS_BACKUP_TOOLS_IMAGE: z.string().default("alpine:3.22"),
 	/** The installer's enrollment token: an agent presenting it gets a per-node token. Unset, no node can enroll. */
 	LOGISTACK_AGENT_TOKEN: optional,
 	/** install.sh --public-setup: first-run setup requires this token until it completes. Unset, setup is reachable only through the loopback tunnel. */

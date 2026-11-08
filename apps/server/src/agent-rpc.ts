@@ -95,6 +95,7 @@ export async function serveAgentRpc(
 			} else {
 				const h = agents.exec(nodeId, m.req, { signal });
 				a.exec = h;
+				h.onStdinAck((bytes) => void reply(m.id, { type: "stdinAck", bytes }));
 				for await (const e of h)
 					await reply(
 						m.id,

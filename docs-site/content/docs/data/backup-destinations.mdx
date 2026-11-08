@@ -1,0 +1,162 @@
+---
+title: Back up to SFTP, WebDAV, Azure, Google Drive or a disk
+description: Send database and volume backups to an SFTP server, a WebDAV share, Azure Blob Storage, Google Drive, Backblaze B2's native API or a folder on a node.
+---
+
+Backups don't have to go to S3. A backup destination can also be a NAS or storage box over SFTP, a Nextcloud or other WebDAV share, an Azure Blob Storage container, a Google Drive folder, a Backblaze B2 bucket through B2's own API, or a folder on one of your nodes. Backup policies, retention, verify restores and restores work the same on every kind. Use this page when your off-site storage isn't an S3 bucket; for buckets, see [Add an S3 destination](./s3-destinations.mdx).
+
+## How it works
+
+- SFTP, WebDAV, Azure Blob, Google Drive and B2 go through [rclone](https://rclone.org), which ships in the LogiStack images. LogiStack hands rclone its settings through environment variables only: nothing is written to disk and no secret appears on a command line.
+- A folder on a node is reached through that node's agent. The bytes stream between the database's node and the folder's node; they never land on the control plane's disk.
+- Backups stream in both directions. LogiStack holds a bounded window of a backup in memory (tens of megabytes at most), however large the backup and however slow the destination.
+- Every destination is tested before it's saved: LogiStack writes a probe file, reads it back and deletes it.
+
+## Before you start
+
+- Only organization admins can add destinations.
+- Create the place backups go first: the folder on the server or share, the Azure container, the B2 bucket, or the folder on the node. LogiStack doesn't create it for you.
+- Use an account that reaches this place and nothing else.
+
+## Add a destination
+
+<Steps>
+<Step>
+
+### Open Backup destinations
+
+In the sidebar, under **Integrations**, select **Backup destinations**, then **Add destination**.
+
+</Step>
+<Step>
+
+### Pick the kind
+
+In **Where should backups go?**, under **Servers, drives and disks**, pick **SFTP**, **WebDAV**, **Azure Blob Storage**, **Google Drive**, **Backblaze B2 native** or **Folder on a node**. Select **Continue**.
+
+![The Add a backup destination wizard, with object storage presets and the server, drive and disk kinds](/screens/s3-new.webp)
+
+</Step>
+<Step>
+
+### Say where backups go
+
+Fill in **Location** for the kind you picked. The fields are listed under [Kinds](#kinds). Backups land under `<folder>/backups/<policy>/`.
+
+</Step>
+<Step>
+
+### Sign in
+
+In **Sign-in**, enter the password, key or token for the kind. Secrets are encrypted at rest and never shown again. **Folder on a node** has no sign-in step.
+
+</Step>
+<Step>
+
+### Test the destination
+
+In **Test the destination**, select **Run test**. LogiStack writes `.logistack-probe-…` at the destination's root, reads it back and deletes it. A pass means it can write, read and delete there: the three things backups, restores and retention do. Nothing is saved until the test passes.
+
+</Step>
+<Step>
+
+### Name and save
+
+In **Name and review**, keep the suggested **Name** (such as `SFTP · nas.example.com`) or type your own, check the summary and select **Add destination**.
+
+</Step>
+</Steps>
+
+## Kinds
+
+<Tabs items={["SFTP", "WebDAV", "Azure Blob", "Google Drive", "B2 native", "Folder on a node"]}>
+<Tab value="SFTP">
+
+| Field | Example |
+| --- | --- |
+| Host | `nas.example.com` |
+| Port | `22` |
+| User | `backup` |
+| Folder | `/volume1/backups`, or a path relative to the user's home |
+| Sign in with | **Password**, or **Private key** (an unencrypted PEM key) |
+
+For a private key, add its public half to the user's `~/.ssh/authorized_keys` on the server. Chrooted SFTP-only accounts work: LogiStack doesn't run shell commands on the server.
+
+</Tab>
+<Tab value="WebDAV">
+
+| Field | Example |
+| --- | --- |
+| WebDAV URL | `https://cloud.example.com/remote.php/dav/files/backup` |
+| Server | **Nextcloud**, **ownCloud** or **Other** |
+| Folder | `LogiStack` |
+| User, Password | optional, for shares that ask for them |
+
+On Nextcloud, create an app password under **Settings** > **Security** > **Devices & sessions** instead of using the account password.
+
+</Tab>
+<Tab value="Azure Blob">
+
+| Field | Example |
+| --- | --- |
+| Storage account | `acmebackups` |
+| Container | `logistack` |
+| Folder | `prod` |
+| Access key | **key1** from the storage account |
+
+The key is under **Security + networking** > **Access keys** in the storage account.
+
+</Tab>
+<Tab value="Google Drive">
+
+| Field | Example |
+| --- | --- |
+| Root folder ID | optional: the last part of the folder's URL |
+| Folder | `LogiStack` |
+| Sign in with | **Your Google account** or **Service account** |
+
+For **Your Google account**, run `rclone authorize "drive"` on a computer with a browser, sign in, and paste the JSON it prints into **Token**. For **Service account**, paste the account's JSON key and share the folder or Shared Drive with the service account's email; set **Root folder ID** to that folder.
+
+</Tab>
+<Tab value="B2 native">
+
+| Field | Example |
+| --- | --- |
+| Bucket | `acme-backups` |
+| Folder | `logistack` |
+| keyID, applicationKey | from **Application Keys** > **Add a New Application Key** |
+
+Allow **Read and Write** on this bucket only. Retention deletes old backups for real rather than hiding them as old versions, so they stop counting toward your storage. Keys with S3 access can use the [S3 destination](./s3-destinations.mdx) for B2 instead.
+
+</Tab>
+<Tab value="Folder on a node">
+
+| Field | Example |
+| --- | --- |
+| Node | `fra-4-data` |
+| Folder on the node | `/mnt/backups` |
+
+The folder must already exist on that node and survive a reboot: a mounted disk, not `/tmp`. Backups written here are lost with the node, so keep an off-site destination too.
+
+</Tab>
+</Tabs>
+
+<Callout type="warn">
+A folder on a node is not an off-site backup. Pair it with a policy that writes to another provider or region.
+</Callout>
+
+## Check it worked
+
+The destination shows under **Destinations** with its kind and location, such as `sftp://backup@nas.example.com:22/volume1/backups`, and **Not used yet**. Pick it in a [backup policy](./backups.mdx), select **Run now**, and check that a file appears under `backups/<policy>/` in the folder.
+
+## Remove a destination
+
+Select the trash icon on its row, then **Remove destination**. LogiStack forgets the credentials; backups already written stay where they are. A destination still used by a policy can't be removed.
+
+## Troubleshooting
+
+- **Host not allowed**: the SFTP or WebDAV host resolves to a private address, or a WebDAV URL uses `http://`. An instance owner can allow private hosts in **Settings**.
+- The SFTP test fails with `unable to authenticate`: check the user and password, or that the public key is in `authorized_keys`.
+- The WebDAV test fails on a Nextcloud server: check that the URL is the WebDAV endpoint, ending in `/remote.php/dav/files/<user>`, not the web interface's address.
+- The Google Drive test fails after it once passed: the token was revoked. Run `rclone authorize "drive"` again and add the destination with the new token.
+- The node folder test fails and the detail mentions the bind source path: create the folder on that node first.

@@ -414,6 +414,11 @@ describe.skipIf(!hasDocker)("access control", () => {
 				tools.map((t: { name: string }) => [t.name, t]),
 			);
 			expect(byName.project_create.inputSchema.required).toContain("body");
+			for (const t of ["create", "test", "delete"])
+				expect(byName[`backup_destination_${t}`]).toBeDefined();
+			expect(byName.backup_destination_delete.annotations).toMatchObject({
+				destructiveHint: true,
+			});
 			expect(byName.project_delete.annotations).toMatchObject({
 				destructiveHint: true,
 			});

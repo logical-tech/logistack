@@ -2,25 +2,27 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, TriangleAlert } from "lucide-react";
 import { CopyField } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
-import { type BackupPolicy, s3DestinationsQuery } from "@/lib/api/backups";
+import { type BackupPolicy, destinationsQuery } from "@/lib/api/backups";
 
 /**
- * The shell command that reads one backup with nothing but the AWS CLI, `age` and the key.
- * Without a known object it names the policy's folder and leaves the file name to fill in.
+ * The shell command that reads one backup without LogiStack: the AWS CLI and `age` for S3, and
+ * for any other destination `age` over the file copied off it. Without a known object it names
+ * the policy's folder and leaves the file name to fill in.
  */
 export function useDecryptCommand(policy: BackupPolicy, objectKey?: string) {
-	const { data: destinations } = useQuery(s3DestinationsQuery);
+	const { data: destinations } = useQuery(destinationsQuery);
 	const d = destinations?.find((x) => x.id === policy.s3DestinationId);
-	const root = d
-		? `${d.bucket}/${d.prefix ? `${d.prefix.replace(/\/$/, "")}/` : ""}`
-		: "<bucket>/<prefix>/";
 	const key = objectKey ?? `backups/${policy.id}/<backup>.age`;
-	const out =
-		objectKey
-			?.split("/")
-			.pop()
-			?.replace(/\.age$/, "") ?? "backup";
-	const endpoint = d ? ` --endpoint-url ${d.endpoint}` : "";
+	const file = key.split("/").pop() ?? key;
+	const out = objectKey ? file.replace(/\.age$/, "") : "backup";
+	if (d && d.kind !== "s3")
+		return `age -d -i backup-key.txt < "${file}" > "${out}"  # ${file} from ${d.location.replace(/\/$/, "")}/${key}`;
+	const bucket = String(d?.settings.bucket ?? "");
+	const prefix = String(d?.settings.prefix ?? "").replace(/\/$/, "");
+	const root = d
+		? `${bucket}/${prefix ? `${prefix}/` : ""}`
+		: "<bucket>/<prefix>/";
+	const endpoint = d ? ` --endpoint-url ${d.settings.endpoint}` : "";
 	return `aws s3 cp "s3://${root}${key}" -${endpoint} | age -d -i backup-key.txt > "${out}"`;
 }
 

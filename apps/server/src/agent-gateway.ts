@@ -125,6 +125,11 @@ export type ExecHandle = AsyncGenerator<ExecEvent> & {
 	end(): Promise<void>;
 	resize(rows: number, cols: number): void;
 	close(): void;
+	/**
+	 * Calls `cb` with the cumulative stdin bytes the process has taken, while the handle is iterated.
+	 * An agent without `stdin-ack` cannot tell, so its bytes count once handed to the socket.
+	 */
+	onStdinAck(cb: (bytes: number) => void): void;
 };
 
 /** `ack` reports output bytes read, for a job with `ackWindowBytes`; agents without `job-ack` ignore it. */
@@ -568,21 +573,40 @@ export function mountAgentGateway(
 		},
 
 		exec(nodeId, req, opts) {
+			const acks = nodes.get(nodeId)?.node.capabilities.includes("stdin-ack");
 			const { conn, replies, id } = start(
 				nodeId,
-				{ ...req, type: "exec.start", id: crypto.randomUUID() },
+				{
+					...req,
+					...(acks ? { stdinAck: true } : {}),
+					type: "exec.start",
+					id: crypto.randomUUID(),
+				},
 				"exec.close",
 				opts?.signal,
 			);
+			let onAck: (bytes: number) => void = () => {};
 			async function* events(): AsyncGenerator<ExecEvent> {
 				for await (const m of replies) {
 					if (m.type === "exec.output")
 						yield { type: "output", stream: m.stream, data: decode(m.data) };
 					else if (m.type === "exec.exit") yield { type: "exit", code: m.code };
+					else if (m.type === "exec.stdin.ack") onAck(m.bytes);
 				}
 			}
+			const input = stdin(conn, id);
+			let sent = 0;
 			return Object.assign(events(), {
-				...stdin(conn, id),
+				write: async (data: string | Uint8Array) => {
+					await input.write(data);
+					sent +=
+						typeof data === "string" ? Buffer.byteLength(data) : data.length;
+					if (!acks) onAck(sent);
+				},
+				end: input.end,
+				onStdinAck: (cb: (bytes: number) => void) => {
+					onAck = cb;
+				},
 				resize: (rows: number, cols: number) =>
 					send(conn, { type: "exec.resize", id, rows, cols }),
 				close: () => void replies.return(undefined),

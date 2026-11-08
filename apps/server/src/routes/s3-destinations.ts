@@ -87,7 +87,13 @@ export const s3Destinations = router()
 					backupPolicy,
 					eq(backupPolicy.s3DestinationId, s3Destination.id),
 				)
-				.where(eq(s3Destination.organizationId, requireActor(c).organizationId))
+				.where(
+					and(
+						eq(s3Destination.organizationId, requireActor(c).organizationId),
+						// Other kinds are listed by GET /backup-destinations.
+						eq(s3Destination.kind, "s3"),
+					),
+				)
 				.groupBy(s3Destination.id)
 				.orderBy(asc(s3Destination.name));
 			return c.json(
@@ -131,7 +137,7 @@ export const s3Destinations = router()
 					config,
 					await hostPolicy(c.var.deps.db),
 				);
-				await dest.test();
+				await dest.probe();
 				const ms = Math.round(performance.now() - started);
 				return c.json(
 					{
