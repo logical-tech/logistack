@@ -112,6 +112,8 @@ export const secretProviderKinds = [
 	"vault",
 	"infisical",
 	"onepassword",
+	/** Contributed by a plugin install (`plugin_install_id`, `plugin_provider`). */
+	"plugin",
 ] as const;
 export const SecretProviderKind = z.enum(secretProviderKinds);
 export type SecretProviderKind = z.infer<typeof SecretProviderKind>;
@@ -137,6 +139,8 @@ export const dnsProviderKinds = [
 	"digitalocean",
 	"ovh",
 	"porkbun",
+	/** Contributed by a plugin install (`plugin_install_id`, `plugin_provider`). */
+	"plugin",
 ] as const;
 export const DnsProviderKind = z.enum(dnsProviderKinds);
 export type DnsProviderKind = z.infer<typeof DnsProviderKind>;
@@ -209,6 +213,8 @@ export const notificationChannelKinds = [
 	"gotify",
 	"pushover",
 	"webhook",
+	/** Contributed by a plugin install (`plugin_install_id`, `plugin_provider`). */
+	"plugin",
 ] as const;
 export const NotificationChannelKind = z.enum(notificationChannelKinds);
 export type NotificationChannelKind = z.infer<typeof NotificationChannelKind>;

@@ -212,6 +212,11 @@ export const mockPlugins: PluginsApi = {
 						author: i.manifest.author?.name ?? null,
 						unlisted: true,
 						pages: i.manifest.contributes.pages,
+						providers: {
+							dnsProviders: i.manifest.contributes.dnsProviders,
+							notificationChannels: i.manifest.contributes.notificationChannels,
+							secretProviders: i.manifest.contributes.secretProviders,
+						} as PluginContribution["providers"],
 					}),
 				),
 		),

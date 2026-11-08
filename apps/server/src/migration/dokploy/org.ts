@@ -108,8 +108,10 @@ const EVENTS: Record<string, { events: EventType[]; label: string }> = {
 function channelOf(
 	t: DokployNotificationTarget,
 	notes: string[],
-): { kind: NotificationChannelKind; config: unknown } | undefined {
-	const webhook = (kind: NotificationChannelKind) => ({
+):
+	| { kind: Exclude<NotificationChannelKind, "plugin">; config: unknown }
+	| undefined {
+	const webhook = (kind: Exclude<NotificationChannelKind, "plugin">) => ({
 		kind,
 		config: { webhookUrl: t.webhookUrl },
 	});

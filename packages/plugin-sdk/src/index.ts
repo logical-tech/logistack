@@ -1,4 +1,5 @@
 import {
+	type DnsRecordType,
 	type EventEnvelope,
 	type PermissionAction,
 	PLUGIN_HEADERS,
@@ -11,7 +12,7 @@ import { Hono, type MiddlewareHandler } from "hono";
 // @logistack/plugin-sdk: the plugin side of the contract in docs/plans/plugins.md.
 // shortcut: imports types from the private @logistack/contracts workspace; bundle them in before publishing to npm.
 
-export type { EventEnvelope, PluginManifest, PluginUserClaims };
+export type { DnsRecordType, EventEnvelope, PluginManifest, PluginUserClaims };
 
 /** Checks and fills a manifest; use the result for the image label and for `createPlugin`. */
 export const defineManifest = (m: PluginManifestInput): PluginManifest =>
@@ -119,6 +120,100 @@ export function logistackClient(opts: {
 
 export type PluginContext = { logistack: LogiStack; installId: string };
 
+// Providers (docs/plans/plugins.md, "Providers"): LogiStack calls
+// `POST /v1/providers/{kind}/{name}/{op}` with `{ config, args }`; the SDK builds your provider
+// from `config` and calls `op` with `args`. These mirror the interfaces in @logistack/providers.
+
+/** Names are lowercase FQDNs without the trailing dot. */
+export type DnsZone = { id: string; name: string };
+export type DnsRecord = {
+	/** Opaque; LogiStack passes it back to update and delete. Values of one set share it. */
+	id: string;
+	zoneId: string;
+	name: string;
+	type: DnsRecordType;
+	/** TXT content is unquoted. */
+	content: string;
+	ttl: number;
+	proxied?: boolean;
+	comment?: string;
+	readOnly?: string;
+};
+export type UpsertRecordInput = Omit<DnsRecord, "id" | "comment" | "readOnly">;
+export type RecordSetInput = {
+	zoneId: string;
+	name: string;
+	type: DnsRecordType;
+	ttl: number;
+	values: string[];
+	proxied?: boolean;
+	comment?: string;
+};
+
+export type DnsProviderImpl = {
+	/** Throw when the credentials cannot list zones. */
+	verify(): Promise<void>;
+	listZones(): Promise<DnsZone[]>;
+	listRecords(zoneId: string, name?: string): Promise<DnsRecord[]>;
+	/** The (name, type) set ends up holding exactly this one value. DNS-01 uses it for TXT. */
+	upsertRecord(input: UpsertRecordInput): Promise<DnsRecord>;
+	createRecord(input: RecordSetInput): Promise<DnsRecord[]>;
+	updateRecord(recordId: string, input: RecordSetInput): Promise<DnsRecord[]>;
+	/** Deleting a record that no longer exists succeeds. */
+	deleteRecord(zoneId: string, recordId: string): Promise<void>;
+};
+
+export type RenderedNotification = {
+	title: string;
+	body: string;
+	url?: string;
+	severity: "info" | "success" | "warning" | "error";
+};
+export type NotificationChannelImpl = {
+	/** Send a fixed test message. */
+	test(): Promise<void>;
+	send(event: EventEnvelope, rendered: RenderedNotification): Promise<void>;
+};
+
+export type SecretProviderImpl = {
+	/** Sign in and check the configured scope is reachable. */
+	test(): Promise<void>;
+	/** The value at `secret://<provider>/<path…>#<key>`. Never put the value in an error. */
+	read(path: string[], key: string): Promise<string>;
+};
+
+/** Builds a provider from the config the user entered in the wizard, once per call. */
+type Factory<T> = (
+	config: Record<string, unknown>,
+	ctx: PluginContext,
+) => T | Promise<T>;
+
+/** The ops LogiStack calls, per kind; nothing else on your object is reachable. */
+export const PROVIDER_OPS = {
+	dnsProviders: [
+		"verify",
+		"listZones",
+		"listRecords",
+		"upsertRecord",
+		"createRecord",
+		"updateRecord",
+		"deleteRecord",
+	],
+	notificationChannels: ["test", "send"],
+	secretProviders: ["test", "read"],
+} as const satisfies {
+	dnsProviders: readonly (keyof DnsProviderImpl)[];
+	notificationChannels: readonly (keyof NotificationChannelImpl)[];
+	secretProviders: readonly (keyof SecretProviderImpl)[];
+};
+
+/** One factory per provider `name` in `contributes`. */
+export type ProviderHandlers = {
+	dnsProviders?: Record<string, Factory<DnsProviderImpl>>;
+	notificationChannels?: Record<string, Factory<NotificationChannelImpl>>;
+	secretProviders?: Record<string, Factory<SecretProviderImpl>>;
+};
+
 export type PluginHandlers = {
 	manifest: PluginManifest;
 	/** Each subscribed event, once per delivery; throw to have LogiStack retry it. */
@@ -135,6 +230,8 @@ export type PluginHandlers = {
 		string,
 		(input: unknown, ctx: PluginContext) => unknown | Promise<unknown>
 	>;
+	/** DNS providers, notification channels and secret providers from `contributes`. */
+	providers?: ProviderHandlers;
 	/**
 	 * Your pages and their backend, mounted at `/ui`. Requests under `/ui/api` are verified and
 	 * carry the viewer in `c.get("user")`.
@@ -226,6 +323,36 @@ export function createPlugin(h: PluginHandlers): Hono<PluginEnv> {
 		if (!tool) return c.json({ error: "no such tool" }, 404);
 		const { input } = await c.req.json<{ input: unknown }>();
 		return c.json({ output: (await tool(input, context())) ?? null });
+	});
+	app.post("/v1/providers/:kind/:name/:op", async (c) => {
+		const { kind, name, op } = c.req.param();
+		const ops = PROVIDER_OPS[kind as keyof ProviderHandlers] as
+			| readonly string[]
+			| undefined;
+		const factories = ops
+			? (h.providers?.[kind as keyof ProviderHandlers] as
+					| Record<string, Factory<Record<string, unknown>>>
+					| undefined)
+			: undefined;
+		const factory =
+			factories && Object.hasOwn(factories, name) ? factories[name] : undefined;
+		if (!factory || !ops?.includes(op))
+			return c.json({ error: `no ${op} on provider ${kind}/${name}` }, 404);
+		const { config, args } = await c.req.json<{
+			config: Record<string, unknown>;
+			args: unknown[];
+		}>();
+		try {
+			const impl = await factory(config ?? {}, context());
+			const fn = impl[op];
+			if (typeof fn !== "function")
+				return c.json({ error: `${kind}/${name} has no ${op}` }, 404);
+			const result = await fn.apply(impl, Array.isArray(args) ? args : []);
+			return c.json({ result: result ?? null });
+		} catch (e) {
+			// A 502 reaches the user with this message and lets deliveries retry.
+			return c.json({ error: e instanceof Error ? e.message : String(e) }, 502);
+		}
 	});
 
 	app.use("/ui/api/*", signed);

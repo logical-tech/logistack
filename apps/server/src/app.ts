@@ -8,6 +8,7 @@ import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
+import { acmeProxy } from "./acme-proxy.ts";
 import { type Actor, authenticate } from "./actor.ts";
 import { gateway } from "./ai/gateway.ts";
 import { assertMutationsAudited } from "./audit.ts";
@@ -164,6 +165,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	app.route("/push", push);
 	// Plugin pages: no session here (an opaque-origin page sends no cookies); see plugin-proxy.ts.
 	app.route("/plugins", pluginProxy);
+	// DNS-01 for plugin DNS providers, called by Caddy with a per-provider basic-auth secret.
+	app.route("/acme-proxy", acmeProxy);
 
 	const routes = app
 		.route("/api", health)

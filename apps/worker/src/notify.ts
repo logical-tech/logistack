@@ -17,12 +17,14 @@ import {
 	type NotificationRule,
 	notificationChannels,
 	ProviderError,
+	pluginNotificationChannel,
 	renderEvent,
 } from "@logistack/providers";
 import type { RedisClient } from "bun";
 import { and, eq } from "drizzle-orm";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
+import { openPluginProvider } from "./plugin-providers.ts";
 import { hostPolicy } from "./ssrf.ts";
 
 /**
@@ -232,6 +234,25 @@ export function dispatchDeps(ctx: Ctx, fetchFor?: Fetch): DispatchDeps {
 			const config = JSON.parse(
 				await decrypt(ctx.masterKey, row.configEncrypted),
 			);
+			if (row.kind === "plugin") {
+				const opened = await openPluginProvider(
+					{
+						db: ctx.db,
+						masterKey: ctx.masterKey,
+						namePrefix: ctx.cfg.LS_NAME_PREFIX,
+						...(fetchFor ? { fetch: fetchFor } : {}),
+					},
+					"notificationChannels",
+					row,
+					config,
+				).catch((e: unknown) => e as Error);
+				// A disabled plugin is recorded as the channel's failure, not lost.
+				if (opened instanceof Error)
+					return channel(async () => {
+						throw opened;
+					});
+				return pluginNotificationChannel(opened);
+			}
 			const policy = fetchFor ? null : await hostPolicy(ctx.db);
 			return instantiate(notificationChannels[row.kind], config, {
 				fetch:

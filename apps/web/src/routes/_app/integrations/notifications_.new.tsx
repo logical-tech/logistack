@@ -23,6 +23,7 @@ import {
 	useInvalidating,
 } from "@/lib/api/networking";
 import { CHANNEL_KINDS } from "@/lib/integrations";
+import { usePluginChoices } from "@/lib/plugin-providers";
 import { stepParam } from "@/lib/search";
 
 export const Route = createFileRoute("/_app/integrations/notifications_/new")({
@@ -31,7 +32,8 @@ export const Route = createFileRoute("/_app/integrations/notifications_/new")({
 	component: NewChannel,
 });
 
-type V = { kind: ChannelKind; config: ConfigValues; name: string };
+/** `kind` is the radio value: a built-in kind, or a plugin channel's key. */
+type V = { kind: string; config: ConfigValues; name: string };
 
 const HINTS: Partial<Record<ChannelKind, Record<string, string>>> = {
 	slack: { webhookUrl: "Slack → Apps → Incoming Webhooks → Add to a channel." },
@@ -64,9 +66,27 @@ function NewChannel() {
 	const create = useInvalidating(api.networking.notifications.createChannel, [
 		["notification-channels"],
 	]);
+	const fromPlugins = usePluginChoices<ChannelKind>("notificationChannels");
+	const { resolve } = fromPlugins;
 	const schemaOf = useCallback(
-		(kind: ChannelKind) => schemas?.notify[kind] as ConfigSchema | undefined,
-		[schemas],
+		(value: string) => {
+			const { kind, plugin } = resolve(value);
+			return plugin
+				? plugin.schema
+				: (schemas?.notify[kind] as ConfigSchema | undefined);
+		},
+		[schemas, resolve],
+	);
+	const meta = useCallback(
+		(value: string) => {
+			const { kind, plugin } = resolve(value);
+			return {
+				kind,
+				plugin,
+				label: plugin?.title ?? CHANNEL_KINDS[kind].label,
+			};
+		},
+		[resolve],
 	);
 
 	const steps = useMemo((): WizardStep<V>[] => {
@@ -89,12 +109,17 @@ function NewChannel() {
 							const s = schemaOf(kind);
 							w.set("config", s ? initialValues(s) : {});
 						}}
-						choices={(Object.keys(CHANNEL_KINDS) as ChannelKind[]).map((k) => ({
-							value: k,
-							title: CHANNEL_KINDS[k].label,
-							description: CHANNEL_KINDS[k].blurb,
-							icon: CHANNEL_KINDS[k].icon,
-						}))}
+						choices={[
+							...(Object.keys(CHANNEL_KINDS) as ChannelKind[])
+								.filter((k) => k !== "plugin")
+								.map((k) => ({
+									value: k as string,
+									title: CHANNEL_KINDS[k].label,
+									description: CHANNEL_KINDS[k].blurb,
+									icon: CHANNEL_KINDS[k].icon,
+								})),
+							...fromPlugins.choices,
+						]}
 					/>
 				),
 			},
@@ -125,7 +150,7 @@ function NewChannel() {
 							errors={
 								w.error("config") ? missingFields(s, w.values.config) : {}
 							}
-							hints={HINTS[w.values.kind]}
+							hints={HINTS[meta(w.values.kind).kind]}
 						/>
 					);
 				},
@@ -138,10 +163,15 @@ function NewChannel() {
 				testKeys: ["kind", "config"],
 				test: async (v) => {
 					try {
-						await api.networking.notifications.testConfig(v.kind, config(v));
+						const m = meta(v.kind);
+						await api.networking.notifications.testConfig(
+							m.kind,
+							config(v),
+							m.plugin?.ref,
+						);
 						return {
 							ok: true,
-							message: `Sent through ${CHANNEL_KINDS[v.kind].label}`,
+							message: `Sent through ${m.label}`,
 							detail: "Check that “LogiStack test notification” arrived.",
 						};
 					} catch (err) {
@@ -156,7 +186,7 @@ function NewChannel() {
 					<TestPanel
 						w={w}
 						action="Send test"
-						idle={`We'll send “LogiStack test notification” through ${CHANNEL_KINDS[w.values.kind].label}.`}
+						idle={`We'll send “LogiStack test notification” through ${meta(w.values.kind).label}.`}
 					/>
 				),
 			},
@@ -187,7 +217,7 @@ function NewChannel() {
 								stepId: "kind",
 								title: "Channel",
 								rows: [
-									{ label: "Kind", value: CHANNEL_KINDS[w.values.kind].label },
+									{ label: "Kind", value: meta(w.values.kind).label },
 									{ label: "Name", value: w.values.name },
 									{ label: "Test message", value: "Delivered" },
 								],
@@ -197,7 +227,7 @@ function NewChannel() {
 				),
 			},
 		];
-	}, [schemaOf]);
+	}, [schemaOf, meta, fromPlugins.choices]);
 
 	const onStepChange = useCallback(
 		(id: string, { replace }: { replace: boolean }) =>
@@ -227,10 +257,12 @@ function NewChannel() {
 				finishLabel="Add channel"
 				onComplete={async (v) => {
 					const s = schemaOf(v.kind);
+					const m = meta(v.kind);
 					const ch = await create.mutateAsync({
-						kind: v.kind,
+						kind: m.kind,
 						name: v.name.trim(),
 						config: s ? toConfig(s, v.config) : {},
+						...m.plugin?.ref,
 					});
 					toast.success(`${ch.name} added`, {
 						description: "Choose which events it receives.",

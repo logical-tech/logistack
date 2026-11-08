@@ -9,12 +9,21 @@ import {
 	findZoneForHostname,
 	instantiate,
 	ProviderError,
+	pluginDnsProvider,
 } from "@logistack/providers";
+import {
+	openPluginProvider,
+	type PluginProviderRef,
+} from "@logistack/worker/plugin-providers";
 import { and, asc, eq } from "drizzle-orm";
 import { Failure, notFound } from "./errors.ts";
+import { contributedProvider } from "./plugins.ts";
 
+/** Built-in kinds; `plugin` rows resolve through the install that contributes them. */
 export const dnsKinds = Object.keys(dnsProviders) as [DnsKind, ...DnsKind[]];
-export const DnsKindSchema = z.enum(dnsKinds);
+export const BuiltinDnsKindSchema = z.enum(dnsKinds);
+export const DnsKindSchema = z.enum([...dnsKinds, "plugin"]);
+export type AnyDnsKind = z.infer<typeof DnsKindSchema>;
 
 export const Zone = z.object({ id: z.string(), name: z.string() });
 
@@ -56,13 +65,65 @@ export async function viaProvider<T>(fn: () => Promise<T>): Promise<T> {
 export const sealCredentials = (key: CryptoKey, credentials: unknown) =>
 	encrypt(key, JSON.stringify(credentials));
 
-export async function openProvider(key: CryptoKey, row: DnsProviderRow) {
+export type DnsDeps = { db: Db; masterKey: CryptoKey };
+
+/** A plugin's DNS provider over its signed contract; "plugin disabled" when it is off. */
+export const connectPlugin = async (
+	deps: DnsDeps,
+	ref: PluginProviderRef,
+	credentials: unknown,
+): Promise<DnsProvider> =>
+	pluginDnsProvider(
+		await openPluginProvider(deps, "dnsProviders", ref, credentials),
+	);
+
+export async function openProvider(deps: DnsDeps, row: DnsProviderRow) {
+	const credentials = JSON.parse(
+		await decrypt(deps.masterKey, row.credentialsEncrypted),
+	);
+	if (row.kind === "plugin") return connectPlugin(deps, row, credentials);
 	if (!(row.kind in dnsProviders))
 		throw new Failure("bad_request", `${row.kind} is not supported yet`);
-	return connect(
-		row.kind as DnsKind,
-		JSON.parse(await decrypt(key, row.credentialsEncrypted)),
-	);
+	return connect(row.kind as DnsKind, credentials);
+}
+
+/**
+ * A provider from wizard input, with the credentials as they will be stored and, for a plugin,
+ * the row's plugin columns. The provider is not called yet.
+ */
+export async function connectInput(
+	deps: DnsDeps,
+	organizationId: string,
+	input: {
+		kind: AnyDnsKind;
+		credentials: Record<string, unknown>;
+		pluginInstallId?: string;
+		pluginProvider?: string;
+	},
+) {
+	if (input.kind === "plugin") {
+		const p = await contributedProvider(
+			deps.db,
+			organizationId,
+			"dnsProviders",
+			input,
+			input.credentials,
+		);
+		return {
+			provider: await connectPlugin(
+				deps,
+				{ organizationId, ...p.columns },
+				p.config,
+			),
+			credentials: p.config as unknown,
+			columns: p.columns,
+		};
+	}
+	return {
+		provider: connect(input.kind, input.credentials),
+		credentials: parseCredentials(input.kind, input.credentials),
+		columns: {},
+	};
 }
 
 export async function providerRow(

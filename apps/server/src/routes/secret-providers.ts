@@ -11,18 +11,52 @@ import {
 	failureMessage,
 	openSource,
 	providerConfig,
+	type SourceSpec,
 } from "@logistack/worker/external-secrets";
 import { and, asc, count, eq } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
+import { contributedProvider, PluginProviderFields } from "../plugins.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
 
 const Config = z.record(z.string(), z.unknown());
 type Row = typeof secretProvider.$inferSelect;
 
-function parseConfig(kind: SecretProviderKind, config: unknown) {
+/** Config parsed for its kind; a plugin's provider is checked against the plugin's own form. */
+async function parseInput(
+	db: Db,
+	organizationId: string,
+	input: {
+		kind: SecretProviderKind;
+		config: Record<string, unknown>;
+		pluginInstallId?: string;
+		pluginProvider?: string;
+	},
+) {
+	if (input.kind === "plugin") {
+		const p = await contributedProvider(
+			db,
+			organizationId,
+			"secretProviders",
+			input,
+			input.config,
+		);
+		return {
+			config: p.config,
+			url: `plugin:${p.install.pluginId}/${p.provider.name}`,
+			columns: p.columns,
+		};
+	}
+	const config = parseConfig(input.kind, input.config);
+	return { config, url: config.url, columns: {} };
+}
+
+function parseConfig(
+	kind: Exclude<SecretProviderKind, "plugin">,
+	config: unknown,
+) {
 	const parsed = secretProviders[kind].configSchema.safeParse(config);
 	if (!parsed.success)
 		throw new Failure(
@@ -37,11 +71,11 @@ function parseConfig(kind: SecretProviderKind, config: unknown) {
 async function testConnection(
 	db: Db,
 	masterKey: CryptoKey,
-	kind: SecretProviderKind,
+	spec: SourceSpec,
 	config: unknown,
 ) {
 	try {
-		await (await openSource({ db, masterKey }, kind, config)).test();
+		await (await openSource({ db, masterKey }, spec, config)).test();
 	} catch (e) {
 		throw new Failure("bad_request", failureMessage(e));
 	}
@@ -67,6 +101,8 @@ const usage = (db: Db, id: string) =>
 const view = (r: Row, secrets: number) => ({
 	id: r.id,
 	kind: r.kind,
+	pluginInstallId: r.pluginInstallId,
+	pluginProvider: r.pluginProvider,
 	name: r.name,
 	url: r.url,
 	secrets,
@@ -140,14 +176,27 @@ export const secretProviderRoutes = router()
 				description:
 					"Signs in and checks the configured project or token is usable. Reads no secret.",
 				middleware: admin,
-				request: body(z.object({ kind: SecretProviderKind, config: Config })),
+				request: body(
+					z.object({
+						kind: SecretProviderKind,
+						config: Config,
+						...PluginProviderFields,
+					}),
+				),
 				responses: { 200: Ok, ...errors },
 			}),
 		),
 		async (c) => {
-			const { kind, config } = c.req.valid("json");
+			const input = c.req.valid("json");
 			const { db, masterKey } = c.var.deps;
-			await testConnection(db, masterKey, kind, parseConfig(kind, config));
+			const organizationId = requireActor(c).organizationId;
+			const parsed = await parseInput(db, organizationId, input);
+			await testConnection(
+				db,
+				masterKey,
+				{ ...input, ...parsed.columns, organizationId },
+				parsed.config,
+			);
 			return c.json({ ok: true as const }, 200);
 		},
 	)
@@ -168,18 +217,25 @@ export const secretProviderRoutes = router()
 						kind: SecretProviderKind,
 						name: SecretProviderName,
 						config: Config,
+						...PluginProviderFields,
 					}),
 				),
 				responses: { 201: json(View, "Created"), ...errors },
 			}),
 		),
 		async (c) => {
-			const { kind, name, config } = c.req.valid("json");
+			const input = c.req.valid("json");
+			const { kind, name } = input;
 			const { db, masterKey } = c.var.deps;
 			const organizationId = requireActor(c).organizationId;
-			const parsed = parseConfig(kind, config);
+			const parsed = await parseInput(db, organizationId, input);
 			await uniqueName(db, organizationId, name);
-			await testConnection(db, masterKey, kind, parsed);
+			await testConnection(
+				db,
+				masterKey,
+				{ kind, organizationId, ...parsed.columns },
+				parsed.config,
+			);
 			const row = one(
 				await db
 					.insert(secretProvider)
@@ -188,7 +244,11 @@ export const secretProviderRoutes = router()
 						kind,
 						name,
 						url: parsed.url,
-						configEncrypted: await encrypt(masterKey, JSON.stringify(parsed)),
+						configEncrypted: await encrypt(
+							masterKey,
+							JSON.stringify(parsed.config),
+						),
+						...parsed.columns,
 					})
 					.returning(),
 			);
@@ -229,8 +289,15 @@ export const secretProviderRoutes = router()
 			const current = await providerRow(db, organizationId, id);
 			if (input.name && input.name !== current.name)
 				await uniqueName(db, organizationId, input.name);
-			const parsed = input.config && parseConfig(current.kind, input.config);
-			if (parsed) await testConnection(db, masterKey, current.kind, parsed);
+			const parsed =
+				input.config &&
+				(await parseInput(db, organizationId, {
+					kind: current.kind,
+					config: input.config,
+					pluginInstallId: current.pluginInstallId ?? undefined,
+					pluginProvider: current.pluginProvider ?? undefined,
+				}));
+			if (parsed) await testConnection(db, masterKey, current, parsed.config);
 			const row = one(
 				await db
 					.update(secretProvider)
@@ -241,7 +308,7 @@ export const secretProviderRoutes = router()
 									url: parsed.url,
 									configEncrypted: await encrypt(
 										masterKey,
-										JSON.stringify(parsed),
+										JSON.stringify(parsed.config),
 									),
 								}
 							: {}),
@@ -282,7 +349,7 @@ export const secretProviderRoutes = router()
 			await testConnection(
 				db,
 				masterKey,
-				row.kind,
+				row,
 				await providerConfig({ db, masterKey }, row),
 			);
 			return c.json({ ok: true as const }, 200);

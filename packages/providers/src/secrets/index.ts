@@ -13,4 +13,7 @@ export const secretProviders = {
 	vault,
 	infisical,
 	onepassword,
-} satisfies Record<SecretProviderKind, ProviderDef<z.ZodType, SecretSource>>;
+} satisfies Record<
+	Exclude<SecretProviderKind, "plugin">,
+	ProviderDef<z.ZodType, SecretSource>
+>;
