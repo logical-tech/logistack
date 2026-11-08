@@ -39,7 +39,7 @@ Read this step like a phone app's permission prompt:
 - **Plugin**: name, description, author, version, plugin id, image digest and license.
 - **Contributes**: pages and where they appear, the events it receives, agent tools and providers.
 - **Permissions**: each action its API token gets, on the whole organization. An action you do not hold is marked, and you cannot continue: ask someone who holds it to install the plugin.
-- **Network and resources**: **Talks to** lists the hosts the plugin declares. LogiStack does not enforce this list yet. **Reserves** shows the CPU and memory it asks for.
+- **Network and resources**: **Talks to** lists the hosts the plugin declares. Its container can reach only these hosts on the internet; see [Egress](./index.mdx#egress-is-limited-to-declared-hosts). **Reserves** shows the CPU and memory it asks for.
 
 Select **Continue**.
 
@@ -64,7 +64,7 @@ Select **Install**. LogiStack creates the plugin's service account and API key, 
 
 ### Finish
 
-The **Summary** step lists what you installed. Select **Done**. Sidebar pages appear under **Plugins** in the sidebar, and service tabs on the services they apply to, for every member who can read them.
+The **Summary** step lists what you installed. Select **Done**. Sidebar pages appear under **Plugins** in the sidebar, service tabs on the services they apply to, and project tabs next to **Services** on project pages, for every member who can read them.
 
 </Step>
 </Steps>
@@ -138,6 +138,17 @@ Select a plugin in the **Installed** list to open its page. It shows the status,
 - **Settings**: edit the form and select **Save settings**. The plugin gets the new values with its next request; it does not restart. A masked secret you leave alone keeps its stored value.
 - **Test**: calls the plugin's health check, then validates the stored settings. Use it after changing settings or when a provider stops working.
 - A plugin's sidebar or settings pages have a button each under **Status**, to open them.
+
+## Set up a deploy gate
+
+A plugin that declares a deploy gate is asked before every rollout in the organization, before anything changes in Swarm. It answers allow or reject. A rejection fails the deployment with `rejected by deploy gate <name>: <reason>` in its error and its log, and the running version keeps serving. Use it for change freezes, approval checks or policy scans.
+
+Its page in **Settings** › **Plugins** has a **Deploy gate** panel:
+
+- **Wait for an answer (seconds)**: from 1 to 60, 10 by default. Each deployment waits this long for each gate.
+- **If it doesn't answer**: **Fail the deployment** (the default) or **Deploy anyway**. A timeout, an error or a malformed answer counts as no answer, and the log says which choice applied.
+
+Select **Save deploy gate**. When several plugins have gates, they are asked one after the other, and the first rejection stops the deployment. Each answer is kept for that deployment, so a retried or resumed deployment does not ask again. A turned-off plugin is not asked.
 
 ## Turn a plugin off
 

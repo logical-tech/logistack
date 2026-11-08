@@ -177,6 +177,7 @@ if (import.meta.main) Bun.serve({ port: manifest.port, fetch: app.fetch });
 | `onEvent(event, ctx)` | Each event type in `contributes.events`, once per delivery. | Anything. Throw to have LogiStack retry. |
 | `validateConfig(config)` | **Test** in the install wizard and on the plugin's page, with the stored settings. | An error message to refuse the settings, or nothing to accept them. |
 | `tools[name](input, ctx)` | A tool from `contributes.tools`, called by the Agent, MCP or the API. LogiStack validates `input` against the tool's `inputSchema` first. | JSON-serializable output. |
+| `gates.deploy(request, ctx)` | Every rollout in the organization, when the manifest sets `contributes.gates.deploy: true`. See [Deploy gates](#deploy-gates). | `{ allow, reason? }` |
 | `providers` | DNS, notification and secret provider calls. See [Providers](#providers). | |
 | `ui` | Page and page-backend requests under `/ui`. See [Pages](#pages). | |
 | `env` | Overrides for the four `LOGISTACK_*` variables, for tests. By default they come from the process environment. | |
@@ -193,6 +194,28 @@ Every handler gets `ctx`, with `ctx.installId` and a client for the LogiStack AP
 ```ts
 const projects = await ctx.logistack.request<{ id: string; name: string }[]>("/projects");
 ```
+
+## Deploy gates
+
+A deploy gate lets your plugin approve or reject each rollout in the organization. Declare it, then handle it:
+
+```ts
+// manifest: contributes: { gates: { deploy: true } }
+createPlugin({
+	manifest,
+	gates: {
+		async deploy(req) {
+			if (req.environment.kind === "production" && isFreeze(new Date()))
+				return { allow: false, reason: "Change freeze until Monday 09:00" };
+			return { allow: true };
+		},
+	},
+});
+```
+
+The request (`DeployGateRequest`) carries `deploymentId`, `organizationId`, `project`, `environment` (with `kind`), `service` (with `kind`), the `imageRef` about to roll out, `commitSha`, `commitMessage`, `gitRef` and `trigger`. The `reason` (up to 500 characters) appears in the deployment's error and log.
+
+Answer within the install's timeout, 10 seconds unless the user changed it. A timeout or error follows the install's fail mode, which fails the deployment by default. LogiStack stores each answer per deployment and does not ask again for a retried deployment, but treat `deploymentId` as an idempotency key anyway.
 
 ## Providers
 
@@ -227,6 +250,7 @@ A page is HTML your plugin serves under `/ui`. Declare it in `contributes.pages`
 
 - `sidebar`: under **Plugins** in the sidebar, at `/plugin/<install id>/<page id>`.
 - `service-tab`: a tab on service pages, limited to the kinds in `serviceKinds` when you set it.
+- `project-tab`: a tab next to **Services** on project pages.
 - `settings`: opened from the plugin's page in **Settings** › **Plugins**.
 
 The dashboard loads the page in a sandboxed iframe from `/plugins/<install id>/ui/<path>`. Requests under `/ui/api/` carry the viewer's identity; everything else under `/ui` is served without a session, for your HTML, scripts and styles.
@@ -332,6 +356,20 @@ CMD ["bun", "src/main.ts"]
 ```
 
 Listen on the manifest's `port` (default `8080`); LogiStack also sets `PORT`. Do the work you can at build time, and anything that writes files at start, into `/tmp` or `/data`.
+
+### Reach the internet through the proxy
+
+The container has no direct route out. LogiStack sets `HTTP_PROXY` and `HTTPS_PROXY` (and their lowercase forms) to the egress proxy, and `NO_PROXY` to the LogiStack API, so outbound requests work only to the hosts in your manifest's `egress`. List every host you call, such as `api.telegram.org` or `*.amazonaws.com`. A request to any other host fails with `403 Forbidden`.
+
+Bun's `fetch` and curl honour these variables. Node's built-in `fetch` ignores them: in a Node plugin, install `undici` and set its proxy-aware dispatcher once at start:
+
+```ts
+import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
+
+setGlobalDispatcher(new EnvHttpProxyAgent());
+```
+
+Other languages: check that your HTTP client reads `HTTPS_PROXY`, or pass the proxy explicitly.
 
 ## Test the contract
 

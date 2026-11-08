@@ -19,16 +19,17 @@ The image is pinned to the digest LogiStack read at install, for example `ghcr.i
 
 | Contribution | What it does | Where you see it |
 | --- | --- | --- |
-| Event hooks | The plugin receives the events it subscribes to, such as `deployment.failed` or `backup.failed`, signed, with retries. It cannot block a deploy. | The plugin's own behavior |
+| Event hooks | The plugin receives the events it subscribes to, such as `deployment.failed` or `backup.failed`, signed, with retries. Events are asynchronous: they cannot block a deploy. | The plugin's own behavior |
+| Deploy gates | The plugin is asked before every rollout in the organization and can reject it with a reason. You set how long a deploy waits and what happens when the plugin does not answer. | The deployment log, the plugin's **Deploy gate** settings |
 | API access | The plugin calls the LogiStack [REST API](../automation/rest-api.mdx) with its own key, limited to the permissions you approved. | The [audit log](../team/audit-log.mdx), under the plugin's service account |
 | DNS providers | A DNS host LogiStack does not support. Records are created through the plugin, and certificates are issued over DNS-01, wildcards included. | **Integrations** › **DNS providers** |
 | Notification channels | A chat or paging tool LogiStack does not support. | **Integrations** › **Notifications** |
 | Secret providers | A secret manager LogiStack does not support, read at deploy time through `secret://` references. | **Integrations** › **Secret providers** |
 | Tools | Named operations with a JSON Schema input. The built-in [Agent](../automation/agent.mdx) and the [MCP server](../automation/mcp-server.mdx) can call them. | The Agent, MCP clients, the REST API |
 | Settings | A form LogiStack draws from the plugin's JSON Schema. Secret fields are encrypted. No plugin code runs in the form. | The plugin's page in **Settings** › **Plugins** |
-| Pages | Screens the plugin serves: a page in the sidebar, a tab on services, or a page opened from the plugin's settings. | The **Plugins** group in the sidebar, a service's tabs |
+| Pages | Screens the plugin serves: a page in the sidebar, a tab on services, a tab on projects, or a page opened from the plugin's settings. | The **Plugins** group in the sidebar, a service's or project's tabs |
 
-A manifest can also declare `project-tab` pages and backup destinations. This release does not show project tabs, and backup destinations from plugins are not supported yet: LogiStack ignores both.
+A manifest can also declare backup destinations, but plugins cannot back backup destinations yet: LogiStack ignores them.
 
 ## Security model
 
@@ -39,7 +40,7 @@ A plugin is code someone else wrote, running on your servers. LogiStack limits w
 - No Docker socket, no host mounts, no privileged mode, and every Linux capability dropped.
 - A read-only root filesystem, a 64 MB tmpfs at `/tmp`, and one named volume at `/data` for the plugin's own state.
 - CPU and memory limits from the manifest, capped at 1 CPU and 1 GiB per plugin.
-- Its own overlay network, `ls-plugins`. It reaches the LogiStack API and the internet. It does not join your environment networks, so it cannot reach your databases or services except through the API.
+- Its own internal overlay network, `ls-plugins`, with no route out. It reaches the LogiStack API directly and the internet only through an egress proxy (below). It does not join your environment networks, so it cannot reach your databases or services except through the API.
 
 ### Permissions are approved at install
 
@@ -71,9 +72,17 @@ Every request LogiStack sends a plugin carries an HMAC-SHA256 signature with a s
 
 Turning a plugin off scales its container to zero. Its pages, tools and event deliveries stop for everyone in the organization at once. Providers it backs fail with `plugin disabled` instead of failing silently. Settings and data stay until you turn it on again.
 
-### Egress is declared, not enforced
+### Egress is limited to declared hosts
 
-The manifest lists the hosts the plugin says it talks to, and the install and update screens show them. LogiStack does not enforce this list yet: a plugin container can open connections to any host on the internet. Treat the list as the author's statement, and prefer verified plugins when that matters to you.
+The manifest's `egress` lists the hosts the plugin talks to, and the install and update screens show them. A plugin container has no direct route to the internet. LogiStack gives it `HTTP_PROXY` and `HTTPS_PROXY` pointing at an egress proxy, `ls-plugin-egress`, that lets each install reach only its own declared hosts:
+
+- An exact name such as `api.hetzner.cloud`, or `*.example.com` for any name below `example.com` (not `example.com` itself).
+- A name that resolves to a private address is refused, unless the manifest lists that address literally, such as `10.0.0.12`.
+- Any other host gets `403 Forbidden`. Ports are not restricted.
+
+The LogiStack API is reached directly, outside the proxy. A plugin installed from a dev URL runs outside LogiStack, so none of this applies to it.
+
+The egress proxy runs as one replica while at least one plugin container is installed. If its node goes down, plugins cannot reach the internet until Swarm starts it elsewhere.
 
 ### Marketplace review
 
