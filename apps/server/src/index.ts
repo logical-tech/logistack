@@ -16,6 +16,7 @@ import { resumeImports } from "./migration/import.ts";
 import { nodeTokenAuth } from "./node-tokens.ts";
 import { closeRedis, redisFor } from "./redis.ts";
 import { closeRunQueues } from "./run-queues.ts";
+import { startTrafficSync } from "./traffic-sync.ts";
 import { websocket } from "./ws.ts";
 
 export type { Actor } from "./actor.ts";
@@ -74,6 +75,12 @@ export async function startServer(config: Config) {
 		agents,
 		redisUrl: config.REDIS_URL,
 	});
+	const traffic = await startTrafficSync({
+		db: deps.db,
+		agents,
+		redisUrl: config.REDIS_URL,
+		caddyService: config.LS_CADDY_SERVICE,
+	});
 	const server = Bun.serve({
 		port: config.PORT,
 		fetch: app.fetch,
@@ -90,6 +97,7 @@ export async function startServer(config: Config) {
 			unrevoke();
 			rpc.close();
 			drains.close();
+			traffic.close();
 			await closeDeps(deps);
 		},
 	};

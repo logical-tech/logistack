@@ -14,7 +14,7 @@ describe("host parsers", () => {
 	test("cpu percent from two /proc/stat samples", () => {
 		const a = parseCpu("cpu  100 0 100 700 100 0 0 0 0 0\ncpu0 1 2 3");
 		const b = parseCpu("cpu  150 0 150 750 150 0 0 0 0 0\n");
-		expect(a).toEqual({ total: 1000, idle: 800 });
+		expect(a).toEqual({ total: 1000, idle: 800, iowait: 100, steal: 0 });
 		// 200 jiffies passed, 100 of them idle or iowait
 		expect(cpuPercent(a, b)).toBe(50);
 		expect(cpuPercent(b, b)).toBe(0);
@@ -276,4 +276,47 @@ test("prometheus text escapes labels and skips empty families", () => {
 		'logistack_container_network_bytes_total{container="we\\"ird",direction="tx"} 2',
 	);
 	expect(text).not.toContain("logistack_host_");
+});
+
+describe("host gaps", () => {
+	test("diskstats sums whole disks only, in bytes", async () => {
+		const { parseDiskstats } = await import("../src/host.ts");
+		const text = [
+			"   8       0 sda 100 0 2000 50 300 0 4000 80 0 0 0",
+			"   8       1 sda1 90 0 1800 40 290 0 3900 70 0 0 0",
+			" 259       0 nvme0n1 10 0 20 1 30 0 40 2 0 0 0",
+			"   7       0 loop0 5 0 999 1 0 0 0 0 0 0 0",
+			" 253       0 dm-0 5 0 999 1 0 0 999 0 0 0 0",
+		].join("\n");
+		expect(parseDiskstats(text)).toEqual({
+			readBytes: (2000 + 20) * 512,
+			writeBytes: (4000 + 40) * 512,
+		});
+	});
+
+	test("iowait and steal shares come from deltas", async () => {
+		const { cpuShare, parseCpu } = await import("../src/host.ts");
+		const a = parseCpu("cpu 100 0 100 700 50 0 0 50 0 0\n");
+		const b = parseCpu("cpu 200 0 200 1300 150 0 0 150 0 0\n");
+		expect(cpuShare(a, b, "iowait")).toBeCloseTo(10, 5);
+		expect(cpuShare(a, b, "steal")).toBeCloseTo(10, 5);
+	});
+
+	test("temperatures read hwmon inputs with labels", async () => {
+		const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+		const { temperatures } = await import("../src/host.ts");
+		const sys = mkdtempSync(join(tmpdir(), "ls-hwmon-"));
+		const chip = join(sys, "class/hwmon/hwmon0");
+		mkdirSync(chip, { recursive: true });
+		writeFileSync(join(chip, "name"), "coretemp\n");
+		writeFileSync(join(chip, "temp1_input"), "54000\n");
+		writeFileSync(join(chip, "temp1_label"), "Package id 0\n");
+		writeFileSync(join(chip, "temp2_input"), "-273000\n");
+		expect(temperatures(sys)).toEqual([
+			{ sensor: "coretemp/Package id 0", celsius: 54 },
+		]);
+		expect(temperatures(join(sys, "missing"))).toEqual([]);
+	});
 });

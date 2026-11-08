@@ -46,6 +46,7 @@ import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
 import { Route as AppMonitoringIncidentsRouteImport } from './routes/_app/monitoring/incidents'
 import { Route as AppMonitoringStatusPagesRouteImport } from './routes/_app/monitoring/status-pages'
+import { Route as AppMonitoringTrafficRouteImport } from './routes/_app/monitoring/traffic'
 import { Route as AppMonitoringUptimeRouteImport } from './routes/_app/monitoring/uptime'
 import { Route as AppMonitoringUsageRouteImport } from './routes/_app/monitoring/usage'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
@@ -110,6 +111,7 @@ import { Route as AppProjectsProjectIdStacksStackIdRouteRouteImport } from './ro
 import { Route as AppProjectsProjectIdTemplatesIndexRouteImport } from './routes/_app/projects/$projectId/templates/index'
 import { Route as AppProjectsProjectIdTemplatesTemplateIdRouteImport } from './routes/_app/projects/$projectId/templates/$templateId'
 import { Route as AppProjectsProjectIdServicesServiceIdIndexRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/index'
+import { Route as AppProjectsProjectIdServicesServiceIdAnalyticsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/analytics'
 import { Route as AppProjectsProjectIdServicesServiceIdBackupsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/backups'
 import { Route as AppProjectsProjectIdServicesServiceIdDatabaseRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/database'
 import { Route as AppProjectsProjectIdServicesServiceIdDeploymentsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/deployments'
@@ -317,6 +319,11 @@ const AppMonitoringStatusPagesRoute =
     path: '/status-pages',
     getParentRoute: () => AppMonitoringRouteRoute,
   } as any)
+const AppMonitoringTrafficRoute = AppMonitoringTrafficRouteImport.update({
+  id: '/traffic',
+  path: '/traffic',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
 const AppMonitoringUptimeRoute = AppMonitoringUptimeRouteImport.update({
   id: '/uptime',
   path: '/uptime',
@@ -673,6 +680,12 @@ const AppProjectsProjectIdServicesServiceIdIndexRoute =
     path: '/',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdServicesServiceIdAnalyticsRoute =
+  AppProjectsProjectIdServicesServiceIdAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdBackupsRoute =
   AppProjectsProjectIdServicesServiceIdBackupsRouteImport.update({
     id: '/backups',
@@ -811,6 +824,7 @@ export interface FileRoutesByFullPath {
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
   '/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
+  '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
@@ -875,6 +889,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -925,6 +940,7 @@ export interface FileRoutesByTo {
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
   '/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
+  '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
@@ -987,6 +1003,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -1044,6 +1061,7 @@ export interface FileRoutesById {
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/_app/monitoring/incidents': typeof AppMonitoringIncidentsRoute
   '/_app/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
+  '/_app/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/_app/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
@@ -1108,6 +1126,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/_app/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/_app/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/_app/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/_app/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   '/_app/projects/$projectId/services/$serviceId/deployments': typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -1164,6 +1183,7 @@ export interface FileRouteTypes {
     | '/monitoring/alerts'
     | '/monitoring/incidents'
     | '/monitoring/status-pages'
+    | '/monitoring/traffic'
     | '/monitoring/uptime'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
@@ -1228,6 +1248,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates/'
+    | '/projects/$projectId/services/$serviceId/analytics'
     | '/projects/$projectId/services/$serviceId/backups'
     | '/projects/$projectId/services/$serviceId/database'
     | '/projects/$projectId/services/$serviceId/deployments'
@@ -1278,6 +1299,7 @@ export interface FileRouteTypes {
     | '/monitoring/alerts'
     | '/monitoring/incidents'
     | '/monitoring/status-pages'
+    | '/monitoring/traffic'
     | '/monitoring/uptime'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
@@ -1340,6 +1362,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates'
+    | '/projects/$projectId/services/$serviceId/analytics'
     | '/projects/$projectId/services/$serviceId/backups'
     | '/projects/$projectId/services/$serviceId/database'
     | '/projects/$projectId/services/$serviceId/deployments'
@@ -1396,6 +1419,7 @@ export interface FileRouteTypes {
     | '/_app/monitoring/alerts'
     | '/_app/monitoring/incidents'
     | '/_app/monitoring/status-pages'
+    | '/_app/monitoring/traffic'
     | '/_app/monitoring/uptime'
     | '/_app/monitoring/usage'
     | '/_app/schedules_/$scheduleId'
@@ -1460,6 +1484,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/new'
     | '/_app/projects/$projectId/templates/$templateId'
     | '/_app/projects/$projectId/templates/'
+    | '/_app/projects/$projectId/services/$serviceId/analytics'
     | '/_app/projects/$projectId/services/$serviceId/backups'
     | '/_app/projects/$projectId/services/$serviceId/database'
     | '/_app/projects/$projectId/services/$serviceId/deployments'
@@ -1745,6 +1770,13 @@ declare module '@tanstack/react-router' {
       path: '/status-pages'
       fullPath: '/monitoring/status-pages'
       preLoaderRoute: typeof AppMonitoringStatusPagesRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/traffic': {
+      id: '/_app/monitoring/traffic'
+      path: '/traffic'
+      fullPath: '/monitoring/traffic'
+      preLoaderRoute: typeof AppMonitoringTrafficRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
     '/_app/monitoring/uptime': {
@@ -2195,6 +2227,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdIndexRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/services/$serviceId/analytics': {
+      id: '/_app/projects/$projectId/services/$serviceId/analytics'
+      path: '/analytics'
+      fullPath: '/projects/$projectId/services/$serviceId/analytics'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdAnalyticsRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/backups': {
       id: '/_app/projects/$projectId/services/$serviceId/backups'
       path: '/backups'
@@ -2343,6 +2382,7 @@ interface AppMonitoringRouteRouteChildren {
   AppMonitoringAlertsRoute: typeof AppMonitoringAlertsRoute
   AppMonitoringIncidentsRoute: typeof AppMonitoringIncidentsRoute
   AppMonitoringStatusPagesRoute: typeof AppMonitoringStatusPagesRoute
+  AppMonitoringTrafficRoute: typeof AppMonitoringTrafficRoute
   AppMonitoringUptimeRoute: typeof AppMonitoringUptimeRoute
   AppMonitoringUsageRoute: typeof AppMonitoringUsageRoute
   AppMonitoringIndexRoute: typeof AppMonitoringIndexRoute
@@ -2360,6 +2400,7 @@ const AppMonitoringRouteRouteChildren: AppMonitoringRouteRouteChildren = {
   AppMonitoringAlertsRoute: AppMonitoringAlertsRoute,
   AppMonitoringIncidentsRoute: AppMonitoringIncidentsRoute,
   AppMonitoringStatusPagesRoute: AppMonitoringStatusPagesRoute,
+  AppMonitoringTrafficRoute: AppMonitoringTrafficRoute,
   AppMonitoringUptimeRoute: AppMonitoringUptimeRoute,
   AppMonitoringUsageRoute: AppMonitoringUsageRoute,
   AppMonitoringIndexRoute: AppMonitoringIndexRoute,
@@ -2378,6 +2419,7 @@ const AppMonitoringRouteRouteWithChildren =
   AppMonitoringRouteRoute._addFileChildren(AppMonitoringRouteRouteChildren)
 
 interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
+  AppProjectsProjectIdServicesServiceIdAnalyticsRoute: typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   AppProjectsProjectIdServicesServiceIdBackupsRoute: typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   AppProjectsProjectIdServicesServiceIdDatabaseRoute: typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
   AppProjectsProjectIdServicesServiceIdDeploymentsRoute: typeof AppProjectsProjectIdServicesServiceIdDeploymentsRoute
@@ -2397,6 +2439,8 @@ interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
 
 const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjectIdServicesServiceIdRouteRouteChildren =
   {
+    AppProjectsProjectIdServicesServiceIdAnalyticsRoute:
+      AppProjectsProjectIdServicesServiceIdAnalyticsRoute,
     AppProjectsProjectIdServicesServiceIdBackupsRoute:
       AppProjectsProjectIdServicesServiceIdBackupsRoute,
     AppProjectsProjectIdServicesServiceIdDatabaseRoute:

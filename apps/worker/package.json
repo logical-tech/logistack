@@ -11,7 +11,9 @@
 		"./external-secrets": "./src/external-secrets.ts",
 		"./secrets": "./src/secrets.ts",
 		"./uptime-checks": "./src/uptime-checks.ts",
-		"./uptime-record": "./src/uptime-record.ts"
+		"./uptime-record": "./src/uptime-record.ts",
+		"./traffic-store": "./src/traffic-store.ts",
+		"./metrics-consumer": "./src/metrics-consumer.ts"
 	},
 	"scripts": {
 		"dev": "bun --watch src/index.ts",

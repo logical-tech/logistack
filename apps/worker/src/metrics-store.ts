@@ -29,6 +29,11 @@ export type HostRow = {
 	disk_total: number;
 	net_rx: number;
 	net_tx: number;
+	disk_read: number | null;
+	disk_write: number | null;
+	temp: number | null;
+	iowait: number | null;
+	steal: number | null;
 };
 
 export type ContainerRow = {
@@ -69,6 +74,14 @@ export function toRows(
 			disk_total: disks.reduce((s, d) => s + d.total, 0),
 			net_rx: m.host.network.rxBytes,
 			net_tx: m.host.network.txBytes,
+			disk_read: m.host.diskIo?.readBytes ?? null,
+			disk_write: m.host.diskIo?.writeBytes ?? null,
+			// The hottest sensor: what an operator watches for throttling.
+			temp: m.host.temperatures?.length
+				? Math.max(...m.host.temperatures.map((t) => t.celsius))
+				: null,
+			iowait: m.host.cpuIowaitPercent ?? null,
+			steal: m.host.cpuStealPercent ?? null,
 		};
 	}
 	const containers = m.containers.map((c) => ({
@@ -89,7 +102,8 @@ export function toRows(
 }
 
 const HOST_COLS = `node_id text, ts timestamptz, cpu real, load1 real, mem_used bigint,
-	mem_total bigint, disk_used bigint, disk_total bigint, net_rx bigint, net_tx bigint`;
+	mem_total bigint, disk_used bigint, disk_total bigint, net_rx bigint, net_tx bigint,
+	disk_read bigint, disk_write bigint, temp real, iowait real, steal real`;
 const CONTAINER_COLS = `node_id text, container_id text, ts timestamptz, service_id text,
 	name text, cpu real, mem_used bigint, mem_limit bigint, net_rx bigint, net_tx bigint,
 	blk_read bigint, blk_write bigint`;
@@ -125,6 +139,7 @@ export const PARTITIONED = [
 	"metric_container_raw",
 	"metric_host_1m",
 	"metric_container_1m",
+	"traffic_1m",
 ] as const;
 
 /** Creates the day partitions for yesterday through `daysAhead` days from now; idempotent. */
@@ -181,6 +196,7 @@ export async function applyRetention(
 	const hourCutoff = new Date(now.getTime() - retention.hourDays * 86_400_000);
 	await sql`delete from metric_host_1h where ts < ${hourCutoff.toISOString()}::timestamptz`;
 	await sql`delete from metric_container_1h where ts < ${hourCutoff.toISOString()}::timestamptz`;
+	await sql`delete from traffic_1h where ts < ${hourCutoff.toISOString()}::timestamptz`;
 	return dropped;
 }
 
@@ -243,9 +259,10 @@ export async function rollupMinute(sql: Sql, from: Date, to: Date) {
 		insert into metric_host_1m
 		select node_id, date_bin('1 minute', ts, timestamptz 'epoch') as b,
 			avg(cpu), max(cpu), avg(load1), avg(mem_used)::bigint, max(mem_total),
-			avg(disk_used)::bigint, max(disk_total), ${rate("net_rx")}, ${rate("net_tx")}, count(*)
+			avg(disk_used)::bigint, max(disk_total), ${rate("net_rx")}, ${rate("net_tx")}, count(*),
+			${rate("disk_read")}, ${rate("disk_write")}, max(temp), avg(iowait), avg(steal)
 		from (
-			select *, ${delta("net_rx")}, ${delta("net_tx")},
+			select *, ${delta("net_rx")}, ${delta("net_tx")}, ${delta("disk_read")}, ${delta("disk_write")},
 				extract(epoch from ts - lag(ts) over w) as dt
 			from metric_host_raw where ts >= $1 and ts < $3
 			window w as (partition by node_id order by ts)
@@ -256,7 +273,9 @@ export async function rollupMinute(sql: Sql, from: Date, to: Date) {
 			cpu = excluded.cpu, cpu_max = excluded.cpu_max, load1 = excluded.load1,
 			mem_used = excluded.mem_used, mem_total = excluded.mem_total,
 			disk_used = excluded.disk_used, disk_total = excluded.disk_total,
-			rx = excluded.rx, tx = excluded.tx, samples = excluded.samples`,
+			rx = excluded.rx, tx = excluded.tx, samples = excluded.samples,
+			dread = excluded.dread, dwrite = excluded.dwrite, temp = excluded.temp,
+			iowait = excluded.iowait, steal = excluded.steal`,
 		[lookback.toISOString(), from.toISOString(), to.toISOString()],
 	);
 	await sql.unsafe(
@@ -292,14 +311,17 @@ export async function rollupHour(sql: Sql, from: Date, to: Date) {
 		insert into metric_host_1h
 		select node_id, date_bin('1 hour', ts, timestamptz 'epoch') as b,
 			${wavg("cpu")}, max(cpu_max), ${wavg("load1")}, (${wavg("mem_used")})::bigint, max(mem_total),
-			(${wavg("disk_used")})::bigint, max(disk_total), ${wavg("rx")}, ${wavg("tx")}, sum(samples)
+			(${wavg("disk_used")})::bigint, max(disk_total), ${wavg("rx")}, ${wavg("tx")}, sum(samples),
+			${wavg("dread")}, ${wavg("dwrite")}, max(temp), ${wavg("iowait")}, ${wavg("steal")}
 		from metric_host_1m where ts >= $1 and ts < $2
 		group by node_id, b
 		on conflict (node_id, ts) do update set
 			cpu = excluded.cpu, cpu_max = excluded.cpu_max, load1 = excluded.load1,
 			mem_used = excluded.mem_used, mem_total = excluded.mem_total,
 			disk_used = excluded.disk_used, disk_total = excluded.disk_total,
-			rx = excluded.rx, tx = excluded.tx, samples = excluded.samples`,
+			rx = excluded.rx, tx = excluded.tx, samples = excluded.samples,
+			dread = excluded.dread, dwrite = excluded.dwrite, temp = excluded.temp,
+			iowait = excluded.iowait, steal = excluded.steal`,
 		[from.toISOString(), to.toISOString()],
 	);
 	await sql.unsafe(

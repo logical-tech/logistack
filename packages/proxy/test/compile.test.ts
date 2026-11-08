@@ -603,3 +603,52 @@ describe("branded pages", () => {
 		);
 	});
 });
+
+describe("web analytics", () => {
+	const r = (o: Partial<ProxyRoute>): ProxyRoute =>
+		({
+			domainId: "wa",
+			hostname: "site.example.com",
+			upstream: { host: "ls-svc-w1", port: 80 },
+			https: true,
+			cert: "auto",
+			...o,
+		}) as ProxyRoute;
+	const handlers = (route: ProxyRoute) =>
+		compileProxy({
+			settings,
+			dashboard,
+			routes: [route],
+		}).apps.http.servers.https?.routes.find((x) => x["@id"] === "ls-domain-wa")
+			?.handle;
+
+	test("off by default: the upstream gets /_ls/ paths", () => {
+		expect(handlers(r({}))?.map((h) => h.handler)).toEqual(["reverse_proxy"]);
+	});
+
+	test("script and beacon answered before the upstream, under the path prefix, after access checks", () => {
+		const h = handlers(
+			r({
+				webAnalytics: true,
+				pathPrefix: "/blog",
+				access: [
+					{ type: "basic_auth", users: [{ username: "a", hash: "$2a$x" }] },
+				],
+			}),
+		);
+		expect(h?.map((x) => x.handler)).toEqual([
+			"authentication",
+			"subroute",
+			"reverse_proxy",
+		]);
+		expect(h?.[1]).toMatchSnapshot();
+	});
+
+	test("a redirect has no script", () => {
+		expect(
+			handlers(
+				r({ webAnalytics: true, redirectTo: "https://x.example.com" }),
+			)?.map((x) => x.handler),
+		).toEqual(["static_response"]);
+	});
+});

@@ -7,6 +7,8 @@ const optional = z.string().min(1).optional();
 const ConfigSchema = z.object({
 	DATABASE_URL: z.url(),
 	REDIS_URL: z.url(),
+	/** Swarm service of the Caddy proxy; agents follow its access log for traffic analytics. */
+	LS_CADDY_SERVICE: z.string().default("logistack_caddy"),
 	/** 32 random bytes, base64 (`openssl rand -base64 32`). */
 	LOGISTACK_MASTER_KEY: z.string().refine((v) => {
 		try {

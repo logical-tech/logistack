@@ -460,6 +460,7 @@ export async function syncProxy(
 					...r.route,
 					access: routeAccess(d.access, basicAuth),
 					...routeEdge(d.edge, maintenance, { orgName, logo: orgLogo }),
+					...(d.webAnalytics && { webAnalytics: true }),
 				});
 			else outcome.set(d.id, r.error);
 		} catch (e) {

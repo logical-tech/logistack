@@ -386,6 +386,20 @@
       "when": 1794200000003,
       "tag": "0054_uptime",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794200000004,
+      "tag": "0055_traffic",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794200000005,
+      "tag": "0056_host_metric_gaps",
+      "breakpoints": true
     }
   ]
 }

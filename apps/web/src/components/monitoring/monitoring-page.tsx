@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 type Section =
 	| "overview"
+	| "traffic"
 	| "usage"
 	| "nodes"
 	| "uptime"
@@ -16,6 +17,7 @@ type Section =
 
 const TO = {
 	overview: "/monitoring",
+	traffic: "/monitoring/traffic",
 	usage: "/monitoring/usage",
 	nodes: "/monitoring/nodes",
 	uptime: "/monitoring/uptime",
@@ -63,6 +65,7 @@ export function MonitoringPage({
 					onChange={(id) => navigate({ to: TO[id], search: (s) => s })}
 					items={[
 						{ id: "overview", label: "Overview" },
+						{ id: "traffic", label: "Traffic" },
 						{ id: "usage", label: "Usage" },
 						{ id: "nodes", label: "Nodes" },
 						{ id: "uptime", label: "Uptime" },

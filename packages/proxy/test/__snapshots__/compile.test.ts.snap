@@ -1610,3 +1610,55 @@ exports[`edge rules error pages: snapshot, one error route per distinct page, on
   ],
 }
 `;
+
+exports[`web analytics script and beacon answered before the upstream, under the path prefix, after access checks 1`] = `
+{
+  "handler": "subroute",
+  "routes": [
+    {
+      "handle": [
+        {
+          "body": "(function(){var d=document,l=location,w=window,s=d.currentScript,b=s&&s.src?new URL(s.src).pathname.replace(/a\\.js$/,""):"/_ls/",last,first=1;function send(n){if(w.navigator.webdriver||/^(localhost|127\\.|\\[::1\\])/.test(l.hostname))return;var m=/[?&]utm_source=([^&#]*)/.exec(l.search),u=l.pathname+(m?"?utm_source="+m[1]:"");if(n=="pageview"){if(u==last)return;last=u}var q="n="+encodeURIComponent(n)+"&u="+encodeURIComponent(u)+"&w="+w.innerWidth;if(n=="pageview"&&first){first=0;q+="&r="+encodeURIComponent(d.referrer)}try{fetch(b+"e?"+q,{keepalive:true,credentials:"omit"})}catch(e){}}var h=w.history,p=h.pushState;if(p){h.pushState=function(){p.apply(this,arguments);send("pageview")};w.addEventListener("popstate",function(){send("pageview")})}w.lsa=function(n){send(String(n).slice(0,64))};send("pageview")})();",
+          "handler": "static_response",
+          "headers": {
+            "Cache-Control": [
+              "public, max-age=3600",
+            ],
+            "Content-Type": [
+              "application/javascript; charset=utf-8",
+            ],
+          },
+          "status_code": 200,
+        },
+      ],
+      "match": [
+        {
+          "path": [
+            "/blog/_ls/a.js",
+          ],
+        },
+      ],
+    },
+    {
+      "handle": [
+        {
+          "handler": "static_response",
+          "headers": {
+            "Cache-Control": [
+              "no-store",
+            ],
+          },
+          "status_code": 204,
+        },
+      ],
+      "match": [
+        {
+          "path": [
+            "/blog/_ls/e",
+          ],
+        },
+      ],
+    },
+  ],
+}
+`;
