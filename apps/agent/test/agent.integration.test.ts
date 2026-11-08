@@ -280,6 +280,44 @@ describe.skipIf(!hasDocker)("agent against the local daemon", () => {
 		);
 	});
 
+	test("a host job reaches the host's PID 1 through nsenter; a plain one cannot", async () => {
+		const run = async (host: boolean) => {
+			const out: Uint8Array[] = [];
+			let exitCode: number | null = null;
+			for await (const e of agents.runJob(nodeId, {
+				kind: "container",
+				image: IMAGE,
+				containerName: `${PREFIX}-host-${host}`,
+				cmd: [
+					"nsenter",
+					"-t",
+					"1",
+					"-m",
+					"-u",
+					"-i",
+					"-n",
+					"-p",
+					"--",
+					"cat",
+					"/proc/1/comm",
+				],
+				labels: TEST_LABELS,
+				host,
+				timeoutSec: 30,
+			})) {
+				if (e.type === "output") out.push(e.data);
+				else if (e.type === "result") exitCode = e.exitCode;
+			}
+			return { exitCode, out: text(out).trim() };
+		};
+		const host = await run(true);
+		expect(host.exitCode).toBe(0);
+		// The host's init, not the job container's `sh`.
+		expect(host.out).not.toBe("sh");
+		expect(host.out.length).toBeGreaterThan(0);
+		expect((await run(false)).exitCode).not.toBe(0);
+	});
+
 	test("exec job in a task: script on stdin, exit code, output limit", async () => {
 		const events: unknown[] = [];
 		for await (const e of agents.runJob(nodeId, {

@@ -32,7 +32,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import type { Bus } from "./bus.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
-import { tail } from "./node-runner.ts";
+import { type NodeRunner, tail } from "./node-runner.ts";
 
 // OS patching of nodes. Every host command is an argv run as root on the host through the node's
 // agent (`nsenter` into PID 1 from a privileged, host-PID job container); never a shell string.
@@ -510,7 +510,7 @@ export function clusterDeps(ctx: Ctx): PatchDeps {
 	const presence = async (swarmNodeId: string) =>
 		Boolean(await ctx.bus.redis.get(`ls:nodes:${swarmNodeId}`));
 	return {
-		host: (n) => agentHost(ctx, n),
+		host: (n) => agentHost(ctx.nodes, ctx.cfg.LS_BACKUP_TOOLS_IMAGE, n),
 		async setAvailability(n, a) {
 			await ctx.db.update(node).set({ desired: a }).where(eq(node.id, n.id));
 			await ctx.bus.redis.publish(NODE_OPS_CHANNEL, "patch");
@@ -565,11 +565,16 @@ export async function unhealthyServices(
 }
 
 /** Host commands through the node's agent: argv after `nsenter` into PID 1's namespaces. */
-export function agentHost(ctx: Ctx, n: PatchNode): PatchHost {
+export function agentHost(
+	runner: NodeRunner,
+	/** Any image with `nsenter` (busybox has it). */
+	image: string,
+	n: Pick<PatchNode, "id" | "swarmNodeId" | "organizationId">,
+): PatchHost {
 	const run: PatchHost["run"] = async (argv, o = {}) => {
-		const job = ctx.nodes.runJob(n.swarmNodeId, {
+		const job = runner.runJob(n.swarmNodeId, {
 			kind: "container",
-			image: ctx.cfg.LS_BACKUP_TOOLS_IMAGE,
+			image,
 			containerName: `ls-patch-${crypto.randomUUID().slice(0, 13)}`,
 			labels: managedLabels({
 				resource: n.id,

@@ -47,6 +47,7 @@ import { networkMapRoutes } from "./routes/network-map.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
+import { patching } from "./routes/patching.ts";
 import { previews } from "./routes/previews.ts";
 import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
@@ -171,6 +172,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", vulnerabilities)
 		.route("/api", usage)
 		.route("/api", nodes)
+		.route("/api", patching)
 		.route("/api", networkMapRoutes)
 		.route("/api", members)
 		.route("/api", apiKeys)

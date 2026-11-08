@@ -183,14 +183,12 @@ describe.skipIf(!swarmActive)("node patching on simulated nodes", () => {
 		}
 		db = createDb(url, { onnotice: () => {} });
 		orgId = `org_${tag}`;
-		await db
-			.insert(organization)
-			.values({
-				id: orgId,
-				name: "Patching",
-				slug: tag,
-				createdAt: new Date(),
-			});
+		await db.insert(organization).values({
+			id: orgId,
+			name: "Patching",
+			slug: tag,
+			createdAt: new Date(),
+		});
 
 		for (const [i, image] of [OUTDATED, OUTDATED, "alpine:3.22"].entries()) {
 			const name = `${tag}-n${i + 1}`;
