@@ -108,10 +108,9 @@ describe.skipIf(!hasDocker)("tailscale sync on the local swarm", () => {
 	test("creates labelled tailscaled and publisher, idempotently, and removes them on disable", async () => {
 		await syncTailscale(ctx);
 		const first = await ours();
-		expect(first.services.map((s) => Object.keys(s.Mode ?? {})[0]).sort()).toEqual([
-			"Global",
-			"Replicated",
-		]);
+		expect(
+			first.services.map((s) => Object.keys(s.Mode ?? {})[0]).sort(),
+		).toEqual(["Global", "Replicated"]);
 		expect(first.configs).toHaveLength(1);
 		for (const s of first.services)
 			expect(s.Labels?.["logistack.managed"]).toBe("true");
