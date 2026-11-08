@@ -104,7 +104,7 @@ function send(
 	);
 }
 
-function parseManifest(input: string | Manifest): Manifest {
+export function parseManifest(input: string | Manifest): Manifest {
 	if (typeof input !== "string") return input;
 	let raw: unknown;
 	try {
