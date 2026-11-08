@@ -7,14 +7,10 @@ import { EmptyState } from "@/components/empty-state";
 import { RangePicker } from "@/components/monitoring/host-charts";
 import { MonitoringPage } from "@/components/monitoring/monitoring-page";
 import { Panel, SkeletonRows } from "@/components/panel";
-import {
-	formatCount,
-	formatMs,
-	StatRow,
-	TrafficCharts,
-} from "@/components/projects/service-traffic";
+import { StatRow, TrafficCharts } from "@/components/projects/service-traffic";
 import { trafficOverviewQuery } from "@/lib/api/traffic";
 import type { ProjectId, ServiceId } from "@/lib/api/types";
+import { formatCount, formatMs } from "@/lib/metrics";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/monitoring/traffic")({

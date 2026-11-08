@@ -78,6 +78,16 @@ export const HostMetrics = z.object({
 	/** Cumulative counters summed over physical interfaces. */
 	network: z.object({ rxBytes: Bytes, txBytes: Bytes }),
 	uptimeSec: z.number().nonnegative(),
+	/** 0..100 of all CPU time; older agents omit these and the fields below. */
+	cpuIowaitPercent: z.number().nonnegative().optional(),
+	cpuStealPercent: z.number().nonnegative().optional(),
+	/** Cumulative bytes over whole physical disks. */
+	diskIo: z.object({ readBytes: Bytes, writeBytes: Bytes }).optional(),
+	/** hwmon sensors; empty on hosts that expose none (most VMs). */
+	temperatures: z
+		.array(z.object({ sensor: z.string().max(64), celsius: z.number() }))
+		.max(64)
+		.optional(),
 });
 export type HostMetrics = z.infer<typeof HostMetrics>;
 

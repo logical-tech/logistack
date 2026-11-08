@@ -151,3 +151,18 @@ export function timeTicks(
 	for (let t = first; t <= to; t += every) ticks.push(t);
 	return ticks;
 }
+
+const compact = new Intl.NumberFormat("en", {
+	notation: "compact",
+	maximumFractionDigits: 1,
+});
+/** 12345 -> "12.3K". */
+export const formatCount = (n: number | null | undefined) =>
+	n === null || n === undefined ? "–" : compact.format(n);
+/** Milliseconds: "4.2 ms", "212 ms", "1.8 s". */
+export const formatMs = (n: number | null | undefined) =>
+	n === null || n === undefined
+		? "–"
+		: n >= 1000
+			? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)} s`
+			: `${n >= 100 ? Math.round(n) : n.toFixed(1)} ms`;

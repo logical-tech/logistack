@@ -94,6 +94,23 @@ export function renderPrometheus(s: Snapshot): string {
 		metric("logistack_host_uptime_seconds", "gauge", "Host uptime.", [
 			[{}, h.uptimeSec],
 		]);
+		if (h.diskIo)
+			metric(
+				"logistack_host_disk_io_bytes_total",
+				"counter",
+				"Bytes read and written on whole physical disks.",
+				[
+					[{ op: "read" }, h.diskIo.readBytes],
+					[{ op: "write" }, h.diskIo.writeBytes],
+				],
+			);
+		if (h.temperatures?.length)
+			metric(
+				"logistack_host_temperature_celsius",
+				"gauge",
+				"hwmon sensor temperature.",
+				h.temperatures.map((t) => [{ sensor: t.sensor }, t.celsius]),
+			);
 	}
 
 	const c = (m: ContainerMetrics, extra: Record<string, string> = {}) => ({

@@ -41,6 +41,14 @@ export const HostPoint = z.object({
 	diskTotal: Num,
 	rx: Num,
 	tx: Num,
+	/** Bytes per second over whole disks; null from agents that predate it. */
+	diskRead: Num.optional(),
+	diskWrite: Num.optional(),
+	/** Hottest sensor, °C; null on hosts without sensors. */
+	temp: Num.optional(),
+	/** 0..100 of CPU time waiting on I/O, and taken by the hypervisor. */
+	iowait: Num.optional(),
+	steal: Num.optional(),
 });
 export type HostPoint = z.infer<typeof HostPoint>;
 

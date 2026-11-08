@@ -52,7 +52,7 @@ type Metric = {
 	domain?: [number, number];
 	value: (p: HostPoint) => number | null;
 	/** "18.4 GiB of 96.0 GiB" beside the latest value. */
-	detail?: (p: HostPoint) => string;
+	detail?: (p: HostPoint) => string | undefined;
 };
 
 const usedOf = (used: number | null, total: number | null) =>
@@ -65,6 +65,10 @@ const PERCENT: Metric[] = [
 		format: formatPct,
 		domain: [0, 100],
 		value: (p) => p.cpu,
+		detail: (p) =>
+			typeof p.iowait === "number"
+				? `iowait ${formatPct(p.iowait)} · steal ${formatPct(p.steal)}`
+				: undefined,
 	},
 	{
 		id: "memory",
@@ -119,6 +123,19 @@ export function HostCharts({
 	const rowsFor = (value: (p: HostPoint) => number | null) =>
 		data && toRows(input, value, data.stepSec);
 	const last = data?.series[0]?.points.at(-1);
+	const hasTemp = !!data?.series.some((s) =>
+		s.points.some((p) => typeof p.temp === "number"),
+	);
+	/** In/out pairs for one host; one summed line per node otherwise. */
+	const pairRows = (a: "rx" | "diskRead", b: "tx" | "diskWrite") =>
+		data &&
+		(perNode
+			? toRows(input, (p) => sum(p[a] ?? null, p[b] ?? null), data.stepSec)
+			: toRows(
+					[a, b].map((key) => ({ key, points: input[0]?.points ?? [] })),
+					(p, key) => p[key as typeof a] ?? null,
+					data.stepSec,
+				));
 
 	return (
 		<div className="grid gap-4 md:grid-cols-2">
@@ -172,6 +189,42 @@ export function HostCharts({
 				showLatest={!perNode}
 				detail={last && `out ${formatRate(last.tx)}`}
 			/>
+			<MetricChart
+				title="Disk I/O"
+				rows={pairRows("diskRead", "diskWrite")}
+				series={
+					perNode
+						? nodeSeries
+						: [
+								{ key: "diskRead", label: "Read", color: seriesColor(0) },
+								{ key: "diskWrite", label: "Write", color: seriesColor(1) },
+							]
+				}
+				format={formatRate}
+				axisFormat={(v) => formatRate(v, true)}
+				range={range}
+				window={window}
+				empty="No disk I/O reported yet: the node's agent predates it."
+				showLatest={!perNode}
+				detail={last && `write ${formatRate(last.diskWrite)}`}
+			/>
+			{hasTemp && (
+				<MetricChart
+					title="Temperature"
+					rows={rowsFor((p) => p.temp ?? null)}
+					series={
+						perNode
+							? nodeSeries
+							: [{ key: "v", label: "Hottest sensor", color: seriesColor(0) }]
+					}
+					format={(v) => `${Math.round(v)} °C`}
+					range={range}
+					window={window}
+					empty={empty}
+					showLatest={!perNode}
+					detail="hottest sensor"
+				/>
+			)}
 		</div>
 	);
 }

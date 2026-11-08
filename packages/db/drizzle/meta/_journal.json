@@ -351,6 +351,13 @@
       "when": 1794154767026,
       "tag": "0049_traffic",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794154867026,
+      "tag": "0050_host_metric_gaps",
+      "breakpoints": true
     }
   ]
 }

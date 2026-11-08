@@ -21,30 +21,22 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { trafficQuery, useSetWebAnalytics } from "@/lib/api/traffic";
 import type { ServiceId } from "@/lib/api/types";
-import { formatBytes, formatRate, toRows } from "@/lib/metrics";
+import {
+	formatBytes,
+	formatCount,
+	formatMs,
+	formatRate,
+	toRows,
+} from "@/lib/metrics";
 import { cn } from "@/lib/utils";
 
 const ALL = "all";
 const EMPTY = "No requests in this range.";
 
-const count = new Intl.NumberFormat("en", {
-	notation: "compact",
-	maximumFractionDigits: 1,
-});
-export const formatCount = (n: number | null | undefined) =>
-	n === null || n === undefined ? "–" : count.format(n);
-export const formatMs = (n: number | null | undefined) =>
-	n === null || n === undefined
-		? "–"
-		: n >= 1000
-			? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)} s`
-			: `${n >= 100 ? Math.round(n) : n.toFixed(1)} ms`;
 const formatRps = (n: number) =>
 	n >= 100 ? `${Math.round(n)}/s` : `${n.toFixed(n >= 10 ? 1 : 2)}/s`;
 const axisRps = (n: number) =>
 	n === 0 ? "0" : `${n >= 10 ? Math.round(n) : n.toFixed(1)}/s`;
-export const errorRate = (status: number[], requests: number) =>
-	requests ? ((status[4] ?? 0) / requests) * 100 : null;
 
 const regionName = new Intl.DisplayNames(["en"], { type: "region" });
 const country = (code: string) => {
@@ -286,7 +278,7 @@ export function ServiceTraffic({ serviceId }: { serviceId: ServiceId }) {
 		trafficQuery(serviceId, range, domainId === ALL ? undefined : domainId),
 	);
 	const t = data?.totals;
-	const rate = t ? errorRate(t.status, t.requests) : null;
+	const rate = t?.requests ? (t.status[4] / t.requests) * 100 : null;
 
 	if (data && data.domains.length === 0)
 		return (
