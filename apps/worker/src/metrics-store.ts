@@ -125,6 +125,7 @@ export const PARTITIONED = [
 	"metric_container_raw",
 	"metric_host_1m",
 	"metric_container_1m",
+	"traffic_1m",
 ] as const;
 
 /** Creates the day partitions for yesterday through `daysAhead` days from now; idempotent. */
@@ -181,6 +182,7 @@ export async function applyRetention(
 	const hourCutoff = new Date(now.getTime() - retention.hourDays * 86_400_000);
 	await sql`delete from metric_host_1h where ts < ${hourCutoff.toISOString()}::timestamptz`;
 	await sql`delete from metric_container_1h where ts < ${hourCutoff.toISOString()}::timestamptz`;
+	await sql`delete from traffic_1h where ts < ${hourCutoff.toISOString()}::timestamptz`;
 	return dropped;
 }
 

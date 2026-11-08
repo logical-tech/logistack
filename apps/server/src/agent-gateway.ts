@@ -19,6 +19,8 @@ import {
 	type RpcErrorCode,
 	type ServerMessageInput,
 	STALL_TIMEOUT_MS,
+	TRAFFIC_STREAM,
+	type TrafficConfig,
 } from "@logistack/contracts";
 import type { RedisClient, ServerWebSocket } from "bun";
 import type { Hono } from "hono";
@@ -160,6 +162,8 @@ export type Agents = {
 	): Promise<{ usage: DiskUsage; report: PruneReport | null }>;
 	/** Replaces a node's drain setup; false when its agent is gone or predates `log-drains`. */
 	pushDrains(nodeId: string, config: DrainsConfig): boolean;
+	/** Replaces a node's traffic analytics setup; false when its agent is gone or predates `traffic`. */
+	pushTraffic(nodeId: string, config: TrafficConfig): boolean;
 	/** Sends one test line through `drain` from that node. */
 	testDrain(
 		nodeId: string,
@@ -352,6 +356,21 @@ export function mountAgentGateway(
 					"event",
 					JSON.stringify(m.event),
 				]);
+				return;
+			case "traffic":
+				// Acked only once durable in Redis; the agent keeps (bounded) and resends until then.
+				await redis.send("XADD", [
+					TRAFFIC_STREAM,
+					"MAXLEN",
+					"~",
+					"20000",
+					"*",
+					"node",
+					conn.node.nodeId,
+					"data",
+					JSON.stringify(m.minutes),
+				]);
+				send(conn, { type: "traffic.ack", seq: m.seq });
 				return;
 			case "drains.status":
 				for (const d of m.drains) {
@@ -667,6 +686,13 @@ export function mountAgentGateway(
 			const conn = nodes.get(nodeId);
 			if (!conn?.node.capabilities.includes("log-drains")) return false;
 			send(conn, { type: "drains.config", ...config });
+			return true;
+		},
+
+		pushTraffic(nodeId, config) {
+			const conn = nodes.get(nodeId);
+			if (!conn?.node.capabilities.includes("traffic")) return false;
+			send(conn, { type: "traffic.config", ...config });
 			return true;
 		},
 

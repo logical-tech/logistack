@@ -62,6 +62,8 @@ export const domain = pgTable(
 		dnsRecordId: text("dns_record_id"),
 		/** Served through the Cloudflare Tunnel of `dnsProviderId` instead of a public port. */
 		tunnel: boolean("tunnel").notNull().default(false),
+		/** Caddy serves the first-party analytics script and beacon under `/_ls/` before the upstream. */
+		webAnalytics: boolean("web_analytics").notNull().default(false),
 		/** Checks the proxy runs before the upstream; basic auth holds bcrypt hashes only. */
 		access: jsonb("access").$type<AccessRule[]>().notNull().default([]),
 		status: domainStatus("status").notNull().default("pending"),

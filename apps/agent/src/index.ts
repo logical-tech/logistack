@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	AGENT_NODE_HEADER,
 	AGENT_PROTOCOL_VERSION,
@@ -15,10 +15,12 @@ import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 import { type CpuPrev, collectContainers, shouldForward } from "./docker.ts";
 import { createDrains } from "./drains.ts";
+import { loadCountryDb, refreshCountryDb } from "./geoip.ts";
 import { type CpuSample, readHost } from "./host.ts";
 import { Link } from "./link.ts";
 import { renderPrometheus } from "./prometheus.ts";
 import { createSessions } from "./sessions.ts";
+import { createTraffic } from "./traffic.ts";
 
 const Config = z.object({
 	LOGISTACK_API_URL: z.url(),
@@ -48,6 +50,11 @@ const Config = z.object({
 		.int()
 		.min(100)
 		.default(30_000),
+	/** Country lookups for traffic analytics from DB-IP Lite (downloaded monthly to the token's folder). */
+	LOGISTACK_AGENT_GEOIP: z
+		.enum(["true", "false"])
+		.default("true")
+		.transform((v) => v === "true"),
 	/** Log drain buffer per drain; past it the oldest lines are dropped. */
 	LOGISTACK_AGENT_DRAIN_BUFFER_BYTES: z.coerce
 		.number()
@@ -145,6 +152,30 @@ async function main() {
 		if (statuses.length)
 			link?.send({ type: "drains.status", at: Date.now(), drains: statuses });
 	}, 15_000);
+	const traffic = createTraffic(docker, {
+		send: (m) => link?.send(m) ?? false,
+		onError: (msg, fields) => log("warn", msg, fields),
+	});
+	if (cfg.LOGISTACK_AGENT_GEOIP) {
+		const path = join(
+			dirname(cfg.LOGISTACK_AGENT_TOKEN_PATH),
+			"dbip-country-lite.mmdb",
+		);
+		const refresh = async () => {
+			try {
+				await refreshCountryDb(path);
+			} catch (e) {
+				log(
+					"warn",
+					"could not download the GeoIP database; countries stay empty",
+					{ error: errMsg(e) },
+				);
+			}
+			traffic.aggregator.setCountryReader(loadCountryDb(path));
+		};
+		void refresh();
+		setInterval(refresh, 86_400_000);
+	}
 	let sessions: ReturnType<typeof createSessions> | undefined;
 	const latest: { host: HostMetrics | null; containers: ContainerMetrics[] } = {
 		host: null,
@@ -180,8 +211,10 @@ async function main() {
 					if (
 						e.Type === "container" &&
 						(e.Action === "start" || e.Action === "die")
-					)
+					) {
 						drains.containerEvent();
+						traffic.containerEvent();
+					}
 					if (shouldForward(e))
 						link?.send({
 							type: "docker_event",
@@ -266,6 +299,7 @@ async function main() {
 						"job-ack",
 						"log-drains",
 						"stdin-ack",
+						"traffic",
 					],
 					...swarm,
 				});
@@ -290,6 +324,8 @@ async function main() {
 					void drains.apply(m);
 					return;
 				}
+				if (m.type === "traffic.config") return void traffic.apply(m);
+				if (m.type === "traffic.ack") return traffic.ack(m.seq);
 				if (m.type === "drains.test") {
 					const reply = link;
 					void drains
@@ -323,6 +359,7 @@ async function main() {
 			};
 			ws.onclose = (ev) => {
 				clearInterval(heartbeat);
+				traffic.disconnected();
 				sessions?.closeAll();
 				link = sessions = undefined;
 				if (admitted) {

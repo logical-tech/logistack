@@ -1,9 +1,14 @@
+import { TRAFFIC_STREAM } from "@logistack/contracts";
 import { node } from "@logistack/db";
 import { autoscalePass } from "./autoscale.ts";
 import { log, withLock } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import { startQueuedUpdates } from "./instance-update.ts";
-import { createMetricsConsumer, type NodeRef } from "./metrics-consumer.ts";
+import {
+	createMetricsConsumer,
+	field,
+	type NodeRef,
+} from "./metrics-consumer.ts";
 import {
 	applyRetention,
 	ensurePartitions,
@@ -13,6 +18,7 @@ import {
 import { claimJoin, runJoinStep } from "./node-join.ts";
 import { onNodeOps, syncNodes } from "./nodes.ts";
 import { evaluateServiceThresholds, evaluateThresholds } from "./thresholds.ts";
+import { insertTraffic, rollupTraffic, TrafficEntry } from "./traffic-store.ts";
 
 /** Matches the agent's scrape cadence closely enough; decisions use 1- and 5-minute windows. */
 const AUTOSCALE_INTERVAL_MS = 30_000;
@@ -73,8 +79,32 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		redisUrl: ctx.cfg.REDIS_URL,
 		resolveNode,
 	});
+	const traffic = createMetricsConsumer({
+		sql,
+		redisUrl: ctx.cfg.REDIS_URL,
+		stream: TRAFFIC_STREAM,
+		handle: async (entries) => {
+			const rows = [];
+			for (const [, fields] of entries) {
+				const nodeId = field(fields, "node");
+				const parsed = TrafficEntry.safeParse(
+					JSON.parse(field(fields, "data") ?? "null"),
+				);
+				if (!nodeId || !parsed.success) {
+					log("warn", "dropped malformed traffic entry", { node: nodeId });
+					continue;
+				}
+				// Partitions exist from yesterday on; older minutes (a long outage) have no home.
+				for (const minute of parsed.data)
+					if (Math.abs(minute.ts - Date.now()) < 86_400_000)
+						rows.push({ nodeId, minute });
+			}
+			await insertTraffic(sql, rows);
+		},
+	});
 	const ingest = new AbortController();
 	const consuming = consumer.run(ingest.signal);
+	const trafficConsuming = traffic.run(ingest.signal);
 
 	let lastRetention = 0;
 	const maintenance = every(
@@ -84,6 +114,7 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 			await withLock(redis, "ls:lock:metrics", 300_000, async () => {
 				await ensurePartitions(sql);
 				await rollup(sql);
+				await rollupTraffic(sql);
 				await evaluateThresholds(sql, ctx.bus);
 				await evaluateServiceThresholds(sql, ctx.bus);
 				if (Date.now() - lastRetention > 600_000) {
@@ -138,6 +169,8 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		updates.stop();
 		ingest.abort();
 		consumer.close();
+		traffic.close();
 		await consuming.catch(() => {});
+		await trafficConsuming.catch(() => {});
 	};
 }
