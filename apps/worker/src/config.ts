@@ -98,6 +98,7 @@ const ConfigSchema = z.object({
 		.default("ghcr.io/railwayapp/railpack-frontend:v0.43.0"),
 	LS_ZOT_IMAGE: z.string().default("ghcr.io/project-zot/zot:v2.1.23"),
 	LS_CLOUDFLARED_IMAGE: z.string().default("cloudflare/cloudflared:2026.10.7"),
+	LS_TAILSCALE_IMAGE: z.string().default("tailscale/tailscale:v1.104.4"),
 	/** Publishes the local registry on this host port for loopback pushes (single node without DNS, tests). */
 	LS_LOCAL_REGISTRY_PORT: z.coerce.number().int().min(0).max(65535).default(0),
 	/** Allows `file://` git sources; only for tests, a clone of the worker's own disk is a leak. */
