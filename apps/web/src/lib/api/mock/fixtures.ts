@@ -665,6 +665,7 @@ export function createMockDb(): MockDb {
 			source: "compose",
 			templateId: null,
 			git: null,
+			gitSyncError: null,
 			createdBy: null,
 			createdAt: ago(60 * 24 * 30),
 			updatedAt: ago(60 * 24 * 30),

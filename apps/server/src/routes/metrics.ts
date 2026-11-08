@@ -23,7 +23,7 @@ import {
 import { syncCleanupScheduler } from "@logistack/worker/schedulers";
 import { and, eq, inArray, notInArray, type SQL, sql } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import { Cron, Timezone } from "../cron.ts";
 import { Failure, notFound } from "../errors.ts";
 import {
@@ -427,6 +427,7 @@ export const metrics = router()
 							tx,
 							eq(serviceThreshold.organizationId, organizationId),
 						);
+				await auditInTx(c, tx);
 				return { thresholds: out, serviceThresholds };
 			});
 			const cleanup = await loadCleanup(db);
@@ -484,14 +485,15 @@ export const metrics = router()
 			const { id } = c.req.valid("param");
 			const { thresholds } = c.req.valid("json");
 			const { db } = c.var.deps;
-			const saved = await db.transaction((tx) =>
-				saveServiceThresholds(
+			const saved = await db.transaction(async (tx) => {
+				await auditInTx(c, tx);
+				return saveServiceThresholds(
 					tx,
 					requireActor(c).organizationId,
 					thresholds.map((t) => ({ ...t, serviceId: id })),
 					id,
-				),
-			);
+				);
+			});
 			return c.json(saved, 200);
 		},
 	);

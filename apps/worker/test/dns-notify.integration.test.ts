@@ -31,7 +31,13 @@ import {
 import { loadConfig } from "../src/config.ts";
 import type { Ctx } from "../src/ctx.ts";
 import type { NodeRunner } from "../src/node-runner.ts";
-import { channelStatusKey, dispatch, dispatchDeps } from "../src/notify.ts";
+import {
+	attempt,
+	channelStatusKey,
+	dispatch,
+	dispatchDeps,
+	type NotifyJob,
+} from "../src/notify.ts";
 import { syncProxy } from "../src/proxy.ts";
 import type { Queues } from "../src/queues.ts";
 import { hasDocker, sh } from "./harness.ts";
@@ -409,7 +415,7 @@ describe.skipIf(!hasCaddyImage)(
 				const guarded = await dispatch(
 					{ ...event, id: `evt_${crypto.randomUUID()}` },
 					dispatchDeps(ctx),
-					{ attempts: 2, baseMs: 1 },
+					{ attempts: 1, baseMs: 1 },
 				);
 				expect(guarded.get(ch?.id as string)).toEqual({
 					ok: false,
@@ -424,14 +430,18 @@ describe.skipIf(!hasCaddyImage)(
 
 				failing = true;
 				const second = { ...event, id: `evt_${crypto.randomUUID()}` };
-				const out = await dispatch(second, replicas[0] as never, {
-					attempts: 3,
-					baseMs: 10,
-				});
-				expect(out.get(ch?.id as string)).toEqual({
-					ok: false,
-					error: "webhook send: HTTP 500",
-				});
+				// Stands in for the notify queue: retries are collected, then run by hand.
+				const queued: [NotifyJob, number][] = [];
+				const deps = {
+					...dispatchDeps(ctx, fetch),
+					retryLater: async (job: NotifyJob, ms: number) =>
+						void queued.push([job, ms]),
+				};
+				const retry = { attempts: 3, baseMs: 10 };
+				const out = await dispatch(second, deps, retry);
+				expect(out.get(ch?.id as string)).toBe("retrying");
+				for (let next = queued.shift(); next; next = queued.shift())
+					await attempt(next[0], deps, retry);
 				expect(hits.filter((h) => h === second.id)).toHaveLength(3);
 				const status = JSON.parse(
 					(await ctx.bus.redis.get(channelStatusKey(ch?.id as string))) ?? "{}",

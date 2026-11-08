@@ -302,6 +302,13 @@
       "when": 1794055726545,
       "tag": "0042_image_scan",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794056314472,
+      "tag": "0043_stack_git_sync_error",
+      "breakpoints": true
     }
   ]
 }

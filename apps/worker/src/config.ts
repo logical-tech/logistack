@@ -104,6 +104,11 @@ const ConfigSchema = z.object({
 	LS_LOCAL_REGISTRY_PORT: z.coerce.number().int().min(0).max(65535).default(0),
 	/** Allows `file://` git sources; only for tests, a clone of the worker's own disk is a leak. */
 	LS_ALLOW_LOCAL_GIT: z.stringbool().default(false),
+	/**
+	 * Encrypts certificate keys in Caddy's Redis storage. One way: a worker from before this
+	 * setting pushes Caddy a config without the key, and Caddy then cannot read what it stored.
+	 */
+	LS_CADDY_STORAGE_ENCRYPTION: z.stringbool().default(false),
 	/** Test isolation: prefix for every Docker name and labels added to every object. */
 	LS_NAME_PREFIX: z.string().default(""),
 	LS_SCOPE_LABELS: json(z.record(z.string(), z.string())).default({}),

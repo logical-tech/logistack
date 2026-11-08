@@ -68,7 +68,7 @@ export type AccessRule =
 export type ProxySettings = {
 	adminListen: string;
 	acmeEmail: string;
-	storage: { redisUrl: string; keyPrefix: string };
+	storage: { redisUrl: string; keyPrefix: string; encryptionKey?: string };
 	/** Fallback issuer after Let's Encrypt, using ZeroSSL ACME with EAB credentials. */
 	zerossl?: { keyId: string; macKey: string };
 };
@@ -396,6 +396,7 @@ function loadedCerts(routes: ProxyRoute[]): CaddyLoadedPem[] {
 function redisStorage({
 	redisUrl,
 	keyPrefix,
+	encryptionKey,
 }: ProxySettings["storage"]): CaddyRedisStorage {
 	const url = new URL(redisUrl);
 	return {
@@ -406,6 +407,7 @@ function redisStorage({
 		db: Number(url.pathname.slice(1) || "0"),
 		key_prefix: keyPrefix,
 		tls_enabled: url.protocol === "rediss:",
+		...(encryptionKey && { encryption_key: encryptionKey }),
 	};
 }
 
