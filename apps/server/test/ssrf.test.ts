@@ -1,9 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { checkGit, checkImage } from "../src/probe.ts";
+import { guardedDestination } from "../src/s3.ts";
 import {
 	BlockedHostError,
 	guardedFetch,
 	isPrivateAddress,
+	pinnedFetch,
 	resolvePublic,
 } from "../src/ssrf.ts";
 
@@ -96,6 +98,74 @@ describe("guardedFetch", () => {
 		await expect(
 			guardedFetch("https://localhost/", {}, deny),
 		).rejects.toBeInstanceOf(BlockedHostError);
+	});
+});
+
+describe("DNS rebinding", () => {
+	/** A local stand-in that records every request it gets. */
+	const seen: { host: string | null; path: string }[] = [];
+	const server = Bun.serve({
+		port: 0,
+		fetch(req) {
+			seen.push({
+				host: req.headers.get("host"),
+				path: new URL(req.url).pathname,
+			});
+			return new Response("logistack probe", { status: 200 });
+		},
+	});
+	afterAll(() => server.stop(true));
+
+	/** Answers public first, then the private address: what a rebinding name server does. */
+	const rebinding = () => {
+		let calls = 0;
+		return async () => (calls++ === 0 ? ["93.184.216.34"] : ["127.0.0.1"]);
+	};
+
+	test("an S3 endpoint that rebinds after the check is never dialled", async () => {
+		seen.length = 0;
+		const dest = await guardedDestination(
+			{
+				endpoint: `https://s3.rebind.test:${server.port}`,
+				region: "us-east-1",
+				bucket: "backups",
+				prefix: "",
+				accessKeyId: "k",
+				secretAccessKey: "s",
+				forcePathStyle: true,
+			},
+			deny,
+			rebinding(),
+		);
+		const err = await dest.probe().then(
+			() => undefined,
+			(e: Error) => e,
+		);
+		expect(err?.message).toContain("private address");
+		expect(seen).toEqual([]);
+	});
+
+	test("pinnedFetch connects to the checked address and keeps the Host header", async () => {
+		seen.length = 0;
+		const res = await pinnedFetch(allow, {
+			privateHttp: true,
+			resolve: async () => ["127.0.0.1"],
+		})(`http://storage.rebind.test:${server.port}/bucket/key`);
+		expect(res.status).toBe(200);
+		expect(seen).toEqual([
+			{ host: `storage.rebind.test:${server.port}`, path: "/bucket/key" },
+		]);
+	});
+
+	test("pinnedFetch re-checks every request", async () => {
+		const guarded = pinnedFetch(deny, { resolve: rebinding() });
+		// The first answer passes the check; the aborted signal keeps the test off the network.
+		await expect(
+			guarded("https://api.rebind.test/v1", { signal: AbortSignal.abort() }),
+		).rejects.toHaveProperty("name", "AbortError");
+		await expect(guarded("https://api.rebind.test/v1")).rejects.toBeInstanceOf(
+			BlockedHostError,
+		);
 	});
 });
 

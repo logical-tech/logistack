@@ -1,4 +1,3 @@
-import { S3Client } from "bun";
 import { z } from "zod";
 import {
 	type BackupDestination,
@@ -7,6 +6,7 @@ import {
 	probeKey,
 } from "../backup/destination.ts";
 import { defineProvider, ProviderError, secret } from "../http.ts";
+import { signV4 } from "../sigv4.ts";
 
 export const s3DestinationConfig = z.object({
 	endpoint: z.url(),
@@ -27,113 +27,255 @@ export type S3Object = BackupObject;
 export type S3Destination = BackupDestination;
 
 const PART_SIZE = 16 * 1024 * 1024;
-/** A presigned read must outlive the slowest restore that starts with it. */
-const DOWNLOAD_URL_TTL_S = 7 * 3600;
 
+/** S3 wants each key segment RFC 3986-encoded, `/` kept. */
+const encodeKey = (key: string) =>
+	key
+		.split("/")
+		.map((seg) =>
+			encodeURIComponent(seg).replace(
+				/[!'()*]/g,
+				(c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+			),
+		)
+		.join("/");
+
+const tag = (xml: string, name: string) =>
+	new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(xml)?.[1];
+
+const unescapeXml = (s: string) =>
+	s
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&apos;/g, "'")
+		.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+		.replace(/&amp;/g, "&");
+
+const sha256 = (body: Uint8Array | string) =>
+	new Bun.CryptoHasher("sha256").update(body).digest("hex");
+
+/**
+ * Every request is signed here (SigV4) and sent through `deps.fetch`, so a caller can pin the
+ * connection to a checked address (`pinnedFetch`). Bun's S3Client dials on its own and cannot be.
+ */
 export const s3Destination = defineProvider({
 	configSchema: s3DestinationConfig,
-	create(config): S3Destination {
-		const client = new S3Client({
-			endpoint: config.endpoint,
-			region: config.region,
-			bucket: config.bucket,
+	create(config, deps): S3Destination {
+		const send = deps?.fetch ?? fetch;
+		const endpoint = new URL(config.endpoint);
+		const basePath = endpoint.pathname.replace(/\/+$/, "");
+		const objectUrl = (key: string) =>
+			config.forcePathStyle
+				? `${endpoint.origin}${basePath}/${config.bucket}/${encodeKey(key)}`
+				: `${endpoint.protocol}//${config.bucket}.${endpoint.host}${basePath}/${encodeKey(key)}`;
+		const credentials = {
 			accessKeyId: config.accessKeyId,
 			secretAccessKey: config.secretAccessKey,
-			virtualHostedStyle: !config.forcePathStyle,
-		});
+		};
 		const root =
 			config.prefix && !config.prefix.endsWith("/")
 				? `${config.prefix}/`
 				: config.prefix;
 
-		async function wrap<T>(op: string, fn: () => Promise<T>): Promise<T> {
+		async function request(
+			op: string,
+			method: string,
+			key: string,
+			init: {
+				query?: Record<string, string>;
+				headers?: Record<string, string>;
+				body?: Uint8Array | string;
+				timeout?: boolean;
+			} = {},
+		): Promise<Response> {
+			const url = new URL(objectUrl(key));
+			// URLSearchParams would send spaces as `+`, which S3 reads literally.
+			url.search = Object.entries(init.query ?? {})
+				.map(([k, v]) => `${encodeKey(k)}=${encodeKey(v)}`)
+				.join("&");
+			const headers = {
+				...init.headers,
+				"x-amz-content-sha256": sha256(init.body ?? ""),
+			};
+			const auth = await signV4(
+				{ method, url: url.href, headers },
+				{ credentials, region: config.region, service: "s3" },
+			);
+			let res: Response;
 			try {
-				return await fn();
+				res = await send(url.href, {
+					method,
+					headers: { ...headers, ...auth },
+					...(init.body === undefined ? {} : { body: init.body }),
+					...(init.timeout === false
+						? {}
+						: { signal: AbortSignal.timeout(60_000) }),
+				});
 			} catch (err) {
-				if (err instanceof ProviderError) throw err;
-				const e = err as { message?: string; code?: string };
 				throw new ProviderError(
 					"s3",
 					op,
-					[e.code, e.message].filter(Boolean).join(": ") || String(err),
+					err instanceof Error ? err.message : String(err),
 				);
 			}
+			if (!res.ok) {
+				const text = await res.text().catch(() => "");
+				const reason =
+					[tag(text, "Code"), tag(text, "Message")]
+						.filter(Boolean)
+						.join(": ") || `HTTP ${res.status}`;
+				throw new ProviderError("s3", op, reason, res.status);
+			}
+			return res;
+		}
+
+		/** Reads up to `size` bytes from the iterator into one buffer; `done` once the source is spent. */
+		async function fill(
+			it: AsyncIterator<Uint8Array>,
+			carry: { rest?: Uint8Array },
+			size: number,
+		): Promise<{ part: Uint8Array; done: boolean }> {
+			const part = new Uint8Array(size);
+			let len = 0;
+			let done = false;
+			while (len < size) {
+				let chunk = carry.rest;
+				carry.rest = undefined;
+				if (!chunk) {
+					const next = await it.next();
+					if (next.done) {
+						done = true;
+						break;
+					}
+					chunk = next.value;
+				}
+				const take = Math.min(chunk.byteLength, size - len);
+				part.set(chunk.subarray(0, take), len);
+				len += take;
+				if (take < chunk.byteLength) carry.rest = chunk.subarray(take);
+			}
+			return { part: part.subarray(0, len), done: done && !carry.rest };
 		}
 
 		const dest: S3Destination = {
 			async probe() {
 				const key = `${root}${probeKey()}`;
 				const body = `logistack probe ${Date.now()}`;
-				await wrap("probe", async () => {
-					await client.write(key, body);
-					const read = await client.file(key).text();
-					await client.delete(key);
-					if (read !== body)
-						throw new ProviderError("s3", "probe", "probe read back differs");
-				});
+				await request("probe", "PUT", key, { body });
+				const read = await (await request("probe", "GET", key)).text();
+				await request("probe", "DELETE", key);
+				if (read !== body)
+					throw new ProviderError("s3", "probe", "probe read back differs");
 			},
-			// Not client.write(key, new Response(body)): Bun pulls that stream as fast as it can and
-			// queues parts in memory while S3 is slow. A flush per part holds one part at a time.
-			upload: (key, body, opts) =>
-				wrap("upload", async () => {
-					const writer = client
-						.file(
-							`${root}${key}`,
-							opts?.contentType ? { type: opts.contentType } : {},
-						)
-						.writer({ partSize: PART_SIZE, queueSize: 2, retry: 3 });
-					let pending = 0;
-					for await (const chunk of body) {
-						writer.write(chunk);
-						pending += chunk.byteLength;
-						if (pending >= PART_SIZE) {
-							await writer.flush();
-							pending = 0;
-						}
-					}
-					await writer.end();
-				}),
-			// Not client.file(key).stream(): Bun reads that whole object into memory ahead of the
-			// reader. A presigned fetch streams with the socket's backpressure.
-			download: (key) =>
-				lazyStream(async () => {
-					const url = client.presign(`${root}${key}`, {
-						method: "GET",
-						expiresIn: DOWNLOAD_URL_TTL_S,
+			// One part in memory at a time, sent before the next is pulled: the source is read
+			// only as fast as the store takes it.
+			async upload(key, body, opts) {
+				const target = `${root}${key}`;
+				const type = opts?.contentType
+					? { "content-type": opts.contentType }
+					: undefined;
+				const it = body[Symbol.asyncIterator]();
+				const carry: { rest?: Uint8Array } = {};
+				const first = await fill(it, carry, PART_SIZE);
+				if (first.done) {
+					await request("upload", "PUT", target, {
+						body: first.part,
+						headers: type,
+						timeout: false,
 					});
-					const res = await fetch(url);
-					if (!res.ok || !res.body) {
-						await res.body?.cancel();
+					return;
+				}
+				const created = await request("upload", "POST", target, {
+					query: { uploads: "" },
+					headers: type,
+				});
+				const uploadId = tag(await created.text(), "UploadId");
+				if (!uploadId)
+					throw new ProviderError("s3", "upload", "no UploadId in the answer");
+				const etags: string[] = [];
+				try {
+					let part = first;
+					for (;;) {
+						const res = await request("upload", "PUT", target, {
+							query: {
+								partNumber: String(etags.length + 1),
+								uploadId,
+							},
+							body: part.part,
+							timeout: false,
+						});
+						etags.push(res.headers.get("etag") ?? "");
+						if (part.done) break;
+						part = await fill(it, carry, PART_SIZE);
+						if (part.part.byteLength === 0 && part.done) break;
+					}
+					const xml = `<CompleteMultipartUpload>${etags
+						.map(
+							(e, i) =>
+								`<Part><PartNumber>${i + 1}</PartNumber><ETag>${e.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</ETag></Part>`,
+						)
+						.join("")}</CompleteMultipartUpload>`;
+					const done = await request("upload", "POST", target, {
+						query: { uploadId },
+						body: xml,
+						timeout: false,
+					});
+					// S3 can answer 200 and still fail the completion in the body.
+					const text = await done.text();
+					if (tag(text, "Code"))
 						throw new ProviderError(
 							"s3",
-							"download",
-							`GET ${key} answered ${res.status}`,
+							"upload",
+							[tag(text, "Code"), tag(text, "Message")].join(": "),
 						);
-					}
+				} catch (err) {
+					await request("upload", "DELETE", target, {
+						query: { uploadId },
+					}).catch(() => {});
+					await it.return?.();
+					throw err;
+				}
+			},
+			download: (key) =>
+				lazyStream(async () => {
+					const res = await request("download", "GET", `${root}${key}`, {
+						timeout: false,
+					});
+					if (!res.body)
+						throw new ProviderError("s3", "download", `GET ${key} had no body`);
 					return res.body;
 				}),
-			list: (prefix = "") =>
-				wrap("list", async () => {
-					const out: BackupObject[] = [];
-					let continuationToken: string | undefined;
-					do {
-						const page = await client.list({
+			async list(prefix = "") {
+				const out: BackupObject[] = [];
+				let token: string | undefined;
+				do {
+					const res = await request("list", "GET", "", {
+						query: {
+							"list-type": "2",
 							prefix: `${root}${prefix}`,
-							continuationToken,
+							...(token ? { "continuation-token": token } : {}),
+						},
+					});
+					const xml = await res.text();
+					for (const [, item = ""] of xml.matchAll(
+						/<Contents>([\s\S]*?)<\/Contents>/g,
+					))
+						out.push({
+							key: unescapeXml(tag(item, "Key") ?? "").slice(root.length),
+							size: Number(tag(item, "Size") ?? 0),
+							lastModified: new Date(tag(item, "LastModified") ?? 0),
 						});
-						for (const o of page.contents ?? [])
-							out.push({
-								key: o.key.slice(root.length),
-								size: o.size ?? 0,
-								lastModified: new Date(o.lastModified ?? 0),
-							});
-						continuationToken = page.isTruncated
-							? page.nextContinuationToken
+					token =
+						tag(xml, "IsTruncated") === "true"
+							? unescapeXml(tag(xml, "NextContinuationToken") ?? "")
 							: undefined;
-					} while (continuationToken);
-					return out;
-				}),
-			delete: (key) => wrap("delete", () => client.delete(`${root}${key}`)),
+				} while (token);
+				return out;
+			},
+			async delete(key) {
+				await request("delete", "DELETE", `${root}${key}`);
+			},
 		};
 		return dest;
 	},

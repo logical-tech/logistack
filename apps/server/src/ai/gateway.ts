@@ -256,7 +256,7 @@ async function route(
 		if (await isCooling(config.REDIS_URL, cand)) continue;
 		const label = `${cand.def.id}/${cand.model}`;
 		try {
-			const { baseUrl, headers } = await endpointFor(
+			const { baseUrl, headers, fetch } = await endpointFor(
 				db,
 				masterKey,
 				cand.key,

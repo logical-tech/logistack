@@ -11,7 +11,7 @@ import {
 import { aiProviderKey, type Db } from "@logistack/db";
 import { eq } from "drizzle-orm";
 import { redisFor } from "../redis.ts";
-import { hostPolicy, resolvePublic } from "../ssrf.ts";
+import { hostPolicy, pinnedFetch, resolvePublic } from "../ssrf.ts";
 
 export type ProviderKey = typeof aiProviderKey.$inferSelect;
 
@@ -194,11 +194,14 @@ export async function endpointFor(
 ) {
 	const secret = await decrypt(masterKey, key.secretEncrypted);
 	const auth = upstreamAuth(def, secret, key.baseUrl);
-	if (def.customBaseUrl) {
-		// shortcut: the address is checked, not pinned, so DNS rebinding can still slip through; pin it like guardedFetch if custom servers are exposed to untrusted admins.
-		await resolvePublic(new URL(auth.baseUrl).hostname, await hostPolicy(db));
-	}
-	return auth;
+	if (!def.customBaseUrl) return { ...auth, fetch };
+	// A custom server is a user-given URL: checked now for a clear error, then pinned per request.
+	const policy = await hostPolicy(db);
+	await resolvePublic(new URL(auth.baseUrl).hostname, policy);
+	return {
+		...auth,
+		fetch: pinnedFetch(policy, { privateHttp: true }) as typeof fetch,
+	};
 }
 
 /** Lists a key's models and records whether it works. */
@@ -212,7 +215,12 @@ export async function testKey(
 	let models: string[] = [];
 	let error: string | null = null;
 	try {
-		const { baseUrl, headers } = await endpointFor(db, masterKey, key, def);
+		const { baseUrl, headers, fetch } = await endpointFor(
+			db,
+			masterKey,
+			key,
+			def,
+		);
 		if (def.staticModels) {
 			// No usable listing: a one-token call proves the key.
 			const res = await fetch(`${baseUrl}/chat/completions`, {
