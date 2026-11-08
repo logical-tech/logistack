@@ -48,9 +48,10 @@ const columns = [
 		[
 			["Documentation", site.docs],
 			["Install", `${site.docs}getting-started/install/`],
-			["Migrate", `${site.docs}operations/migrate-from-dokploy/`],
+			["Migrate", `${site.docs}operations/migrate-in-ten-minutes/`],
 			["Releases", `${site.github}/releases`],
-			["Security", `${site.github}/security`],
+			["Security model", `${site.docs}reference/security-model/`],
+			["No license gates", `${site.docs}reference/no-license-gates/`],
 		],
 	],
 	[

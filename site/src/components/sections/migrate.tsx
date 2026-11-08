@@ -1,3 +1,4 @@
+import { site } from "@/content/site";
 import { Dither } from "../dither";
 import { Section } from "../ui";
 
@@ -19,10 +20,11 @@ export function Migrate() {
 						Move over one service at a time.
 					</h2>
 					<p className="text-lg leading-relaxed text-fg/90">
-						Already running another self-hosted PaaS? The importer reads its
-						projects, env vars and domains. It freezes the old setup, then moves
-						services across when you say so. The old platform keeps serving
-						until you switch it off.
+						Running Dokploy or Coolify? Install LogiStack next to it and a
+						wizard reads its projects, databases, env vars and domains, then
+						moves services across when you say so. The old platform keeps
+						serving until you switch traffic, and the clicks take about ten
+						minutes.
 					</p>
 					<ol className="flex flex-col gap-3 pt-2">
 						{steps.map(([name, what]) => (
@@ -35,6 +37,12 @@ export function Migrate() {
 							</li>
 						))}
 					</ol>
+					<a
+						href={`${site.docs}operations/migrate-in-ten-minutes/`}
+						className="w-fit text-[15px] font-medium underline decoration-fg/30 underline-offset-4 hover:decoration-fg"
+					>
+						Read the ten-minute migration guide
+					</a>
 				</div>
 				<figure
 					data-ui

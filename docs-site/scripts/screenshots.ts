@@ -111,6 +111,8 @@ export const shots: Record<string, Shot> = {
 	"certificate-origin": "/settings/certificates/origin",
 	"settings-ssh-keys": "/settings/ssh-keys",
 	"settings-updates": "/settings/updates",
+	"settings-updates-changelog": "/settings/updates#changelog",
+	"settings-updates-channel": "/settings/updates#settings",
 	"settings-appearance": "/settings/appearance",
 	"settings-variables": "/settings/variables",
 	"settings-audit-log": "/settings/audit-log",
@@ -126,6 +128,10 @@ export const shots: Record<string, Shot> = {
 	"dns-record-edit": {
 		path: "/integrations/dns/dns_cf_logical/z_logical",
 		click: ["Add record"],
+	},
+	"settings-updates-confirm": {
+		path: "/settings/updates",
+		click: ["Update to v0.2.0"],
 	},
 	"certificate-authority": {
 		path: "/settings/certificates",
