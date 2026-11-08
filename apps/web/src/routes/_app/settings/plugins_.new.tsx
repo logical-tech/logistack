@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Container, Link2, TriangleAlert } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { CopyLine } from "@/components/access/mcp-section";
@@ -46,16 +46,25 @@ import { stepParam } from "@/lib/search";
 
 export const Route = createFileRoute("/_app/settings/plugins_/new")({
 	staticData: { crumb: "Install plugin" },
-	validateSearch: z.object({ step: stepParam }),
+	validateSearch: z.object({
+		step: stepParam,
+		/** From the marketplace: the wizard starts at Review with this entry. */
+		index: z.string().optional().catch(undefined),
+		plugin: z.string().optional().catch(undefined),
+		version: z.string().optional().catch(undefined),
+	}),
 	component: NewPlugin,
 });
 
 type V = {
-	kind: "image" | "url";
+	kind: "image" | "url" | "index";
 	image: string;
 	/** "" means a public image. */
 	registryId: string;
 	url: string;
+	indexId: string;
+	pluginId: string;
+	version: string;
 	config: ConfigValues;
 };
 
@@ -64,17 +73,27 @@ const DEFAULTS: V = {
 	image: "",
 	registryId: "",
 	url: "",
+	indexId: "",
+	pluginId: "",
+	version: "",
 	config: {},
 };
 
 const sourceOf = (v: V): PluginSource =>
-	v.kind === "image"
+	v.kind === "index"
 		? {
-				kind: "image",
-				image: v.image.trim(),
-				...(v.registryId && { registryId: v.registryId }),
+				kind: "index",
+				indexId: v.indexId,
+				pluginId: v.pluginId,
+				version: v.version,
 			}
-		: { kind: "url", url: v.url.trim() };
+		: v.kind === "image"
+			? {
+					kind: "image",
+					image: v.image.trim(),
+					...(v.registryId && { registryId: v.registryId }),
+				}
+			: { kind: "url", url: v.url.trim() };
 
 const errorText = (err: unknown) =>
 	err instanceof Error ? err.message : String(err);
@@ -262,10 +281,42 @@ function DevCredentials({
 }
 
 function NewPlugin() {
-	const { step } = Route.useSearch();
+	const { step, index, plugin, version } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const create = useInvalidating(pluginsApi.create, [["plugins"]]);
 	const [inspection, setInspection] = useState<PluginInspection | null>(null);
+	// A marketplace entry skips Source: its image and manifest come from the signed index.
+	const fromIndex = useMemo(
+		(): V | null =>
+			index && plugin && version
+				? {
+						...DEFAULTS,
+						kind: "index",
+						indexId: index,
+						pluginId: plugin,
+						version,
+					}
+				: null,
+		[index, plugin, version],
+	);
+	const [readError, setReadError] = useState<string | null>(null);
+	useEffect(() => {
+		if (!fromIndex) return;
+		let live = true;
+		setReadError(null);
+		pluginsApi
+			.inspect(sourceOf(fromIndex))
+			.then((r) => {
+				if (!live) return;
+				setInspection(r);
+				if (r.installedId)
+					setReadError(`${r.manifest.name} is already installed here.`);
+			})
+			.catch((err) => live && setReadError(errorText(err)));
+		return () => {
+			live = false;
+		};
+	}, [fromIndex]);
 	const [installed, setInstalled] = useState<CreatedPlugin | null>(null);
 	const manifestSchema = inspection?.manifest.config as
 		| ConfigSchema
@@ -286,6 +337,7 @@ function NewPlugin() {
 		(): WizardStep<V>[] => [
 			{
 				id: "source",
+				when: (v: V) => v.kind !== "index",
 				title: "Where is the plugin?",
 				description:
 					"A plugin is a container LogiStack runs for this organization, never code inside LogiStack itself.",
@@ -340,13 +392,37 @@ function NewPlugin() {
 				description:
 					"Read this like an app's permission prompt: what it adds, what its API token may do, and where it says it connects.",
 				ready: () =>
-					!inspection
-						? "Read the manifest first"
-						: inspection.missingPermissions.length
-							? "You can't grant permissions you don't hold"
-							: true,
+					readError
+						? readError
+						: !inspection
+							? fromIndex
+								? "Reading the marketplace entry"
+								: "Read the manifest first"
+							: inspection.missingPermissions.length
+								? "You can't grant permissions you don't hold"
+								: true,
 				render: (w) =>
-					inspection ? (
+					fromIndex && readError ? (
+						<div
+							role="alert"
+							className="flex items-start gap-3 rounded-lg bg-bad/10 px-3.5 py-3 text-sm"
+						>
+							<TriangleAlert
+								className="mt-0.5 size-4 shrink-0 text-bad-text"
+								aria-hidden
+							/>
+							<p>
+								<span className="font-medium">
+									This entry can't be installed.
+								</span>{" "}
+								<span className="text-muted-foreground">{readError}</span>
+							</p>
+						</div>
+					) : fromIndex && !inspection ? (
+						<p className="text-sm text-muted-foreground">
+							Checking the signed entry and the image it points at…
+						</p>
+					) : inspection ? (
 						<div className="grid gap-4">
 							{inspection.missingPermissions.length > 0 && (
 								<div
@@ -374,6 +450,7 @@ function NewPlugin() {
 								image={inspection.image}
 								devUrl={inspection.devUrl}
 								missingPermissions={inspection.missingPermissions}
+								source={inspection}
 							/>
 						</div>
 					) : (
@@ -539,12 +616,12 @@ function NewPlugin() {
 				},
 			},
 		],
-		[inspection, installed, schema, create, configOf],
+		[inspection, installed, schema, create, configOf, readError, fromIndex],
 	);
 
 	const onStepChange = useCallback(
 		(id: string, { replace }: { replace: boolean }) =>
-			navigate({ search: { step: id }, replace }),
+			navigate({ search: (s) => ({ ...s, step: id }), replace }),
 		[navigate],
 	);
 
@@ -555,9 +632,14 @@ function NewPlugin() {
 				description="Review what it adds and what it may do before anything runs."
 			/>
 			<Wizard<V>
-				id="install-plugin"
+				key={fromIndex ? `${index}:${plugin}@${version}` : "source"}
+				id={
+					fromIndex
+						? `install-plugin:${index}:${plugin}@${version}`
+						: "install-plugin"
+				}
 				steps={steps}
-				defaultValues={DEFAULTS}
+				defaultValues={fromIndex ?? DEFAULTS}
 				// Settings can hold secrets: never written to sessionStorage.
 				secretKeys={["config"]}
 				step={step}

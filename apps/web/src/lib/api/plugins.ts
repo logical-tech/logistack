@@ -31,10 +31,27 @@ export type PluginContribution = InferResponseType<
 	(typeof p)["contributions"]["$get"],
 	200
 >[number];
-export type PluginPolicy = InferResponseType<
+export type PluginPolicySettings = InferResponseType<
 	(typeof p)["policy"]["$get"],
 	200
->["policy"];
+>;
+export type PluginPolicy = PluginPolicySettings["policy"];
+export type PluginMarketplace = InferResponseType<
+	(typeof p)["marketplace"]["$get"],
+	200
+>;
+export type PluginIndex = PluginMarketplace["indexes"][number];
+/** The server types the manifest as a record; it parsed it with `PluginManifest` already. */
+export type PluginMarketEntry = Omit<
+	PluginMarketplace["entries"][number],
+	"latest"
+> & {
+	latest: Omit<PluginMarketplace["entries"][number]["latest"], "manifest"> & {
+		manifest: PluginManifest;
+	};
+};
+export type PluginUpdates = InferResponseType<One["updates"]["$get"], 200>;
+export type PluginUpdate = PluginUpdates["versions"][number];
 export type PluginTestResult = InferResponseType<One["test"]["$post"], 200>;
 export type PluginSession = InferResponseType<One["session"]["$get"], 200>;
 export type PluginContext = { serviceId?: string; projectId?: string };
@@ -43,8 +60,30 @@ export type PluginsApi = {
 	list(): Promise<PluginInstall[]>;
 	get(id: string): Promise<PluginInstall>;
 	contributions(): Promise<PluginContribution[]>;
-	policy(): Promise<PluginPolicy>;
-	setPolicy(policy: PluginPolicy): Promise<PluginPolicy>;
+	policy(): Promise<PluginPolicySettings>;
+	setPolicy(
+		patch: Partial<PluginPolicySettings>,
+	): Promise<PluginPolicySettings>;
+	/** Cached entries; an index older than an hour is fetched first. */
+	marketplace(): Promise<{
+		policy: PluginPolicy;
+		indexes: PluginIndex[];
+		entries: PluginMarketEntry[];
+	}>;
+	addIndex(input: {
+		url: string;
+		name?: string;
+		publicKeys: string[];
+	}): Promise<PluginIndex>;
+	removeIndex(id: string): Promise<void>;
+	refreshIndex(id: string): Promise<PluginIndex>;
+	updates(id: string): Promise<PluginUpdates>;
+	/** Added permissions need `acceptPermissions`; the plugin gets a new API token. */
+	updateVersion(
+		id: string,
+		input: { version: string; acceptPermissions: boolean },
+	): Promise<PluginInstall>;
+	rollback(id: string): Promise<PluginInstall>;
 	inspect(source: PluginSource): Promise<PluginInspection>;
 	create(input: {
 		source: PluginSource;
@@ -68,9 +107,20 @@ const http: PluginsApi = {
 	get: async (id) =>
 		(await ok(p[":id"].$get({ param: { id } }))) as PluginInstall,
 	contributions: () => ok(p.contributions.$get()),
-	policy: async () => (await ok(p.policy.$get())).policy,
-	setPolicy: async (policy) =>
-		(await ok(p.policy.$put({ json: { policy } }))).policy,
+	policy: () => ok(p.policy.$get()),
+	setPolicy: (json) => ok(p.policy.$put({ json })),
+	marketplace: async () =>
+		(await ok(p.marketplace.$get())) as Awaited<
+			ReturnType<PluginsApi["marketplace"]>
+		>,
+	addIndex: (json) => ok(p.indexes.$post({ json })),
+	removeIndex: (id) => done(p.indexes[":id"].$delete({ param: { id } })),
+	refreshIndex: (id) => ok(p.indexes[":id"].refresh.$post({ param: { id } })),
+	updates: (id) => ok(p[":id"].updates.$get({ param: { id } })),
+	updateVersion: async (id, json) =>
+		(await ok(p[":id"].update.$post({ param: { id }, json }))) as PluginInstall,
+	rollback: async (id) =>
+		(await ok(p[":id"].rollback.$post({ param: { id } }))) as PluginInstall,
 	inspect: async (json) =>
 		(await ok(p.inspect.$post({ json }))) as PluginInspection,
 	create: async (json) => (await ok(p.$post({ json }))) as CreatedPlugin,
@@ -115,3 +165,14 @@ export const pluginPolicyQuery = queryOptions({
 	queryKey: ["plugins", "policy"],
 	queryFn: () => pluginsApi.policy(),
 });
+
+export const pluginMarketplaceQuery = queryOptions({
+	queryKey: ["plugins", "marketplace"],
+	queryFn: () => pluginsApi.marketplace(),
+});
+
+export const pluginUpdatesQuery = (id: string) =>
+	queryOptions({
+		queryKey: ["plugins", id, "updates"],
+		queryFn: () => pluginsApi.updates(id),
+	});

@@ -1,17 +1,20 @@
 import type { PluginPolicy } from "@logistack/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Puzzle } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Plus, Puzzle, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 import { EmptyState } from "@/components/empty-state";
 import { DataChip, KindTile } from "@/components/integrations/parts";
 import { Page, PageHeader } from "@/components/page-header";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { shortDigest } from "@/components/plugins/manifest-summary";
-import { UnlistedBadge } from "@/components/plugins/plugin-icon";
+import { IndexesPanel, Marketplace } from "@/components/plugins/marketplace";
+import { SourceBadge } from "@/components/plugins/plugin-icon";
 import { useTogglePlugin } from "@/components/plugins/use-toggle-plugin";
 import { Segmented } from "@/components/segmented";
+import { SlidingTabs } from "@/components/sliding-tabs";
 import { StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -26,6 +29,9 @@ import { PLUGIN_STATUS } from "@/lib/status";
 
 export const Route = createFileRoute("/_app/settings/plugins")({
 	staticData: { crumb: "Plugins" },
+	validateSearch: z.object({
+		tab: z.enum(["installed", "marketplace"]).optional().catch(undefined),
+	}),
 	component: PluginsPage,
 });
 
@@ -38,7 +44,7 @@ const POLICY: Record<PluginPolicy, { label: string; detail: string }> = {
 	verified: {
 		label: "Verified only",
 		detail:
-			"Only plugins a maintainer reviewed in the marketplace. Images and dev URLs are refused.",
+			"Only versions a maintainer reviewed on a trusted index. Images, dev URLs and unverified entries are refused.",
 	},
 	any: {
 		label: "Any image",
@@ -70,7 +76,16 @@ function PluginRow({
 						>
 							{p.name}
 						</Link>
-						<UnlistedBadge />
+						<SourceBadge indexId={p.indexId} verified={p.verified} />
+						{p.yanked && (
+							<span
+								className="inline-flex items-center gap-1 text-2xs font-medium text-warn-text"
+								title="The index withdrew this version. It keeps running; update or roll back."
+							>
+								<TriangleAlert className="size-3" aria-hidden />
+								Yanked
+							</span>
+						)}
 					</p>
 					<p
 						className={
@@ -105,10 +120,31 @@ function PluginRow({
 }
 
 function PolicyPanel() {
-	const { data: policy } = useQuery(pluginPolicyQuery);
+	const { data } = useQuery(pluginPolicyQuery);
 	const qc = useQueryClient();
 	const [saving, setSaving] = useState(false);
-	if (!policy) return null;
+	if (!data) return null;
+	const { policy } = data;
+	const save = async (
+		patch: Parameters<typeof pluginsApi.setPolicy>[0],
+		done: string,
+	) => {
+		setSaving(true);
+		try {
+			qc.setQueryData(
+				pluginPolicyQuery.queryKey,
+				await pluginsApi.setPolicy(patch),
+			);
+			await qc.invalidateQueries({ queryKey: ["plugins", "marketplace"] });
+			toast.success(done);
+		} catch (err) {
+			toast.error("Couldn't change the setting", {
+				description: err instanceof Error ? err.message : String(err),
+			});
+		} finally {
+			setSaving(false);
+		}
+	};
 	return (
 		<Panel title="Instance policy" id="policy">
 			<div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -120,26 +156,35 @@ function PolicyPanel() {
 					label="Who may install plugins"
 					value={policy}
 					disabled={saving}
-					onChange={async (next) => {
-						setSaving(true);
-						try {
-							qc.setQueryData(
-								pluginPolicyQuery.queryKey,
-								await pluginsApi.setPolicy(next),
-							);
-							toast.success(`Plugin policy: ${POLICY[next].label}`);
-						} catch (err) {
-							toast.error("Couldn't change the policy", {
-								description: err instanceof Error ? err.message : String(err),
-							});
-						} finally {
-							setSaving(false);
-						}
-					}}
+					onChange={(next) =>
+						save({ policy: next }, `Plugin policy: ${POLICY[next].label}`)
+					}
 					options={(Object.keys(POLICY) as PluginPolicy[]).map((v) => ({
 						value: v,
 						label: POLICY[v].label,
 					}))}
+				/>
+			</div>
+			<div className="flex items-center justify-between gap-4 border-t px-4 py-3">
+				<div>
+					<p id="install-ping" className="text-sm font-medium">
+						Count installs on the index
+					</p>
+					<p className="max-w-[56ch] text-sm text-muted-foreground">
+						Each marketplace install sends its index the plugin id and a random
+						install id, nothing about this instance. Off by default.
+					</p>
+				</div>
+				<Switch
+					checked={data.installPing}
+					aria-labelledby="install-ping"
+					disabled={saving}
+					onCheckedChange={(on) =>
+						save(
+							{ installPing: on },
+							on ? "Installs are counted" : "Installs are not counted",
+						)
+					}
 				/>
 			</div>
 		</Panel>
@@ -147,6 +192,8 @@ function PolicyPanel() {
 }
 
 function PluginsPage() {
+	const { tab = "installed" } = Route.useSearch();
+	const navigate = useNavigate({ from: Route.fullPath });
 	const { data, isPending } = useQuery(pluginsQuery);
 	const { data: me } = useMe();
 	const { toggle, dialog, busy } = useTogglePlugin();
@@ -165,8 +212,35 @@ function PluginsPage() {
 				description="Add pages, events, agent tools and providers to LogiStack. Each plugin runs in its own container with only the permissions you approve."
 				actions={data?.length ? add : undefined}
 			/>
-			<div className="grid gap-8">
-				{isPending ? (
+			<div className="mb-5 border-b">
+				<SlidingTabs
+					label="Plugins"
+					idPrefix="plugins"
+					value={tab}
+					onChange={(id) =>
+						navigate({
+							search: { tab: id === "installed" ? undefined : id },
+							replace: true,
+						})
+					}
+					items={[
+						{ id: "installed", label: "Installed" },
+						{ id: "marketplace", label: "Marketplace" },
+					]}
+				/>
+			</div>
+			<div
+				id="plugins-panel"
+				role="tabpanel"
+				aria-labelledby={`plugins-tab-${tab}`}
+				className="grid gap-8"
+			>
+				{tab === "marketplace" ? (
+					<>
+						<Marketplace />
+						{me?.instanceAdmin && <IndexesPanel />}
+					</>
+				) : isPending ? (
 					<Panel title="Installed" id="installed">
 						<SkeletonRows rows={2} />
 					</Panel>
@@ -174,9 +248,19 @@ function PluginsPage() {
 					<EmptyState
 						icon={Puzzle}
 						title="No plugins installed"
-						description="Install one from a container image, or point at a plugin you're developing with a dev URL."
+						description="Browse the marketplace, install from a container image, or point at a plugin you're developing with a dev URL."
 					>
-						{add}
+						<div className="flex flex-wrap justify-center gap-2">
+							<Button
+								variant="outline"
+								onClick={() =>
+									navigate({ search: { tab: "marketplace" }, replace: true })
+								}
+							>
+								Browse marketplace
+							</Button>
+							{add}
+						</div>
 					</EmptyState>
 				) : (
 					<Panel title="Installed" id="installed">

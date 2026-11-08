@@ -5,7 +5,14 @@ import {
 	notFound,
 	useNavigate,
 } from "@tanstack/react-router";
-import { ArrowUpRight, Loader2, Stethoscope, Trash2 } from "lucide-react";
+import {
+	ArrowUpRight,
+	Loader2,
+	RotateCcw,
+	Stethoscope,
+	Trash2,
+	TriangleAlert,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -20,6 +27,7 @@ import {
 import { Page, PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
 import { ManifestSummary } from "@/components/plugins/manifest-summary";
+import { UpdateDialog } from "@/components/plugins/update-dialog";
 import { useTogglePlugin } from "@/components/plugins/use-toggle-plugin";
 import { StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
@@ -149,6 +157,50 @@ function TestButton({ p }: { p: PluginInstall }) {
 	);
 }
 
+/** Marketplace installs: update from the index, or go back to the version before the last update. */
+function Versions({ p }: { p: PluginInstall }) {
+	const [updating, setUpdating] = useState(false);
+	const [rollingBack, setRollingBack] = useState(false);
+	const rollback = useInvalidating(pluginsApi.rollback, [["plugins"]]);
+	if (!p.indexId && !p.previousVersion) return null;
+	return (
+		<div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
+			{p.indexId && (
+				<Button variant="outline" size="sm" onClick={() => setUpdating(true)}>
+					Check for updates
+				</Button>
+			)}
+			{p.previousVersion && (
+				<Button variant="ghost" size="sm" onClick={() => setRollingBack(true)}>
+					<RotateCcw />
+					Roll back to {p.previousVersion}
+				</Button>
+			)}
+			<UpdateDialog p={p} open={updating} onOpenChange={setUpdating} />
+			<ConfirmDialog
+				open={rollingBack}
+				onOpenChange={setRollingBack}
+				title={`Roll back ${p.name} to ${p.previousVersion}?`}
+				description={`It restarts on the previous image with that version's permissions and a new API token. You can return to ${p.version} the same way.`}
+				confirmLabel="Roll back"
+				destructive={false}
+				pending={rollback.isPending}
+				onConfirm={async () => {
+					try {
+						const r = await rollback.mutateAsync(p.id);
+						toast.success(`${p.name} is back on ${r.version}`);
+						setRollingBack(false);
+					} catch (err) {
+						toast.error("Couldn't roll back", {
+							description: err instanceof Error ? err.message : String(err),
+						});
+					}
+				}}
+			/>
+		</div>
+	);
+}
+
 function Uninstall({ p }: { p: PluginInstall }) {
 	const [open, setOpen] = useState(false);
 	const [typed, setTyped] = useState("");
@@ -230,6 +282,24 @@ function PluginDetail() {
 				}
 			/>
 			<div className="grid gap-8">
+				{p.yanked && (
+					<div
+						role="alert"
+						className="t-reveal flex items-start gap-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm"
+					>
+						<TriangleAlert
+							className="mt-0.5 size-4 shrink-0 text-warn-text"
+							aria-hidden
+						/>
+						<p>
+							<span className="font-medium">The index yanked {p.version}.</span>{" "}
+							<span className="text-muted-foreground">
+								It keeps running here. Update to a newer version
+								{p.previousVersion ? " or roll back" : ""} when you can.
+							</span>
+						</p>
+					</div>
+				)}
 				<Panel title="Status" id="status">
 					<div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
 						<div className="min-w-0 flex-1">
@@ -259,6 +329,7 @@ function PluginDetail() {
 							/>
 						</div>
 					</div>
+					<Versions p={p} />
 					{p.enabled && openable.length > 0 && (
 						<div className="flex flex-wrap gap-2 border-t px-4 py-3">
 							{openable.map((x) => (
@@ -287,6 +358,7 @@ function PluginDetail() {
 						manifest={p.manifest}
 						image={p.image}
 						devUrl={p.devUrl}
+						source={p}
 					/>
 				</section>
 			</div>

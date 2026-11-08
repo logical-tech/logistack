@@ -1,5 +1,6 @@
 import {
 	Activity,
+	BadgeCheck,
 	BarChart3,
 	Bell,
 	BookOpen,
@@ -58,4 +59,41 @@ export function UnlistedBadge() {
 			Unlisted
 		</span>
 	);
+}
+
+/** A version a maintainer reviewed on its index. */
+export function VerifiedBadge() {
+	return (
+		<span
+			className="inline-flex items-center gap-1 rounded-sm bg-ok/10 px-1.5 py-px text-2xs font-medium text-ok-text"
+			title="A maintainer reviewed this version's source on its index"
+		>
+			<BadgeCheck className="size-3" strokeWidth={2} aria-hidden />
+			Verified
+		</span>
+	);
+}
+
+/** Listed on an index, passed its automatic checks, not reviewed by a person. */
+export function UnverifiedBadge() {
+	return (
+		<span
+			className="rounded-sm bg-warn/10 px-1.5 py-px text-2xs font-medium text-warn-text"
+			title="Listed on its index and passed automatic checks, but nobody reviewed the source"
+		>
+			Unverified
+		</span>
+	);
+}
+
+/** Where an install or entry comes from: verified, unverified marketplace entry, or Unlisted. */
+export function SourceBadge({
+	indexId,
+	verified,
+}: {
+	indexId: string | null;
+	verified: boolean;
+}) {
+	if (!indexId) return <UnlistedBadge />;
+	return verified ? <VerifiedBadge /> : <UnverifiedBadge />;
 }
