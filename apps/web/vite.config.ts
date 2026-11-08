@@ -20,6 +20,8 @@ export default defineConfig({
 		port: 5173,
 		proxy: {
 			"/api": api,
+			// Plugin pages, served by the server's proxy (never the dashboard's /plugin/ routes).
+			"^/plugins/": api,
 			"/ws": { target: api.replace(/^http/, "ws"), ws: true },
 		},
 	},
