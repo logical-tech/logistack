@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import {
 	cleanPath,
 	hllAdd,
@@ -17,7 +17,8 @@ import {
 	routeTable,
 } from "../src/traffic.ts";
 
-const h = (s: string) => new Uint8Array(createHash("sha256").update(s).digest());
+const h = (s: string) =>
+	new Uint8Array(createHash("sha256").update(s).digest());
 
 describe("hll", () => {
 	test("estimates within 5% and round-trips both encodings", () => {
@@ -89,7 +90,9 @@ describe("classify", () => {
 		expect(isPageview("GET", 200, "text/html,*/*")).toBe(true);
 		expect(isPageview("GET", 404, "text/html")).toBe(false);
 		expect(isPageview("GET", 200, "image/webp")).toBe(false);
-		expect(referrerHost("https://www.google.com/search?q=x", "a.com")).toBe("google.com");
+		expect(referrerHost("https://www.google.com/search?q=x", "a.com")).toBe(
+			"google.com",
+		);
 		expect(referrerHost("https://a.com/x", "a.com:443")).toBeUndefined();
 		expect(referrerHost("not a url", "a.com")).toBeUndefined();
 		expect(cleanPath("/x/y?token=secret#h")).toBe("/x/y");

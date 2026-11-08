@@ -388,6 +388,7 @@ export async function syncProxy(
 				candidates.push({
 					...r.route,
 					access: routeAccess(d.access, basicAuth),
+					...(d.webAnalytics && { webAnalytics: true }),
 				});
 			else outcome.set(d.id, r.error);
 		} catch (e) {

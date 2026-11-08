@@ -9,6 +9,7 @@ import type {
 	CaddyRoute,
 	CaddyServer,
 } from "./caddy.ts";
+import { WEB_ANALYTICS_SCRIPT } from "./web-analytics.ts";
 
 export type Upstream = { host: string; port: number };
 
@@ -56,6 +57,8 @@ export type ProxyRoute = RouteTls & {
 	redirectTo?: string;
 	/** Checks in front of the upstream, at most one per type. Not applied to a redirect. */
 	access?: AccessRule[];
+	/** Answer `<prefix>/_ls/a.js` (the analytics script) and `<prefix>/_ls/e` (its beacon) here. */
+	webAnalytics?: boolean;
 };
 
 /** Compiled in a fixed order whatever the input order: IP allowlist, then forward auth, then basic auth. */
@@ -202,10 +205,45 @@ function compileRoute(r: ProxyRoute): CaddyRoute {
 		match: [match],
 		handle: r.redirectTo
 			? [redirect(`${r.redirectTo.replace(/\/+$/, "")}{http.request.uri}`)]
-			: [...accessHandlers(r.access ?? []), proxyTo(r.upstream)],
+			: [
+					...accessHandlers(r.access ?? []),
+					...(r.webAnalytics ? [webAnalytics(base ?? "")] : []),
+					proxyTo(r.upstream),
+				],
 		terminal: true,
 	};
 }
+
+/** Answers the script and the beacon itself; any other path falls through to the upstream. */
+const webAnalytics = (base: string): CaddyHandler => ({
+	handler: "subroute",
+	routes: [
+		{
+			match: [{ path: [`${base}/_ls/a.js`] }],
+			handle: [
+				{
+					handler: "static_response",
+					status_code: 200,
+					headers: {
+						"Content-Type": ["application/javascript; charset=utf-8"],
+						"Cache-Control": ["public, max-age=3600"],
+					},
+					body: WEB_ANALYTICS_SCRIPT,
+				},
+			],
+		},
+		{
+			match: [{ path: [`${base}/_ls/e`] }],
+			handle: [
+				{
+					handler: "static_response",
+					status_code: 204,
+					headers: { "Cache-Control": ["no-store"] },
+				},
+			],
+		},
+	],
+});
 
 const ACCESS_ORDER = { ip_allow: 0, forward_auth: 1, basic_auth: 2 } as const;
 

@@ -7,7 +7,9 @@ import {
 } from "../src/traffic.ts";
 
 const T0 = Date.UTC(2026, 10, 8, 12, 0, 0);
-const route = (o: Partial<{ hostname: string; domainId: string; script: boolean }> = {}) => ({
+const route = (
+	o: Partial<{ hostname: string; domainId: string; script: boolean }> = {},
+) => ({
 	hostname: "shop.example.com",
 	domainId: "dom_1",
 	serviceId: "svc_1",
@@ -53,8 +55,16 @@ function line(o: {
 }
 
 function aggregator() {
-	const a = new TrafficAggregator(DEFAULT_TRAFFIC_LIMITS, (ip) => (ip.startsWith("203.") ? "IT" : undefined));
-	a.configure({ routes: [route(), route({ hostname: "s.example.com", domainId: "dom_2", script: true })], salts: { "2026-11-08": "a".repeat(32) } });
+	const a = new TrafficAggregator(DEFAULT_TRAFFIC_LIMITS, (ip) =>
+		ip.startsWith("203.") ? "IT" : undefined,
+	);
+	a.configure({
+		routes: [
+			route(),
+			route({ hostname: "s.example.com", domainId: "dom_2", script: true }),
+		],
+		salts: { "2026-11-08": "a".repeat(32) },
+	});
 	return a;
 }
 
@@ -63,9 +73,23 @@ describe("TrafficAggregator", () => {
 		const a = aggregator();
 		const now = T0 + 30_000;
 		for (let i = 1; i <= 1000; i++)
-			a.ingest(line({ ms: i, status: i % 10 === 0 ? 503 : 200, ip: `203.0.113.${i % 50}`, uri: `/p/${i % 3}?token=x` }), now);
+			a.ingest(
+				line({
+					ms: i,
+					status: i % 10 === 0 ? 503 : 200,
+					ip: `203.0.113.${i % 50}`,
+					uri: `/p/${i % 3}?token=x`,
+				}),
+				now,
+			);
 		a.ingest(line({ ua: "Googlebot/2.1", accept: "text/html" }), now);
-		a.ingest(line({ referer: "https://news.ycombinator.com/item?id=1", uri: "/?utm_source=HN" }), now);
+		a.ingest(
+			line({
+				referer: "https://news.ycombinator.com/item?id=1",
+				uri: "/?utm_source=HN",
+			}),
+			now,
+		);
 		a.ingest(line({ host: "unknown.example.org" }), now);
 		const [m, ...rest] = a.close(T0 + 120_000);
 		expect(rest).toHaveLength(0);
@@ -80,7 +104,9 @@ describe("TrafficAggregator", () => {
 		expect(m.referrers).toEqual({ "news.ycombinator.com": 1 });
 		expect(m.utmSources).toEqual({ hn: 1 });
 		expect(m.countries.IT).toBe(1001);
-		expect(Math.abs(hllEstimate(hllDecode(Buffer.from(m.visitors, "base64"))) - 50)).toBeLessThanOrEqual(2);
+		expect(
+			Math.abs(hllEstimate(hllDecode(Buffer.from(m.visitors, "base64"))) - 50),
+		).toBeLessThanOrEqual(2);
 		const [p50, p95, p99] = quantiles(m.latency, [0.5, 0.95, 0.99]) as number[];
 		expect(Math.abs((p50 as number) - 500) / 500).toBeLessThan(0.05);
 		expect(Math.abs((p95 as number) - 950) / 950).toBeLessThan(0.05);
@@ -98,7 +124,14 @@ describe("TrafficAggregator", () => {
 		a.ingest(line({ host, uri: "/" }), now);
 		a.ingest(line({ host, uri: "/_ls/a.js", accept: "*/*" }), now);
 		const page = encodeURIComponent("/pricing?utm_source=Newsletter");
-		a.ingest(line({ host, uri: `/_ls/e?n=pageview&u=${page}&r=${encodeURIComponent("https://google.com/")}`, status: 204 }), now);
+		a.ingest(
+			line({
+				host,
+				uri: `/_ls/e?n=pageview&u=${page}&r=${encodeURIComponent("https://google.com/")}`,
+				status: 204,
+			}),
+			now,
+		);
 		a.ingest(line({ host, uri: "/_ls/e?n=signup&u=%2F", status: 204 }), now);
 		const [m] = a.close(T0 + 120_000);
 		expect(m?.requests).toBe(1);
@@ -109,9 +142,14 @@ describe("TrafficAggregator", () => {
 	});
 
 	test("bounded: open minutes and keys are capped, late lines dropped", () => {
-		const a = new TrafficAggregator({ ...DEFAULT_TRAFFIC_LIMITS, maxOpen: 3, maxKeys: 10 });
+		const a = new TrafficAggregator({
+			...DEFAULT_TRAFFIC_LIMITS,
+			maxOpen: 3,
+			maxKeys: 10,
+		});
 		a.configure({ routes: [route()], salts: {} });
-		for (let i = 0; i < 100; i++) a.ingest(line({ at: T0 + i * 60_000, uri: `/x/${i}` }), T0 + i * 60_000);
+		for (let i = 0; i < 100; i++)
+			a.ingest(line({ at: T0 + i * 60_000, uri: `/x/${i}` }), T0 + i * 60_000);
 		expect(a.openCount).toBe(3);
 		const b = new TrafficAggregator({ ...DEFAULT_TRAFFIC_LIMITS, maxKeys: 10 });
 		b.configure({ routes: [route()], salts: {} });
