@@ -2,6 +2,7 @@ import type {
 	EnvironmentColor,
 	PreviewInfo,
 	ServiceIcon,
+	ServiceMaintenance,
 	ServiceSpec,
 	StackGitSource,
 } from "@logistack/contracts";
@@ -247,5 +248,14 @@ export const serviceBasicAuth = pgTable("service_basic_auth", {
 		.primaryKey()
 		.references(() => service.id, { onDelete: "cascade" }),
 	users: jsonb("users").$type<{ username: string; hash: string }[]>().notNull(),
+	...timestamps,
+});
+
+/** Maintenance mode: the proxy answers 503 with a branded page on every domain of the service. */
+export const serviceMaintenance = pgTable("service_maintenance", {
+	serviceId: text("service_id")
+		.primaryKey()
+		.references(() => service.id, { onDelete: "cascade" }),
+	settings: jsonb("settings").$type<ServiceMaintenance>().notNull(),
 	...timestamps,
 });

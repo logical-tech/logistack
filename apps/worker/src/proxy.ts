@@ -1,5 +1,9 @@
 import { createPrivateKey, X509Certificate } from "node:crypto";
-import type { AccessRule } from "@logistack/contracts";
+import type {
+	AccessRule,
+	DomainEdge,
+	ServiceMaintenance,
+} from "@logistack/contracts";
 import { decrypt } from "@logistack/core";
 import {
 	certificate,
@@ -7,10 +11,12 @@ import {
 	domain,
 	environment,
 	instanceSettings,
+	organization,
 	project,
 	registry,
 	service,
 	serviceBasicAuth,
+	serviceMaintenance,
 } from "@logistack/db";
 import type { Task } from "@logistack/docker";
 import {
@@ -21,12 +27,15 @@ import {
 	findZoneForHostname,
 } from "@logistack/providers";
 import {
+	type Branding,
 	type CaddyConfig,
 	compileProxy,
 	type DnsChallenge,
+	maintenancePage,
 	type ProxyInput,
 	type ProxyRoute,
 	ProxySync,
+	unavailablePage,
 } from "@logistack/proxy";
 import { RedisClient } from "bun";
 import { eq, inArray } from "drizzle-orm";
@@ -178,6 +187,27 @@ export function routeAccess(
 		...rules.filter((r) => r.type !== "basic_auth"),
 		{ type: "basic_auth", users },
 	];
+}
+
+/** A domain's edge rules and its service's maintenance mode as the compiler takes them. */
+export function routeEdge(
+	edge: Partial<DomainEdge>,
+	maintenance: ServiceMaintenance | null | undefined,
+	branding: Branding,
+): Pick<ProxyRoute, "edge" | "maintenance"> {
+	return {
+		edge: {
+			...(edge.rateLimit && { rateLimit: edge.rateLimit }),
+			...(edge.block && { block: edge.block }),
+			errorPage: edge.errorPage ?? unavailablePage(branding),
+		},
+		...(maintenance?.enabled && {
+			maintenance: {
+				allowCidrs: maintenance.allowCidrs,
+				page: maintenancePage(branding, maintenance.message),
+			},
+		}),
+	};
 }
 
 /**
@@ -335,12 +365,17 @@ export async function syncProxy(
 			organizationId: project.organizationId,
 			projectId: project.id,
 			basicAuth: serviceBasicAuth.users,
+			maintenance: serviceMaintenance.settings,
+			orgName: organization.name,
+			orgLogo: organization.logo,
 		})
 		.from(domain)
 		.innerJoin(service, eq(service.id, domain.serviceId))
 		.leftJoin(serviceBasicAuth, eq(serviceBasicAuth.serviceId, service.id))
+		.leftJoin(serviceMaintenance, eq(serviceMaintenance.serviceId, service.id))
 		.innerJoin(environment, eq(environment.id, service.environmentId))
 		.innerJoin(project, eq(project.id, environment.projectId))
+		.innerJoin(organization, eq(organization.id, project.organizationId))
 		.where(eq(service.desiredState, "running"));
 
 	const certIds = rows.flatMap((r) => r.domain.customCertificateId ?? []);
@@ -367,7 +402,7 @@ export async function syncProxy(
 
 	const candidates: ProxyRoute[] = [];
 	const outcome = new Map<string, string | null>();
-	for (const { domain: d, basicAuth } of rows) {
+	for (const { domain: d, basicAuth, maintenance, orgName, orgLogo } of rows) {
 		try {
 			const c = certs.find((x) => x.id === d.customCertificateId);
 			const p = providers.find((x) => x.id === d.dnsProviderId);
@@ -388,6 +423,7 @@ export async function syncProxy(
 				candidates.push({
 					...r.route,
 					access: routeAccess(d.access, basicAuth),
+					...routeEdge(d.edge, maintenance, { orgName, logo: orgLogo }),
 				});
 			else outcome.set(d.id, r.error);
 		} catch (e) {
