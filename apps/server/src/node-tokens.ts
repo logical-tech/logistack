@@ -7,6 +7,7 @@ import type {
 	AgentHello,
 	AgentRefusal,
 } from "./agent-gateway.ts";
+import { type Cluster, NODE_REVOKED_CHANNEL } from "./cluster.ts";
 
 export const NODE_TOKEN_PREFIX = "lsn_";
 
@@ -143,10 +144,14 @@ async function enroll(
 }
 
 /**
- * Revokes the node's tokens: its next connection is refused, enrollment token included.
- * shortcut: a socket that is already open stays open until it reconnects; close it through the gateway once revocation has a route.
+ * Revokes the node's tokens: its next connection is refused, enrollment token included, and the
+ * replica holding its open socket closes it (`NODE_REVOKED_CHANNEL`).
  */
-export async function revokeNode(db: Db, swarmNodeId: string) {
+export async function revokeNode(
+	db: Db,
+	shared: Pick<Cluster, "publish">,
+	swarmNodeId: string,
+) {
 	const [row] = await db
 		.select({ id: node.id })
 		.from(node)
@@ -157,5 +162,6 @@ export async function revokeNode(db: Db, swarmNodeId: string) {
 		.set({ revokedAt: new Date() })
 		.where(and(eq(nodeToken.nodeId, row.id), isNull(nodeToken.revokedAt)))
 		.returning({ id: nodeToken.id });
+	await shared.publish(NODE_REVOKED_CHANNEL, { nodeId: swarmNodeId });
 	return revoked.length;
 }

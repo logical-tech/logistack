@@ -301,7 +301,12 @@ export const databases = router()
 			c.set("auditResourceId", id);
 			c.set("auditDiff", diff);
 			const db = await openDatabase(c, id, database);
-			const result = await runQuery(db, requireActor(c).id, input);
+			const result = await runQuery(
+				c.var.deps.config.REDIS_URL,
+				db,
+				requireActor(c).id,
+				input,
+			);
 			if (result.error) c.set("auditDiff", { ...diff, error: result.error });
 			return c.json(result, 200);
 		},
@@ -325,7 +330,15 @@ export const databases = router()
 		async (c) => {
 			const { id, runId } = c.req.valid("param");
 			c.set("auditResourceId", id);
-			if (!cancelRun(id, requireActor(c).id, runId)) throw notFound("run");
+			if (
+				!(await cancelRun(
+					c.var.deps.config.REDIS_URL,
+					id,
+					requireActor(c).id,
+					runId,
+				))
+			)
+				throw notFound("run");
 			return c.body(null, 204);
 		},
 	)

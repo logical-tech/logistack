@@ -20,11 +20,15 @@ import {
 	NodeRunnerError,
 	tail,
 } from "@logistack/worker/node-runner";
+import type { RedisClient } from "bun";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { recordAudit } from "./audit.ts";
+import { type Cluster, cluster } from "./cluster.ts";
 import type { Deps, Env } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
+import { parseJson } from "./events.ts";
+import { redisFor } from "./redis.ts";
 import { runningTask } from "./routes/service-ops.ts";
 
 const ports: Record<DatabaseEngine, number> = {
@@ -252,41 +256,95 @@ export function keyValueClient(db: DatabaseService): KeyValueClient {
 	return db.client;
 }
 
-// shortcut: in memory, so a cancel must reach the api replica running the query; share it (Redis) when the api scales out.
-const runs = new Map<
-	string,
-	{ serviceId: string; actorId: string; abort: AbortController }
->();
+const RUN_KEY = (runId: string) => `ls:db-run:${runId}`;
+const RUN_CANCEL_CHANNEL = "ls:db-run:cancel";
+/** How long a run's record outlives a replica that died mid-run. */
+const RUN_TTL_S = 6 * 3600;
 
-/** Runs a script under `runId` (when given) so its own actor can cancel it. */
-export async function runQuery(
+export type Runs = ReturnType<typeof createRuns>;
+
+/**
+ * Cancellable runs across api replicas: the owner record lives in Redis so a cancel can land on
+ * any replica, and the replica running the query aborts it when the cancel is broadcast.
+ */
+export function createRuns(redis: RedisClient, shared: Cluster) {
+	const local = new Map<string, AbortController>();
+	const ready = shared.on(RUN_CANCEL_CHANNEL, (m) => {
+		const runId = (m as { runId?: unknown } | null)?.runId;
+		if (typeof runId === "string") local.get(runId)?.abort();
+	});
+	return {
+		/** Runs `fn` under `runId` (when given) so `owner.actorId` can cancel it from any replica. */
+		async run<T>(
+			owner: { serviceId: string; actorId: string },
+			runId: string | undefined,
+			fn: (signal: AbortSignal) => Promise<T>,
+		): Promise<T> {
+			const abort = new AbortController();
+			if (!runId) return fn(abort.signal);
+			await ready;
+			const taken = await redis.send("SET", [
+				RUN_KEY(runId),
+				JSON.stringify(owner),
+				"NX",
+				"EX",
+				String(RUN_TTL_S),
+			]);
+			if (taken !== "OK") throw new Failure("conflict", "run already started");
+			local.set(runId, abort);
+			try {
+				return await fn(abort.signal);
+			} finally {
+				local.delete(runId);
+				await redis.del(RUN_KEY(runId)).catch(() => {});
+			}
+		},
+		/** Aborts a run of `actorId` on `serviceId`; false when there is none (finished, or not theirs). */
+		async cancel(serviceId: string, actorId: string, runId: string) {
+			const raw = await redis.get(RUN_KEY(runId));
+			const owner = (raw ? parseJson(raw) : undefined) as
+				| { serviceId?: string; actorId?: string }
+				| undefined;
+			if (owner?.serviceId !== serviceId || owner.actorId !== actorId)
+				return false;
+			await shared.publish(RUN_CANCEL_CHANNEL, { runId });
+			return true;
+		},
+	};
+}
+
+const runsByUrl = new Map<string, Runs>();
+const runsFor = (url: string) => {
+	let found = runsByUrl.get(url);
+	if (!found) {
+		found = createRuns(redisFor(url), cluster(url));
+		runsByUrl.set(url, found);
+	}
+	return found;
+};
+
+/** Runs a script under `runId` (when given) so its own actor can cancel it, from any replica. */
+export function runQuery(
+	redisUrl: string,
 	db: DatabaseService,
 	actorId: string,
 	input: { sql: string; readOnly: boolean; runId?: string },
 ) {
-	const abort = new AbortController();
-	const { runId } = input;
-	if (runId) {
-		if (runs.has(runId)) throw new Failure("conflict", "run already started");
-		runs.set(runId, { serviceId: db.id, actorId, abort });
-	}
-	try {
-		return await sqlClient(db).query(input.sql, {
-			readOnly: input.readOnly,
-			signal: abort.signal,
-		});
-	} finally {
-		if (runId) runs.delete(runId);
-	}
+	return runsFor(redisUrl).run(
+		{ serviceId: db.id, actorId },
+		input.runId,
+		(signal) =>
+			sqlClient(db).query(input.sql, { readOnly: input.readOnly, signal }),
+	);
 }
 
 /** Aborts a run of `actorId` on `serviceId`; false when there is none (finished, or not theirs). */
-export function cancelRun(serviceId: string, actorId: string, runId: string) {
-	const run = runs.get(runId);
-	if (run?.serviceId !== serviceId || run.actorId !== actorId) return false;
-	run.abort.abort();
-	return true;
-}
+export const cancelRun = (
+	redisUrl: string,
+	serviceId: string,
+	actorId: string,
+	runId: string,
+) => runsFor(redisUrl).cancel(serviceId, actorId, runId);
 
 const DUMP_TIMEOUT_S = 6 * 3600;
 

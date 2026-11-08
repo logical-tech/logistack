@@ -8,7 +8,12 @@ import {
 	parseFrame,
 } from "@logistack/contracts";
 import { RedisClient } from "bun";
-import { AgentError, type Agents, type ExecHandle } from "./agent-gateway.ts";
+import {
+	AgentError,
+	type Agents,
+	type ExecHandle,
+	NODE_KEY,
+} from "./agent-gateway.ts";
 import { log } from "./log.ts";
 
 type Active = {
@@ -25,8 +30,9 @@ const b64 = (data: Uint8Array) => Buffer.from(data).toString("base64");
 
 /**
  * Executes agent RPC requests (contracts/agent-rpc.ts) for the nodes whose sockets this replica
- * holds: it subscribes to a node's channel while the node is connected here.
- * shortcut: with several api replicas, a half-open socket on another replica could also answer; add an owner key if the api scales out.
+ * holds: it subscribes to a node's channel while the node is connected here. With several api
+ * replicas a node that reconnected elsewhere can leave a half-open socket behind; `ls:nodes:<id>`
+ * names the replica of the newest socket, and only that one answers.
  */
 export async function serveAgentRpc(
 	agents: Agents,
@@ -37,6 +43,20 @@ export async function serveAgentRpc(
 	const sub = new RedisClient(redisUrl);
 	const subscribed = new Set<string>();
 	const active = new Map<string, Active>();
+	/** False when the node's newest socket is on another replica. */
+	const owns = async (nodeId: string) => {
+		try {
+			const raw = await pub.get(NODE_KEY(nodeId));
+			const replica = raw
+				? (JSON.parse(raw) as { replica?: string }).replica
+				: undefined;
+			// No record (expired) or one from a replica predating owner keys: this socket answers.
+			return replica === undefined || replica === agents.replicaId;
+		} catch (e) {
+			log("warn", "agent rpc owner check failed", { nodeId, error: String(e) });
+			return true;
+		}
+	};
 	const reply = (id: string, m: AgentRpcReply) =>
 		pub
 			.publish(agentRpcReplyChannel(id), JSON.stringify(m))
@@ -147,26 +167,38 @@ export async function serveAgentRpc(
 				chain: Promise.resolve(),
 			};
 			active.set(m.id, a);
-			void run(nodeId, m, a);
+			const mine = owns(nodeId);
+			void mine.then((yes) => {
+				if (yes) void run(nodeId, m, a);
+				else active.delete(m.id);
+			});
+			// Frames that arrive during the owner check wait for it (and for `run` to set `exec`).
+			a.chain = mine.then(() => {});
 			return;
 		}
 		const a = active.get(m.id);
 		if (!a) return;
 		if (m.type === "cancel") return a.abort.abort();
-		if (m.type === "ack") return a.ack?.(m.bytes);
-		const exec = a.exec;
-		if (!exec) return;
-		if (m.type === "resize") return exec.resize?.(m.rows, m.cols);
+		const later = (fn: () => unknown) => {
+			a.chain = a.chain
+				.then(async () => {
+					await fn();
+				})
+				.catch((e) =>
+					log("warn", "agent rpc stdin failed", { id: m.id, error: String(e) }),
+				);
+		};
+		if (m.type === "ack") return later(() => a.ack?.(m.bytes));
+		if (m.type === "resize")
+			return later(() => a.exec?.resize?.(m.rows, m.cols));
 		const data = Buffer.from(m.data, "base64");
 		const eof = m.eof;
-		a.chain = a.chain
-			.then(async () => {
-				if (data.length) await exec.write(data);
-				if (eof) await exec.end();
-			})
-			.catch((e) =>
-				log("warn", "agent rpc stdin failed", { id: m.id, error: String(e) }),
-			);
+		later(async () => {
+			const exec = a.exec;
+			if (!exec) return;
+			if (data.length) await exec.write(data);
+			if (eof) await exec.end();
+		});
 	}
 
 	async function track(nodeId: string, connected: boolean) {

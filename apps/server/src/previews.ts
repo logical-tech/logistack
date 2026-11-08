@@ -25,12 +25,13 @@ import {
 import type { GitProvider, PullRequestEvent } from "@logistack/providers";
 import { and, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { type Actor, systemActor } from "./actor.ts";
+import { withLock } from "./cluster.ts";
 import type { Deps } from "./env.ts";
 import { envelope } from "./events.ts";
 import { log } from "./log.ts";
 import { applyManifest, snapshot } from "./manifest.ts";
 import { callAs } from "./migration/import.ts";
-import { requestProxySync, requestReconcile } from "./redis.ts";
+import { redisFor, requestProxySync, requestReconcile } from "./redis.ts";
 
 export const PREVIEW_ACTOR = "previews";
 
@@ -46,17 +47,6 @@ export type PreviewOutcome = {
 	reason?: string;
 	deployments: string[];
 };
-
-const chains = new Map<string, Promise<unknown>>();
-// shortcut: serializes events of one pull request within this api process only; run several api replicas and two could race.
-function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
-	const next = (chains.get(key) ?? Promise.resolve()).catch(() => {}).then(fn);
-	chains.set(key, next);
-	next
-		.finally(() => chains.get(key) === next && chains.delete(key))
-		.catch(() => {});
-	return next;
-}
 
 type Provider = { id: string; organizationId: string; client?: GitProvider };
 
@@ -127,10 +117,20 @@ export async function handlePullRequest(
 			continue;
 		}
 		out.push(
-			await serialized(`${prj.id}:${event.pr.number}`, () =>
-				closing
-					? removePreview(deps, actor, prj.id, event.pr.number, provider, event)
-					: upsertPreview(deps, actor, prj.id, settings, provider, event),
+			await withLock(
+				redisFor(deps.config.REDIS_URL),
+				`ls:lock:preview:${prj.id}:${event.pr.number}`,
+				() =>
+					closing
+						? removePreview(
+								deps,
+								actor,
+								prj.id,
+								event.pr.number,
+								provider,
+								event,
+							)
+						: upsertPreview(deps, actor, prj.id, settings, provider, event),
 			),
 		);
 	}

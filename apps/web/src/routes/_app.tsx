@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { meQuery } from "@/lib/api/access";
 import { instanceStatusQuery } from "@/lib/api/instance";
 import { useLiveHostSamples } from "@/lib/api/monitoring";
+import { useOrgEventRefresh } from "@/lib/api/org-events";
 import { auth } from "@/lib/auth";
 import { useDocumentBranding } from "@/lib/document-branding";
 import { ENROL_PATH, shouldEnrol } from "@/lib/two-factor-gate";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
 	useLiveHostSamples();
+	useOrgEventRefresh();
 	useDocumentBranding();
 	return (
 		<SidebarProvider>
