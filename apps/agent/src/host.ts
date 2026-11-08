@@ -53,7 +53,8 @@ export function cpuShare(
 }
 
 // Whole disks only: partitions (sda1, nvme0n1p1) and device-mapper/loop would count bytes twice.
-const WHOLE_DISK = /^(sd[a-z]+|vd[a-z]+|xvd[a-z]+|hd[a-z]+|nvme\d+n\d+|mmcblk\d+)$/;
+const WHOLE_DISK =
+	/^(sd[a-z]+|vd[a-z]+|xvd[a-z]+|hd[a-z]+|nvme\d+n\d+|mmcblk\d+)$/;
 
 /** Cumulative bytes read and written across whole disks, from /proc/diskstats (512-byte sectors). */
 export function parseDiskstats(text: string): {
@@ -72,7 +73,9 @@ export function parseDiskstats(text: string): {
 }
 
 /** Every hwmon temperature input in °C, named `<chip>/<label or input>`; empty where there are none (most VMs). */
-export function temperatures(sys: string): { sensor: string; celsius: number }[] {
+export function temperatures(
+	sys: string,
+): { sensor: string; celsius: number }[] {
 	const out: { sensor: string; celsius: number }[] = [];
 	const root = join(sys, "class/hwmon");
 	let chips: string[];
@@ -94,12 +97,17 @@ export function temperatures(sys: string): { sensor: string; celsius: number }[]
 		for (const f of files) {
 			try {
 				const milli = Number(read(join(dir, f)).trim());
-				if (!Number.isFinite(milli) || milli <= -40_000 || milli >= 150_000) continue;
+				if (!Number.isFinite(milli) || milli <= -40_000 || milli >= 150_000)
+					continue;
 				let label = f.replace("_input", "");
 				try {
-					label = read(join(dir, f.replace("_input", "_label"))).trim() || label;
+					label =
+						read(join(dir, f.replace("_input", "_label"))).trim() || label;
 				} catch {}
-				out.push({ sensor: `${name}/${label}`.slice(0, 64), celsius: milli / 1000 });
+				out.push({
+					sensor: `${name}/${label}`.slice(0, 64),
+					celsius: milli / 1000,
+				});
 			} catch {}
 		}
 		if (out.length >= 64) break;

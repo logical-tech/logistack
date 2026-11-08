@@ -314,7 +314,9 @@ describe("host gaps", () => {
 		writeFileSync(join(chip, "temp1_input"), "54000\n");
 		writeFileSync(join(chip, "temp1_label"), "Package id 0\n");
 		writeFileSync(join(chip, "temp2_input"), "-273000\n");
-		expect(temperatures(sys)).toEqual([{ sensor: "coretemp/Package id 0", celsius: 54 }]);
+		expect(temperatures(sys)).toEqual([
+			{ sensor: "coretemp/Package id 0", celsius: 54 },
+		]);
 		expect(temperatures(join(sys, "missing"))).toEqual([]);
 	});
 });
