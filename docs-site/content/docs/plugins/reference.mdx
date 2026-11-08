@@ -1,0 +1,200 @@
+---
+title: Plugin manifest and contract reference
+description: Every LogiStack plugin manifest field, the v1 HTTP endpoints a plugin serves, the request signature, environment variables, page session tokens and limits.
+---
+
+This page lists what a LogiStack plugin declares and what it must answer. Use it when you write a plugin without the SDK, or check a detail the SDK handles for you. For a walkthrough, see [Build a plugin](./build.mdx).
+
+## Manifest
+
+The manifest is JSON in the image label `io.logistack.plugin.manifest`. A dev-URL plugin serves the same JSON at `GET /v1/manifest`. LogiStack validates it on read; fields with a default may be left out.
+
+### Top-level fields
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string, 3 to 128 characters | required | Reverse-DNS, lower case: `com.acme.cost-report`. Unique on an index. |
+| `version` | string | required | Semver: `1.2.0` or `1.2.0-beta.1`. |
+| `name` | string, up to 60 | required | Shown in the dashboard. |
+| `description` | string, up to 300 | `""` | One line about what it does. |
+| `author` | object | none | `name` (up to 80) and an optional `url`. |
+| `license` | string, up to 40 | none | Such as `MIT`. |
+| `logistack` | string, up to 60 | none | Compatible LogiStack versions, such as `>=0.6.0`. Install and update are refused outside the range. |
+| `port` | integer, 1 to 65535 | `8080` | The port the container listens on. |
+| `resources.memory` | string | `128Mi` | `<n>Mi` or `<n>Gi`. Capped at `1Gi`. |
+| `resources.cpu` | number, 0.05 to 4 | `0.25` | CPUs. Capped at 1. |
+| `permissions` | array of actions | `[]` | Organization-wide [permission actions](../team/roles-and-permissions.mdx) the plugin's API key gets. The installer must hold each. |
+| `egress` | array of hosts, up to 50 | `[]` | Hosts the container may reach: exact names, IP addresses, or `*.example.com`. |
+| `config` | JSON Schema object | `{ "type": "object", "properties": {} }` | The settings form. See [Settings schema](#settings-schema). |
+| `contributes` | object | all empty | What the plugin adds. See below. |
+
+The manifest has no price, payment or license-key fields. The marketplace refuses a manifest with unknown top-level keys.
+
+### `contributes`
+
+| Field | Type | Max | Description |
+| --- | --- | --- | --- |
+| `events` | array of event types | | Event types delivered to `POST /v1/events`, such as `deployment.failed`. The list matches the [notification events](../operations/alerts-and-notifications.mdx). |
+| `pages` | array of pages | 20 | See [Pages](#pages). |
+| `tools` | array of tools | 50 | See [Tools](#tools). |
+| `dnsProviders` | array of providers | 10 | DNS providers. |
+| `notificationChannels` | array of providers | 10 | Notification channels. |
+| `secretProviders` | array of providers | 10 | Secret providers. |
+| `backupDestinations` | array of providers | 10 | Accepted but not used yet. |
+| `gates.deploy` | boolean | | `true`: the plugin serves `POST /v1/gates/deploy`. Default `false`. |
+
+### Pages
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | slug, up to 48 | Lower case, digits and hyphens. Part of the dashboard URL. |
+| `title` | string, up to 40 | The sidebar entry or tab name. |
+| `icon` | string | A name from LogiStack's icon set, never a URL: `activity`, `bar-chart`, `chart`, `bell`, `book`, `boxes`, `calendar`, `database`, `gauge`, `globe`, `key`, `dashboard`, `list-checks`, `receipt`, `rocket`, `logs`, `settings`, `shield`, `wallet`. Others show a puzzle piece. |
+| `location` | `sidebar`, `service-tab`, `project-tab` or `settings` | Where the page appears. |
+| `serviceKinds` | array of strings | For `service-tab`: the service kinds that show the tab. Absent: every kind. |
+| `path` | string | Where the container serves the page, under `/ui`, such as `/ui/costs`. |
+
+### Tools
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | slug, up to 48 | The tool's name. |
+| `description` | string, 1 to 500 | What it does. Agents read this to decide when to call it. |
+| `inputSchema` | JSON Schema object | The input. LogiStack validates each call against it. |
+| `destructive` | boolean, default `false` | Destructive tools need the `delete` action, `confirm: true` over MCP and the user's approval in the Agent. |
+
+### Providers
+
+Each entry of `dnsProviders`, `notificationChannels` and `secretProviders`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | slug, up to 48 | The provider's name, used in the call path. |
+| `title` | string, up to 60 | Shown in the wizard. |
+| `configSchema` | JSON Schema object | The provider's form in the wizard. |
+
+### Settings schema
+
+`config` and each `configSchema` are JSON Schema objects with flat `properties`. The dashboard draws these property types: `string`, `integer`, `number`, `boolean` and `array` of strings, with `title`, `description`, `default`, `enum` and `format`, and the object's `required` list. Mark a top-level string `"secret": true` to have it encrypted at rest and masked in the dashboard and the API.
+
+## HTTP contract
+
+LogiStack calls a container at `http://ls-plg-<id>:<port>` on the plugins network, and a dev-URL plugin at its URL. Every path starts with the contract version, `v1`. Bodies are JSON. Every request except `GET /v1/manifest` is [signed](#signatures); refuse unsigned ones with `401`.
+
+| Endpoint | Request body | Answer | Timeout |
+| --- | --- | --- | --- |
+| `GET /v1/manifest` | none, unsigned | The manifest | 10 s |
+| `GET /v1/health` | none | Any 2xx | 5 s |
+| `POST /v1/events` | `{ "event": EventEnvelope }` | Any 2xx | 10 s |
+| `POST /v1/config/validate` | `{ "config": {…} }` | `{ "ok": true }` or `{ "ok": false, "error": "…" }`. Answer `404` if you do not validate. | 10 s |
+| `POST /v1/tools/{name}` | `{ "input": {…}, "caller": { "userId": "…", "kind": "human" } }` | `{ "output": … }` | 60 s |
+| `POST /v1/providers/{kind}/{name}/{op}` | `{ "config": {…}, "args": [ … ] }` | `{ "result": … }` | 10 s |
+| `POST /v1/gates/deploy` | `DeployGateRequest` | `{ "allow": true }` or `{ "allow": false, "reason": "…" }` | The install's gate timeout, 1 to 60 s |
+| `GET /ui/*` | none | Your page's HTML, scripts and styles | 30 s |
+| `/ui/api/*`, any method | Whatever your page sends, up to 1 MB | Whatever your page expects | 30 s |
+
+### Events
+
+An event envelope has `id`, `type`, `organizationId`, `resource` (`type` and `id`), `payload` and `at` (ISO 8601). A `5xx`, `429` or network error is retried, up to four attempts in all, 1, 2 and 4 seconds apart. Any other `4xx` is not retried. Deliveries can repeat: deduplicate on `id`.
+
+### Providers
+
+`kind` is `dnsProviders`, `notificationChannels` or `secretProviders`. `op` is a method of that kind's interface, and `args` are its arguments in order:
+
+| Kind | `op` and `args` |
+| --- | --- |
+| `dnsProviders` | `verify()`, `listZones()`, `listRecords(zoneId, name?)`, `upsertRecord(input)`, `createRecord(input)`, `updateRecord(recordId, input)`, `deleteRecord(zoneId, recordId)` |
+| `notificationChannels` | `test()`, `send(event, rendered)`, where `rendered` has `title`, `body`, `url` and `severity` |
+| `secretProviders` | `test()`, `read(path, key)`, for a reference `secret://<provider>/<path…>#<key>` |
+
+DNS names are lower-case FQDNs without the trailing dot, and TXT content is unquoted. A record is `{ id, zoneId, name, type, content, ttl, proxied? }`; LogiStack checks every answer's shape. Answer errors with a non-2xx status and `{ "error": "…" }`: the message reaches the user.
+
+### Deploy gates
+
+`DeployGateRequest` has `deploymentId`, `organizationId`, `project` (`id`, `name`), `environment` (`id`, `name`, `kind`), `service` (`id`, `name`, `kind`), `imageRef`, `commitSha`, `commitMessage`, `gitRef` (each may be `null`) and `trigger`. `reason` is up to 500 characters. An answer without a boolean `allow`, an error status or a timeout follows the install's fail mode.
+
+### Pages
+
+LogiStack serves your `/ui/*` paths to the browser at `/plugins/<install id>/ui/*` through a proxy:
+
+- Only `GET` and `HEAD` reach paths outside `/ui/api/`.
+- Requests to `/ui/api/*` must carry a valid session token in `x-logistack-session`. The proxy checks it, removes it, and forwards the viewer's claims in `x-logistack-user`, covered by the signature.
+- The proxy drops `Cookie`, `Authorization` and `x-api-key` from requests, and `Set-Cookie`, CSP, framing and CORS headers from responses. It sets `Content-Security-Policy: sandbox allow-scripts allow-forms; frame-ancestors 'self'`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.
+- A redirect is kept only when it points inside the plugin's own pages.
+
+## Signatures
+
+Every request LogiStack sends carries:
+
+| Header | Value |
+| --- | --- |
+| `x-logistack-install` | The install id, such as `plg_8d2kq4t1`. |
+| `x-logistack-timestamp` | Unix time in seconds. |
+| `x-logistack-signature` | `sha256=` followed by the hex HMAC-SHA256 of the signed string, keyed with `LOGISTACK_SIGNING_SECRET`. |
+| `x-logistack-user` | Page backend requests only: the viewer's claims as JSON. |
+
+The signed string is `<timestamp>.<body>`, or `<timestamp>.<user>\n<body>` when `x-logistack-user` is present, where `<user>` is that header's exact value and `<body>` the raw request body (empty for `GET`). To verify:
+
+1. Refuse the request when the timestamp is more than 300 seconds from your clock.
+2. Compute the HMAC over the exact bytes you received, before parsing JSON.
+3. Compare it with the header in constant time.
+
+```ts title="verify.ts"
+const ts = Number(headers.get("x-logistack-timestamp"));
+if (Math.abs(Date.now() / 1000 - ts) > 300) throw new Error("stale");
+const user = headers.get("x-logistack-user");
+const payload = `${ts}.${user ? `${user}\n${body}` : body}`;
+const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
+const expected = `sha256=${Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+```
+
+## Environment variables
+
+LogiStack sets these in a plugin container. A dev-URL plugin gets the first four from the install wizard.
+
+| Variable | Value |
+| --- | --- |
+| `LOGISTACK_URL` | The LogiStack API's address on the plugins network. Call `<LOGISTACK_URL>/api/...`. |
+| `LOGISTACK_TOKEN` | The plugin's API key. Send it as `x-api-key`. It holds only the manifest's permissions and changes on every update and rollback. |
+| `LOGISTACK_SIGNING_SECRET` | The install's HMAC key for [signatures](#signatures). |
+| `LOGISTACK_INSTALL_ID` | The install id. |
+| `PORT` | The manifest's `port`. |
+| `HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, `https_proxy` | The egress proxy, with the install's own credentials. |
+| `NO_PROXY`, `no_proxy` | The API host, `localhost` and `127.0.0.1`. |
+
+Settings are not in the environment. Read them with `GET /api/plugins/self` and the plugin's key: it returns `installId`, `pluginId`, `enabled` and `config`, with secrets in clear. Only a plugin's own key can call it.
+
+## Session tokens
+
+A page gets a session token from the dashboard and sends it to its backend. It is an HS256 JWT signed by the LogiStack server, with audience `logistack-plugin-page`, valid for 5 minutes and for one install only. The LogiStack API does not accept it. Its claims, forwarded to the plugin in `x-logistack-user`:
+
+| Claim | Description |
+| --- | --- |
+| `userId`, `name` | The viewer. |
+| `organizationId` | The organization. |
+| `installId` | The install the token is for. |
+| `permissions` | The viewer's actions on the context: the service of a service tab, the project of a project tab, otherwise the organization. |
+| `context` | `serviceId` or `projectId` for tabs; empty otherwise. |
+
+The dashboard issues a token only to members who can read the context, and only while the plugin is on.
+
+## Limits
+
+| What | Limit |
+| --- | --- |
+| Memory per plugin | 1 GiB |
+| CPU per plugin | 1 |
+| `/tmp` | 64 MB tmpfs |
+| Writable paths | `/tmp` and `/data` only; the root is read-only |
+| Page storage key | 128 characters |
+| Page storage value | 16 KB of JSON |
+| Page storage keys | 256 per user per install |
+| Page request body through the proxy | 1 MB |
+| Signature clock skew | 300 seconds |
+| Pages per manifest | 20 |
+| Tools per manifest | 50 |
+| Providers per kind | 10 |
+| Declared egress hosts | 50 |
+
+Page storage is for UI state such as filters and collapsed panels. It is kept per user and per install, deleted with the install, and not encrypted: never store secrets in it.

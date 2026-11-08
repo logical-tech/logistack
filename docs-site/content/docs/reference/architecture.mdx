@@ -105,6 +105,8 @@ Each deployment therefore points at exactly one image. A [rollback](../deploy/de
 | `ls-db` | Database services, the api and the worker | Lets the [database editor](../data/database-editor.mdx) reach databases. Apps never join it. |
 | `ls-storage` | Object storage services, the api and the worker | The object browser and backups to LogiStack storage. Apps never join it. |
 | `ls-game` | Game servers, the api and the worker | RCON and ServerQuery for game panels. Apps never join it. |
+| `ls-plugins` | Plugin containers, the api, the worker and the egress proxy | Internal: it has no route out. LogiStack calls plugins here, and plugins call the API. Apps never join it. |
+| `ls-plugins-egress` | The plugin egress proxy | The proxy's way out to the hosts each plugin declares. See [Plugins](../plugins/index.mdx#egress-is-limited-to-declared-hosts). |
 
 Caddy and the api join fixed networks, so adding an environment never restarts them. The trade-off is that services with a domain can reach each other on `ls-ingress`.
 

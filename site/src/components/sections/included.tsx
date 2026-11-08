@@ -44,6 +44,13 @@ const rows: {
 		shape: "plus",
 		ramp: "indigo",
 	},
+	{
+		title: "Plugins",
+		body: "Event hooks, deploy gates, agent tools, pages and providers from a signed marketplace, each in its own locked-down container with only the permissions you approve.",
+		note: "Free plugins only",
+		shape: "mosaic",
+		ramp: "cobalt",
+	},
 ];
 
 export function Included() {

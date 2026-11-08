@@ -26,6 +26,8 @@ LogiStack emits an event whenever something worth knowing happens: a deployment 
 | **Pushover** | An app token and your user key. |
 | **Signed webhook** | Your receiver's URL and a secret of at least 16 characters. LogiStack sends a JSON POST signed with HMAC-SHA256. |
 
+A [plugin](../plugins/index.mdx) can add other channel kinds; they appear in the same wizard with the plugin's name as a badge. A plugin can also subscribe to events directly, without a rule.
+
 ## Add a channel
 
 <Steps>
