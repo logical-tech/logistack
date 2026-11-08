@@ -30,5 +30,6 @@ if (process.argv.includes("--dev")) {
 	console.error(`wrote .dev.vars; dev public key: ${pub}`);
 } else {
 	console.error(`public key: ${pub}`);
-	console.log(pkcs8);
+	// No trailing newline: the output is piped straight into `wrangler secret put`.
+	process.stdout.write(pkcs8);
 }

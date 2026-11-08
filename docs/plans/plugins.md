@@ -248,6 +248,7 @@ Built:
 - SDK v0 and CLI: `packages/plugin-sdk` (`init`, `dev`, `test`, `build`), reference plugin `examples/plugins/deploy-notifier`.
 - Tools (phase 2): `GET /plugins/tools`, `POST /plugins/{id}/tools/{name}` and `/destructive`. The Agent and MCP reach them as ordinary API operations; destructive ones need `delete`, MCP `confirm` and Agent approval.
 - End-to-end test: `apps/server/test/plugins.test.ts`.
+- Phase 3, index side: the Worker in `plugin-index/` (D1, magic-link publishers, API tokens, register and submit, admin queue, reports, install pings, signed `GET /v1/index` and `GET /v1/plugins/{id}`; format in `plugin-index/README.md`), the verifier `packages/core/src/plugin-index.ts`, the payload schemas at the end of `packages/contracts/src/plugin.ts`, and `logistack-plugin publish`. Not deployed.
 
 Decisions taken while building:
 
@@ -259,10 +260,15 @@ Decisions taken while building:
 - **Dev URLs go through the SSRF guard**; plain http is allowed only to a private address when the instance allows private hosts.
 - **Plugin images must own `/data`** (`RUN mkdir /data && chown <user> /data`): the root is read-only and a new volume copies the mountpoint's owner. The `init` template does it.
 - **Uninstall keeps the data volume.** Reinstalling finds its state; removing it is manual for now.
+- **The review pipeline is split.** A Worker cannot pull or run images, so on submit it checks only what it can: the manifest (strict at the top level, so payment-shaped keys are refused), the digest form, and the registry manifest plus config blob of every linux image, compared with the submitted manifest and checked against their digests. Access is anonymous, so only public images are listed. The contract test and the trivy scan run in a GitHub Actions job (`plugin-index/ci/review.yml`, an example, not enabled) that attaches its results to the version. Only an admin changes the status.
+- **Publishers sign in with a magic link** through Resend, as the sponsors Worker sends mail. There is no password to store and no OAuth app, and sponsors has no OAuth precedent. The CLI and CI use API tokens created on the dashboard.
+- **The signed envelope carries the payload as a string** (`{keyId, payload, signature}`), so verification runs over the exact bytes with no canonicalization. `keyId` is the raw public key, so rotation means shipping the new key next to the old one.
+- **Suspending a publisher yanks their listed versions**, so servers learn of it at their next Refresh through the same yanked list.
+- **Install pings carry a random per-install id** and are counted as distinct ids seen in the last 30 days. The index stores no IP address.
 
 Not built yet:
 
 - Phase 0 (community templates index).
 - Phase 2 providers. Design for DNS: rows of kind `plugin` with `plugin_install_id` and `plugin_provider` columns, a proxy implementing `DnsProvider` over `POST /v1/providers/dnsProviders/{name}/{op}`, and DNS-01 through the `caddy-dns/acmeproxy` module pointed at an api endpoint that forwards `present`/`cleanup` to the plugin. Notification channels, secret providers and backup destinations follow the same row shape.
-- Phase 3 (index Worker, marketplace UI, verified policy, updates with permission diff) and phase 4.
+- Phase 3, server side: the marketplace UI, fetching and caching the index in `plugin_index`, the verified policy, updates with a permission diff, and sending opt-in pings. On the index: deploying it and filling `PLUGIN_INDEX_KEYS`, unsuspend and un-yank, pruning old pings, rate limits beyond one sign-in link a minute per address, and private registries. Phase 4.
 - Token rotation on update, `logistack` version range enforcement, project-tab pages, the review pipeline's headless page check, publishing the SDK to npm (it imports the private contracts package today).
