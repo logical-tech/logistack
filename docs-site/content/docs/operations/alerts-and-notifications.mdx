@@ -256,6 +256,8 @@ Each channel on the Notifications page shows its state:
 - **No deliveries yet**: no rule has sent anything through it.
 - **Last delivery failed**, or **Failing, 3 in a row**, with the error, for example `smtp send: Invalid login: 535 5.7.8 Authentication failed`.
 
+A failed delivery is retried up to 3 more times, after 1, 2 and 4 seconds, and a worker restart in between doesn't lose the retry. A 4xx answer other than 429, such as a deleted Slack webhook's 404, is not retried: sending again would fail the same way. The channel shows a failure only once the last try has failed.
+
 Select **Send test** on a channel at any time to send the test message again.
 
 ## Common problems

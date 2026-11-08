@@ -173,7 +173,7 @@ sudo sysctl --system
 
 - The app listens on `127.0.0.1` or `localhost` instead of `0.0.0.0`, so nothing outside the container can reach it.
 - The domain or health check uses a different port than the app listens on.
-- The image is distroless. A service with a domain and no health check of its own gets a TCP check that needs `sh` and `grep` inside the image.
+- The image has a shell but no `grep`. A service with a domain and no health check of its own gets a TCP check that runs `grep` through `/bin/sh`. Images without any shell, like distroless or `scratch`, skip that check; an HTTP or TCP check on them fails the deploy with "the image has no /bin/sh". See [Images without a shell](../deploy/service-settings.mdx#images-without-a-shell).
 - An HTTP health check runs `wget` or `curl` inside the container. The image needs one of them.
 - The app needs a variable or a database it does not have, and exits on start.
 

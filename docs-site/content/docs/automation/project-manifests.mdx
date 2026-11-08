@@ -18,7 +18,7 @@ An environment holds `variables`, git `stacks` and `services`. A service holds i
 | --- | --- |
 | Identity | Apply matches environments and services by `slug`, variables by `key`, domains by hostname plus path prefix, backups by target, volume, destination and cron, stacks by name. Rename a service's `name` freely; changing its `slug` means a different service. |
 | Secrets | A secret variable is exported as `secret: true` with no `value`. On apply, a secret without a value keeps the stored one. A new secret without a value is a warning: set it afterwards, or inject the value in CI before applying. |
-| Organization resources | Git providers, S3 destinations, DNS providers and uploaded certificates are referenced by name: `gitProvider`, `destination`, `dnsProvider`, `certificate`. A name that matches nothing, or more than one resource, fails with a 400 listing each such name. |
+| Organization resources | Git providers, backup destinations (S3 or any other kind), DNS providers and uploaded certificates are referenced by name: `gitProvider`, `destination`, `dnsProvider`, `certificate`. A name that matches nothing, or more than one resource, fails with a 400 listing each such name. |
 | Specs | A service's `spec` is the same object the [REST API](./rest-api.mdx) takes, except that a git source names its provider in the service's `gitProvider` field instead of `gitProviderId`. |
 
 Export leaves out: secret values, generated domains, basic auth and domain access rules (they hold password hashes), node pins and adopted volumes. Stacks made from a pasted compose file or a template are exported as their individual services, because the compose file can hold credentials. Git stacks are exported by repository, and their services carry `stack: <name>`.

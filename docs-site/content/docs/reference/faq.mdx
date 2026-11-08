@@ -58,7 +58,7 @@ For services with more than one replica or a health check, yes. Swarm starts the
 Open the service's **Deployments** tab and roll back to an earlier deployment. Each deployment has its own image tag, so a rollback reuses that exact image without rebuilding. See [Deployments](../deploy/deployments.mdx).
 </Accordion>
 <Accordion title="Where are my files and data stored?">
-Databases and volumes are Docker volumes on the node that runs the service, and the service is pinned to that node. Back them up to any S3-compatible destination with scheduled, optionally encrypted backups. See [Backups](../data/backups.mdx).
+Databases and volumes are Docker volumes on the node that runs the service, and the service is pinned to that node. Back them up to an S3-compatible bucket, SFTP, WebDAV, Azure Blob, Google Drive, B2 or a folder on another node, with scheduled, optionally encrypted backups. See [Backups](../data/backups.mdx).
 </Accordion>
 </Accordions>
 

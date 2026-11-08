@@ -164,7 +164,7 @@ Select **Apply and deploy**, or **Keep editing**. Services are matched by compos
 
 For a stack from a repository, push to the branch, or select **Sync now** on the **Compose** tab to read the file at the head of the branch, review the changes and apply them.
 
-When a push brings a compose file LogiStack can't run, the stack keeps running the previous file and the stack page shows **The last push was not applied** above the tabs, with the commit, every reason from [Limits](#limits) that applies, and when it was pushed. The notice stays until a later push or sync applies.
+When a push brings a compose file LogiStack can't run, the stack keeps running the previous file and the stack page shows **The last push was not applied** above the tabs, with the commit, every reason from [Limits](#limits) that applies, and when it was pushed. The notice stays until a later push, a sync or an edit on the **Compose** tab applies a file.
 
 <Callout type="info">
 A pasted compose file can hold credentials, so the **Compose file** view shows only to members who can read secrets. The **Effective** view masks them.
