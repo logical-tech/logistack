@@ -37,7 +37,7 @@ import {
 	service,
 	serviceAutoscale,
 } from "@logistack/db";
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { z } from "zod";
 import { requireActor } from "../actor.ts";
@@ -179,7 +179,7 @@ async function checksFor(
 	probe?: HealthProbe,
 ) {
 	const { db } = c.var.deps;
-	const [[volumes], [nodes], domains] = await Promise.all([
+	const [[volumes], [nodes], domains, [last]] = await Promise.all([
 		db
 			.select({ n: count() })
 			.from(mount)
@@ -192,12 +192,25 @@ async function checksFor(
 			.select({ port: domain.port })
 			.from(domain)
 			.where(eq(domain.serviceId, serviceId)),
+		// The newest deploy that probed its image for a shell.
+		db
+			.select({ imageShell: deployment.imageShell })
+			.from(deployment)
+			.where(
+				and(
+					eq(deployment.serviceId, serviceId),
+					isNotNull(deployment.imageShell),
+				),
+			)
+			.orderBy(desc(deployment.createdAt))
+			.limit(1),
 	]);
 	const checks = autoscaleChecks({
 		spec,
 		volumes: volumes?.n ?? 0,
 		nodes: nodes?.n ?? 0,
 		fallbackPort: fallbackHealthPort(spec, domains),
+		...(last?.imageShell != null ? { imageShell: last.imageShell } : {}),
 	});
 	const failing = (id: string) => checks.some((x) => x.id === id && !x.ok);
 	const [profiles, usage, conflict] = await Promise.all([

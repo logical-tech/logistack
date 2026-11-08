@@ -134,7 +134,11 @@ export function autoscaleChecks(i: {
 	nodes: number;
 	/** The port the compiler checks when the spec declares no healthcheck (`fallbackHealthPort`). */
 	fallbackPort?: number;
+	/** Whether the last deployed image has `/bin/sh`; false skips the fallback check. */
+	imageShell?: boolean;
 }): AutoscaleCheck[] {
+	const noShell = i.imageShell === false;
+	const fallbackPort = noShell ? undefined : i.fallbackPort;
 	const hostPort = i.spec.ports.find(
 		(p) => p.published && (p.mode ?? "host") === "host",
 	);
@@ -168,12 +172,14 @@ export function autoscaleChecks(i: {
 		{
 			id: "healthcheck",
 			level: "warning",
-			ok: !!i.spec.healthcheck || i.fallbackPort !== undefined,
+			ok: !!i.spec.healthcheck || fallbackPort !== undefined,
 			message: i.spec.healthcheck
 				? "New copies get traffic once their healthcheck passes."
-				: i.fallbackPort !== undefined
-					? `New copies get traffic once port ${i.fallbackPort} accepts connections.`
-					: "No healthcheck: new copies get traffic before they are ready. Add one to avoid errors while scaling up.",
+				: fallbackPort !== undefined
+					? `New copies get traffic once port ${fallbackPort} accepts connections.`
+					: noShell && i.fallbackPort !== undefined
+						? "The image has no shell, so the default port check doesn't run: new copies get traffic before they are ready."
+						: "No healthcheck: new copies get traffic before they are ready. Add one to avoid errors while scaling up.",
 		},
 		{
 			id: "nodes",
