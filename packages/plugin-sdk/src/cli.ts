@@ -75,7 +75,10 @@ WORKDIR /app
 COPY package.json ./
 RUN bun install --production
 COPY src ./src
+# LogiStack mounts a volume at /data (the root is read-only); a new volume takes this owner.
+RUN mkdir /data && chown bun:bun /data
 USER bun
+ENV DATA_DIR=/data
 CMD ["bun", "src/main.ts"]
 `,
 });
