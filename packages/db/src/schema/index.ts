@@ -1,6 +1,7 @@
 export * from "./access.ts";
 export * from "./ai.ts";
 export * from "./auth.ts";
+export * from "./community-templates.ts";
 export * from "./databases.ts";
 export * from "./enums.ts";
 export * from "./gitops.ts";

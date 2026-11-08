@@ -238,7 +238,8 @@ export const TemplateService = z.discriminatedUnion("kind", [
 export type TemplateService = z.infer<typeof TemplateService>;
 
 export const TemplateSource = z.object({
-	kind: z.enum(["coolify", "dokploy"]),
+	/** `community`: from a signed community index (docs/plans/plugins.md, phase 0). */
+	kind: z.enum(["coolify", "dokploy", "community"]),
 	/** Path inside the upstream repository, for attribution. */
 	path: z.string().min(1),
 	license: z.string().min(1),
@@ -379,6 +380,8 @@ export const TemplateSummary = z.object({
 	logo: z.string().optional(),
 	source: TemplateSource.shape.kind,
 	services: z.int().min(1),
+	/** Set for a template from the community index: the index host it came from. */
+	community: z.object({ source: z.string() }).optional(),
 });
 export type TemplateSummary = z.infer<typeof TemplateSummary>;
 
