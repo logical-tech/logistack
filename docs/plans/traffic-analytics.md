@@ -73,7 +73,7 @@ Caddy (JSON access log on stdout, already on)
 - **Bounds.** The agent's memory is bounded:
   - at most 2,000 distinct domain-minute aggregates open;
   - top-k maps capped at 500 keys, then cut to 50 when the minute closes;
-  - an outbox of at most 120 closed minutes, oldest dropped first and counted.
+  - an outbox of closed minutes capped at 8 MiB of JSON, oldest dropped first and counted.
 
   While the API is unreachable, the outbox fills and then sheds. It never grows.
 - **Idempotency.** `traffic_1m` has primary key `(node_id, domain_id, ts)` and a resend replaces the row. `traffic_1h` is recomputed from minutes, like the metric rollups.
