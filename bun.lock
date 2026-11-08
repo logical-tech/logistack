@@ -151,6 +151,19 @@
         "zod": "4.6.7",
       },
     },
+    "examples/plugins/deploy-notifier": {
+      "name": "deploy-notifier",
+      "dependencies": {
+        "@logistack/plugin-sdk": "workspace:*",
+        "hono": "4.13.16",
+      },
+    },
+    "examples/plugins/memory-providers": {
+      "name": "memory-providers",
+      "dependencies": {
+        "@logistack/plugin-sdk": "workspace:*",
+      },
+    },
     "packages/contracts": {
       "name": "@logistack/contracts",
       "dependencies": {
@@ -183,6 +196,18 @@
     },
     "packages/docker": {
       "name": "@logistack/docker",
+    },
+    "packages/plugin-sdk": {
+      "name": "@logistack/plugin-sdk",
+      "version": "0.1.0",
+      "bin": {
+        "logistack-plugin": "./src/cli.ts",
+      },
+      "dependencies": {
+        "@logistack/contracts": "workspace:*",
+        "hono": "4.13.16",
+        "zod": "4.6.7",
+      },
     },
     "packages/providers": {
       "name": "@logistack/providers",
@@ -498,6 +523,8 @@
     "@logistack/db": ["@logistack/db@workspace:packages/db"],
 
     "@logistack/docker": ["@logistack/docker@workspace:packages/docker"],
+
+    "@logistack/plugin-sdk": ["@logistack/plugin-sdk@workspace:packages/plugin-sdk"],
 
     "@logistack/providers": ["@logistack/providers@workspace:packages/providers"],
 
@@ -1257,6 +1284,8 @@
 
     "depd": ["depd@2.0.0", "", {}, "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw=="],
 
+    "deploy-notifier": ["deploy-notifier@workspace:examples/plugins/deploy-notifier"],
+
     "dequal": ["dequal@2.0.3", "", {}, "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA=="],
 
     "destr": ["destr@2.0.5", "", {}, "sha512-ugFTXCtDZunbzasqBxrK93Ik/DRYsO6S/fedkWEMKqt04xZ4csmnmwGDBAb07QWNaGMAmnTIemsYZCksjATwsA=="],
@@ -1630,6 +1659,8 @@
     "media-typer": ["media-typer@1.1.1", "", {}, "sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ=="],
 
     "memory-pager": ["memory-pager@1.5.0", "", {}, "sha512-ZS4Bp4r/Zoeq6+NLJpP+0Zzm0pR8whtGPf1XExKLJBAczGMnSi3It14OiNCStjQjM6NU1okjQGSxgEZN8eBYKg=="],
+
+    "memory-providers": ["memory-providers@workspace:examples/plugins/memory-providers"],
 
     "merge-descriptors": ["merge-descriptors@2.0.0", "", {}, "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g=="],
 

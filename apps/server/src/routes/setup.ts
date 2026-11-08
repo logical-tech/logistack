@@ -22,8 +22,8 @@ import type { MiddlewareHandler } from "hono";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import {
+	BuiltinDnsKindSchema,
 	connect,
-	DnsKindSchema,
 	parseCredentials,
 	sealCredentials,
 	viaProvider,
@@ -45,7 +45,7 @@ import { requestProxySync } from "../redis.ts";
 import { check, organizationResource } from "../scope.ts";
 
 const DnsProviderInput = z.object({
-	kind: DnsKindSchema,
+	kind: BuiltinDnsKindSchema,
 	credentials: z.record(z.string(), z.unknown()),
 });
 

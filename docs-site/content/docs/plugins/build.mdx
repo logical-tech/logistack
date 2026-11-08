@@ -1,0 +1,411 @@
+---
+title: Build a plugin
+description: Write a LogiStack plugin in TypeScript with the plugin SDK and the logistack-plugin CLI, from scaffold to a tested image with event hooks, tools, providers and pages.
+---
+
+A plugin is an HTTP server in a container that answers LogiStack's signed requests. This page walks through writing one in TypeScript with `@logistack/plugin-sdk` and the `logistack-plugin` CLI: scaffold it, run it against your instance, add events, tools, providers and pages, test it and build the image. The plugin in the examples posts failed deploys to a chat webhook, like `examples/plugins/deploy-notifier` in the LogiStack repository.
+
+The contract is plain HTTP, so you can also write a plugin in any language: implement the endpoints and the signature check in the [reference](./reference.mdx).
+
+## Before you start
+
+- [Bun](https://bun.sh) 1.4 or later. The CLI and the scaffold run on Bun.
+- Docker, to build the image.
+- A LogiStack instance where you hold the **Plugins** permission and the instance policy is **Any image**. See [Install and manage plugins](./install.mdx).
+
+<Callout type="info">
+  `@logistack/plugin-sdk` lives in the LogiStack repository under `packages/plugin-sdk` and is not published to npm yet. Until it is, build plugins inside a checkout of the repository, next to `examples/plugins/`, or implement the [HTTP contract](./reference.mdx) yourself.
+</Callout>
+
+## Scaffold a plugin
+
+<Steps>
+<Step>
+
+### Create the project
+
+Pick a reverse-DNS id you control, then run:
+
+```sh
+logistack-plugin init cost-report --id com.acme.cost-report
+```
+
+It creates:
+
+<Files>
+  <Folder name="cost-report" defaultOpen>
+    <File name="package.json" />
+    <File name="Dockerfile" />
+    <Folder name="src" defaultOpen>
+      <File name="manifest.ts" />
+      <File name="main.ts" />
+    </Folder>
+  </Folder>
+</Files>
+
+`src/manifest.ts` holds the manifest. `src/main.ts` builds the plugin's HTTP app with `createPlugin` and serves it on the manifest's port.
+
+</Step>
+<Step>
+
+### Run it locally
+
+```sh
+cd cost-report && bun install && bun run dev
+```
+
+`logistack-plugin dev` starts `src/main.ts` with `bun --watch` and a random signing secret, and prints where it listens, such as `http://localhost:8080`.
+
+</Step>
+<Step>
+
+### Install it from a dev URL
+
+Expose the port where your instance can reach it, for example over Tailscale, then install it with **Install from a dev URL** in **Settings** › **Plugins** ([details](./install.mdx#install-from-a-dev-url)). The wizard shows `LOGISTACK_URL`, `LOGISTACK_INSTALL_ID`, `LOGISTACK_TOKEN` and `LOGISTACK_SIGNING_SECRET` once.
+
+</Step>
+<Step>
+
+### Restart with the credentials
+
+Stop the dev server and start it again with those four values in its environment:
+
+```sh
+export LOGISTACK_URL=https://logistack.example.com
+export LOGISTACK_INSTALL_ID=plg_...
+export LOGISTACK_TOKEN=lsk_...
+export LOGISTACK_SIGNING_SECRET=...
+bun run dev
+```
+
+Your plugin now receives LogiStack's events, tool calls and page requests, and `--watch` reloads it on every save.
+
+</Step>
+</Steps>
+
+## The manifest
+
+`defineManifest` checks the manifest against the schema and fills in defaults. Export the result as `manifest`: the CLI's `build`, `dev` and `publish` commands import it from your entry file.
+
+```ts title="src/manifest.ts"
+import { defineManifest } from "@logistack/plugin-sdk";
+
+export const manifest = defineManifest({
+	id: "com.acme.deploy-alerts",
+	version: "0.1.0",
+	name: "Deploy alerts",
+	description: "Posts failed deployments to a chat webhook.",
+	author: { name: "Acme", url: "https://acme.example" },
+	license: "MIT",
+	logistack: ">=0.6.0",
+	resources: { memory: "96Mi", cpu: 0.1 },
+	permissions: ["read"],
+	egress: ["chat.acme.example"],
+	config: {
+		type: "object",
+		properties: {
+			webhookUrl: { type: "string", title: "Webhook URL", format: "uri", secret: true },
+			mention: { type: "string", title: "Mention", description: "Prepended to each message, as @oncall." },
+		},
+		required: ["webhookUrl"],
+	},
+	contributes: {
+		events: ["deployment.failed"],
+		tools: [
+			{
+				name: "post-message",
+				description: "Post a message to the chat webhook.",
+				inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+			},
+		],
+		pages: [
+			{ id: "failures", title: "Deploy alerts", icon: "bell", location: "sidebar", path: "/ui/failures" },
+			{ id: "service", title: "Alerts", location: "service-tab", path: "/ui/service" },
+		],
+	},
+});
+```
+
+Ask for the fewest permissions that work: the installer sees each one and must hold it. Every field is in the [manifest reference](./reference.mdx#manifest).
+
+## The plugin app
+
+`createPlugin` returns a [Hono](https://hono.dev) app that verifies LogiStack's signature on every request except `GET /v1/manifest`, and routes each call to your handlers. Serve it with any runtime that speaks `fetch`:
+
+```ts title="src/main.ts"
+import { createPlugin } from "@logistack/plugin-sdk";
+import { manifest } from "./manifest.ts";
+
+export { manifest };
+
+type Config = { webhookUrl: string; mention?: string };
+
+export const app = createPlugin({
+	manifest,
+	async onEvent(event, ctx) {
+		const config = await ctx.logistack.config<Config>();
+		const res = await fetch(config.webhookUrl, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ text: `${config.mention ?? ""} Deploy of ${event.resource.id} failed` }),
+			signal: AbortSignal.timeout(10_000),
+		});
+		// Throwing makes LogiStack retry the delivery.
+		if (!res.ok) throw new Error(`the webhook answered ${res.status}`);
+	},
+	validateConfig(config) {
+		if (!String(config.webhookUrl ?? "").startsWith("https://"))
+			return "the webhook URL must be https";
+	},
+	tools: {
+		async "post-message"(input, ctx) {
+			const { text } = input as { text: string };
+			const config = await ctx.logistack.config<Config>();
+			await fetch(config.webhookUrl, { method: "POST", body: JSON.stringify({ text }) });
+			return { posted: true };
+		},
+	},
+});
+
+if (import.meta.main) Bun.serve({ port: manifest.port, fetch: app.fetch });
+```
+
+### Handlers
+
+| Option | Called for | Return |
+| --- | --- | --- |
+| `onEvent(event, ctx)` | Each event type in `contributes.events`, once per delivery. | Anything. Throw to have LogiStack retry. |
+| `validateConfig(config)` | **Test** in the install wizard and on the plugin's page, with the stored settings. | An error message to refuse the settings, or nothing to accept them. |
+| `tools[name](input, ctx)` | A tool from `contributes.tools`, called by the Agent, MCP or the API. LogiStack validates `input` against the tool's `inputSchema` first. | JSON-serializable output. |
+| `gates.deploy(request, ctx)` | Every rollout in the organization, when the manifest sets `contributes.gates.deploy: true`. See [Deploy gates](#deploy-gates). | `{ allow, reason? }` |
+| `providers` | DNS, notification and secret provider calls. See [Providers](#providers). | |
+| `ui` | Page and page-backend requests under `/ui`. See [Pages](#pages). | |
+| `env` | Overrides for the four `LOGISTACK_*` variables, for tests. By default they come from the process environment. | |
+
+Events reach the plugin once per delivery and may arrive more than once after a retry. Use `event.id` to skip duplicates.
+
+### Call LogiStack: `ctx.logistack`
+
+Every handler gets `ctx`, with `ctx.installId` and a client for the LogiStack API that uses the plugin's own key:
+
+- `ctx.logistack.request<T>(path, init?)` calls `<LOGISTACK_URL>/api<path>` and throws on a non-2xx answer. It can do only what the manifest's `permissions` allow, and every change it makes lands in the [audit log](../team/audit-log.mdx) under the service account `Plugin · <name>`.
+- `ctx.logistack.config<T>()` returns the install's settings with secrets in clear, from `GET /api/plugins/self`. It caches them for 30 seconds, so a settings change reaches the plugin without a restart.
+
+```ts
+const projects = await ctx.logistack.request<{ id: string; name: string }[]>("/projects");
+```
+
+## Deploy gates
+
+A deploy gate lets your plugin approve or reject each rollout in the organization. Declare it, then handle it:
+
+```ts
+// manifest: contributes: { gates: { deploy: true } }
+createPlugin({
+	manifest,
+	gates: {
+		async deploy(req) {
+			if (req.environment.kind === "production" && isFreeze(new Date()))
+				return { allow: false, reason: "Change freeze until Monday 09:00" };
+			return { allow: true };
+		},
+	},
+});
+```
+
+The request (`DeployGateRequest`) carries `deploymentId`, `organizationId`, `project`, `environment` (with `kind`), `service` (with `kind`), the `imageRef` about to roll out, `commitSha`, `commitMessage`, `gitRef` and `trigger`. The `reason` (up to 500 characters) appears in the deployment's error and log.
+
+Answer within the install's timeout, 10 seconds unless the user changed it. A timeout or error follows the install's fail mode, which fails the deployment by default. LogiStack stores each answer per deployment and does not ask again for a retried deployment, but treat `deploymentId` as an idempotency key anyway.
+
+## Providers
+
+A plugin can back DNS providers, notification channels and secret providers. Declare each one in the manifest under `contributes.dnsProviders`, `contributes.notificationChannels` or `contributes.secretProviders`, with a `name`, a `title` and a `configSchema`. Users then pick it in the matching wizard, which shows the plugin's name as a badge and draws the form from `configSchema`.
+
+In `createPlugin`, give one factory per provider name. LogiStack sends the provider's config with every call; the factory builds the provider from it and LogiStack calls one method:
+
+```ts
+createPlugin({
+	manifest,
+	providers: {
+		dnsProviders: {
+			acmedns: (config) => new AcmeDns(String(config.token)),
+		},
+	},
+});
+```
+
+| Kind | Methods your object implements |
+| --- | --- |
+| `dnsProviders` | `verify()`, `listZones()`, `listRecords(zoneId, name?)`, `upsertRecord(input)`, `createRecord(input)`, `updateRecord(recordId, input)`, `deleteRecord(zoneId, recordId)` |
+| `notificationChannels` | `test()`, `send(event, rendered)` |
+| `secretProviders` | `test()`, `read(path, key)` |
+
+The SDK exports the types `DnsProviderImpl`, `NotificationChannelImpl` and `SecretProviderImpl`. Only these methods are reachable; anything else on your object is not. A thrown error reaches the user as the provider's error message, so never put a secret value in one.
+
+A plugin DNS provider issues certificates over DNS-01, wildcards included. Caddy asks LogiStack to place the `_acme-challenge` TXT record, and LogiStack calls your `upsertRecord`, then `listRecords` and `deleteRecord` to clean up. `upsertRecord` must leave exactly one value at that name and type. See `examples/plugins/memory-providers` for all three kinds.
+
+## Pages
+
+A page is HTML your plugin serves under `/ui`. Declare it in `contributes.pages` with a `location`:
+
+- `sidebar`: under **Plugins** in the sidebar, at `/plugin/<install id>/<page id>`.
+- `service-tab`: a tab on service pages, limited to the kinds in `serviceKinds` when you set it.
+- `project-tab`: a tab next to **Services** on project pages.
+- `settings`: opened from the plugin's page in **Settings** › **Plugins**.
+
+The dashboard loads the page in a sandboxed iframe from `/plugins/<install id>/ui/<path>`. Requests under `/ui/api/` carry the viewer's identity; everything else under `/ui` is served without a session, for your HTML, scripts and styles.
+
+```ts title="src/main.ts"
+import { createPlugin, type PluginEnv, requirePermission } from "@logistack/plugin-sdk";
+import { Hono } from "hono";
+
+const page = (title: string) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>${title}</title>
+<link rel="stylesheet" href="./assets/ui.css"></head>
+<body><div id="root" class="ls-empty">Loading…</div>
+<script type="module" src="./assets/page.js"></script></body></html>`;
+
+const ui = new Hono<PluginEnv>()
+	.get("/failures", (c) => c.html(page("Deploy alerts")))
+	.get("/assets/page.js", (c) => c.body(pageJs, 200, { "content-type": "text/javascript" }))
+	.get("/assets/ui.css", (c) => c.body(css, 200, { "content-type": "text/css" }))
+	.get("/api/events", requirePermission("read"), async (c) => {
+		const { serviceId } = c.get("user").context;
+		return c.json(await load(serviceId));
+	});
+
+export const app = createPlugin({ manifest, ui });
+```
+
+`c.get("user")` holds the viewer: `userId`, `name`, `organizationId`, `installId`, `context` (the `serviceId` or `projectId` of a tab) and `permissions`, the viewer's actions on that context. Your backend acts with the plugin's own key, so check the viewer before you act for them: `requirePermission("deploy")` answers 403 unless the viewer holds `deploy` there.
+
+Use relative URLs (`./assets/page.js`) in your HTML: the page is served below `/plugins/<install id>/ui/`. `examples/plugins/deploy-notifier` bundles its page script with `Bun.build` at start and serves `ui.css` from the SDK, as above.
+
+### The page bridge
+
+In the page's script, `connect()` from `@logistack/plugin-sdk/ui` waits for the dashboard and returns the page API:
+
+```ts title="src/page.ts"
+import { connect } from "@logistack/plugin-sdk/ui";
+
+const page = await connect();
+const res = await page.api("events");
+const showAll = (await page.storage.get<boolean>("showAll")) ?? false;
+```
+
+| Member | What it does |
+| --- | --- |
+| `init` | `theme`, `css`, `locale`, `user` (`id`, `name`), `organization` (`id`, `name`), `context` (`serviceId`, `projectId`) and `subpath`, the dashboard path below the page. |
+| `api(path, init?)` | `fetch` to your backend at `/ui/api/<path>` with a fresh session token. |
+| `token()` | A session token valid for at least another minute. |
+| `storage.get`, `storage.set`, `storage.delete` | Small per-user, per-install storage kept by LogiStack. See [Limits](./reference.mdx#limits). |
+| `toast(message, kind?)` | A dashboard toast, `info`, `success` or `error`, labeled with your plugin's name. |
+| `confirm({ title, description?, confirmLabel?, destructive? })` | The dashboard's own confirm dialog. Resolves `true` when confirmed. One at a time: a second call while one is open resolves `false`. |
+| `navigate(to)` | Go to a dashboard route, such as `/projects/prj_123`, or to `./<page id>` of your plugin. |
+| `openExternal(url)` | Open an `https` URL in a new tab after the dashboard asks the user, showing the domain. |
+| `onTheme(cb)` | Called when the user switches between light and dark. |
+
+`connect()` also sets the dashboard's CSS variables on `:root` and keeps the iframe as tall as your content, so the page never scrolls inside a scroll. Outside the dashboard it rejects with `this page only runs inside the LogiStack dashboard`.
+
+### The CSS kit
+
+`@logistack/plugin-sdk/ui.css` makes a page look like LogiStack without loading the dashboard's bundle. It styles `h1`, `h2` and `p`, and provides these classes, built on the variables `connect()` sets, in light and dark:
+
+| Class | For |
+| --- | --- |
+| `ls-stack`, `ls-row` | Vertical and horizontal layout with spacing. |
+| `ls-card` | A bordered panel. |
+| `ls-button` | A button. `data-variant="primary"` or `"destructive"` for the other styles. |
+| `ls-input` | Text inputs and selects. |
+| `ls-table` | A table. |
+| `ls-badge` | A small label. `data-tone="ok"`, `"bad"` or `"warn"`. |
+| `ls-muted`, `ls-mono`, `ls-empty` | Secondary text, monospaced text, an empty state. |
+
+The kit uses the system font stack. It is optional: style the page however you like.
+
+### Opaque-origin pitfalls
+
+The page runs with an opaque origin (`null`). Code that works in a normal tab can fail here:
+
+- `localStorage`, `sessionStorage`, `indexedDB` and `document.cookie` throw `SecurityError`. A library that touches them on import blanks the whole page. Use `page.storage`, or `bridgeStorage(page, keys)` from `@logistack/plugin-sdk/ui` for libraries that accept a `localStorage`-shaped object: it preloads the keys you name and writes back in the background.
+- Cookies are never sent and never set: the proxy strips them. Authenticate backend calls with `page.api`, which sends the session token.
+- Pages cannot open popups or navigate the top window. Use `openExternal` and `navigate`.
+- Only `GET` and `HEAD` reach paths outside `/ui/api/`. Send form posts and other writes to `/ui/api/…`.
+- Requests through the proxy are limited to 1 MB of body and 30 seconds. A redirect may only point inside your own pages.
+- Static files are served to anyone who knows the install id. Put nothing private in them; serve data from `/ui/api/…`.
+
+`logistack-plugin dev` serves your pages directly, without the dashboard's sandbox: test them through a dev-URL install to see them as users do.
+
+## The image
+
+LogiStack runs the container with a read-only root filesystem. Only `/tmp` (a 64 MB tmpfs) and `/data` (a named volume) are writable. Keep state in `/data`.
+
+A new Docker volume takes the owner of the directory it mounts over, so the image must create `/data` and give it to the user the plugin runs as. Without that, a non-root plugin cannot write its own volume. The scaffold's `Dockerfile` does it:
+
+```dockerfile title="Dockerfile"
+FROM oven/bun:1.4-alpine
+WORKDIR /app
+COPY package.json ./
+RUN bun install --production
+COPY src ./src
+# LogiStack mounts a volume at /data (the root is read-only); a new volume takes this owner.
+RUN mkdir /data && chown bun:bun /data
+USER bun
+ENV DATA_DIR=/data
+CMD ["bun", "src/main.ts"]
+```
+
+Listen on the manifest's `port` (default `8080`); LogiStack also sets `PORT`. Do the work you can at build time, and anything that writes files at start, into `/tmp` or `/data`.
+
+### Reach the internet through the proxy
+
+The container has no direct route out. LogiStack sets `HTTP_PROXY` and `HTTPS_PROXY` (and their lowercase forms) to the egress proxy, and `NO_PROXY` to the LogiStack API, so outbound requests work only to the hosts in your manifest's `egress`. List every host you call, such as `api.telegram.org` or `*.amazonaws.com`. A request to any other host fails with `403 Forbidden`.
+
+Bun's `fetch` and curl honour these variables. Node's built-in `fetch` ignores them: in a Node plugin, install `undici` and set its proxy-aware dispatcher once at start:
+
+```ts
+import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
+
+setGlobalDispatcher(new EnvHttpProxyAgent());
+```
+
+Other languages: check that your HTTP client reads `HTTPS_PROXY`, or pass the proxy explicitly.
+
+## Test the contract
+
+Run the same contract test the marketplace review runs, against a plugin you started with a known secret:
+
+```sh
+LOGISTACK_SIGNING_SECRET=dev-secret bun run dev
+logistack-plugin test http://localhost:8080 --secret dev-secret
+```
+
+```text
+✓ GET /v1/manifest returns a valid manifest
+✓ GET /v1/health answers a signed request
+✓ GET /v1/health refuses an unsigned request
+✓ POST /v1/events refuses a tampered body
+✓ POST /v1/events accepts a signed event
+✓ GET /ui/failures serves HTML
+```
+
+It exits with a non-zero code when a check fails, so you can run it in CI. `contractTest(url, secret)` from `@logistack/plugin-sdk/testing` runs the same checks from your own tests.
+
+## Build the image
+
+```sh
+logistack-plugin build ghcr.io/acme/deploy-alerts:0.1.0
+docker push ghcr.io/acme/deploy-alerts:0.1.0
+```
+
+`build` imports the manifest from `src/main.ts` (pass another entry as the second argument) and runs `docker build` in the current folder with the manifest as the `io.logistack.plugin.manifest` label. Install the pushed image with **Install from a container image**, or [publish it to the marketplace](./publish.mdx).
+
+## CLI reference
+
+| Command | What it does |
+| --- | --- |
+| `logistack-plugin init <dir> --id <id>` | Scaffold a plugin in a new folder. |
+| `logistack-plugin dev [entry]` | Run the entry (default `src/main.ts`) with `bun --watch`. Uses `LOGISTACK_SIGNING_SECRET` when set, a random one otherwise. |
+| `logistack-plugin test <url> --secret <secret>` | Run the contract test. The secret can also come from `LOGISTACK_SIGNING_SECRET`. |
+| `logistack-plugin build <tag> [entry]` | `docker build` with the manifest label. |
+| `logistack-plugin publish <image@sha256:…> [entry]` | Submit a version to the marketplace. See [Publish to the marketplace](./publish.mdx). |

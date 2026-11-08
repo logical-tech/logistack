@@ -17,6 +17,7 @@ export type ManagedKind =
 	| "release"
 	| "probe"
 	| "gateway"
+	| "plugin"
 	| "system";
 
 export interface ManagedRef {

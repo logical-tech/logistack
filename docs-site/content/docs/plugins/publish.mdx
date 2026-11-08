@@ -1,0 +1,103 @@
+---
+title: Publish a plugin to the marketplace
+description: Sign in to the LogiStack plugin index, register a plugin id, submit versions by image digest and get them verified, so any LogiStack instance can install them.
+---
+
+The marketplace in every LogiStack instance reads the official plugin index at `https://stack.logicaltech.it/plugins/api`. Publishing a plugin there lets anyone install it in a few clicks, and lets them update it when you release a new version. The index stores metadata only: the manifest, the image digest, a README, a changelog and an icon URL. Your image stays in your own registry.
+
+## Rules
+
+- **Free only.** The index lists free plugins. A manifest with any field it does not know at the top level, such as `price` or `licenseKey`, is refused. Do not gate features behind payment.
+- **Digests only.** You submit `registry/repository@sha256:<digest>`, never a tag. A version, once submitted, never changes.
+- **Public images.** The index reads your registry anonymously, so the image must be public.
+- **Your own id.** Plugin ids are first come, first served. Ids under `dev.logistack.` and `it.logicaltech.` are reserved for LogiStack.
+
+## Sign in and register an id
+
+<Steps>
+<Step>
+
+### Sign in
+
+Open `https://stack.logicaltech.it/plugins/api/`, enter your email and select **Send link**. Open the link in the email and select **Continue to the dashboard**. There is no password.
+
+</Step>
+<Step>
+
+### Set your publisher name
+
+Under **Your plugins**, fill in **Publisher name (public)** and select **Save**. The marketplace shows it next to each of your plugins.
+
+</Step>
+<Step>
+
+### Register the plugin id
+
+Under **Register a plugin id**, enter the manifest's `id`, such as `com.acme.cost-report`, and select **Register**.
+
+</Step>
+</Steps>
+
+## Submit a version
+
+Build and push the image first (see [Build a plugin](./build.mdx#build-the-image)), then get its digest:
+
+```sh
+docker buildx imagetools inspect ghcr.io/acme/cost-report:1.2.0
+```
+
+<Tabs items={["CLI", "Dashboard"]}>
+<Tab value="CLI">
+
+Create a token under **API tokens** with **Create token** and copy it: it is shown once. Then, from the plugin's folder:
+
+```sh
+export LOGISTACK_INDEX_TOKEN=lspi_...
+logistack-plugin publish ghcr.io/acme/cost-report@sha256:4f1c9e7a2b8d06c3e5f7a9b1d3c5e7f90a2b4c6d8e0f1a3b5c7d9e1f3a5b7c9d \
+  --icon https://acme.example/cost-report.png
+```
+
+`publish` imports the manifest from `src/main.ts` (pass another entry after the image), and sends `README.md` and `CHANGELOG.md` when they exist (`--readme` and `--changelog` pick other files). It prints the status the version got. `LOGISTACK_INDEX_URL` points it at another index.
+
+</Tab>
+<Tab value="Dashboard">
+
+Under your plugin, open **Submit a version** and fill in **Image, by digest**, **Manifest JSON (the image label)**, **README (Markdown)**, **Changelog** and, optionally, **Icon URL (https, optional)**. Select **Submit**.
+
+</Tab>
+</Tabs>
+
+## What the automatic checks verify
+
+On submit, the index checks, in order:
+
+1. The manifest is valid against the release's schema, with no unknown top-level keys, and its `id` is the plugin you registered.
+2. The image reference is a digest.
+3. The registry serves that digest. For a multi-platform image, every Linux image in it is read.
+4. The `io.logistack.plugin.manifest` label of each image equals the manifest you submitted, and every document read matches its digest.
+
+If every check passes, the version is listed as **unverified**. If one fails, it is **rejected** with the reason, and you can submit the same version again after you fix it.
+
+Running the image is not part of the submit: the contract test (`logistack-plugin test`) and a vulnerability scan run separately, and their results are attached to the version for the reviewer.
+
+## Review states
+
+| State | Meaning | Seen by instances |
+| --- | --- | --- |
+| `pending` | The submit checks are running. | No |
+| `unverified` | Listed after the automatic checks. Nobody has read the source. Instances show an **Unverified** badge. | Yes |
+| `verified` | A maintainer read the source at a recorded commit. Instances show a **Verified** badge, and instances with the **Verified only** policy can install it. | Yes |
+| `rejected` | Refused, with notes. | No |
+| `yanked` | Withdrawn after listing. Instances that run it see a warning at their next refresh; nobody can install or update to it. | As a warning |
+
+Verification is per version: a new version starts as `unverified` until a maintainer reviews it. Keep the source of each version available so it can be reviewed.
+
+## After publishing
+
+- **Updates.** Instances never update on their own. Users see your new version after they refresh their marketplace, with your changelog and any permission or egress you add. Added permissions need their consent, so ask only for what you need.
+- **Install counts.** Instances whose admins turn on install counting send the plugin id and a random install id on each marketplace install. The marketplace shows distinct installs from the last 30 days. No IP address is stored.
+- **Reports and moderation.** Anyone can report a plugin to the maintainers. A maintainer can yank a version or suspend a publisher, which yanks all of that publisher's listed versions.
+
+## Run a private index
+
+A company can run its own index for internal plugins. It must answer `GET /v1/index` and `GET /v1/plugins/{id}` with the same signed envelope: `{ "keyId", "payload", "signature" }`, where `payload` is the exact JSON text signed, `signature` is the base64url Ed25519 signature over its UTF-8 bytes, and `keyId` is the signer's base64url raw public key. An instance admin adds it with its public keys, as in [Add a private index](./install.mdx#add-a-private-index).

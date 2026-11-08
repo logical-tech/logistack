@@ -195,6 +195,11 @@ export const ACTION_LABELS: Record<
 		description:
 			"Call models through the AI gateway, within the budget an admin assigns.",
 	},
+	plugins: {
+		label: "Plugins",
+		description:
+			"Install, configure and remove plugins, within the instance policy.",
+	},
 };
 
 export const PERMISSION_ACTIONS = Object.keys(

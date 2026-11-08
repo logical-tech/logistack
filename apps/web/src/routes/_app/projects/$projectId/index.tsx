@@ -29,6 +29,11 @@ import { SkeletonRows } from "@/components/panel";
 import { CreateEnvironmentDialog } from "@/components/projects/create-dialogs";
 import { ENV_COLORS, EnvDot, envColor } from "@/components/projects/env-color";
 import { PreviewPanel } from "@/components/projects/preview-panel";
+import {
+	ProjectSections,
+	sectionPanel,
+	useProjectPluginTabs,
+} from "@/components/projects/project-sections";
 import { ServiceList } from "@/components/projects/service-list";
 import { SignalStrip } from "@/components/signal-strip";
 import { SlidingTabs } from "@/components/sliding-tabs";
@@ -133,6 +138,7 @@ function ProjectDetail() {
 	const { data: gitops } = useQuery(gitopsQuery(projectId));
 	const [creatingEnv, setCreatingEnv] = useState(false);
 	const [archiving, setArchiving] = useState(false);
+	const pluginTabs = useProjectPluginTabs();
 	const setArchived = useSetArchived(projectId);
 	const toggleArchived = (archived: boolean) =>
 		setArchived.mutate(archived, {
@@ -307,102 +313,108 @@ function ProjectDetail() {
 					)
 				}
 			/>
-
-			{archived && (
-				<div
-					role="status"
-					className="mb-6 flex flex-col gap-3 rounded-xl bg-muted/50 px-4 py-3 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between"
-				>
-					<div className="flex items-start gap-3">
-						<Archive
-							className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-							aria-hidden
-						/>
-						<div className="text-sm">
-							<p className="font-medium">This project is archived</p>
-							<p className="text-pretty text-muted-foreground">
-								Its services are stopped and deploys are paused. Data,
-								configuration and replica counts are kept.
-							</p>
-						</div>
-					</div>
-					<Button
-						variant="outline"
-						size="sm"
-						className="shrink-0"
-						disabled={setArchived.isPending}
-						onClick={() => toggleArchived(false)}
-					>
-						<ArchiveRestore data-icon="inline-start" />
-						Unarchive
-					</Button>
-				</div>
-			)}
-
-			<ConfirmDialog
-				open={archiving}
-				onOpenChange={setArchiving}
-				title={`Archive ${project.name}?`}
-				description="Every running service stops and the project leaves the projects list. Nothing is deleted: unarchive to start the same services again at their replica counts."
-				confirmLabel="Archive project"
-				pending={setArchived.isPending}
-				onConfirm={() => toggleArchived(true)}
-			/>
-
-			<CreateEnvironmentDialog
-				open={creatingEnv}
-				onOpenChange={setCreatingEnv}
+			<ProjectSections
 				projectId={projectId}
-				onCreated={(e) => navigate({ search: { env: e.id }, replace: true })}
+				value="services"
+				tabs={pluginTabs}
 			/>
-			{env ? (
-				<>
-					<div className="mb-5 flex items-end gap-2 border-b">
-						<SlidingTabs
-							label="Environments"
-							idPrefix="env"
-							value={env.id}
-							onChange={(id: EnvironmentId) =>
-								navigate({ search: { env: id }, replace: true })
-							}
-							items={project.environments.map((e) => ({
-								id: e.id,
-								label: <EnvTabLabel env={e} />,
-							}))}
-						/>
-						<EnvironmentMenu env={env} projectSlug={project.slug} />
+			<div {...sectionPanel(pluginTabs.length > 0, "services")}>
+				{archived && (
+					<div
+						role="status"
+						className="mb-6 flex flex-col gap-3 rounded-xl bg-muted/50 px-4 py-3 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between"
+					>
+						<div className="flex items-start gap-3">
+							<Archive
+								className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+								aria-hidden
+							/>
+							<div className="text-sm">
+								<p className="font-medium">This project is archived</p>
+								<p className="text-pretty text-muted-foreground">
+									Its services are stopped and deploys are paused. Data,
+									configuration and replica counts are kept.
+								</p>
+							</div>
+						</div>
 						<Button
-							variant="ghost"
+							variant="outline"
 							size="sm"
-							className="mb-1.5 text-muted-foreground"
-							onClick={() => setCreatingEnv(true)}
+							className="shrink-0"
+							disabled={setArchived.isPending}
+							onClick={() => toggleArchived(false)}
 						>
+							<ArchiveRestore data-icon="inline-start" />
+							Unarchive
+						</Button>
+					</div>
+				)}
+
+				<ConfirmDialog
+					open={archiving}
+					onOpenChange={setArchiving}
+					title={`Archive ${project.name}?`}
+					description="Every running service stops and the project leaves the projects list. Nothing is deleted: unarchive to start the same services again at their replica counts."
+					confirmLabel="Archive project"
+					pending={setArchived.isPending}
+					onConfirm={() => toggleArchived(true)}
+				/>
+
+				<CreateEnvironmentDialog
+					open={creatingEnv}
+					onOpenChange={setCreatingEnv}
+					projectId={projectId}
+					onCreated={(e) => navigate({ search: { env: e.id }, replace: true })}
+				/>
+				{env ? (
+					<>
+						<div className="mb-5 flex items-end gap-2 border-b">
+							<SlidingTabs
+								label="Environments"
+								idPrefix="env"
+								value={env.id}
+								onChange={(id: EnvironmentId) =>
+									navigate({ search: { env: id }, replace: true })
+								}
+								items={project.environments.map((e) => ({
+									id: e.id,
+									label: <EnvTabLabel env={e} />,
+								}))}
+							/>
+							<EnvironmentMenu env={env} projectSlug={project.slug} />
+							<Button
+								variant="ghost"
+								size="sm"
+								className="mb-1.5 text-muted-foreground"
+								onClick={() => setCreatingEnv(true)}
+							>
+								<Plus data-icon="inline-start" />
+								New environment
+							</Button>
+						</div>
+						<div
+							id="env-panel"
+							role="tabpanel"
+							aria-labelledby={`env-tab-${env.id}`}
+							key={env.id}
+						>
+							{env.preview && <PreviewPanel preview={env.preview} />}
+							<EnvironmentServices env={env} projectId={projectId} />
+						</div>
+					</>
+				) : (
+					<EmptyState
+						icon={Boxes}
+						title="No environments"
+						description="Every project needs at least one environment. Production is created with the project."
+					>
+						<Button onClick={() => setCreatingEnv(true)}>
 							<Plus data-icon="inline-start" />
 							New environment
 						</Button>
-					</div>
-					<div
-						id="env-panel"
-						role="tabpanel"
-						aria-labelledby={`env-tab-${env.id}`}
-						key={env.id}
-					>
-						{env.preview && <PreviewPanel preview={env.preview} />}
-						<EnvironmentServices env={env} projectId={projectId} />
-					</div>
-				</>
-			) : (
-				<EmptyState
-					icon={Boxes}
-					title="No environments"
-					description="Every project needs at least one environment. Production is created with the project."
-				>
-					<Button onClick={() => setCreatingEnv(true)}>
-						<Plus data-icon="inline-start" />
-						New environment
-					</Button>
-				</EmptyState>
-			)}
+					</EmptyState>
+				)}
+			</div>
 		</Page>
 	);
 }

@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Fragment } from "react";
 import { toast } from "sonner";
 import { LogoMark } from "@/components/brand";
 import { OrgAvatar } from "@/components/org-avatar";
+import { pluginIcon } from "@/components/plugins/plugin-icon";
 import { SponsorBadge, SponsorCard } from "@/components/shell/sponsor-card";
 import { UpdateBadge } from "@/components/shell/update-badge";
 import { StatusDot } from "@/components/status";
@@ -37,6 +39,7 @@ import {
 import { useMe, useOrganization } from "@/lib/api/access";
 import { versionQuery } from "@/lib/api/instance";
 import { nodesQuery } from "@/lib/api/monitoring";
+import { pluginContributionsQuery } from "@/lib/api/plugins";
 import { auth } from "@/lib/auth";
 import { NAV } from "@/lib/nav";
 import { NODE_STATUS } from "@/lib/status";
@@ -219,6 +222,56 @@ function FooterStatus() {
 	);
 }
 
+/** Sidebar pages of enabled plugins, under their own label so they never pass for ours. */
+function PluginsGroup({ pathname }: { pathname: string }) {
+	const { data = [] } = useQuery(pluginContributionsQuery);
+	const { isMobile, setOpenMobile } = useSidebar();
+	const items = data.flatMap((c) =>
+		c.pages
+			.filter((p) => p.location === "sidebar")
+			.map((p) => ({ c, p, to: `/plugin/${c.installId}/${p.id}` })),
+	);
+	if (!items.length) return null;
+	return (
+		<SidebarGroup>
+			<SidebarGroupLabel>Plugins</SidebarGroupLabel>
+			<SidebarGroupContent>
+				<SidebarMenu>
+					{items.map(({ c, p, to }) => {
+						const active = isActive(pathname, to);
+						const Icon = pluginIcon(p.icon);
+						return (
+							<SidebarMenuItem key={to}>
+								<SidebarMenuButton
+									asChild
+									isActive={active}
+									tooltip={`${p.title} · ${c.pluginName}`}
+								>
+									<Link
+										to="/plugin/$installId/$pageId/$"
+										params={{
+											installId: c.installId,
+											pageId: p.id,
+											_splat: "",
+										}}
+										onClick={() => isMobile && setOpenMobile(false)}
+									>
+										<Icon
+											strokeWidth={active ? 2 : 1.75}
+											className={cn(!active && "text-muted-foreground")}
+										/>
+										<span>{p.title}</span>
+									</Link>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+						);
+					})}
+				</SidebarMenu>
+			</SidebarGroupContent>
+		</SidebarGroup>
+	);
+}
+
 export function AppSidebar() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const { isMobile, setOpenMobile } = useSidebar();
@@ -229,39 +282,42 @@ export function AppSidebar() {
 				<OrgSwitcher />
 			</SidebarHeader>
 			<SidebarContent>
-				{NAV.map((group) => (
-					<SidebarGroup key={group.label ?? "main"}>
-						{group.label && (
-							<SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-						)}
-						<SidebarGroupContent>
-							<SidebarMenu>
-								{group.items.map((item) => {
-									const active = isActive(pathname, item.to);
-									return (
-										<SidebarMenuItem key={item.to}>
-											<SidebarMenuButton
-												asChild
-												isActive={active}
-												tooltip={item.title}
-											>
-												<Link
-													to={item.to}
-													onClick={() => isMobile && setOpenMobile(false)}
+				{NAV.map((group, i) => (
+					<Fragment key={group.label ?? "main"}>
+						{i === 1 && <PluginsGroup pathname={pathname} />}
+						<SidebarGroup>
+							{group.label && (
+								<SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+							)}
+							<SidebarGroupContent>
+								<SidebarMenu>
+									{group.items.map((item) => {
+										const active = isActive(pathname, item.to);
+										return (
+											<SidebarMenuItem key={item.to}>
+												<SidebarMenuButton
+													asChild
+													isActive={active}
+													tooltip={item.title}
 												>
-													<item.icon
-														strokeWidth={active ? 2 : 1.75}
-														className={cn(!active && "text-muted-foreground")}
-													/>
-													<span>{item.title}</span>
-												</Link>
-											</SidebarMenuButton>
-										</SidebarMenuItem>
-									);
-								})}
-							</SidebarMenu>
-						</SidebarGroupContent>
-					</SidebarGroup>
+													<Link
+														to={item.to}
+														onClick={() => isMobile && setOpenMobile(false)}
+													>
+														<item.icon
+															strokeWidth={active ? 2 : 1.75}
+															className={cn(!active && "text-muted-foreground")}
+														/>
+														<span>{item.title}</span>
+													</Link>
+												</SidebarMenuButton>
+											</SidebarMenuItem>
+										);
+									})}
+								</SidebarMenu>
+							</SidebarGroupContent>
+						</SidebarGroup>
+					</Fragment>
 				))}
 			</SidebarContent>
 			<SidebarFooter>

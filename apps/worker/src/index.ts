@@ -48,6 +48,7 @@ import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
 import { queueWindowRun, scanAll } from "./patching.ts";
+import { reconcilePlugins } from "./plugins.ts";
 import { expirePreviews } from "./previews.ts";
 import { listenForSyncRequests, syncProxy } from "./proxy.ts";
 import { switchProxy } from "./proxy-switch.ts";
@@ -211,6 +212,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
 				else if (job.name === "db-access") await reconcileDbAccess(ctx);
+				else if (job.name === "plugins") await reconcilePlugins(ctx);
 				else if (job.name === "patch-scan")
 					await withLock(ctx.bus.redis, "ls:lock:patch-scan", 3_600_000, () =>
 						scanAll(ctx),
@@ -297,6 +299,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		"db-access-every",
 		{ every: 30_000 },
 		{ name: "db-access" },
+	);
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"plugins-every",
+		{ every: 30_000 },
+		{ name: "plugins" },
 	);
 
 	// Uptime checks are due whatever the reconcile interval; Postgres says which.

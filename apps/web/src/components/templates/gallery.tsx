@@ -278,15 +278,29 @@ export function TemplateGallery({
 										<span className="truncate text-sm font-medium">
 											{t.name}
 										</span>
-										{t.services > 1 && (
-											<span className="shrink-0 text-xs text-muted-foreground tabular">
-												{t.services} services
+										{t.community ? (
+											<span
+												className="shrink-0 rounded-full px-1.5 py-px text-2xs font-medium text-muted-foreground ring-1 ring-border"
+												title={`Community template from ${t.community.source}`}
+											>
+												Community
 											</span>
+										) : (
+											t.services > 1 && (
+												<span className="shrink-0 text-xs text-muted-foreground tabular">
+													{t.services} services
+												</span>
+											)
 										)}
 									</span>
 									<span className="line-clamp-2 text-xs leading-relaxed text-pretty text-muted-foreground">
 										{t.description}
 									</span>
+									{t.community && (
+										<span className="truncate text-2xs text-muted-foreground">
+											From {t.community.source}
+										</span>
+									)}
 									{t.tags.length > 0 && (
 										<span className="mt-1.5 flex min-w-0 flex-wrap gap-1 overflow-hidden [max-height:1.25rem]">
 											{t.tags.slice(0, 3).map((tag) => (

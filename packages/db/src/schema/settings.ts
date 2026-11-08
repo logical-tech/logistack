@@ -1,5 +1,6 @@
 import type {
 	BuildkitState,
+	PluginPolicy,
 	ReleaseChannel,
 	UpdateState,
 	UpdateSteps,
@@ -56,6 +57,13 @@ export const instanceSettings = pgTable(
 		 * does not change the key the stored certificates are sealed with.
 		 */
 		caddyStorageKeyEncrypted: text("caddy_storage_key_encrypted"),
+		/** Who may install plugins: `off`, `verified` (marketplace-reviewed only) or `any` (`PluginPolicy`). */
+		pluginPolicy: text("plugin_policy")
+			.$type<PluginPolicy>()
+			.notNull()
+			.default("any"),
+		/** Opt-in: tell the index a plugin was installed (plugin id and version, nothing else). */
+		pluginInstallPing: boolean("plugin_install_ping").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [

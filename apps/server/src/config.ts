@@ -90,6 +90,25 @@ const ConfigSchema = z.object({
 		.enum(["", "0", "1", "true", "false"])
 		.optional()
 		.transform((v) => v === "1" || v === "true"),
+	/**
+	 * Extra trusted signing keys of the official plugin index, base64url raw Ed25519, comma-separated.
+	 * Added to `PLUGIN_INDEX_KEYS`, which is empty (a placeholder) until a release bundles the production key.
+	 */
+	LS_PLUGIN_INDEX_PUBLIC_KEY: optional,
+	/** The official plugin index is its sandbox. Set only on test instances. */
+	LOGISTACK_PLUGIN_INDEX_SANDBOX: z
+		.enum(["", "0", "1", "true", "false"])
+		.optional()
+		.transform((v) => v === "1" || v === "true"),
+	/**
+	 * Community templates (docs/plans/plugins.md, phase 0): the signed index fetched on Refresh,
+	 * and the keys that may sign it: base64url raw Ed25519 public keys, comma-separated, as for
+	 * the plugin index. No key: Refresh is refused.
+	 */
+	LS_TEMPLATE_INDEX_URL: z
+		.url()
+		.default("https://stack.logicaltech.it/templates/api/v1/index"),
+	LS_TEMPLATE_INDEX_KEYS: z.string().default(""),
 	GITHUB_CLIENT_ID: optional,
 	GITHUB_CLIENT_SECRET: optional,
 	GOOGLE_CLIENT_ID: optional,

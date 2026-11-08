@@ -129,6 +129,8 @@ const ConfigSchema = z.object({
 	LS_BACKUP_TOOLS_IMAGE: z.string().default("alpine:3.22"),
 	/** The image database gateways run (ROLE=dbgateway); empty: the worker's own stack image. */
 	LS_GATEWAY_IMAGE: z.string().optional(),
+	/** The API URL plugin containers call; default the api's stack service on the plugins network. */
+	LS_PLUGIN_API_URL: z.string().optional(),
 	/** Host-target schedules chroot into the node's / from this image. */
 	LS_HOST_JOB_IMAGE: z.string().default("busybox:1.37"),
 	/** Schedule run output kept per run; the rest is counted, not stored. */

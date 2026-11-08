@@ -1,0 +1,281 @@
+---
+title: Install and manage plugins
+description: Install LogiStack plugins from the marketplace, a container image or a dev URL, then configure, test, update, roll back, turn off or uninstall them.
+---
+
+Plugins live in **Settings** › **Plugins**. From there you install a plugin from a marketplace index, from any container image or from a dev URL, change its settings, update it and remove it. You need the **Plugins** permission action, which Owners and Admins hold, and the instance policy must allow the source. Read [How plugins work](./index.mdx) first if you have not.
+
+![The Plugins page, Installed tab, listing Deploy alerts as verified, running and turned on](/screens/settings-plugins.webp)
+
+## Install from the marketplace
+
+The **Marketplace** tab lists the plugins of every index this instance trusts: the official LogiStack index, plus any private index an instance admin added.
+
+<Steps>
+<Step>
+
+### Open the Marketplace tab
+
+Go to **Settings** › **Plugins** and select **Marketplace**. Search by name, description, plugin id or publisher.
+
+Each entry shows its badge (**Verified** or **Unverified**), the publisher, the newest version, the index it comes from and, when instances report them, the number of installs. An entry you cannot install says why instead of showing **Install**: the instance policy refuses it, or it needs a newer LogiStack.
+
+![The Marketplace tab with Deploy alerts and Hetzner DNS verified, Cost report unverified, and the Indexes panel below](/screens/plugins-marketplace.webp)
+
+</Step>
+<Step>
+
+### Select Install
+
+The install wizard opens at **Review what it gets**. Before it shows anything, LogiStack checks the index's signature on the entry, reads the image from its registry by digest, and checks that the image's manifest label matches what the index signed. If any check fails, the wizard says **This entry can't be installed** with the reason.
+
+</Step>
+<Step>
+
+### Review what it gets
+
+Read this step like a phone app's permission prompt:
+
+- **Plugin**: name, description, author, version, plugin id, image digest and license.
+- **Contributes**: pages and where they appear, the events it receives, agent tools and providers.
+- **Permissions**: each action its API token gets, on the whole organization. An action you do not hold is marked, and you cannot continue: ask someone who holds it to install the plugin.
+- **Network and resources**: **Talks to** lists the hosts the plugin declares. Its container can reach only these hosts on the internet; see [Egress](./index.mdx#egress-is-limited-to-declared-hosts). **Reserves** shows the CPU and memory it asks for.
+
+Select **Continue**.
+
+![The Review what it gets step for Cost report, unverified, with two pages, an agent tool, the Read permission and api.hetzner.cloud as declared egress](/screens/plugin-install-review.webp)
+
+</Step>
+<Step>
+
+### Fill in the settings
+
+The **Settings** form comes from the plugin's manifest. Secret fields are encrypted at rest, masked when shown again, and never placed in the container's environment: the plugin reads them through the API with its own key. Select **Continue**.
+
+</Step>
+<Step>
+
+### Install and test
+
+Select **Install**. LogiStack creates the plugin's service account and API key, and the worker starts the container. The wizard waits up to two minutes for it to run, then calls its health check and, when the plugin offers one, sends it the settings to validate. **Running and healthy** means both passed.
+
+</Step>
+<Step>
+
+### Finish
+
+The **Summary** step lists what you installed. Select **Done**. Sidebar pages appear under **Plugins** in the sidebar, service tabs on the services they apply to, and project tabs next to **Services** on project pages, for every member who can read them.
+
+</Step>
+</Steps>
+
+## Install from a container image
+
+Use this for a plugin you built yourself, or one that is not on any index. It shows as **Unlisted**. The instance policy must be **Any image**.
+
+<Steps>
+<Step>
+
+### Start the wizard
+
+In **Settings** › **Plugins**, select **Install plugin**. In **Where is the plugin?**, choose **Container image**.
+
+</Step>
+<Step>
+
+### Enter the image
+
+In **Image**, enter a tag or a digest, such as `ghcr.io/acme/cost-report:1.2.0`. LogiStack resolves it to the digest it reads now and pins the install to that digest. For a private image, pick the **Registry credentials** to pull with; they come from [Registries](../deploy/registries.mdx).
+
+</Step>
+<Step>
+
+### Read the manifest
+
+Select **Read manifest**. LogiStack reads the `io.logistack.plugin.manifest` label from the registry without pulling or starting the image. If the image has no such label, it says so. Then continue with the review, settings and test steps as for a marketplace install.
+
+</Step>
+</Steps>
+
+A plugin installed from an image does not update from the dashboard. To move it to a new image, uninstall it and install the new image.
+
+## Install from a dev URL
+
+A dev URL points at a plugin running somewhere else, usually on your laptop while you write it. LogiStack starts no container: it calls the URL with signed requests. The instance policy must be **Any image**.
+
+<Steps>
+<Step>
+
+### Run the plugin where LogiStack can reach it
+
+Start it with `logistack-plugin dev` (see [Build a plugin](./build.mdx)) and expose it at an address LogiStack can reach, such as a Tailscale hostname: `https://my-laptop.tailnet.ts.net:8080`.
+
+</Step>
+<Step>
+
+### Point the wizard at it
+
+Select **Install plugin**, choose **Dev URL**, enter the URL and select **Read manifest**. LogiStack fetches `GET /v1/manifest` from it.
+
+</Step>
+<Step>
+
+### Copy the credentials
+
+After **Install**, the wizard shows four values once: `LOGISTACK_URL`, `LOGISTACK_INSTALL_ID`, `LOGISTACK_TOKEN` and `LOGISTACK_SIGNING_SECRET`. Copy them now and set them in the plugin's environment, then restart it. LogiStack stores them encrypted and does not show them again.
+
+</Step>
+</Steps>
+
+Dev URLs go through the same address checks as webhooks. LogiStack calls `https` URLs. Plain `http` works only to a private address, and only after an instance owner turns on **Allow private hosts** in **Settings** › **General**.
+
+## Change settings and test
+
+Select a plugin in the **Installed** list to open its page. It shows the status, the **Settings** form and the full manifest.
+
+![The Deploy alerts plugin page with its status, Check for updates, the settings form and the manifest](/screens/plugin-detail.webp)
+
+- **Settings**: edit the form and select **Save settings**. The plugin gets the new values with its next request; it does not restart. A masked secret you leave alone keeps its stored value.
+- **Test**: calls the plugin's health check, then validates the stored settings. Use it after changing settings or when a provider stops working.
+- A plugin's sidebar or settings pages have a button each under **Status**, to open them.
+
+## Set up a deploy gate
+
+A plugin that declares a deploy gate is asked before every rollout in the organization, before anything changes in Swarm. It answers allow or reject. A rejection fails the deployment with `rejected by deploy gate <name>: <reason>` in its error and its log, and the running version keeps serving. Use it for change freezes, approval checks or policy scans.
+
+Its page in **Settings** › **Plugins** has a **Deploy gate** panel:
+
+- **Wait for an answer (seconds)**: from 1 to 60, 10 by default. Each deployment waits this long for each gate.
+- **If it doesn't answer**: **Fail the deployment** (the default) or **Deploy anyway**. A timeout, an error or a malformed answer counts as no answer, and the log says which choice applied.
+
+Select **Save deploy gate**. When several plugins have gates, they are asked one after the other, and the first rejection stops the deployment. Each answer is kept for that deployment, so a retried or resumed deployment does not ask again. A turned-off plugin is not asked.
+
+## Turn a plugin off
+
+Use the switch in the plugin's row or on its page, then confirm **Turn off**. Its container scales to zero, and its pages, tools and events disappear for everyone in the organization. DNS providers, notification channels and secret providers that use it fail with `plugin disabled`, so the failure shows instead of being silent. Settings and data stay. Turn it on again with the same switch.
+
+This is the kill switch: use it first when a plugin misbehaves.
+
+## Update a marketplace plugin
+
+Updates are always explicit. LogiStack never updates a plugin on its own, and it learns about new versions only when someone refreshes the index (see [Indexes are fetched on demand](#indexes-are-fetched-on-demand)).
+
+<Steps>
+<Step>
+
+### Check for updates
+
+On the plugin's page, select **Check for updates**. In the Marketplace tab, an installed plugin with a newer version shows **Update from 0.1.0** instead of **Installed**.
+
+</Step>
+<Step>
+
+### Pick a version and read the changes
+
+The dialog lists newer versions, newest first, with yanked ones left out. For the selected version it shows the changelog and what changes in **Permissions** and **Declared egress**, with added items marked.
+
+![The Update Deploy alerts dialog, from 0.1.0 to 0.2.0, adding the Write permission and api.telegram.org, with a Grant Write checkbox](/screens/plugin-update.webp)
+
+</Step>
+<Step>
+
+### Consent to new permissions
+
+If the version asks for more permissions, tick **Grant …** to accept them. The update is refused without it, and refused if you do not hold one of the new actions.
+
+</Step>
+<Step>
+
+### Update
+
+Select **Update to 0.2.0**. LogiStack checks the registry serves the digest the index signed, rewrites the plugin's role to the new permissions, gives it a new API key and restarts the container on the new image. Your settings must still fit the new version's form; if they do not, the update is refused and nothing changes.
+
+</Step>
+</Steps>
+
+## Roll back
+
+After an update, the plugin's page shows **Roll back to 0.1.0**. Confirm **Roll back**: the plugin restarts on the previous digest with that version's manifest, permissions and a new API key. Rolling back again returns to the newer version. The instance policy and your own permissions are checked again, as for an update.
+
+## Yanked versions
+
+An index can yank a version, for example after a security report. At the next refresh, LogiStack marks installs of that version **Yanked** in the list and shows a warning on the plugin's page. A yanked plugin keeps running: LogiStack never removes it for you. Update to a newer version or roll back when you can. You cannot install or update to a yanked version.
+
+## Uninstall
+
+On the plugin's page, select **Uninstall**, type the plugin's name and confirm. LogiStack removes the container, the service account and its API key, the plugin's settings and every member's saved page state. The settings cannot be recovered.
+
+The data volume `ls-plg-<id>-data` stays on the node. Remove it by hand if you no longer need the data.
+
+Uninstall is refused while a DNS provider, notification channel or secret provider uses one of the plugin's providers. The message names them: delete or switch them first.
+
+## Instance settings
+
+Instance admins see two extra panels: **Indexes** in the Marketplace tab and **Instance policy** at the bottom of the page. Both apply to every organization on the server.
+
+### Set the instance policy
+
+In **Instance policy**, choose who may install plugins:
+
+| Policy | Effect |
+| --- | --- |
+| **Off** | Nobody can install plugins. Installed ones keep running until someone turns them off. |
+| **Verified only** | Only versions a maintainer reviewed on a trusted index. Images, dev URLs and unverified entries are refused. Updates and rollbacks are checked too. |
+| **Any image** | Members with the Plugins permission can install from any index, image or dev URL. This is the default. |
+
+### Count installs on the index
+
+**Count installs on the index** is off by default. When on, each marketplace install sends its index the plugin id and a random install id, nothing about the instance. The index shows the count of distinct installs from the last 30 days.
+
+### Add a private index
+
+A company can run its own index, for internal plugins, that answers the same signed endpoints as the official one.
+
+<Steps>
+<Step>
+
+### Open the dialog
+
+In the Marketplace tab, under **Indexes**, select **Add index**.
+
+</Step>
+<Step>
+
+### Enter the index
+
+Fill in **URL**, such as `https://plugins.example.com/api`, an optional **Name** (it defaults to the host), and its **Public keys**: base64url raw Ed25519 keys, one per line. LogiStack fetches the index and checks its signature before it saves anything, so a wrong URL or key is refused.
+
+</Step>
+</Steps>
+
+To rotate an index's key, add the next key before the index switches to it. Removing an index takes its plugins off the marketplace. Plugins installed from it keep running and show as **Unlisted**. The official index cannot be removed.
+
+### Indexes are fetched on demand
+
+LogiStack never fetches an index on a schedule. Opening the Marketplace tab fetches indexes whose copy is older than an hour; **Refresh** fetches them now. A refresh also re-reads the versions of installed plugins and flags yanked ones. A failed fetch keeps the previous copy and shows the error on the index.
+
+## Common problems
+
+<Accordions>
+<Accordion title="&quot;plugins are turned off on this instance&quot; or &quot;this instance only allows verified marketplace plugins&quot;">
+The instance policy refuses the source. Ask an instance admin to change it in **Instance policy**.
+</Accordion>
+<Accordion title="&quot;the plugin asks for …, which you do not hold&quot;">
+A plugin cannot receive a permission its installer lacks. Ask an Owner or Admin to install it, or to grant you the missing action on the whole organization.
+</Accordion>
+<Accordion title="&quot;… is not a LogiStack plugin: it has no io.logistack.plugin.manifest label&quot;">
+The image was built without the manifest label. Build it with `logistack-plugin build`, which adds it.
+</Accordion>
+<Accordion title="&quot;needs LogiStack >=…; this server runs …&quot;">
+The manifest's `logistack` range excludes your version. [Update LogiStack](../operations/updates.mdx) or pick an older plugin version.
+</Accordion>
+<Accordion title="Still starting after two minutes">
+The image may be large. Select **Test** on the plugin's page in a moment. If the status is **Failed**, the message under it says why the container did not start.
+</Accordion>
+<Accordion title="The plugin doesn't answer its health check">
+The container runs but does not answer `GET /v1/health` on the manifest's `port`, or rejects LogiStack's signature. Check that it listens on that port and reads `LOGISTACK_SIGNING_SECRET`.
+</Accordion>
+<Accordion title="&quot;… is still used by …; remove them first&quot;">
+A provider row uses the plugin. Delete those DNS providers, notification channels or secret providers, then uninstall.
+</Accordion>
+</Accordions>

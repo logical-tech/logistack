@@ -11,11 +11,16 @@ import {
 	guardedFetch,
 	instantiate,
 	ProviderError,
+	pluginSecretSource,
 	type SecretSource,
 	secretProviders,
 	sha256Hex,
 } from "@logistack/providers";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import {
+	openPluginProvider,
+	type PluginProviderRef,
+} from "./plugin-providers.ts";
 import type { DbOrTx } from "./secrets.ts";
 import { hostPolicy } from "./ssrf.ts";
 
@@ -36,12 +41,24 @@ async function providerFetch(ctx: ExternalCtx): Promise<Fetch> {
 	return (url, init) => guardedFetch(url, init ?? {}, policy, undefined, true);
 }
 
+/** A provider row, or the unsaved one a wizard tests. */
+export type SourceSpec = PluginProviderRef & { kind: SecretProviderKind };
+
 export async function openSource(
 	ctx: ExternalCtx,
-	kind: SecretProviderKind,
+	spec: SourceSpec,
 	config: unknown,
 ): Promise<SecretSource> {
-	return instantiate(secretProviders[kind], config, {
+	if (spec.kind === "plugin")
+		return pluginSecretSource(
+			await openPluginProvider(
+				{ ...ctx, db: ctx.db as Db },
+				"secretProviders",
+				spec,
+				config,
+			),
+		);
+	return instantiate(secretProviders[spec.kind], config, {
 		fetch: await providerFetch(ctx),
 	});
 }
@@ -113,7 +130,7 @@ export async function resolveExternalSecrets(
 	const source = (p: ProviderRow) => {
 		let s = sources.get(p.id);
 		if (!s) {
-			s = providerConfig(ctx, p).then((cfg) => openSource(ctx, p.kind, cfg));
+			s = providerConfig(ctx, p).then((cfg) => openSource(ctx, p, cfg));
 			sources.set(p.id, s);
 		}
 		return s;

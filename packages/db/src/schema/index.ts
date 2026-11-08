@@ -1,6 +1,7 @@
 export * from "./access.ts";
 export * from "./ai.ts";
 export * from "./auth.ts";
+export * from "./community-templates.ts";
 export * from "./databases.ts";
 export * from "./enums.ts";
 export * from "./gitops.ts";
@@ -12,6 +13,8 @@ export * from "./networking.ts";
 export * from "./node-token.ts";
 export * from "./operations.ts";
 export * from "./patching.ts";
+export * from "./plugin-gates.ts";
+export * from "./plugins.ts";
 export * from "./runtime.ts";
 export * from "./secrets.ts";
 export * from "./settings.ts";

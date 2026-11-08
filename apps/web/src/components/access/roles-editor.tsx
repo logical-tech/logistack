@@ -176,7 +176,10 @@ export function RoleEditor({
 								{PERMISSION_ACTIONS.map((a) => {
 									const id = `role-action-${a.replace(":", "-")}`;
 									const sensitive =
-										a === "read:secrets" || a === "admin" || a === "exec";
+										a === "read:secrets" ||
+										a === "admin" ||
+										a === "exec" ||
+										a === "plugins";
 									const on = actions.includes(a);
 									return (
 										<li key={a}>

@@ -28,7 +28,10 @@ export const dnsProviders = {
 	digitalocean,
 	ovh,
 	porkbun,
-} satisfies Record<DnsProviderKind, ProviderDef<z.ZodType, DnsProvider>>;
+} satisfies Record<
+	Exclude<DnsProviderKind, "plugin">,
+	ProviderDef<z.ZodType, DnsProvider>
+>;
 export type DnsKind = keyof typeof dnsProviders;
 export type DnsConfig<K extends DnsKind> = z.infer<
 	(typeof dnsProviders)[K]["configSchema"]

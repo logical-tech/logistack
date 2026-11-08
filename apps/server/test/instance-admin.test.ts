@@ -27,6 +27,16 @@ const instanceRoutes: [string, string, unknown?][] = [
 	["DELETE", `/api/instance/admins/${node}`],
 	["PUT", "/api/instance/sponsor", { key: "x" }],
 	["DELETE", "/api/instance/sponsor"],
+	["PUT", "/api/plugins/policy", { policy: "any" }],
+	[
+		"POST",
+		"/api/plugins/indexes",
+		{
+			url: "https://index.example.com",
+			publicKeys: [Buffer.alloc(32).toString("base64url")],
+		},
+	],
+	["DELETE", `/api/plugins/indexes/${node}`],
 	["PUT", "/api/certificates/issuer", { directory: "staging" }],
 	["PUT", "/api/registries/local", { enabled: false }],
 	["POST", "/api/build-platforms/check", {}],

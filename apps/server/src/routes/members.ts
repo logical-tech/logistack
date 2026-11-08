@@ -625,12 +625,15 @@ export const members = router()
 						actions: actionsOf(name),
 						usage: usage(name),
 					})),
-					...custom.map((r) => ({
-						name: r.name,
-						builtin: false,
-						actions: customActions(r.permission),
-						usage: usage(r.name),
-					})),
+					// Plugin service accounts' roles (`plugin:…`) belong to their install, not to people.
+					...custom
+						.filter((r) => !r.name.startsWith("plugin:"))
+						.map((r) => ({
+							name: r.name,
+							builtin: false,
+							actions: customActions(r.permission),
+							usage: usage(r.name),
+						})),
 				],
 				200,
 			);

@@ -108,6 +108,23 @@ export function dnsChallengeFor(kind: string, config: unknown): DnsChallenge {
 	return { provider: name, credentials } as DnsChallenge;
 }
 
+/**
+ * A plugin DNS provider's challenge: Caddy's acmeproxy module calls the api on the control
+ * network (`/acme-proxy/<id>/present|cleanup`, apps/server/src/acme-proxy.ts) with basic auth.
+ */
+export const acmeProxyChallenge = (
+	apiUpstream: string,
+	providerId: string,
+	password: string,
+): DnsChallenge => ({
+	provider: "acmeproxy",
+	credentials: {
+		endpoint: `http://${apiUpstream}/acme-proxy/${providerId}`,
+		username: providerId,
+		password,
+	},
+});
+
 /** Why Caddy would refuse this pair, or null. A bad upload must not fail every other route's /load. */
 export function customCertProblem(certPem: string, keyPem: string) {
 	try {
@@ -428,9 +445,18 @@ export async function syncProxy(
 	const challengeOf = (p: (typeof providers)[number]) => {
 		let c = challenges.get(p.id);
 		if (!c) {
-			c = open(p.credentialsEncrypted).then((s) =>
-				dnsChallengeFor(p.kind, JSON.parse(s)),
-			);
+			c =
+				p.kind === "plugin"
+					? p.acmeSecretEncrypted
+						? open(p.acmeSecretEncrypted).then((secret) =>
+								acmeProxyChallenge(ctx.cfg.LS_API_UPSTREAM, p.id, secret),
+							)
+						: Promise.reject(
+								new Error("the plugin DNS provider has no DNS-01 secret"),
+							)
+					: open(p.credentialsEncrypted).then((s) =>
+							dnsChallengeFor(p.kind, JSON.parse(s)),
+						);
 			challenges.set(p.id, c);
 		}
 		return c;

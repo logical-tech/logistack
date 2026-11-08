@@ -12,6 +12,7 @@ import { organization } from "./auth.ts";
 import { id, timestamps, tstz } from "./columns.ts";
 import { certMode, dnsProviderKind, domainStatus } from "./enums.ts";
 import { service } from "./hierarchy.ts";
+import { pluginInstall } from "./plugins.ts";
 
 export const certificate = pgTable("certificate", {
 	id: id("crt"),
@@ -35,6 +36,11 @@ export const dnsProvider = pgTable("dns_provider", {
 	name: text("name").notNull(),
 	credentialsEncrypted: text("credentials_encrypted").notNull(),
 	zonesCache: jsonb("zones_cache"),
+	/** Kind `plugin`: the install contributing it and the provider's name in its manifest. */
+	pluginInstallId: text("plugin_install_id").references(() => pluginInstall.id),
+	pluginProvider: text("plugin_provider"),
+	/** Kind `plugin`: encrypted basic-auth password Caddy's acmeproxy module sends to `/acme-proxy/<id>`. */
+	acmeSecretEncrypted: text("acme_secret_encrypted"),
 	...timestamps,
 });
 

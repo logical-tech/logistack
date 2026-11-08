@@ -413,6 +413,39 @@ export const areas = (templates: number): Area[] => [
 		],
 	},
 	{
+		id: "plugins",
+		title: "Plugins and a marketplace",
+		intro:
+			"Add what LogiStack doesn't do yet. A plugin is a container image that runs next to LogiStack, never inside it, with only the permissions you approve.",
+		where: "Settings › Plugins",
+		items: [
+			[
+				"Marketplace",
+				"Browse signed plugin indexes, the official one or your company's own. Verified badges mark versions a maintainer reviewed. Free plugins only.",
+			],
+			[
+				"Install from anywhere",
+				"From the marketplace, any container image pinned to its digest, or a dev URL while you write one. A wizard shows what it adds and may do before anything runs.",
+			],
+			[
+				"What a plugin adds",
+				"Event hooks, deploy gates that can stop a rollout, tools for the Agent and MCP, DNS providers with wildcard certificates, notification channels, secret providers and dashboard pages.",
+			],
+			[
+				"Locked down",
+				"A read-only container with no Docker socket, outbound traffic limited to the hosts it declares, and pages in a sandboxed frame that can't read your session.",
+			],
+			[
+				"Explicit updates",
+				"New versions show their changelog and any added permission or host, wait for your consent, and roll back in one click. A kill switch turns a plugin off for everyone.",
+			],
+			[
+				"Build your own",
+				"A TypeScript SDK and a CLI to scaffold, run, test and build a plugin, or any language that speaks the signed HTTP contract.",
+			],
+		],
+	},
+	{
 		id: "migrate",
 		title: "Moving in and staying current",
 		intro:

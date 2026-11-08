@@ -4,6 +4,7 @@ import {
 	KeyRound,
 	type LucideIcon,
 	Mail,
+	Puzzle,
 	ScrollText,
 	Webhook,
 } from "lucide-react";
@@ -64,6 +65,12 @@ export const DNS_KINDS: Record<
 		where:
 			"porkbun.com → Account → API Access → Create API Key, then Domain Management → each domain → Details → API Access on.",
 	},
+	plugin: {
+		label: "Plugin",
+		icon: Puzzle,
+		blurb: "Contributed by a plugin installed in this organization.",
+		where: "The plugin's documentation says which credential its form needs.",
+	},
 };
 
 export const CHANNEL_KINDS: Record<
@@ -120,6 +127,11 @@ export const CHANNEL_KINDS: Record<
 		icon: Webhook,
 		blurb: "JSON POST signed with HMAC-SHA256, for your own receiver.",
 	},
+	plugin: {
+		label: "Plugin",
+		icon: Puzzle,
+		blurb: "Delivered by a plugin installed in this organization.",
+	},
 };
 
 export const SECRET_PROVIDER_KINDS: Record<
@@ -153,6 +165,13 @@ export const SECRET_PROVIDER_KINDS: Record<
 		blurb: "A Connect server and an access token for the vaults you need.",
 		path: "<vault>/<item>#<field>",
 		example: "Production/Postgres#password",
+	},
+	plugin: {
+		label: "Plugin",
+		icon: Puzzle,
+		blurb: "Read through a plugin installed in this organization.",
+		path: "<path>#<key>, as the plugin documents",
+		example: "app/db#password",
 	},
 };
 

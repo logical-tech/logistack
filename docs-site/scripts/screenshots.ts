@@ -152,7 +152,39 @@ export const shots: Record<string, Shot> = {
 		path: "/settings/certificates",
 		click: ["Certificate authority"],
 	},
+	"settings-plugins": "/settings/plugins",
+	"plugins-marketplace": "/settings/plugins?tab=marketplace",
+	"plugin-install-review":
+		"/settings/plugins/new?index=pidx_acme&plugin=com.acme.cost-report&version=1.2.0&step=review",
+	"plugin-detail": "/settings/plugins/plg_deployalerts",
+	"plugin-update": {
+		path: "/settings/plugins/plg_deployalerts",
+		click: ["Check for updates"],
+	},
+	"plugin-page": "/plugin/plg_deployalerts/failures",
 };
+
+// The mock has no plugin container behind /plugins/<id>/ui/*: serve a stand-in page that speaks
+// the bridge like the deploy-notifier example, styled with the SDK's CSS kit.
+const kit = await Bun.file(
+	join(import.meta.dir, "../../packages/plugin-sdk/src/ui.css"),
+).text();
+const pluginPage = `<!doctype html><meta charset="utf-8"><style>${kit}</style>
+<div id="root" class="ls-stack"></div><script>
+const rows = [["2 min ago","storefront-web","Health check failed on port 3000","Posted"],
+["1 hour ago","booking-api","Build failed: npm ci exited with code 1","Posted"],
+["Yesterday","storefront-worker","Image pull failed: manifest unknown","Not posted"]];
+addEventListener("message", (e) => {
+	if (e.data?.type !== "init") return;
+	for (const [k, v] of Object.entries(e.data.css)) document.documentElement.style.setProperty(k, v);
+	document.documentElement.style.colorScheme = e.data.theme;
+	root.innerHTML = '<div><h1>Deploy alerts</h1><p class="ls-muted">Failed deployments posted to your chat webhook, newest first.</p></div>'
+		+ '<div class="ls-card" style="padding:0"><table class="ls-table"><thead><tr><th>When</th><th>Event</th><th>Service</th><th>Message</th><th>Chat</th></tr></thead><tbody>'
+		+ rows.map((r) => '<tr><td class="ls-muted">' + r[0] + '</td><td><span class="ls-badge" data-tone="bad">Failed</span></td><td class="ls-mono">' + r[1] + '</td><td>' + r[2] + '</td><td><span class="ls-badge" data-tone="' + (r[3] === "Posted" ? "ok" : "warn") + '">' + r[3] + '</span></td></tr>').join("")
+		+ '</tbody></table></div>';
+});
+parent.postMessage({ type: "ready" }, "*");
+</script>`;
 
 // PLAYWRIGHT_CHROME points at any Chromium when `bunx playwright install` was not run.
 const browser = await chromium.launch({
@@ -164,6 +196,9 @@ const ctx = await browser.newContext({
 	colorScheme: "dark",
 	reducedMotion: "reduce",
 });
+await ctx.route("**/plugins/*/ui/**", (route) =>
+	route.fulfill({ contentType: "text/html", body: pluginPage }),
+);
 const page = await ctx.newPage();
 const failed: string[] = [];
 for (const [name, shot] of Object.entries(shots)) {

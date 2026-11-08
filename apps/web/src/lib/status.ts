@@ -217,3 +217,14 @@ export const GITOPS_STATUS: Record<
 	planned: { label: "Changes waiting", tone: "warn" },
 	failed: { label: "Sync failed", tone: "bad" },
 };
+
+/** A plugin install (`plugin_install.status`); `disabled` is the kill switch. */
+export const PLUGIN_STATUS: Record<
+	"pending" | "running" | "disabled" | "error",
+	StatusMeta
+> = {
+	pending: { label: "Starting", tone: "busy", live: true },
+	running: { label: "Running", tone: "ok" },
+	disabled: { label: "Turned off", tone: "idle" },
+	error: { label: "Failed", tone: "bad" },
+};

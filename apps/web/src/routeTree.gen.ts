@@ -64,6 +64,7 @@ import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/g
 import { Route as AppSettingsInstanceAdminsRouteImport } from './routes/_app/settings/instance-admins'
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
 import { Route as AppSettingsMigrateRouteImport } from './routes/_app/settings/migrate'
+import { Route as AppSettingsPluginsRouteImport } from './routes/_app/settings/plugins'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSponsorRouteImport } from './routes/_app/settings/sponsor'
 import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/ssh-keys'
@@ -103,9 +104,12 @@ import { Route as AppSettingsAuthenticationSamlRouteImport } from './routes/_app
 import { Route as AppSettingsBuildsEmulationRouteImport } from './routes/_app/settings/builds_.emulation'
 import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/settings/certificates_.new'
 import { Route as AppSettingsCertificatesOriginRouteImport } from './routes/_app/settings/certificates_.origin'
+import { Route as AppSettingsPluginsInstallIdRouteImport } from './routes/_app/settings/plugins_.$installId'
+import { Route as AppSettingsPluginsNewRouteImport } from './routes/_app/settings/plugins_.new'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppMonitoringStatusPagesPageIdEditRouteImport } from './routes/_app/monitoring/status-pages_.$pageId_.edit'
 import { Route as AppMonitoringUptimeMonitorIdEditRouteImport } from './routes/_app/monitoring/uptime_.$monitorId_.edit'
+import { Route as AppPluginInstallIdPageIdSplatRouteImport } from './routes/_app/plugin.$installId.$pageId.$'
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
 import { Route as AppProjectsProjectIdServicesNewRouteImport } from './routes/_app/projects/$projectId/services/new'
 import { Route as AppProjectsProjectIdStacksStackIdRouteRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/route'
@@ -130,6 +134,8 @@ import { Route as AppProjectsProjectIdServicesServiceIdTerminalRouteImport } fro
 import { Route as AppProjectsProjectIdStacksStackIdIndexRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/index'
 import { Route as AppProjectsProjectIdStacksStackIdComposeRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/compose'
 import { Route as AppProjectsProjectIdStacksStackIdLogsRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/logs'
+import { Route as AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport } from './routes/_app/projects/$projectId/plugin.$installId.$pageId.$'
+import { Route as AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/plugin.$installId.$pageId.$'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -413,6 +419,11 @@ const AppSettingsMigrateRoute = AppSettingsMigrateRouteImport.update({
   path: '/settings/migrate',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsPluginsRoute = AppSettingsPluginsRouteImport.update({
+  id: '/settings/plugins',
+  path: '/settings/plugins',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRolesRoute = AppSettingsRolesRouteImport.update({
   id: '/settings/roles',
   path: '/settings/roles',
@@ -632,6 +643,17 @@ const AppSettingsCertificatesOriginRoute =
     path: '/settings/certificates/origin',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSettingsPluginsInstallIdRoute =
+  AppSettingsPluginsInstallIdRouteImport.update({
+    id: '/settings/plugins_/$installId',
+    path: '/settings/plugins/$installId',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppSettingsPluginsNewRoute = AppSettingsPluginsNewRouteImport.update({
+  id: '/settings/plugins_/new',
+  path: '/settings/plugins/new',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppIntegrationsDnsProviderIdZoneIdRoute =
   AppIntegrationsDnsProviderIdZoneIdRouteImport.update({
     id: '/integrations/dns_/$providerId/$zoneId',
@@ -649,6 +671,12 @@ const AppMonitoringUptimeMonitorIdEditRoute =
     id: '/uptime_/$monitorId_/edit',
     path: '/uptime/$monitorId/edit',
     getParentRoute: () => AppMonitoringRouteRoute,
+  } as any)
+const AppPluginInstallIdPageIdSplatRoute =
+  AppPluginInstallIdPageIdSplatRouteImport.update({
+    id: '/plugin/$installId/$pageId/$',
+    path: '/plugin/$installId/$pageId/$',
+    getParentRoute: () => AppRoute,
   } as any)
 const AppProjectsProjectIdServicesServiceIdRouteRoute =
   AppProjectsProjectIdServicesServiceIdRouteRouteImport.update({
@@ -794,6 +822,20 @@ const AppProjectsProjectIdStacksStackIdLogsRoute =
     path: '/logs',
     getParentRoute: () => AppProjectsProjectIdStacksStackIdRouteRoute,
   } as any)
+const AppProjectsProjectIdPluginInstallIdPageIdSplatRoute =
+  AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport.update({
+    id: '/plugin/$installId/$pageId/$',
+    path: '/plugin/$installId/$pageId/$',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
+const AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute =
+  AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRouteImport.update(
+    {
+      id: '/plugin/$installId/$pageId/$',
+      path: '/plugin/$installId/$pageId/$',
+      getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -846,6 +888,7 @@ export interface FileRoutesByFullPath {
   '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
+  '/settings/plugins': typeof AppSettingsPluginsRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/sponsor': typeof AppSettingsSponsorRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
@@ -885,6 +928,8 @@ export interface FileRoutesByFullPath {
   '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
+  '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
+  '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
   '/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
@@ -893,6 +938,7 @@ export interface FileRoutesByFullPath {
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
+  '/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -915,6 +961,8 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
+  '/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
+  '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
@@ -963,6 +1011,7 @@ export interface FileRoutesByTo {
   '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
+  '/settings/plugins': typeof AppSettingsPluginsRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/sponsor': typeof AppSettingsSponsorRoute
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
@@ -1002,12 +1051,15 @@ export interface FileRoutesByTo {
   '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
+  '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
+  '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
   '/backups/$serviceId': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
+  '/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -1030,6 +1082,8 @@ export interface FileRoutesByTo {
   '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdIndexRoute
+  '/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
+  '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1085,6 +1139,7 @@ export interface FileRoutesById {
   '/_app/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
   '/_app/settings/members': typeof AppSettingsMembersRoute
   '/_app/settings/migrate': typeof AppSettingsMigrateRoute
+  '/_app/settings/plugins': typeof AppSettingsPluginsRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/sponsor': typeof AppSettingsSponsorRoute
   '/_app/settings/ssh-keys': typeof AppSettingsSshKeysRoute
@@ -1124,6 +1179,8 @@ export interface FileRoutesById {
   '/_app/settings/builds_/emulation': typeof AppSettingsBuildsEmulationRoute
   '/_app/settings/certificates_/new': typeof AppSettingsCertificatesNewRoute
   '/_app/settings/certificates_/origin': typeof AppSettingsCertificatesOriginRoute
+  '/_app/settings/plugins_/$installId': typeof AppSettingsPluginsInstallIdRoute
+  '/_app/settings/plugins_/new': typeof AppSettingsPluginsNewRoute
   '/_app/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/_app/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
@@ -1132,6 +1189,7 @@ export interface FileRoutesById {
   '/_app/integrations/dns_/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/_app/monitoring/status-pages_/$pageId_/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/_app/monitoring/uptime_/$monitorId_/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
+  '/_app/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/_app/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -1154,6 +1212,8 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/_app/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/_app/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
+  '/_app/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
+  '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1208,6 +1268,7 @@ export interface FileRouteTypes {
     | '/settings/instance-admins'
     | '/settings/members'
     | '/settings/migrate'
+    | '/settings/plugins'
     | '/settings/roles'
     | '/settings/sponsor'
     | '/settings/ssh-keys'
@@ -1247,6 +1308,8 @@ export interface FileRouteTypes {
     | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/settings/certificates/origin'
+    | '/settings/plugins/$installId'
+    | '/settings/plugins/new'
     | '/backups/$serviceId/'
     | '/monitoring/nodes/'
     | '/projects/$projectId/'
@@ -1255,6 +1318,7 @@ export interface FileRouteTypes {
     | '/integrations/dns/$providerId/$zoneId'
     | '/monitoring/status-pages/$pageId/edit'
     | '/monitoring/uptime/$monitorId/edit'
+    | '/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates/'
@@ -1277,6 +1341,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/stacks/$stackId/logs'
     | '/projects/$projectId/services/$serviceId/'
     | '/projects/$projectId/stacks/$stackId/'
+    | '/projects/$projectId/plugin/$installId/$pageId/$'
+    | '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1325,6 +1391,7 @@ export interface FileRouteTypes {
     | '/settings/instance-admins'
     | '/settings/members'
     | '/settings/migrate'
+    | '/settings/plugins'
     | '/settings/roles'
     | '/settings/sponsor'
     | '/settings/ssh-keys'
@@ -1364,12 +1431,15 @@ export interface FileRouteTypes {
     | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/settings/certificates/origin'
+    | '/settings/plugins/$installId'
+    | '/settings/plugins/new'
     | '/backups/$serviceId'
     | '/monitoring/nodes'
     | '/projects/$projectId'
     | '/integrations/dns/$providerId/$zoneId'
     | '/monitoring/status-pages/$pageId/edit'
     | '/monitoring/uptime/$monitorId/edit'
+    | '/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates'
@@ -1392,6 +1462,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/stacks/$stackId/logs'
     | '/projects/$projectId/services/$serviceId'
     | '/projects/$projectId/stacks/$stackId'
+    | '/projects/$projectId/plugin/$installId/$pageId/$'
+    | '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
   id:
     | '__root__'
     | '/_app'
@@ -1446,6 +1518,7 @@ export interface FileRouteTypes {
     | '/_app/settings/instance-admins'
     | '/_app/settings/members'
     | '/_app/settings/migrate'
+    | '/_app/settings/plugins'
     | '/_app/settings/roles'
     | '/_app/settings/sponsor'
     | '/_app/settings/ssh-keys'
@@ -1485,6 +1558,8 @@ export interface FileRouteTypes {
     | '/_app/settings/builds_/emulation'
     | '/_app/settings/certificates_/new'
     | '/_app/settings/certificates_/origin'
+    | '/_app/settings/plugins_/$installId'
+    | '/_app/settings/plugins_/new'
     | '/_app/backups/$serviceId/'
     | '/_app/monitoring/nodes/'
     | '/_app/projects/$projectId/'
@@ -1493,6 +1568,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/dns_/$providerId/$zoneId'
     | '/_app/monitoring/status-pages_/$pageId_/edit'
     | '/_app/monitoring/uptime_/$monitorId_/edit'
+    | '/_app/plugin/$installId/$pageId/$'
     | '/_app/projects/$projectId/services/new'
     | '/_app/projects/$projectId/templates/$templateId'
     | '/_app/projects/$projectId/templates/'
@@ -1515,6 +1591,8 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/stacks/$stackId/logs'
     | '/_app/projects/$projectId/services/$serviceId/'
     | '/_app/projects/$projectId/stacks/$stackId/'
+    | '/_app/projects/$projectId/plugin/$installId/$pageId/$'
+    | '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1910,6 +1988,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsMigrateRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/plugins': {
+      id: '/_app/settings/plugins'
+      path: '/settings/plugins'
+      fullPath: '/settings/plugins'
+      preLoaderRoute: typeof AppSettingsPluginsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/roles': {
       id: '/_app/settings/roles'
       path: '/settings/roles'
@@ -2183,6 +2268,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsCertificatesOriginRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/plugins_/$installId': {
+      id: '/_app/settings/plugins_/$installId'
+      path: '/settings/plugins/$installId'
+      fullPath: '/settings/plugins/$installId'
+      preLoaderRoute: typeof AppSettingsPluginsInstallIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/plugins_/new': {
+      id: '/_app/settings/plugins_/new'
+      path: '/settings/plugins/new'
+      fullPath: '/settings/plugins/new'
+      preLoaderRoute: typeof AppSettingsPluginsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/integrations/dns_/$providerId/$zoneId': {
       id: '/_app/integrations/dns_/$providerId/$zoneId'
       path: '/integrations/dns/$providerId/$zoneId'
@@ -2203,6 +2302,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/monitoring/uptime/$monitorId/edit'
       preLoaderRoute: typeof AppMonitoringUptimeMonitorIdEditRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/plugin/$installId/$pageId/$': {
+      id: '/_app/plugin/$installId/$pageId/$'
+      path: '/plugin/$installId/$pageId/$'
+      fullPath: '/plugin/$installId/$pageId/$'
+      preLoaderRoute: typeof AppPluginInstallIdPageIdSplatRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/projects/$projectId/services/$serviceId': {
       id: '/_app/projects/$projectId/services/$serviceId'
@@ -2372,6 +2478,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdLogsRouteImport
       parentRoute: typeof AppProjectsProjectIdStacksStackIdRouteRoute
     }
+    '/_app/projects/$projectId/plugin/$installId/$pageId/$': {
+      id: '/_app/projects/$projectId/plugin/$installId/$pageId/$'
+      path: '/plugin/$installId/$pageId/$'
+      fullPath: '/projects/$projectId/plugin/$installId/$pageId/$'
+      preLoaderRoute: typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
+    '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': {
+      id: '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
+      path: '/plugin/$installId/$pageId/$'
+      fullPath: '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
   }
 }
 
@@ -2456,6 +2576,7 @@ interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
   AppProjectsProjectIdServicesServiceIdStorageRoute: typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   AppProjectsProjectIdServicesServiceIdTerminalRoute: typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   AppProjectsProjectIdServicesServiceIdIndexRoute: typeof AppProjectsProjectIdServicesServiceIdIndexRoute
+  AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute: typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute
 }
 
 const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjectIdServicesServiceIdRouteRouteChildren =
@@ -2492,6 +2613,8 @@ const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjec
       AppProjectsProjectIdServicesServiceIdTerminalRoute,
     AppProjectsProjectIdServicesServiceIdIndexRoute:
       AppProjectsProjectIdServicesServiceIdIndexRoute,
+    AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute:
+      AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute,
   }
 
 const AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren =
@@ -2533,6 +2656,7 @@ interface AppProjectsProjectIdRouteRouteChildren {
   AppProjectsProjectIdServicesNewRoute: typeof AppProjectsProjectIdServicesNewRoute
   AppProjectsProjectIdTemplatesTemplateIdRoute: typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   AppProjectsProjectIdTemplatesIndexRoute: typeof AppProjectsProjectIdTemplatesIndexRoute
+  AppProjectsProjectIdPluginInstallIdPageIdSplatRoute: typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
 }
 
 const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChildren =
@@ -2553,6 +2677,8 @@ const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChil
       AppProjectsProjectIdTemplatesTemplateIdRoute,
     AppProjectsProjectIdTemplatesIndexRoute:
       AppProjectsProjectIdTemplatesIndexRoute,
+    AppProjectsProjectIdPluginInstallIdPageIdSplatRoute:
+      AppProjectsProjectIdPluginInstallIdPageIdSplatRoute,
   }
 
 const AppProjectsProjectIdRouteRouteWithChildren =
@@ -2606,6 +2732,7 @@ interface AppRouteChildren {
   AppSettingsInstanceAdminsRoute: typeof AppSettingsInstanceAdminsRoute
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
   AppSettingsMigrateRoute: typeof AppSettingsMigrateRoute
+  AppSettingsPluginsRoute: typeof AppSettingsPluginsRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSponsorRoute: typeof AppSettingsSponsorRoute
   AppSettingsSshKeysRoute: typeof AppSettingsSshKeysRoute
@@ -2629,8 +2756,11 @@ interface AppRouteChildren {
   AppSettingsBuildsEmulationRoute: typeof AppSettingsBuildsEmulationRoute
   AppSettingsCertificatesNewRoute: typeof AppSettingsCertificatesNewRoute
   AppSettingsCertificatesOriginRoute: typeof AppSettingsCertificatesOriginRoute
+  AppSettingsPluginsInstallIdRoute: typeof AppSettingsPluginsInstallIdRoute
+  AppSettingsPluginsNewRoute: typeof AppSettingsPluginsNewRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
   AppIntegrationsDnsProviderIdZoneIdRoute: typeof AppIntegrationsDnsProviderIdZoneIdRoute
+  AppPluginInstallIdPageIdSplatRoute: typeof AppPluginInstallIdPageIdSplatRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -2666,6 +2796,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsInstanceAdminsRoute: AppSettingsInstanceAdminsRoute,
   AppSettingsMembersRoute: AppSettingsMembersRoute,
   AppSettingsMigrateRoute: AppSettingsMigrateRoute,
+  AppSettingsPluginsRoute: AppSettingsPluginsRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSponsorRoute: AppSettingsSponsorRoute,
   AppSettingsSshKeysRoute: AppSettingsSshKeysRoute,
@@ -2690,9 +2821,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsBuildsEmulationRoute: AppSettingsBuildsEmulationRoute,
   AppSettingsCertificatesNewRoute: AppSettingsCertificatesNewRoute,
   AppSettingsCertificatesOriginRoute: AppSettingsCertificatesOriginRoute,
+  AppSettingsPluginsInstallIdRoute: AppSettingsPluginsInstallIdRoute,
+  AppSettingsPluginsNewRoute: AppSettingsPluginsNewRoute,
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,
   AppIntegrationsDnsProviderIdZoneIdRoute:
     AppIntegrationsDnsProviderIdZoneIdRoute,
+  AppPluginInstallIdPageIdSplatRoute: AppPluginInstallIdPageIdSplatRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

@@ -5,6 +5,7 @@ import {
 	dnsRecordSetIssues,
 	Hostname,
 } from "@logistack/contracts";
+import { encrypt } from "@logistack/core";
 import { dnsProvider, domain } from "@logistack/db";
 import {
 	dohResolvers,
@@ -16,13 +17,12 @@ import { and, asc, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import {
-	connect,
+	connectInput,
 	DnsKindSchema,
 	type DnsProviderRow,
 	managedZones,
 	matchZone,
 	openProvider,
-	parseCredentials,
 	providerRow,
 	sealCredentials,
 	viaProvider,
@@ -38,6 +38,7 @@ import {
 	router,
 	security,
 } from "../openapi.ts";
+import { PluginProviderFields, randomSecret } from "../plugins.ts";
 import { publicIp } from "../probe.ts";
 import { byParam, inOrganization, requirePermission } from "../scope.ts";
 
@@ -45,6 +46,9 @@ const DnsProviderView = z
 	.object({
 		id: z.string(),
 		kind: DnsKindSchema,
+		/** Kind `plugin`: the install contributing it and the provider's name in its manifest. */
+		pluginInstallId: z.string().nullable(),
+		pluginProvider: z.string().nullable(),
 		name: z.string(),
 		zones: z.array(Zone),
 		domains: z.int(),
@@ -176,6 +180,8 @@ function checkRecordSet(
 const view = (row: DnsProviderRow, domains = 0) => ({
 	id: row.id,
 	kind: DnsKindSchema.parse(row.kind),
+	pluginInstallId: row.pluginInstallId,
+	pluginProvider: row.pluginProvider,
 	name: row.name,
 	zones: managedZones(row),
 	domains,
@@ -236,7 +242,11 @@ export const dnsProviders = router()
 				summary: "Verify unsaved credentials and list the zones they can edit",
 				middleware: admin,
 				request: body(
-					z.object({ kind: DnsKindSchema, credentials: Credentials }),
+					z.object({
+						kind: DnsKindSchema,
+						credentials: Credentials,
+						...PluginProviderFields,
+					}),
 				),
 				responses: {
 					200: json(z.object({ zones: z.array(Zone) }), "Zones"),
@@ -245,8 +255,11 @@ export const dnsProviders = router()
 			}),
 		),
 		async (c) => {
-			const { kind, credentials } = c.req.valid("json");
-			const p = connect(kind, credentials);
+			const { provider: p } = await connectInput(
+				c.var.deps,
+				requireActor(c).organizationId,
+				c.req.valid("json"),
+			);
 			const zones = await viaProvider(async () => {
 				await p.verify();
 				return p.listZones();
@@ -269,6 +282,7 @@ export const dnsProviders = router()
 						name: Name,
 						credentials: Credentials,
 						zones: z.array(Zone).min(1),
+						...PluginProviderFields,
 					}),
 				),
 				responses: { 201: json(DnsProviderView, "Created"), ...errors },
@@ -277,19 +291,27 @@ export const dnsProviders = router()
 		async (c) => {
 			const input = c.req.valid("json");
 			const { db, masterKey } = c.var.deps;
-			const p = connect(input.kind, input.credentials);
-			await viaProvider(() => p.verify());
+			const organizationId = requireActor(c).organizationId;
+			const opened = await connectInput(c.var.deps, organizationId, input);
+			await viaProvider(() => opened.provider.verify());
 			const [row] = await db
 				.insert(dnsProvider)
 				.values({
-					organizationId: requireActor(c).organizationId,
+					organizationId,
 					kind: input.kind,
 					name: input.name,
 					credentialsEncrypted: await sealCredentials(
 						masterKey,
-						parseCredentials(input.kind, input.credentials),
+						opened.credentials,
 					),
 					zonesCache: input.zones,
+					...opened.columns,
+					// The password Caddy's acmeproxy module presents for DNS-01 (see acme-proxy.ts).
+					...(input.kind === "plugin"
+						? {
+								acmeSecretEncrypted: await encrypt(masterKey, randomSecret()),
+							}
+						: {}),
 				})
 				.returning();
 			if (!row) throw new Failure("internal", "insert returned nothing");
@@ -324,15 +346,20 @@ export const dnsProviders = router()
 			const { id } = c.req.valid("param");
 			const input = c.req.valid("json");
 			const { db, masterKey } = c.var.deps;
-			const row = await providerRow(db, requireActor(c).organizationId, id);
-			const kind = DnsKindSchema.parse(row.kind);
+			const organizationId = requireActor(c).organizationId;
+			const row = await providerRow(db, organizationId, id);
 			let credentialsEncrypted: string | undefined;
 			if (input.credentials) {
-				const p = connect(kind, input.credentials);
-				await viaProvider(() => p.verify());
+				const opened = await connectInput(c.var.deps, organizationId, {
+					kind: DnsKindSchema.parse(row.kind),
+					credentials: input.credentials,
+					pluginInstallId: row.pluginInstallId ?? undefined,
+					pluginProvider: row.pluginProvider ?? undefined,
+				});
+				await viaProvider(() => opened.provider.verify());
 				credentialsEncrypted = await sealCredentials(
 					masterKey,
-					parseCredentials(kind, input.credentials),
+					opened.credentials,
 				);
 			}
 			const [updated] = await db
@@ -400,7 +427,7 @@ export const dnsProviders = router()
 				requireActor(c).organizationId,
 				c.req.valid("param").id,
 			);
-			const p = await openProvider(masterKey, row);
+			const p = await openProvider({ db, masterKey }, row);
 			return c.json({ zones: await viaProvider(() => p.listZones()) }, 200);
 		},
 	)
@@ -444,7 +471,7 @@ export const dnsProviders = router()
 				publicIp(config),
 			]);
 			if (!m) return c.json({ publicIp: ip, match: null }, 200);
-			const p = await openProvider(masterKey, m.provider);
+			const p = await openProvider({ db, masterKey }, m.provider);
 			const existing = (
 				await viaProvider(() => p.listRecords(m.zone.id, hostname))
 			).filter((r) => ["A", "AAAA", "CNAME", "TXT"].includes(r.type)); // what a domain can point with, plus ACME TXT
@@ -498,7 +525,7 @@ export const dnsProviders = router()
 				);
 			if (input.proxied && row.kind !== "cloudflare")
 				throw new Failure("bad_request", "only Cloudflare can proxy a record");
-			const p = await openProvider(masterKey, row);
+			const p = await openProvider({ db, masterKey }, row);
 			const record = await viaProvider(() =>
 				p.upsertRecord({
 					zoneId: zone.id,
@@ -596,7 +623,7 @@ export const dnsProviders = router()
 				id,
 				zoneId,
 			);
-			const p = await openProvider(masterKey, row);
+			const p = await openProvider({ db, masterKey }, row);
 			const [records, managed] = await Promise.all([
 				viaProvider(() => p.listRecords(zone.id)),
 				managedRecords(db, row.id),
@@ -637,7 +664,7 @@ export const dnsProviders = router()
 				zoneId,
 			);
 			const input = checkRecordSet(kind, zone.name, c.req.valid("json"));
-			const p = await openProvider(masterKey, row);
+			const p = await openProvider({ db, masterKey }, row);
 			const saved = await viaProvider(() =>
 				p.createRecord({ ...input, zoneId: zone.id }),
 			);
@@ -673,7 +700,7 @@ export const dnsProviders = router()
 				zoneId,
 			);
 			const input = checkRecordSet(kind, zone.name, c.req.valid("json"));
-			const p = await openProvider(masterKey, row);
+			const p = await openProvider({ db, masterKey }, row);
 			const saved = await viaProvider(() =>
 				p.updateRecord(recordId, { ...input, zoneId: zone.id }),
 			);
@@ -719,7 +746,7 @@ export const dnsProviders = router()
 				id,
 				zoneId,
 			);
-			const p = await openProvider(masterKey, row);
+			const p = await openProvider({ db, masterKey }, row);
 			await viaProvider(() => p.deleteRecord(zone.id, recordId));
 			await db
 				.update(domain)

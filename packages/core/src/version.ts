@@ -40,6 +40,60 @@ export function compareVersions(a: string, b: string): number {
 	return xa.length - xb.length;
 }
 
+const COMPARATOR =
+	/^(>=|<=|>|<|=|\^|~)?\s*v?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/;
+
+/** One comparator, as `>=0.6.0`, `^1.2.0` or `~1.2.0`; false when it does not parse. */
+function satisfiesOne(version: string, comparator: string): boolean {
+	if (comparator === "*" || comparator === "x") return true;
+	const m = COMPARATOR.exec(comparator);
+	if (!m) return false;
+	const [, op = "=", ma, mi, pa, pre = ""] = m;
+	const base = `${ma}.${mi}.${pa}${pre}`;
+	const d = compareVersions(version, base);
+	const below = (major: number, minor: number, patch = 0) =>
+		compareVersions(version, `${major}.${minor}.${patch}-0`) < 0;
+	switch (op) {
+		case ">=":
+			return d >= 0;
+		case ">":
+			return d > 0;
+		case "<=":
+			return d <= 0;
+		case "<":
+			return d < 0;
+		case "^":
+			return (
+				d >= 0 &&
+				(Number(ma) > 0
+					? below(Number(ma) + 1, 0)
+					: Number(mi) > 0
+						? below(0, Number(mi) + 1)
+						: below(0, 0, Number(pa) + 1))
+			);
+		case "~":
+			return d >= 0 && below(Number(ma), Number(mi) + 1);
+		default:
+			return d === 0;
+	}
+}
+
+/**
+ * Whether `version` is in a manifest's `logistack` range: comparators joined by spaces (and)
+ * and `||` (or), as `>=0.6.0 <1.0.0 || ^1.2.0`. A range that does not parse is not satisfied.
+ * shortcut: no hyphen ranges or partial versions (`1.x`); add them when a plugin needs them.
+ */
+export function satisfiesRange(version: string, range: string): boolean {
+	return range.split("||").some((alt) => {
+		const parts = alt
+			.trim()
+			.replace(/(>=|<=|>|<|=|\^|~)\s+/g, "$1")
+			.split(/\s+/)
+			.filter(Boolean);
+		return parts.length > 0 && parts.every((c) => satisfiesOne(version, c));
+	});
+}
+
 const CHANNEL_RANK: Record<ReleaseChannel, number> = {
 	stable: 0,
 	beta: 1,

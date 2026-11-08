@@ -8,6 +8,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
+import type { PluginRef } from "../plugin-providers";
 import { api } from ".";
 import { client } from "./client";
 import { done, ok } from "./http";
@@ -65,6 +66,7 @@ export type SecretsApi = {
 		testConfig(
 			kind: SecretProviderKind,
 			config: Record<string, unknown>,
+			plugin?: PluginRef,
 		): Promise<void>;
 		/** Tested again by the server before it is saved. */
 		create(input: CreateSecretProvider): Promise<SecretProvider>;
@@ -93,8 +95,8 @@ export const secretsHttp: SecretsApi = {
 	rotateKey: () => ok(client.api.organization["secret-keys"].rotate.$post()),
 	providers: {
 		list: () => ok(p().$get()),
-		testConfig: async (kind, config) => {
-			await ok(p().test.$post({ json: { kind, config } }));
+		testConfig: async (kind, config, plugin) => {
+			await ok(p().test.$post({ json: { kind, config, ...plugin } }));
 		},
 		create: (json) => ok(p().$post({ json })),
 		test: async (v) => {
