@@ -44,6 +44,9 @@ import { Route as AppIntegrationsTailscaleRouteImport } from './routes/_app/inte
 import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integrations/tunnels'
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
+import { Route as AppMonitoringIncidentsRouteImport } from './routes/_app/monitoring/incidents'
+import { Route as AppMonitoringStatusPagesRouteImport } from './routes/_app/monitoring/status-pages'
+import { Route as AppMonitoringUptimeRouteImport } from './routes/_app/monitoring/uptime'
 import { Route as AppMonitoringUsageRouteImport } from './routes/_app/monitoring/usage'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/projects/$projectId/route'
@@ -80,6 +83,9 @@ import { Route as AppIntegrationsTunnelsNewRouteImport } from './routes/_app/int
 import { Route as AppMonitoringNodesIndexRouteImport } from './routes/_app/monitoring/nodes/index'
 import { Route as AppMonitoringNodesNodeIdRouteImport } from './routes/_app/monitoring/nodes/$nodeId'
 import { Route as AppMonitoringNodesNewRouteImport } from './routes/_app/monitoring/nodes/new'
+import { Route as AppMonitoringStatusPagesNewRouteImport } from './routes/_app/monitoring/status-pages_.new'
+import { Route as AppMonitoringUptimeMonitorIdRouteImport } from './routes/_app/monitoring/uptime_.$monitorId'
+import { Route as AppMonitoringUptimeNewRouteImport } from './routes/_app/monitoring/uptime_.new'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId/index'
 import { Route as AppProjectsProjectIdDuplicateRouteImport } from './routes/_app/projects/$projectId/duplicate'
 import { Route as AppProjectsProjectIdImportRouteImport } from './routes/_app/projects/$projectId/import'
@@ -94,6 +100,8 @@ import { Route as AppSettingsBuildsEmulationRouteImport } from './routes/_app/se
 import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/settings/certificates_.new'
 import { Route as AppSettingsCertificatesOriginRouteImport } from './routes/_app/settings/certificates_.origin'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
+import { Route as AppMonitoringStatusPagesPageIdEditRouteImport } from './routes/_app/monitoring/status-pages_.$pageId_.edit'
+import { Route as AppMonitoringUptimeMonitorIdEditRouteImport } from './routes/_app/monitoring/uptime_.$monitorId_.edit'
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
 import { Route as AppProjectsProjectIdServicesNewRouteImport } from './routes/_app/projects/$projectId/services/new'
 import { Route as AppProjectsProjectIdStacksStackIdRouteRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/route'
@@ -295,6 +303,22 @@ const AppMonitoringAlertsRoute = AppMonitoringAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
+const AppMonitoringIncidentsRoute = AppMonitoringIncidentsRouteImport.update({
+  id: '/incidents',
+  path: '/incidents',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
+const AppMonitoringStatusPagesRoute =
+  AppMonitoringStatusPagesRouteImport.update({
+    id: '/status-pages',
+    path: '/status-pages',
+    getParentRoute: () => AppMonitoringRouteRoute,
+  } as any)
+const AppMonitoringUptimeRoute = AppMonitoringUptimeRouteImport.update({
+  id: '/uptime',
+  path: '/uptime',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
 const AppMonitoringUsageRoute = AppMonitoringUsageRouteImport.update({
   id: '/usage',
   path: '/usage',
@@ -486,6 +510,23 @@ const AppMonitoringNodesNewRoute = AppMonitoringNodesNewRouteImport.update({
   path: '/nodes/new',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
+const AppMonitoringStatusPagesNewRoute =
+  AppMonitoringStatusPagesNewRouteImport.update({
+    id: '/status-pages_/new',
+    path: '/status-pages/new',
+    getParentRoute: () => AppMonitoringRouteRoute,
+  } as any)
+const AppMonitoringUptimeMonitorIdRoute =
+  AppMonitoringUptimeMonitorIdRouteImport.update({
+    id: '/uptime_/$monitorId',
+    path: '/uptime/$monitorId',
+    getParentRoute: () => AppMonitoringRouteRoute,
+  } as any)
+const AppMonitoringUptimeNewRoute = AppMonitoringUptimeNewRouteImport.update({
+  id: '/uptime_/new',
+  path: '/uptime/new',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
 const AppProjectsProjectIdIndexRoute =
   AppProjectsProjectIdIndexRouteImport.update({
     id: '/',
@@ -568,6 +609,18 @@ const AppIntegrationsDnsProviderIdZoneIdRoute =
     id: '/integrations/dns_/$providerId/$zoneId',
     path: '/integrations/dns/$providerId/$zoneId',
     getParentRoute: () => AppRoute,
+  } as any)
+const AppMonitoringStatusPagesPageIdEditRoute =
+  AppMonitoringStatusPagesPageIdEditRouteImport.update({
+    id: '/status-pages_/$pageId_/edit',
+    path: '/status-pages/$pageId/edit',
+    getParentRoute: () => AppMonitoringRouteRoute,
+  } as any)
+const AppMonitoringUptimeMonitorIdEditRoute =
+  AppMonitoringUptimeMonitorIdEditRouteImport.update({
+    id: '/uptime_/$monitorId_/edit',
+    path: '/uptime/$monitorId/edit',
+    getParentRoute: () => AppMonitoringRouteRoute,
   } as any)
 const AppProjectsProjectIdServicesServiceIdRouteRoute =
   AppProjectsProjectIdServicesServiceIdRouteRouteImport.update({
@@ -735,6 +788,9 @@ export interface FileRoutesByFullPath {
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
+  '/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
+  '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -770,6 +826,9 @@ export interface FileRoutesByFullPath {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/monitoring/status-pages/new': typeof AppMonitoringStatusPagesNewRoute
+  '/monitoring/uptime/$monitorId': typeof AppMonitoringUptimeMonitorIdRoute
+  '/monitoring/uptime/new': typeof AppMonitoringUptimeNewRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
@@ -788,6 +847,8 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
+  '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
+  '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -838,6 +899,9 @@ export interface FileRoutesByTo {
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
+  '/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
+  '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
@@ -873,6 +937,9 @@ export interface FileRoutesByTo {
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/monitoring/status-pages/new': typeof AppMonitoringStatusPagesNewRoute
+  '/monitoring/uptime/$monitorId': typeof AppMonitoringUptimeMonitorIdRoute
+  '/monitoring/uptime/new': typeof AppMonitoringUptimeNewRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
@@ -889,6 +956,8 @@ export interface FileRoutesByTo {
   '/monitoring/nodes': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
+  '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
+  '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/projects/$projectId/templates': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -946,6 +1015,9 @@ export interface FileRoutesById {
   '/_app/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
+  '/_app/monitoring/incidents': typeof AppMonitoringIncidentsRoute
+  '/_app/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
+  '/_app/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
@@ -981,6 +1053,9 @@ export interface FileRoutesById {
   '/_app/integrations/tunnels_/new': typeof AppIntegrationsTunnelsNewRoute
   '/_app/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/_app/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
+  '/_app/monitoring/status-pages_/new': typeof AppMonitoringStatusPagesNewRoute
+  '/_app/monitoring/uptime_/$monitorId': typeof AppMonitoringUptimeMonitorIdRoute
+  '/_app/monitoring/uptime_/new': typeof AppMonitoringUptimeNewRoute
   '/_app/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/_app/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/_app/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
@@ -999,6 +1074,8 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   '/_app/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/_app/integrations/dns_/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
+  '/_app/monitoring/status-pages_/$pageId_/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
+  '/_app/monitoring/uptime_/$monitorId_/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   '/_app/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
@@ -1055,6 +1132,9 @@ export interface FileRouteTypes {
     | '/integrations/tailscale'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/incidents'
+    | '/monitoring/status-pages'
+    | '/monitoring/uptime'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -1090,6 +1170,9 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/monitoring/status-pages/new'
+    | '/monitoring/uptime/$monitorId'
+    | '/monitoring/uptime/new'
     | '/projects/$projectId/duplicate'
     | '/projects/$projectId/import'
     | '/projects/$projectId/previews'
@@ -1108,6 +1191,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId'
     | '/projects/$projectId/stacks/$stackId'
     | '/integrations/dns/$providerId/$zoneId'
+    | '/monitoring/status-pages/$pageId/edit'
+    | '/monitoring/uptime/$monitorId/edit'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates/'
@@ -1158,6 +1243,9 @@ export interface FileRouteTypes {
     | '/integrations/tailscale'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
+    | '/monitoring/incidents'
+    | '/monitoring/status-pages'
+    | '/monitoring/uptime'
     | '/monitoring/usage'
     | '/schedules/$scheduleId'
     | '/schedules/new'
@@ -1193,6 +1281,9 @@ export interface FileRouteTypes {
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
+    | '/monitoring/status-pages/new'
+    | '/monitoring/uptime/$monitorId'
+    | '/monitoring/uptime/new'
     | '/projects/$projectId/duplicate'
     | '/projects/$projectId/import'
     | '/projects/$projectId/previews'
@@ -1209,6 +1300,8 @@ export interface FileRouteTypes {
     | '/monitoring/nodes'
     | '/projects/$projectId'
     | '/integrations/dns/$providerId/$zoneId'
+    | '/monitoring/status-pages/$pageId/edit'
+    | '/monitoring/uptime/$monitorId/edit'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/templates/$templateId'
     | '/projects/$projectId/templates'
@@ -1265,6 +1358,9 @@ export interface FileRouteTypes {
     | '/_app/integrations/tailscale'
     | '/_app/integrations/tunnels'
     | '/_app/monitoring/alerts'
+    | '/_app/monitoring/incidents'
+    | '/_app/monitoring/status-pages'
+    | '/_app/monitoring/uptime'
     | '/_app/monitoring/usage'
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
@@ -1300,6 +1396,9 @@ export interface FileRouteTypes {
     | '/_app/integrations/tunnels_/new'
     | '/_app/monitoring/nodes/$nodeId'
     | '/_app/monitoring/nodes/new'
+    | '/_app/monitoring/status-pages_/new'
+    | '/_app/monitoring/uptime_/$monitorId'
+    | '/_app/monitoring/uptime_/new'
     | '/_app/projects/$projectId/duplicate'
     | '/_app/projects/$projectId/import'
     | '/_app/projects/$projectId/previews'
@@ -1318,6 +1417,8 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/$serviceId'
     | '/_app/projects/$projectId/stacks/$stackId'
     | '/_app/integrations/dns_/$providerId/$zoneId'
+    | '/_app/monitoring/status-pages_/$pageId_/edit'
+    | '/_app/monitoring/uptime_/$monitorId_/edit'
     | '/_app/projects/$projectId/services/new'
     | '/_app/projects/$projectId/templates/$templateId'
     | '/_app/projects/$projectId/templates/'
@@ -1593,6 +1694,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonitoringAlertsRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
+    '/_app/monitoring/incidents': {
+      id: '/_app/monitoring/incidents'
+      path: '/incidents'
+      fullPath: '/monitoring/incidents'
+      preLoaderRoute: typeof AppMonitoringIncidentsRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/status-pages': {
+      id: '/_app/monitoring/status-pages'
+      path: '/status-pages'
+      fullPath: '/monitoring/status-pages'
+      preLoaderRoute: typeof AppMonitoringStatusPagesRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/uptime': {
+      id: '/_app/monitoring/uptime'
+      path: '/uptime'
+      fullPath: '/monitoring/uptime'
+      preLoaderRoute: typeof AppMonitoringUptimeRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
     '/_app/monitoring/usage': {
       id: '/_app/monitoring/usage'
       path: '/usage'
@@ -1845,6 +1967,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonitoringNodesNewRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
+    '/_app/monitoring/status-pages_/new': {
+      id: '/_app/monitoring/status-pages_/new'
+      path: '/status-pages/new'
+      fullPath: '/monitoring/status-pages/new'
+      preLoaderRoute: typeof AppMonitoringStatusPagesNewRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/uptime_/$monitorId': {
+      id: '/_app/monitoring/uptime_/$monitorId'
+      path: '/uptime/$monitorId'
+      fullPath: '/monitoring/uptime/$monitorId'
+      preLoaderRoute: typeof AppMonitoringUptimeMonitorIdRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/uptime_/new': {
+      id: '/_app/monitoring/uptime_/new'
+      path: '/uptime/new'
+      fullPath: '/monitoring/uptime/new'
+      preLoaderRoute: typeof AppMonitoringUptimeNewRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
     '/_app/projects/$projectId/': {
       id: '/_app/projects/$projectId/'
       path: '/'
@@ -1942,6 +2085,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/integrations/dns/$providerId/$zoneId'
       preLoaderRoute: typeof AppIntegrationsDnsProviderIdZoneIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/monitoring/status-pages_/$pageId_/edit': {
+      id: '/_app/monitoring/status-pages_/$pageId_/edit'
+      path: '/status-pages/$pageId/edit'
+      fullPath: '/monitoring/status-pages/$pageId/edit'
+      preLoaderRoute: typeof AppMonitoringStatusPagesPageIdEditRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/uptime_/$monitorId_/edit': {
+      id: '/_app/monitoring/uptime_/$monitorId_/edit'
+      path: '/uptime/$monitorId/edit'
+      fullPath: '/monitoring/uptime/$monitorId/edit'
+      preLoaderRoute: typeof AppMonitoringUptimeMonitorIdEditRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
     }
     '/_app/projects/$projectId/services/$serviceId': {
       id: '/_app/projects/$projectId/services/$serviceId'
@@ -2124,20 +2281,37 @@ const AppAiRouteRouteWithChildren = AppAiRouteRoute._addFileChildren(
 
 interface AppMonitoringRouteRouteChildren {
   AppMonitoringAlertsRoute: typeof AppMonitoringAlertsRoute
+  AppMonitoringIncidentsRoute: typeof AppMonitoringIncidentsRoute
+  AppMonitoringStatusPagesRoute: typeof AppMonitoringStatusPagesRoute
+  AppMonitoringUptimeRoute: typeof AppMonitoringUptimeRoute
   AppMonitoringUsageRoute: typeof AppMonitoringUsageRoute
   AppMonitoringIndexRoute: typeof AppMonitoringIndexRoute
   AppMonitoringNodesNodeIdRoute: typeof AppMonitoringNodesNodeIdRoute
   AppMonitoringNodesNewRoute: typeof AppMonitoringNodesNewRoute
+  AppMonitoringStatusPagesNewRoute: typeof AppMonitoringStatusPagesNewRoute
+  AppMonitoringUptimeMonitorIdRoute: typeof AppMonitoringUptimeMonitorIdRoute
+  AppMonitoringUptimeNewRoute: typeof AppMonitoringUptimeNewRoute
   AppMonitoringNodesIndexRoute: typeof AppMonitoringNodesIndexRoute
+  AppMonitoringStatusPagesPageIdEditRoute: typeof AppMonitoringStatusPagesPageIdEditRoute
+  AppMonitoringUptimeMonitorIdEditRoute: typeof AppMonitoringUptimeMonitorIdEditRoute
 }
 
 const AppMonitoringRouteRouteChildren: AppMonitoringRouteRouteChildren = {
   AppMonitoringAlertsRoute: AppMonitoringAlertsRoute,
+  AppMonitoringIncidentsRoute: AppMonitoringIncidentsRoute,
+  AppMonitoringStatusPagesRoute: AppMonitoringStatusPagesRoute,
+  AppMonitoringUptimeRoute: AppMonitoringUptimeRoute,
   AppMonitoringUsageRoute: AppMonitoringUsageRoute,
   AppMonitoringIndexRoute: AppMonitoringIndexRoute,
   AppMonitoringNodesNodeIdRoute: AppMonitoringNodesNodeIdRoute,
   AppMonitoringNodesNewRoute: AppMonitoringNodesNewRoute,
+  AppMonitoringStatusPagesNewRoute: AppMonitoringStatusPagesNewRoute,
+  AppMonitoringUptimeMonitorIdRoute: AppMonitoringUptimeMonitorIdRoute,
+  AppMonitoringUptimeNewRoute: AppMonitoringUptimeNewRoute,
   AppMonitoringNodesIndexRoute: AppMonitoringNodesIndexRoute,
+  AppMonitoringStatusPagesPageIdEditRoute:
+    AppMonitoringStatusPagesPageIdEditRoute,
+  AppMonitoringUptimeMonitorIdEditRoute: AppMonitoringUptimeMonitorIdEditRoute,
 }
 
 const AppMonitoringRouteRouteWithChildren =
