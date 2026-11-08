@@ -266,6 +266,7 @@ async function main() {
 						"job-ack",
 						"log-drains",
 						"stdin-ack",
+						"host-jobs",
 					],
 					...swarm,
 				});

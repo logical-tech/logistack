@@ -6,6 +6,7 @@
 		"./destinations": "./src/destinations.ts",
 		"./load": "./src/load.ts",
 		"./node-runner": "./src/node-runner.ts",
+		"./patching": "./src/patching.ts",
 		"./schedulers": "./src/schedulers.ts",
 		"./external-secrets": "./src/external-secrets.ts",
 		"./secrets": "./src/secrets.ts"

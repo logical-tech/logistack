@@ -429,6 +429,7 @@ async function createJobContainer(
 				ReadOnly: m.readOnly,
 			})),
 			NetworkMode: job.network,
+			...(job.host && { Privileged: true, PidMode: "host" }),
 		},
 	});
 	try {

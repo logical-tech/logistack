@@ -4,6 +4,8 @@ import {
 	backupSchedulerId,
 	MIGRATION_QUEUE,
 	type MigrationJob,
+	type PatchPolicy,
+	patchWindowSchedulerId,
 	SCAN_QUEUE,
 	SCHEDULE_QUEUE,
 	type ScanJob,
@@ -125,4 +127,20 @@ export async function syncAllSchedulers(
 	] as const)
 		for (const js of await queue.getJobSchedulers(0, -1))
 			if (!wanted.has(js.key)) await queue.removeJobScheduler(js.key);
+}
+
+/** An organization's patch window as a maintenance-queue Job Scheduler; removed when disabled. */
+export async function syncPatchWindow(
+	q: Pick<RunQueues, "maintenance">,
+	organizationId: string,
+	p: Pick<PatchPolicy, "enabled" | "cron" | "timezone">,
+) {
+	const id = patchWindowSchedulerId(organizationId);
+	if (p.enabled)
+		await q.maintenance.upsertJobScheduler(
+			id,
+			{ pattern: p.cron, tz: p.timezone },
+			{ name: "patch-window", data: { organizationId }, opts: keep },
+		);
+	else await q.maintenance.removeJobScheduler(id);
 }

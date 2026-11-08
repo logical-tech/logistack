@@ -428,6 +428,9 @@ export interface ContainerCreateRequest {
 		NetworkMode?: string;
 		Memory?: number;
 		NanoCpus?: number;
+		Privileged?: boolean;
+		/** `host` shares the host's PID namespace. */
+		PidMode?: string;
 	};
 }
 
