@@ -1,0 +1,95 @@
+---
+title: How plugins work
+description: A LogiStack plugin is a container image that adds event hooks, agent tools, DNS, notification and secret providers, and dashboard pages, with only the permissions you approve.
+---
+
+A plugin adds something LogiStack does not do on its own: a chat tool that is not on the notification list, a DNS host that is not a built-in provider, a cost report page, a tool the Agent can call. Read this page to learn what a plugin is, what it can add and how LogiStack keeps it contained. To install one, see [Install and manage plugins](./install.mdx). To write one, see [Build a plugin](./build.mdx).
+
+![The Deploy alerts plugin's page in the dashboard, under its own header, listing failed deployments](/screens/plugin-page.webp)
+
+## A plugin is a container
+
+A plugin is an OCI image with a JSON manifest in the image label `io.logistack.plugin.manifest`. The manifest says who made it, what it adds, which permissions it needs and which hosts it talks to. LogiStack reads the manifest from the registry before anything runs, so you review it first.
+
+When you install a plugin, LogiStack runs the image as a Swarm service of its own, `ls-plg-<id>`, for your organization only. Each organization that installs the same plugin gets its own container. LogiStack never loads plugin code into its own process: the server holds the Docker socket and the encryption key, and a plugin never gets near either. LogiStack and the plugin talk over HTTP, and every request LogiStack sends is signed.
+
+The image is pinned to the digest LogiStack read at install, for example `ghcr.io/acme/cost-report@sha256:4f1c…`. A tag that moves later does not change what runs.
+
+## What a plugin can add
+
+| Contribution | What it does | Where you see it |
+| --- | --- | --- |
+| Event hooks | The plugin receives the events it subscribes to, such as `deployment.failed` or `backup.failed`, signed, with retries. It cannot block a deploy. | The plugin's own behavior |
+| API access | The plugin calls the LogiStack [REST API](../automation/rest-api.mdx) with its own key, limited to the permissions you approved. | The [audit log](../team/audit-log.mdx), under the plugin's service account |
+| DNS providers | A DNS host LogiStack does not support. Records are created through the plugin, and certificates are issued over DNS-01, wildcards included. | **Integrations** › **DNS providers** |
+| Notification channels | A chat or paging tool LogiStack does not support. | **Integrations** › **Notifications** |
+| Secret providers | A secret manager LogiStack does not support, read at deploy time through `secret://` references. | **Integrations** › **Secret providers** |
+| Tools | Named operations with a JSON Schema input. The built-in [Agent](../automation/agent.mdx) and the [MCP server](../automation/mcp-server.mdx) can call them. | The Agent, MCP clients, the REST API |
+| Settings | A form LogiStack draws from the plugin's JSON Schema. Secret fields are encrypted. No plugin code runs in the form. | The plugin's page in **Settings** › **Plugins** |
+| Pages | Screens the plugin serves: a page in the sidebar, a tab on services, or a page opened from the plugin's settings. | The **Plugins** group in the sidebar, a service's tabs |
+
+A manifest can also declare `project-tab` pages and backup destinations. This release does not show project tabs, and backup destinations from plugins are not supported yet: LogiStack ignores both.
+
+## Security model
+
+A plugin is code someone else wrote, running on your servers. LogiStack limits what it can reach and what it can do.
+
+### The container is hardened
+
+- No Docker socket, no host mounts, no privileged mode, and every Linux capability dropped.
+- A read-only root filesystem, a 64 MB tmpfs at `/tmp`, and one named volume at `/data` for the plugin's own state.
+- CPU and memory limits from the manifest, capped at 1 CPU and 1 GiB per plugin.
+- Its own overlay network, `ls-plugins`. It reaches the LogiStack API and the internet. It does not join your environment networks, so it cannot reach your databases or services except through the API.
+
+### Permissions are approved at install
+
+The manifest lists the [permission actions](../team/roles-and-permissions.mdx) the plugin wants, such as `read` or `deploy`. LogiStack creates a service account for the plugin with a role that holds exactly those actions on the whole organization, and gives the plugin an API key for it. You see the list before you install. You cannot grant an action you do not hold yourself.
+
+An update that asks for more permissions shows the difference and waits for your consent. Every update and rollback gives the plugin a new key and deletes the old one.
+
+### Who can install
+
+Two things decide who can install a plugin:
+
+- **The `plugins` permission action.** It covers install, configure, update, turn off and uninstall. Owners and Admins hold it. Developer and Viewer do not: grant it with a [custom role](../team/roles-and-permissions.mdx).
+- **The instance policy**, set by an [instance admin](../team/instance-admins.mdx) for every organization on the server: **Off**, **Verified only** or **Any image**. See [Set the instance policy](./install.mdx#set-the-instance-policy).
+
+### Pages run in an opaque origin
+
+A plugin page is HTML and JavaScript the plugin serves. LogiStack shows it in an `<iframe sandbox="allow-scripts allow-forms">` and proxies it at `/plugins/<install id>/ui/…` with the header `Content-Security-Policy: sandbox allow-scripts allow-forms; frame-ancestors 'self'`. The CSP sandbox applies even when someone opens the page URL directly in a tab, so the page always has an opaque origin. It cannot read LogiStack's cookies, local storage or DOM, and cannot call the API as you.
+
+- The proxy removes `Cookie`, `Authorization` and `x-api-key` from requests, and `Set-Cookie` from responses.
+- A page talks to the dashboard only through a small message bridge: theme, toasts, confirm dialogs, navigation, and a few kilobytes of storage per user.
+- A page calls its own backend with a session token that lasts 5 minutes, names the viewer and their permissions on the page's context, and is not accepted by the LogiStack API.
+- The dashboard draws a fixed header above every plugin page with the plugin's name and author, so a page cannot pass itself off as LogiStack. A page never covers it.
+
+### Requests are signed
+
+Every request LogiStack sends a plugin carries an HMAC-SHA256 signature with a secret unique to the install and a timestamp. The plugin refuses requests that are unsigned, altered or older than 5 minutes. On page requests the signature also covers the viewer's identity. See [Signatures](./reference.mdx#signatures).
+
+### The kill switch
+
+Turning a plugin off scales its container to zero. Its pages, tools and event deliveries stop for everyone in the organization at once. Providers it backs fail with `plugin disabled` instead of failing silently. Settings and data stay until you turn it on again.
+
+### Egress is declared, not enforced
+
+The manifest lists the hosts the plugin says it talks to, and the install and update screens show them. LogiStack does not enforce this list yet: a plugin container can open connections to any host on the internet. Treat the list as the author's statement, and prefer verified plugins when that matters to you.
+
+### Marketplace review
+
+A plugin from a marketplace index shows one of three badges:
+
+- **Verified**: a maintainer read the source of that version.
+- **Unverified**: listed on the index after automatic checks, but nobody read the source.
+- **Unlisted**: installed from an image or a dev URL, not from an index.
+
+Index answers are signed with Ed25519, and LogiStack checks that the registry serves the exact digest and manifest the index signed. See [Publish to the marketplace](./publish.mdx).
+
+## Next steps
+
+<Cards>
+  <Card title="Install and manage plugins" href="/plugins/install" description="The marketplace, the install wizard, settings, updates, rollback and the instance policy." />
+  <Card title="Build a plugin" href="/plugins/build" description="Scaffold, run and test a plugin with the SDK and the logistack-plugin CLI." />
+  <Card title="Plugin reference" href="/plugins/reference" description="Manifest fields, HTTP endpoints, signatures, environment variables and limits." />
+  <Card title="Publish to the marketplace" href="/plugins/publish" description="Register a plugin id, submit versions and get them verified." />
+</Cards>
