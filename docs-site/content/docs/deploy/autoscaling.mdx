@@ -17,7 +17,7 @@ The service needs:
 
 These are also recommended, but not required:
 
-- **A health check**, so a new copy gets traffic only once it is ready. Without one, requests can fail for a few seconds after each scale-up.
+- **A health check**, so a new copy gets traffic only once it is ready. Without one, requests can fail for a few seconds after each scale-up. A service behind a [domain](../networking/domains.mdx) already gets one: LogiStack checks that its port accepts connections.
 - **More than one server**, so copies spread out instead of sharing one server's CPU. See [Nodes](../operations/nodes.mdx).
 
 ## Turn on automatic scaling
@@ -34,7 +34,7 @@ Open the service, select **Settings**, and find the **Scaling** section. Select 
 
 ### Check the service
 
-The first step lists the checks from [Before you start](#before-you-start). A red mark blocks the setup: fix it in the service settings, then come back. An orange mark is a warning you can continue past.
+The first step lists the checks from [Before you start](#before-you-start). A red mark blocks the setup. An orange mark is a warning you can continue past. When a check shows **AutoFix** on its right, you can fix it from here; see [Fix setup problems with AutoFix](#fix-setup-problems-with-autofix). Otherwise fix it in the service settings, then come back.
 
 ![The Check the service step: a CPU limit, no volumes and no host ports pass, a warning that the service has no health check, and copies spread across 3 servers](/screens/autoscale-checks.webp)
 
@@ -82,6 +82,43 @@ Select **Turn on automatic scaling**.
 The **Scaling** section now shows how many copies run, the range, the behavior and the last change with its reason. The service header shows **Scales** with the range, linking back to it.
 
 ![The Scaling section with Automatic selected: running 3 copies now, between 2 and 6, and the last change 18 minutes ago because CPU was at 74%, above the 60% target](/screens/service-scaling.webp)
+
+## Fix setup problems with AutoFix
+
+Some checks can be fixed in one click. Those checks show **AutoFix** on their right:
+
+| Check | What AutoFix changes |
+| --- | --- |
+| No CPU limit | Gives each copy a size from your [resource profiles](./service-settings.mdx#resources). It starts from the organization's default size, or the smallest one, and moves up until the size covers the busiest minute of the last day with 30% to spare. A memory limit you already set stays as it is. |
+| Port published on one server | Publishes the port on every server, so each copy can receive traffic wherever it runs. Clients keep the same address. AutoFix is not offered when another service already uses that port on the cluster. |
+| No health check | Adds an HTTP health check that requests `/` on the service's first port. Before you can apply it, LogiStack requests that URL inside a running copy, with `wget` or `curl` as the check itself will. If the request fails, or the image has neither tool, AutoFix explains why and you add a health check in the service settings instead. |
+
+Volumes can't be fixed this way: moving data out of a volume is a migration. The single-server warning shows **Add a server** instead, which opens [Monitoring](../operations/nodes.mdx).
+
+<Steps>
+<Step>
+
+### Select AutoFix
+
+Select **AutoFix** next to the check. A dialog lists what will change, from its current value to the new one, and why that value was chosen, for example the peak CPU and memory of the last day.
+
+![The Check the service step with AutoFix buttons next to the missing CPU limit, the port published on one server and the missing health check](/screens/autoscale-autofix.webp)
+
+</Step>
+<Step>
+
+### Apply it
+
+Select **Apply and redeploy**, or **Cancel** to leave the service as it is. LogiStack saves the change and starts a new deployment. Copies are replaced one at a time; if a new copy fails its health check, the previous version keeps running.
+
+</Step>
+</Steps>
+
+The check turns green and the setup continues. To undo a fix, change the setting back in [Service settings](./service-settings.mdx) and deploy, or roll back from the **Deployments** tab.
+
+<Callout type="info">
+AutoFix needs permission to change and to deploy the service. Each fix is recorded in the [audit log](../team/audit-log.mdx) with the settings before and after.
+</Callout>
 
 ## How it decides
 
