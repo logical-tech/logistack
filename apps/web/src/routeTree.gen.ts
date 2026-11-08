@@ -45,6 +45,7 @@ import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integr
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
 import { Route as AppMonitoringIncidentsRouteImport } from './routes/_app/monitoring/incidents'
+import { Route as AppMonitoringPatchesRouteImport } from './routes/_app/monitoring/patches'
 import { Route as AppMonitoringStatusPagesRouteImport } from './routes/_app/monitoring/status-pages'
 import { Route as AppMonitoringTrafficRouteImport } from './routes/_app/monitoring/traffic'
 import { Route as AppMonitoringUptimeRouteImport } from './routes/_app/monitoring/uptime'
@@ -311,6 +312,11 @@ const AppMonitoringAlertsRoute = AppMonitoringAlertsRouteImport.update({
 const AppMonitoringIncidentsRoute = AppMonitoringIncidentsRouteImport.update({
   id: '/incidents',
   path: '/incidents',
+  getParentRoute: () => AppMonitoringRouteRoute,
+} as any)
+const AppMonitoringPatchesRoute = AppMonitoringPatchesRouteImport.update({
+  id: '/patches',
+  path: '/patches',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
 const AppMonitoringStatusPagesRoute =
@@ -823,6 +829,7 @@ export interface FileRoutesByFullPath {
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
+  '/monitoring/patches': typeof AppMonitoringPatchesRoute
   '/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
   '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
@@ -939,6 +946,7 @@ export interface FileRoutesByTo {
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
+  '/monitoring/patches': typeof AppMonitoringPatchesRoute
   '/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
   '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
@@ -1060,6 +1068,7 @@ export interface FileRoutesById {
   '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/_app/monitoring/incidents': typeof AppMonitoringIncidentsRoute
+  '/_app/monitoring/patches': typeof AppMonitoringPatchesRoute
   '/_app/monitoring/status-pages': typeof AppMonitoringStatusPagesRoute
   '/_app/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/_app/monitoring/uptime': typeof AppMonitoringUptimeRoute
@@ -1182,6 +1191,7 @@ export interface FileRouteTypes {
     | '/integrations/tunnels'
     | '/monitoring/alerts'
     | '/monitoring/incidents'
+    | '/monitoring/patches'
     | '/monitoring/status-pages'
     | '/monitoring/traffic'
     | '/monitoring/uptime'
@@ -1298,6 +1308,7 @@ export interface FileRouteTypes {
     | '/integrations/tunnels'
     | '/monitoring/alerts'
     | '/monitoring/incidents'
+    | '/monitoring/patches'
     | '/monitoring/status-pages'
     | '/monitoring/traffic'
     | '/monitoring/uptime'
@@ -1418,6 +1429,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/tunnels'
     | '/_app/monitoring/alerts'
     | '/_app/monitoring/incidents'
+    | '/_app/monitoring/patches'
     | '/_app/monitoring/status-pages'
     | '/_app/monitoring/traffic'
     | '/_app/monitoring/uptime'
@@ -1763,6 +1775,13 @@ declare module '@tanstack/react-router' {
       path: '/incidents'
       fullPath: '/monitoring/incidents'
       preLoaderRoute: typeof AppMonitoringIncidentsRouteImport
+      parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/monitoring/patches': {
+      id: '/_app/monitoring/patches'
+      path: '/patches'
+      fullPath: '/monitoring/patches'
+      preLoaderRoute: typeof AppMonitoringPatchesRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
     '/_app/monitoring/status-pages': {
@@ -2381,6 +2400,7 @@ const AppAiRouteRouteWithChildren = AppAiRouteRoute._addFileChildren(
 interface AppMonitoringRouteRouteChildren {
   AppMonitoringAlertsRoute: typeof AppMonitoringAlertsRoute
   AppMonitoringIncidentsRoute: typeof AppMonitoringIncidentsRoute
+  AppMonitoringPatchesRoute: typeof AppMonitoringPatchesRoute
   AppMonitoringStatusPagesRoute: typeof AppMonitoringStatusPagesRoute
   AppMonitoringTrafficRoute: typeof AppMonitoringTrafficRoute
   AppMonitoringUptimeRoute: typeof AppMonitoringUptimeRoute
@@ -2399,6 +2419,7 @@ interface AppMonitoringRouteRouteChildren {
 const AppMonitoringRouteRouteChildren: AppMonitoringRouteRouteChildren = {
   AppMonitoringAlertsRoute: AppMonitoringAlertsRoute,
   AppMonitoringIncidentsRoute: AppMonitoringIncidentsRoute,
+  AppMonitoringPatchesRoute: AppMonitoringPatchesRoute,
   AppMonitoringStatusPagesRoute: AppMonitoringStatusPagesRoute,
   AppMonitoringTrafficRoute: AppMonitoringTrafficRoute,
   AppMonitoringUptimeRoute: AppMonitoringUptimeRoute,

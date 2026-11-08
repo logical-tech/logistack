@@ -20,6 +20,11 @@ export const eventTypes = [
 	"node.joined",
 	"node.down",
 	"node.recovered",
+	/** A scan found security updates on a node's host not reported before; resource `node:<id>`. */
+	"node.patches_available",
+	/** A patch run finished; resource `patch_run:<id>`, payload `node` names the node, `message` the outcome. */
+	"node.patch_succeeded",
+	"node.patch_failed",
 	"metric.threshold",
 	"certificate.issued",
 	"certificate.failed",

@@ -12,7 +12,13 @@ import {
 	type ScheduleJob,
 } from "@logistack/contracts";
 import { loadMasterKeys } from "@logistack/core";
-import { backupPolicy, createDb, deployment, schedule } from "@logistack/db";
+import {
+	backupPolicy,
+	createDb,
+	deployment,
+	patchPolicy,
+	schedule,
+} from "@logistack/db";
 import { createDockerClient, type DockerEvent } from "@logistack/docker";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
@@ -20,7 +26,7 @@ import { eq, notInArray } from "drizzle-orm";
 import { ensureStackNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { installEmulation, probeBuildkit } from "./build-platforms.ts";
-import { createBus, log, setLogLevel } from "./bus.ts";
+import { createBus, log, setLogLevel, withLock } from "./bus.ts";
 import { caddyStorageKey } from "./caddy-storage.ts";
 import { checkCertificates } from "./certs.ts";
 import { CHECKS_POLL_MS, pollChecks } from "./checks.ts";
@@ -41,6 +47,7 @@ import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
+import { queueWindowRun, scanAll } from "./patching.ts";
 import { expirePreviews } from "./previews.ts";
 import { listenForSyncRequests, syncProxy } from "./proxy.ts";
 import { switchProxy } from "./proxy-switch.ts";
@@ -58,6 +65,7 @@ import {
 	type RunQueues,
 	syncAllSchedulers,
 	syncCleanupScheduler,
+	syncPatchWindow,
 } from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
 import { convertLegacySecrets } from "./secrets.ts";
@@ -203,6 +211,12 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
 				else if (job.name === "db-access") await reconcileDbAccess(ctx);
+				else if (job.name === "patch-scan")
+					await withLock(ctx.bus.redis, "ls:lock:patch-scan", 3_600_000, () =>
+						scanAll(ctx),
+					);
+				else if (job.name === "patch-window")
+					await queueWindowRun(ctx, job.data.organizationId);
 				else await sweepOrphans(ctx);
 			},
 			{
@@ -270,6 +284,8 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		await ctx.db.select().from(schedule),
 	);
 	await syncCleanupScheduler(ctx.queues, await loadCleanup(ctx.db));
+	for (const p of await ctx.db.select().from(patchPolicy))
+		await syncPatchWindow(ctx.queues, p.organizationId, p);
 	// Not tied to the reconcile interval: a deployment awaiting checks must always be able to move on.
 	await ctx.queues.maintenance.upsertJobScheduler(
 		"checks-every",
@@ -326,6 +342,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			"scan-daily",
 			{ every: 86_400_000 },
 			{ name: "all", data: { all: true } },
+		);
+		await ctx.queues.maintenance.upsertJobScheduler(
+			"patch-scan-every",
+			{ every: 6 * 3_600_000 },
+			{ name: "patch-scan" },
 		);
 		await ctx.queues.maintenance.upsertJobScheduler(
 			"update-check-every",

@@ -54,6 +54,7 @@ export const idPrefixes = {
 	incidentUpdate: "inu",
 	maintenanceWindow: "mtw",
 	statusPage: "stp",
+	patchRun: "pat",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];

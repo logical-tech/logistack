@@ -25,6 +25,7 @@ export * from "./manifest-plan.ts";
 export * from "./migration.ts";
 export * from "./network-map.ts";
 export * from "./node-labels.ts";
+export * from "./patching.ts";
 export * from "./pending-diff.ts";
 export * from "./permissions.ts";
 export * from "./ports.ts";

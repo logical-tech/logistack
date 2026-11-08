@@ -13,6 +13,7 @@ import {
 } from "./metrics-store.ts";
 import { claimJoin, runJoinStep } from "./node-join.ts";
 import { onNodeOps, syncNodes } from "./nodes.ts";
+import { claimRun, clusterDeps, processRun } from "./patching.ts";
 import { evaluateServiceThresholds, evaluateThresholds } from "./thresholds.ts";
 import { rollupTraffic, storeTrafficEntries } from "./traffic-store.ts";
 
@@ -127,6 +128,17 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 				void runJoinStep(ctx, row);
 		},
 	);
+	// Patch runs are queued like node operations; a claimed run runs to its end in the background.
+	const patches = every(
+		"patch runs",
+		ctx.cfg.LS_NODE_SYNC_INTERVAL_MS,
+		async () => {
+			for (let run = await claimRun(ctx.db); run; run = await claimRun(ctx.db))
+				void processRun(ctx, clusterDeps(ctx), run).catch((e) =>
+					log("error", "patch run failed", { run: run?.id, error: String(e) }),
+				);
+		},
+	);
 	// Instance updates are queued like node operations and poked over the same channel.
 	const updates = every(
 		"instance update",
@@ -137,6 +149,7 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		void nodes.kick();
 		void joins.kick();
 		void updates.kick();
+		void patches.kick();
 	});
 
 	return async () => {
@@ -146,6 +159,7 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		nodes.stop();
 		joins.stop();
 		updates.stop();
+		patches.stop();
 		ingest.abort();
 		consumer.close();
 		traffic.close();

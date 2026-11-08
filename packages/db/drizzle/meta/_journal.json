@@ -400,6 +400,13 @@
       "when": 1794200000005,
       "tag": "0056_host_metric_gaps",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1794200000006,
+      "tag": "0057_node_patching",
+      "breakpoints": true
     }
   ]
 }

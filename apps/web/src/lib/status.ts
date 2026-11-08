@@ -154,6 +154,30 @@ export function projectHealth(statuses: ObservedStatus[]): ProjectHealth {
 /** Sort key so lists and strips read worst-first. */
 export const severityRank = (s: ObservedStatus) => SEVERITY.indexOf(s);
 
+/** A patch run as a whole. */
+export const PATCH_RUN_STATUS: Record<
+	"queued" | "running" | "succeeded" | "failed" | "cancelled",
+	StatusMeta
+> = {
+	queued: { label: "Queued", tone: "idle", live: true },
+	running: { label: "Patching", tone: "info", live: true },
+	succeeded: { label: "Patched", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	cancelled: { label: "Cancelled", tone: "idle" },
+};
+
+/** One node of a patch run. */
+export const PATCH_NODE_STATUS: Record<
+	"pending" | "running" | "succeeded" | "failed" | "skipped",
+	StatusMeta
+> = {
+	pending: { label: "Waiting", tone: "idle" },
+	running: { label: "In progress", tone: "info", live: true },
+	succeeded: { label: "Patched", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	skipped: { label: "Skipped", tone: "idle" },
+};
+
 export const TONE_DOT: Record<Tone, string> = {
 	ok: "bg-ok",
 	busy: "bg-busy",

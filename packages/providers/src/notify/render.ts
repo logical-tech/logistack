@@ -27,6 +27,12 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 	"node.joined": { severity: "info", what: "Node joined" },
 	"node.down": { severity: "error", what: "Node down" },
 	"node.recovered": { severity: "success", what: "Node recovered" },
+	"node.patches_available": {
+		severity: "warning",
+		what: "Security updates available",
+	},
+	"node.patch_succeeded": { severity: "success", what: "Node patched" },
+	"node.patch_failed": { severity: "error", what: "Node patching failed" },
 	"metric.threshold": {
 		severity: "warning",
 		what: "Resource threshold crossed",

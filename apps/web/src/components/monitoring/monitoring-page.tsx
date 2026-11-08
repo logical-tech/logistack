@@ -13,6 +13,7 @@ type Section =
 	| "uptime"
 	| "incidents"
 	| "status-pages"
+	| "patches"
 	| "alerts";
 
 const TO = {
@@ -23,6 +24,7 @@ const TO = {
 	uptime: "/monitoring/uptime",
 	incidents: "/monitoring/incidents",
 	"status-pages": "/monitoring/status-pages",
+	patches: "/monitoring/patches",
 	alerts: "/monitoring/alerts",
 } as const;
 
@@ -71,6 +73,7 @@ export function MonitoringPage({
 						{ id: "uptime", label: "Uptime" },
 						{ id: "incidents", label: "Incidents" },
 						{ id: "status-pages", label: "Status pages" },
+						{ id: "patches", label: "OS updates" },
 						{ id: "alerts", label: "Settings" },
 					]}
 				/>

@@ -300,6 +300,7 @@ async function main() {
 						"log-drains",
 						"stdin-ack",
 						"traffic",
+						"host-jobs",
 					],
 					...swarm,
 				});

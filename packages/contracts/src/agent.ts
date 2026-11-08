@@ -160,6 +160,11 @@ export const JobSpec = z.discriminatedUnion("kind", [
 		labels: z.record(z.string(), z.string()).default({}),
 		mounts: z.array(Mount).default([]),
 		network: z.string().optional(),
+		/**
+		 * Privileged, in the host's PID namespace, so `nsenter -t 1` reaches the host as root.
+		 * For OS patching only; agents without the `host-jobs` capability ignore it.
+		 */
+		host: z.boolean().default(false),
 		...JobCommon,
 	}),
 ]);
