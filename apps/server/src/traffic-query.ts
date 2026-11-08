@@ -7,7 +7,7 @@ import {
 	quantiles,
 } from "@logistack/core/traffic";
 import type { Db } from "@logistack/db";
-import { loadRetention, pickResolution } from "./metrics-query.ts";
+import { loadRetention } from "./metrics-query.ts";
 
 type Sql = Db["$client"];
 
@@ -21,20 +21,33 @@ export type TrafficWindow = {
 	from: Date;
 };
 
-/** traffic_1m while the minute retention holds the range, else traffic_1h; steps as for metrics. */
+const STEPS = [60, 300, 600, 900, 1_800, 3_600, 7_200, 21_600, 43_200, 86_400];
+
+/**
+ * traffic_1m while the minute retention holds the range, else traffic_1h, with a step that keeps
+ * a series near 360 buckets: 1h and 6h -> 1 min, 24h -> 5 min, 7d -> 30 min, 30d -> 2 h.
+ */
+export function pickTrafficWindow(
+	range: MetricRange,
+	minuteDays: number,
+	now = Date.now(),
+): TrafficWindow {
+	const rangeSec = rangeMs(range) / 1000;
+	const minute = minuteDays * 86_400 >= rangeSec;
+	const ideal = Math.max(rangeSec / 360, minute ? 60 : 3_600);
+	const step = STEPS.find((s) => s >= ideal) ?? 86_400;
+	const from = new Date(
+		Math.floor((now - rangeMs(range)) / (step * 1000)) * step * 1000,
+	);
+	return { table: minute ? "traffic_1m" : "traffic_1h", step, from };
+}
+
 export async function trafficWindow(
 	sql: Sql,
 	range: MetricRange,
 	now = Date.now(),
 ): Promise<TrafficWindow> {
-	const r = await loadRetention(sql);
-	// Traffic has no raw table: a zero raw retention keeps pickResolution on the rollups.
-	const { source, stepSec } = pickResolution(range, { ...r, rawHours: 0 });
-	const step = Math.max(stepSec, 60);
-	const from = new Date(
-		Math.floor((now - rangeMs(range)) / (step * 1000)) * step * 1000,
-	);
-	return { table: source === "1h" ? "traffic_1h" : "traffic_1m", step, from };
+	return pickTrafficWindow(range, (await loadRetention(sql)).minuteDays, now);
 }
 
 const rangeMs = (r: MetricRange) =>

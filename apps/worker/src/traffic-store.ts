@@ -10,6 +10,8 @@ import {
 	topN,
 } from "@logistack/core/traffic";
 import { z } from "zod";
+import { log } from "./bus.ts";
+import { type Entry, field } from "./metrics-consumer.ts";
 import type { Sql } from "./metrics-store.ts";
 
 /** The `data` field of an `ls:traffic` entry: the agent's minutes as received. */
@@ -93,6 +95,26 @@ export async function insertTraffic(
 		on conflict (node_id, domain_id, ts) do update set ${SET}`,
 		[JSON.stringify([...unique.values()])],
 	);
+}
+
+/** One batch of `ls:traffic` entries into traffic_1m; malformed entries and far-off minutes are dropped. */
+export async function storeTrafficEntries(sql: Sql, entries: Entry[]) {
+	const rows: { nodeId: string; minute: TrafficMinute }[] = [];
+	for (const [, fields] of entries) {
+		const nodeId = field(fields, "node");
+		const parsed = TrafficEntry.safeParse(
+			JSON.parse(field(fields, "data") ?? "null"),
+		);
+		if (!nodeId || !parsed.success) {
+			log("warn", "dropped malformed traffic entry", { node: nodeId });
+			continue;
+		}
+		// Partitions exist from yesterday on; older minutes (a long outage) have no home.
+		for (const minute of parsed.data)
+			if (Math.abs(minute.ts - Date.now()) < 86_400_000)
+				rows.push({ nodeId, minute });
+	}
+	await insertTraffic(sql, rows);
 }
 
 type Row = Record<(typeof SUMS)[number], number> &

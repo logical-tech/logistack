@@ -8,7 +8,9 @@
 		"./node-runner": "./src/node-runner.ts",
 		"./schedulers": "./src/schedulers.ts",
 		"./external-secrets": "./src/external-secrets.ts",
-		"./secrets": "./src/secrets.ts"
+		"./secrets": "./src/secrets.ts",
+		"./traffic-store": "./src/traffic-store.ts",
+		"./metrics-consumer": "./src/metrics-consumer.ts"
 	},
 	"scripts": {
 		"dev": "bun --watch src/index.ts",
