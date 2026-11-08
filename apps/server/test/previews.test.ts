@@ -217,6 +217,22 @@ describe.skipIf(!hasDocker)("pull request previews", () => {
 		});
 		expect(bad.status).toBe(400);
 		expect(bad.json.error.message).toContain("db is not a service");
+		const none = await call("PUT", `/projects/${projectId}/previews`, {
+			enabled: true,
+			sourceEnvironmentId: sourceEnv,
+			domainPattern: null,
+		});
+		expect(none.status).toBe(400);
+		const noStack = await call("PUT", `/projects/${projectId}/previews`, {
+			enabled: true,
+			sourceEnvironmentId: sourceEnv,
+			stacks: ["shop"],
+			domainPattern: null,
+		});
+		expect(noStack.status).toBe(400);
+		expect(noStack.json.error.message).toContain(
+			"shop is not a stack of Production deployed from a git repository",
+		);
 		const ok = await call("PUT", `/projects/${projectId}/previews`, {
 			enabled: true,
 			sourceEnvironmentId: sourceEnv,

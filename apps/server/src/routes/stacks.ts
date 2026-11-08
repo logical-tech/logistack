@@ -38,7 +38,7 @@ import {
 	stack,
 } from "@logistack/db";
 import { type ComposeBuild, fromCompose, Skip } from "@logistack/templates";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -537,6 +537,8 @@ export async function syncGitStacks(
 			and(
 				eq(project.organizationId, organizationId),
 				eq(stack.source, "git"),
+				// A managed preview follows its pull request's events, not pushes.
+				isNull(environment.preview),
 				sql`${stack.git}->>'gitProviderId' = ${providerId}`,
 			),
 		);

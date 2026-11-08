@@ -138,6 +138,8 @@ LogiStack sets these on every container. They are read-only, and names starting 
 | `LOGISTACK_SERVICE` | Name of the service |
 | `LOGISTACK_URL` | Primary domain with its scheme, such as `https://app.example.com`. Unset without a domain |
 | `LOGISTACK_FQDN` | Every hostname the service answers on, comma-separated. Unset without a domain |
+| `LOGISTACK_PREVIEW_URL` | Pull request previews only: the preview's main URL. See [Preview environments](./preview-environments.mdx#reach-one-service-from-another) |
+| `LOGISTACK_PREVIEW_URL_<SERVICE>` | Pull request previews only: the URL of each exposed service of the preview, such as `LOGISTACK_PREVIEW_URL_API` |
 
 A Dockerfile build gets the ones it declares with `ARG`:
 

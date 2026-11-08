@@ -27,6 +27,7 @@ import { Page, PageHeader } from "@/components/page-header";
 import { SkeletonRows } from "@/components/panel";
 import { CreateEnvironmentDialog } from "@/components/projects/create-dialogs";
 import { ENV_COLORS, EnvDot, envColor } from "@/components/projects/env-color";
+import { PreviewPanel } from "@/components/projects/preview-panel";
 import { ServiceList } from "@/components/projects/service-list";
 import { SignalStrip } from "@/components/signal-strip";
 import { SlidingTabs } from "@/components/sliding-tabs";
@@ -354,6 +355,7 @@ function ProjectDetail() {
 						aria-labelledby={`env-tab-${env.id}`}
 						key={env.id}
 					>
+						{env.preview && <PreviewPanel preview={env.preview} />}
 						<EnvironmentServices env={env} projectId={projectId} />
 					</div>
 				</>
@@ -441,9 +443,13 @@ function EnvironmentMenu({
 				<DropdownMenuLabel>{env.name}</DropdownMenuLabel>
 				{env.preview && (
 					<>
-						{env.preview.urls[0] && (
+						{(env.preview.primaryUrl ?? env.preview.urls[0]) && (
 							<DropdownMenuItem asChild>
-								<a href={env.preview.urls[0]} target="_blank" rel="noreferrer">
+								<a
+									href={env.preview.primaryUrl ?? env.preview.urls[0]}
+									target="_blank"
+									rel="noreferrer"
+								>
 									<ExternalLink />
 									Open preview
 								</a>

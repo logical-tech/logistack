@@ -76,6 +76,10 @@ export const deploymentContextVars = {
 		"Primary domain with its scheme, such as https://app.example.com. Unset without a domain.",
 	LOGISTACK_FQDN:
 		"Every hostname the service answers on, comma-separated. Unset without a domain.",
+	LOGISTACK_PREVIEW_URL:
+		"Pull request previews only: the preview's main URL, that of the first followed service with a domain.",
+	"LOGISTACK_PREVIEW_URL_<SERVICE>":
+		"Pull request previews only: the URL of each exposed service of the preview, stack services included, by its name in upper case with dashes as underscores, such as LOGISTACK_PREVIEW_URL_API.",
 } as const satisfies Record<`${typeof RESERVED_ENV_PREFIX}${string}`, string>;
 export type DeploymentContextVar = keyof typeof deploymentContextVars;
 

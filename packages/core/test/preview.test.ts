@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { ManifestEnvironment } from "@logistack/contracts";
-import { previewEnvironment, previewHostname } from "../src/preview.ts";
+import { deploymentContextEnv } from "../src/deployment-context.ts";
+import {
+	previewEnvironment,
+	previewHostname,
+	previewUrls,
+} from "../src/preview.ts";
 
 const app = (slug: string, domains: unknown[]) => ({
 	name: slug,
@@ -191,5 +196,78 @@ describe("previewEnvironment", () => {
 
 	test("the result is a valid environment manifest", () => {
 		expect(ManifestEnvironment.safeParse(environment).success).toBe(true);
+	});
+});
+
+describe("previewUrls", () => {
+	const services = [
+		{
+			slug: "web",
+			domains: [
+				{ hostname: "web-abc123.sslip.io", isGenerated: true },
+				{ hostname: "pr-7-web.preview.dev", isGenerated: false },
+			],
+		},
+		{
+			slug: "api",
+			domains: [
+				{ hostname: "old.preview.dev", redirectTo: "pr-7-api.preview.dev" },
+				{ hostname: "pr-7-api.preview.dev", pathPrefix: "/v1" },
+			],
+		},
+		{ slug: "db", domains: [] },
+	];
+
+	test("each exposed service's first serving URL, a custom host before a generated one", () => {
+		expect(previewUrls(services, []).serviceUrls).toEqual({
+			api: "https://pr-7-api.preview.dev/v1",
+			web: "https://pr-7-web.preview.dev",
+		});
+	});
+
+	test("the main URL is the first followed service's, else the first URL", () => {
+		expect(previewUrls(services, ["db", "web"]).primaryUrl).toBe(
+			"https://pr-7-web.preview.dev",
+		);
+		expect(previewUrls(services, []).primaryUrl).toBe(
+			"https://old.preview.dev",
+		);
+		expect(previewUrls([], ["web"])).toEqual({ urls: [], serviceUrls: {} });
+	});
+});
+
+describe("preview URL variables", () => {
+	const base = {
+		deploymentId: "dep_1",
+		environment: "PR #7",
+		project: "Shop",
+		service: "web",
+		domains: [],
+	};
+
+	test("every service's URL, by slug in upper case, and the main one", () => {
+		const env = deploymentContextEnv({
+			...base,
+			preview: {
+				primaryUrl: "https://pr-7-web.preview.dev",
+				serviceUrls: {
+					web: "https://pr-7-web.preview.dev",
+					"api-v2": "https://pr-7-api-v2.preview.dev",
+				},
+			},
+		});
+		expect(env.LOGISTACK_PREVIEW_URL).toBe("https://pr-7-web.preview.dev");
+		expect(env.LOGISTACK_PREVIEW_URL_WEB).toBe("https://pr-7-web.preview.dev");
+		expect(env.LOGISTACK_PREVIEW_URL_API_V2).toBe(
+			"https://pr-7-api-v2.preview.dev",
+		);
+	});
+
+	test("outside a preview none is set", () => {
+		expect(
+			Object.keys(deploymentContextEnv(base)).filter((k) =>
+				k.startsWith("LOGISTACK_PREVIEW"),
+			),
+		).toEqual([]);
 	});
 });

@@ -208,7 +208,7 @@ describe("deployment context", () => {
 		);
 		expect(injected.sort()).toEqual(
 			Object.keys(deploymentContextVars)
-				.filter((k) => !/COMMIT|BRANCH/.test(k))
+				.filter((k) => !/COMMIT|BRANCH|PREVIEW/.test(k))
 				.sort(),
 		);
 	});
