@@ -6,10 +6,11 @@ import {
 import { nextRuns } from "@/lib/cron";
 import { ApiError } from "../adapter";
 import type {
+	BackupDestination,
 	BackupPolicy,
 	BackupRun,
 	BackupsApi,
-	S3Destination,
+	DestinationInput,
 	Schedule,
 	ScheduleRun,
 	ScheduleRunDetail,
@@ -44,56 +45,132 @@ const sha = (seed: number) => {
 	}).join("");
 };
 
-const destinations: S3Destination[] = [
-	{
-		id: "s3d_r2",
-		name: "Backups · R2",
-		endpoint: "https://7c2f9e0a41b84d0f.r2.cloudflarestorage.com",
-		region: "auto",
-		bucket: "logical-backups",
-		prefix: "logistack/prod",
-		accessKeyId: "3f6a0c1d9e2b4a7c8d5e1f0a2b3c4d5e",
-		forcePathStyle: false,
-		usedBy: 3,
-		createdAt: at(120 * DAY),
+const s3 = (
+	id: string,
+	name: string,
+	c: {
+		endpoint: string;
+		region: string;
+		bucket: string;
+		prefix: string;
+		accessKeyId: string;
+		forcePathStyle?: boolean;
 	},
+	usedBy: number,
+	age: number,
+): BackupDestination => ({
+	id,
+	name,
+	kind: "s3",
+	location: `s3://${c.bucket}/${c.prefix}`,
+	settings: { forcePathStyle: false, ...c },
+	nodeId: null,
+	usedBy,
+	createdAt: at(age),
+});
+
+const destinations: BackupDestination[] = [
+	s3(
+		"s3d_r2",
+		"Backups · R2",
+		{
+			endpoint: "https://7c2f9e0a41b84d0f.r2.cloudflarestorage.com",
+			region: "auto",
+			bucket: "logical-backups",
+			prefix: "logistack/prod",
+			accessKeyId: "3f6a0c1d9e2b4a7c8d5e1f0a2b3c4d5e",
+		},
+		3,
+		120 * DAY,
+	),
+	s3(
+		"s3d_hetzner",
+		"Off-site · Falkenstein",
+		{
+			endpoint: "https://fsn1.your-objectstorage.com",
+			region: "fsn1",
+			bucket: "logical-offsite",
+			prefix: "volumes",
+			accessKeyId: "HZ7K2M4Q9R1T5V8X0B3N",
+		},
+		1,
+		64 * DAY,
+	),
 	{
-		id: "s3d_hetzner",
-		name: "Off-site · Falkenstein",
-		endpoint: "https://fsn1.your-objectstorage.com",
-		region: "fsn1",
-		bucket: "logical-offsite",
-		prefix: "volumes",
-		accessKeyId: "HZ7K2M4Q9R1T5V8X0B3N",
-		forcePathStyle: false,
-		usedBy: 1,
-		createdAt: at(64 * DAY),
-	},
-	{
-		id: "s3d_b2",
-		name: "Archive · B2",
-		endpoint: "https://s3.eu-central-003.backblazeb2.com",
-		region: "eu-central-003",
-		bucket: "logical-archive",
-		prefix: "",
-		accessKeyId: "003a1b2c3d4e5f60000000007",
-		forcePathStyle: false,
+		id: "s3d_nas",
+		name: "Office NAS",
+		kind: "sftp",
+		location: "sftp://backup@nas.office.lan:22/volume1/logistack",
+		settings: {
+			host: "nas.office.lan",
+			port: 22,
+			user: "backup",
+			path: "/volume1/logistack",
+		},
+		nodeId: null,
 		usedBy: 0,
-		createdAt: at(21 * DAY),
+		createdAt: at(30 * DAY),
 	},
+	s3(
+		"s3d_b2",
+		"Archive · B2",
+		{
+			endpoint: "https://s3.eu-central-003.backblazeb2.com",
+			region: "eu-central-003",
+			bucket: "logical-archive",
+			prefix: "",
+			accessKeyId: "003a1b2c3d4e5f60000000007",
+		},
+		0,
+		21 * DAY,
+	),
 	{
-		id: "s3d_minio",
-		name: "Lab MinIO",
-		endpoint: "https://minio.lab.logical.it",
-		region: "us-east-1",
-		bucket: "scratch",
-		prefix: "logistack",
-		accessKeyId: "logistack-lab",
-		forcePathStyle: true,
+		id: "s3d_disk",
+		name: "Scratch disk · node-2",
+		kind: "local",
+		location: "node-2:/mnt/backups",
+		settings: { path: "/mnt/backups" },
+		nodeId: "nod_2",
 		usedBy: 0,
-		createdAt: at(9 * DAY),
+		createdAt: at(12 * DAY),
 	},
+	s3(
+		"s3d_minio",
+		"Lab MinIO",
+		{
+			endpoint: "https://minio.lab.logical.it",
+			region: "us-east-1",
+			bucket: "scratch",
+			prefix: "logistack",
+			accessKeyId: "logistack-lab",
+			forcePathStyle: true,
+		},
+		0,
+		9 * DAY,
+	),
 ];
+
+/** What the list shows for a new destination; the server's own wording, roughly. */
+function locationOf(input: DestinationInput): string {
+	const st = input.settings as Record<string, string | number | undefined>;
+	const path = st.path ? `/${String(st.path).replace(/^\/+/, "")}` : "";
+	switch (input.kind) {
+		case "s3":
+			return `s3://${st.bucket}/${st.prefix ?? ""}`;
+		case "sftp":
+			return `sftp://${st.user}@${st.host}:${st.port ?? 22}${path}`;
+		case "webdav":
+			return `${String(st.url).replace(/\/+$/, "")}${path}`;
+		case "azureblob":
+			return `azure://${st.account}/${st.container}${path}`;
+		case "drive":
+			return `drive:${path || "/"}`;
+		case "b2":
+			return `b2://${st.bucket}${path}`;
+		case "local":
+			return `node-1:${st.path}`;
+	}
+}
 
 const POSTGRES = "svc_storefront_production_postgres";
 
@@ -607,55 +684,56 @@ const notFound = (what: string) =>
 	Promise.reject(new ApiError(404, `${what} not found`));
 
 export const mockBackups: BackupsApi = {
-	s3: {
+	destinations: {
 		list: () => delay(destinations),
-		test: (c) => {
-			const host = (() => {
-				try {
-					return new URL(c.endpoint).hostname;
-				} catch {
-					return c.endpoint;
-				}
-			})();
-			if (c.secretAccessKey.startsWith("wrong"))
+		test: (input) => {
+			const secrets = input.secrets as Record<string, string | undefined>;
+			const wrong = Object.values(secrets).some((v) => v?.startsWith("wrong"));
+			const st = input.settings as Record<string, string | number | undefined>;
+			if (wrong)
 				return delay(
 					{
 						ok: false,
-						message: "The bucket refused the probe",
+						message: "The destination refused the probe",
 						detail:
-							"SignatureDoesNotMatch: the secret access key does not match this access key",
+							input.kind === "s3"
+								? "SignatureDoesNotMatch: the secret access key does not match this access key"
+								: "exit 1: couldn't connect: ssh: handshake failed: unable to authenticate",
 					},
 					1100,
 				);
-			if (c.bucket === "missing")
+			if (st.bucket === "missing")
 				return delay(
 					{
 						ok: false,
-						message: "The bucket refused the probe",
-						detail: `NoSuchBucket: ${c.bucket} does not exist on ${host}`,
+						message: "The destination refused the probe",
+						detail: `NoSuchBucket: ${st.bucket} does not exist`,
 					},
 					900,
 				);
 			return delay(
 				{
 					ok: true,
-					message: `Wrote, read and deleted a probe object in ${c.bucket}`,
-					detail: `Round trip in ${180 + Math.round(Math.random() * 160)} ms via ${host}`,
+					message:
+						input.kind === "s3"
+							? `Wrote, read and deleted a probe object in ${st.bucket}`
+							: input.kind === "local"
+								? `Wrote, read and deleted a probe file in ${st.path} on node-1`
+								: "Wrote, read and deleted a probe file",
+					detail: `Round trip in ${180 + Math.round(Math.random() * 160)} ms`,
 				},
 				1300,
 			);
 		},
-		create: ({ secretAccessKey: _s, ...c }) => {
+		create: (input) => {
 			const id = rid("s3d");
 			destinations.push({
 				id,
-				name: c.name,
-				endpoint: c.endpoint,
-				region: c.region ?? "us-east-1",
-				bucket: c.bucket,
-				prefix: c.prefix ?? "",
-				accessKeyId: c.accessKeyId,
-				forcePathStyle: c.forcePathStyle ?? false,
+				name: input.name,
+				kind: input.kind,
+				location: locationOf(input),
+				settings: input.settings as BackupDestination["settings"],
+				nodeId: input.kind === "local" ? input.nodeId : null,
 				usedBy: 0,
 				createdAt: new Date().toISOString(),
 			});
@@ -663,7 +741,7 @@ export const mockBackups: BackupsApi = {
 		},
 		remove: (id) => {
 			const d = destinations.find((x) => x.id === id);
-			if (!d) return notFound("s3 destination");
+			if (!d) return notFound("backup destination");
 			if (d.usedBy)
 				return Promise.reject(
 					new ApiError(

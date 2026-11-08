@@ -185,16 +185,26 @@ export const NAV: NavGroup[] = [
 			},
 			{
 				to: "/integrations/s3",
-				title: "S3 destinations",
+				title: "Backup destinations",
 				icon: Database,
 				description:
-					"Buckets for database and volume backups. Any S3-compatible endpoint.",
+					"Where database and volume backups go: S3, SFTP, WebDAV, Azure Blob, Google Drive, B2 or a folder on a node.",
 				empty: {
 					title: "Backups need somewhere to go",
-					body: "Add AWS S3, Cloudflare R2, Backblaze B2, Hetzner or MinIO. The connection is tested before it's saved.",
+					body: "Add an S3 bucket, a NAS over SFTP or WebDAV, Azure Blob, Google Drive, Backblaze B2 or a folder on a node. Every destination is tested before it's saved.",
 					action: "Add destination",
 				},
-				keywords: ["backup", "r2", "bucket"],
+				keywords: [
+					"backup",
+					"r2",
+					"bucket",
+					"s3",
+					"sftp",
+					"nas",
+					"webdav",
+					"azure",
+					"drive",
+				],
 			},
 			{
 				to: "/integrations/dns",
