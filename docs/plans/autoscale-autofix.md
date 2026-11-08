@@ -93,7 +93,7 @@ Additive: old clients ignore the new fields.
   4. `applyFix` → `guardHostSettings` → update `service.spec`. The audit diff records spec before/after.
   5. Queue a deployment the same way the Deploy button does (same trigger values, `deployment.queued` event). The worker runs deployments of a service one after another, so a running deploy needs no 409: the queued one picks up the new spec. The route needs both `write` and `deploy`.
   6. Response: `{ view: AutoscaleView, deploymentId }`.
-- `POST /services/:id/autoscale/fixes/add_healthcheck/probe` (v2): runs the probe, returns the fix or the reason it is not offered.
+- `POST /services/:id/autoscale/fixes/add_healthcheck/probe` (v2): runs the probe, returns the fix or the reason it is not offered. Audited as `service.autoscale_probe`, since it runs a command in a container. Applying `add_healthcheck` runs the probe again on the server.
 
 MCP tools come from the OpenAPI (`service_autoscale_fix`). Its description says that it redeploys.
 

@@ -387,4 +387,41 @@ describe.skipIf(!hasDocker)("autoscale api", () => {
 			).status,
 		).toBe(400);
 	});
+
+	test("the healthcheck AutoFix needs a passing probe in a running copy", async () => {
+		const svc = await create(
+			"nocheck",
+			{ cpu: 0.5 },
+			{ ports: [{ target: 3000, protocol: "tcp" }] },
+		);
+		const got = await h.call("GET", `/api/services/${svc}/autoscale`, as());
+		expect(
+			got.json.checks.find((c: { id: string }) => c.id === "healthcheck").fix,
+		).toMatchObject({ id: "add_healthcheck", probe: true });
+
+		// Never deployed: nothing running to test in, so the fix is withdrawn and refused.
+		const probe = await h.call(
+			"POST",
+			`/api/services/${svc}/autoscale/fixes/add_healthcheck/probe`,
+			as(),
+		);
+		expect(probe.status).toBe(200);
+		expect(probe.json.fix).toBeUndefined();
+		expect(probe.json.unavailable).toContain("No copy is running");
+		const applied = await h.call(
+			"POST",
+			`/api/services/${svc}/autoscale/fixes/add_healthcheck`,
+			as(),
+		);
+		expect(applied.status).toBe(400);
+		expect(
+			(
+				await h.call(
+					"POST",
+					`/api/services/${svc}/autoscale/fixes/add_healthcheck/probe`,
+					as(viewer),
+				)
+			).status,
+		).toBe(403);
+	});
 });

@@ -2,6 +2,7 @@ import { createRoute } from "@hono/zod-openapi";
 import {
 	type ApplicationSpec,
 	AutoscaleFixId,
+	AutoscaleFixProbe,
 	AutoscaleFixResult,
 	AutoscaleInput,
 	AutoscalePreview,
@@ -16,6 +17,10 @@ import {
 	BEHAVIOR_CPU_TARGET,
 	type CopyUsage,
 	type FixContext,
+	fallbackHealthPort,
+	HEALTH_PROBE_PATH,
+	type HealthProbe,
+	healthProbePort,
 	ingressPortHolder,
 	type LoadPoint,
 	planFix,
@@ -26,6 +31,7 @@ import {
 import {
 	type Db,
 	deployment,
+	domain,
 	mount,
 	node,
 	service,
@@ -43,6 +49,7 @@ import { guardHostSettings, portHolders } from "../host-settings.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { readResourceProfiles } from "../resource-profiles.ts";
 import { byParam, refuseArchived, requirePermission } from "../scope.ts";
+import { runningTask } from "./service-ops.ts";
 
 const tags = ["services"];
 
@@ -102,14 +109,77 @@ async function ingressConflict(
 	return `Port ${conflict.port}/${conflict.protocol} is already published by ${holder}, so it can't move to every server.`;
 }
 
+/**
+ * Requests the healthcheck fix's URL inside one running copy, with the same tools the compiled
+ * check uses (wget, then curl). Argv only; the URL holds no user input but the declared port.
+ */
+async function probeHealth(
+	c: Context<Env>,
+	serviceId: string,
+	spec: ApplicationSpec,
+): Promise<HealthProbe> {
+	const port = healthProbePort(spec);
+	if (port === undefined)
+		return { ok: false, reason: "This service declares no port to check." };
+	const task = await runningTask(c, serviceId);
+	if (!task)
+		return {
+			ok: false,
+			reason:
+				"No copy is running, so the check can't be tested. Deploy the service first.",
+		};
+	const url = `http://127.0.0.1:${port}${HEALTH_PROBE_PATH}`;
+	const tools = [
+		["wget", ["wget", "-q", "-O", "/dev/null", url]],
+		["curl", ["curl", "-fsS", "-o", "/dev/null", url]],
+	] as const;
+	let failed: string | undefined;
+	for (const [tool, cmd] of tools) {
+		const started = performance.now();
+		let code: number | null = null;
+		try {
+			const exec = c.var.deps.nodes.exec(
+				task.nodeId,
+				{
+					target: { kind: "task", taskId: task.id },
+					cmd: [...cmd],
+					stdin: false,
+				},
+				{ signal: AbortSignal.timeout(10_000) },
+			);
+			for await (const _ of exec);
+			code = (await exec.result).code;
+		} catch (e) {
+			const message = e instanceof Error ? e.message : String(e);
+			// The engine refuses to start a binary the image lacks: try the next tool.
+			if (/not found|no such file|executable/i.test(message)) continue;
+			return { ok: false, reason: `The check couldn't run: ${message}` };
+		}
+		const ms = Math.round(performance.now() - started);
+		if (code === 0)
+			return { ok: true, port, path: HEALTH_PROBE_PATH, ms, tool };
+		// 126/127: found no such binary; any other code means the request itself failed.
+		if (code !== 126 && code !== 127)
+			failed = `${HEALTH_PROBE_PATH} on port ${port} didn't answer inside a running copy (${tool} exit ${code}). Add a healthcheck that fits the app in the service settings.`;
+		if (failed) break;
+	}
+	return {
+		ok: false,
+		reason:
+			failed ??
+			"The image has neither wget nor curl, so an HTTP check can't run in it. Add a command healthcheck in the service settings.",
+	};
+}
+
 async function checksFor(
 	c: Context<Env>,
 	organizationId: string,
 	serviceId: string,
 	spec: ApplicationSpec,
+	probe?: HealthProbe,
 ) {
 	const { db } = c.var.deps;
-	const [[volumes], [nodes]] = await Promise.all([
+	const [[volumes], [nodes], domains] = await Promise.all([
 		db
 			.select({ n: count() })
 			.from(mount)
@@ -118,11 +188,16 @@ async function checksFor(
 			.select({ n: count() })
 			.from(node)
 			.where(eq(node.organizationId, organizationId)),
+		db
+			.select({ port: domain.port })
+			.from(domain)
+			.where(eq(domain.serviceId, serviceId)),
 	]);
 	const checks = autoscaleChecks({
 		spec,
 		volumes: volumes?.n ?? 0,
 		nodes: nodes?.n ?? 0,
+		fallbackPort: fallbackHealthPort(spec, domains),
 	});
 	const failing = (id: string) => checks.some((x) => x.id === id && !x.ok);
 	const [profiles, usage, conflict] = await Promise.all([
@@ -134,6 +209,7 @@ async function checksFor(
 		profiles,
 		usage,
 		blocked: conflict ? { ingress_ports: conflict } : {},
+		...(probe ? { probe } : {}),
 	};
 	return { checks: attachFixes(checks, spec, ctx), ctx };
 }
@@ -322,6 +398,13 @@ export const autoscale = router()
 			const { db } = c.var.deps;
 			const actor = requireActor(c);
 			await refuseArchived(c);
+			const probe =
+				fixId === "add_healthcheck"
+					? await (async () => {
+							const { spec } = await loadApp(db, id);
+							return spec.healthcheck ? undefined : probeHealth(c, id, spec);
+						})()
+					: undefined;
 			const queued = await db.transaction(async (tx) => {
 				// Serializes two clicks (or two tabs) on the same service.
 				const [svc] = await tx
@@ -341,6 +424,7 @@ export const autoscale = router()
 					actor.organizationId,
 					id,
 					spec,
+					probe,
 				);
 				const check = checks.find((x) => x.id === AUTOSCALE_FIX_CHECK[fixId]);
 				if (check?.ok) return null;
@@ -381,6 +465,39 @@ export const autoscale = router()
 					view: await view(c, actor.organizationId, id),
 					deploymentId: queued?.id ?? null,
 				},
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
+			"service.autoscale_probe",
+			createRoute({
+				method: "post",
+				path: "/services/{id}/autoscale/fixes/add_healthcheck/probe",
+				tags,
+				security,
+				summary: "Test the healthcheck AutoFix inside a running copy",
+				description:
+					"Requests `/` on the service's first port from inside one running copy, with wget or curl as the compiled check would. Returns the fix with the result, or why it isn't offered. Changes nothing.",
+				middleware: [requirePermission("write", byParam("service"))],
+				request: { params: IdParam },
+				responses: { 200: json(AutoscaleFixProbe, "Probe"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { spec } = await loadApp(c.var.deps.db, id);
+			const probe = spec.healthcheck
+				? undefined
+				: await probeHealth(c, id, spec);
+			const plan = planFix("add_healthcheck", spec, {
+				profiles: { profiles: [], defaultProfile: null },
+				usage: null,
+				...(probe ? { probe } : {}),
+			});
+			return c.json(
+				"fix" in plan ? { fix: plan.fix } : { unavailable: plan.unavailable },
 				200,
 			);
 		},

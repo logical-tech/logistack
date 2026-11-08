@@ -164,6 +164,52 @@ describe("planFix", () => {
 	});
 });
 
+describe("add_healthcheck", () => {
+	const web = spec({ ports: [{ target: 3000, protocol: "tcp" }] });
+
+	test("before the probe: offered, flagged to probe, HTTP check on the first port", () => {
+		const plan = planFix("add_healthcheck", web, ctx());
+		if (!("fix" in plan)) throw new Error(plan.unavailable);
+		expect(plan.fix.probe).toBe(true);
+		expect(plan.fix.changes[0]?.after).toBe("HTTP GET / on port 3000");
+		expect(plan.spec.healthcheck).toEqual({
+			type: "http",
+			port: 3000,
+			path: "/",
+		});
+	});
+
+	test("a passed probe adds its evidence; a failed one withdraws the fix", () => {
+		const ok = planFix(
+			"add_healthcheck",
+			web,
+			ctx({ probe: { ok: true, port: 3000, path: "/", ms: 12, tool: "wget" } }),
+		);
+		if (!("fix" in ok)) throw new Error(ok.unavailable);
+		expect(ok.fix.notes[0]).toContain("answered in 12 ms");
+		expect(
+			planFix(
+				"add_healthcheck",
+				web,
+				ctx({ probe: { ok: false, reason: "no wget" } }),
+			),
+		).toEqual({ unavailable: "no wget" });
+	});
+
+	test("no port or an existing healthcheck: nothing to add", () => {
+		expect(planFix("add_healthcheck", spec(), ctx())).toHaveProperty(
+			"unavailable",
+		);
+		expect(
+			planFix(
+				"add_healthcheck",
+				spec({ healthcheck: { type: "tcp", port: 1 } }),
+				ctx(),
+			),
+		).toHaveProperty("unavailable");
+	});
+});
+
 describe("attachFixes", () => {
 	const summary = (checks: AutoscaleCheck[]) =>
 		checks
@@ -205,7 +251,7 @@ describe("attachFixes", () => {
 			},
 			{
 				id: "healthcheck",
-				fix: undefined,
+				fix: "add_healthcheck",
 				unavailable: undefined,
 				link: undefined,
 			},
@@ -230,7 +276,11 @@ describe("attachFixes", () => {
 			ports: [{ target: 80, published: 8080, protocol: "tcp" }],
 		});
 		let next = s;
-		for (const id of ["apply_profile", "ingress_ports"] as const) {
+		for (const id of [
+			"apply_profile",
+			"ingress_ports",
+			"add_healthcheck",
+		] as const) {
 			const plan = planFix(id, next, ctx());
 			if (!("spec" in plan)) throw new Error(plan.unavailable);
 			next = plan.spec;
@@ -238,6 +288,6 @@ describe("attachFixes", () => {
 		const failed = autoscaleChecks({ spec: next, volumes: 0, nodes: 2 })
 			.filter((c) => !c.ok)
 			.map((c) => c.id);
-		expect(failed).toEqual(["healthcheck"]);
+		expect(failed).toEqual([]);
 	});
 });

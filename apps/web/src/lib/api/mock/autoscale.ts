@@ -1,4 +1,4 @@
-import type { AutoscaleBehavior } from "@logistack/contracts";
+import type { AutoscaleBehavior, AutoscaleFix } from "@logistack/contracts";
 import { ApiError } from "../adapter";
 import type { AutoscaleApi, AutoscaleView } from "../autoscale";
 
@@ -76,6 +76,20 @@ const state = new Map<string, AutoscaleView>([
 	],
 ]);
 
+const HEALTH_FIX: AutoscaleFix = {
+	id: "add_healthcheck",
+	title: "Add a healthcheck",
+	summary: "Copies get traffic only once / on port 9090 answers.",
+	changes: [
+		{ label: "Healthcheck", before: "None", after: "HTTP GET / on port 9090" },
+	],
+	notes: [
+		"Before saving, we request / on port 9090 inside a running copy to make sure the check passes.",
+	],
+	redeploy: true,
+	probe: true,
+};
+
 /** The worker has no size and a host port, so the ready step shows two AutoFix buttons. */
 state.set("svc_storefront_production_worker", {
 	...fresh(),
@@ -126,13 +140,16 @@ state.set("svc_storefront_production_worker", {
 							redeploy: true,
 						},
 					}
-				: c,
+				: c.id === "healthcheck"
+					? { ...c, fix: HEALTH_FIX }
+					: c,
 	),
 });
 
 const PASSED: Record<string, string> = {
 	cpu_limit: "Each copy gets 0.5 CPU.",
 	host_ports: "No ports bound to a single server.",
+	healthcheck: "New copies get traffic once their healthcheck passes.",
 };
 
 /** A working day of traffic: quiet night, a morning ramp, a lunch spike, an evening tail. */
@@ -199,6 +216,15 @@ export const mockAutoscale: AutoscaleApi = {
 			deploymentId: target ? "dep_mock_autofix" : null,
 		});
 	},
+	probeHealthcheck: () =>
+		delay({
+			fix: {
+				...HEALTH_FIX,
+				notes: [
+					"We requested / on port 9090 inside a running copy: it answered in 12 ms.",
+				],
+			},
+		}),
 	preview: (_id, q) => {
 		const target =
 			q.behavior === "custom" ? (q.targetCpu ?? 60) : TARGET[q.behavior];

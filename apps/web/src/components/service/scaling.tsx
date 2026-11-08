@@ -18,12 +18,13 @@ import { ChoiceGroup, Summary } from "@/components/wizard/parts";
 import { Wizard, type WizardStep } from "@/components/wizard/wizard";
 import {
 	type AutoscaleView,
+	autoscaleApi,
 	autoscalePreviewQuery,
 	autoscaleQuery,
 	useApplyAutoscaleFix,
 	useSaveAutoscale,
 } from "@/lib/api/autoscale";
-import type { ServiceOverview } from "@/lib/api/service-ops";
+import { type ServiceOverview, serviceKey } from "@/lib/api/service-ops";
 import type { ProjectId, ServiceId } from "@/lib/api/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -219,7 +220,21 @@ function AutoFixDialog({
 	// Keeps the content on screen while the dialog closes.
 	const [shown, setShown] = useState(fix);
 	if (fix && fix !== shown) setShown(fix);
-	const f = fix ?? shown;
+	const opened = fix ?? shown;
+	// A fix that needs a live test is re-planned with its result before it can be applied.
+	const probe = useQuery({
+		queryKey: [...serviceKey(serviceId), "autoscale", "probe", opened?.id],
+		queryFn: () => autoscaleApi.probeHealthcheck(serviceId),
+		enabled: !!fix?.probe,
+		staleTime: 0,
+		gcTime: 0,
+		retry: false,
+	});
+	const f = (opened?.probe && probe.data?.fix) || opened;
+	const testing = !!opened?.probe && probe.isFetching;
+	const unavailable = opened?.probe
+		? (probe.data?.unavailable ?? probe.error?.message)
+		: undefined;
 	return (
 		<ConfirmDialog
 			open={!!fix}
@@ -234,6 +249,7 @@ function AutoFixDialog({
 			confirmLabel={f?.redeploy ? "Apply and redeploy" : "Apply"}
 			destructive={false}
 			pending={apply.isPending}
+			confirmDisabled={testing || !!unavailable}
 			onConfirm={() => {
 				if (!f) return;
 				apply.mutate(f.id, {
@@ -277,6 +293,16 @@ function AutoFixDialog({
 						<p className="text-pretty text-muted-foreground">
 							Saving starts a new deployment. Copies are replaced one at a time;
 							if the new one fails its healthcheck, the previous version stays.
+						</p>
+					)}
+					{testing && (
+						<p className="text-pretty text-muted-foreground" aria-live="polite">
+							Testing the check in a running copy…
+						</p>
+					)}
+					{unavailable && (
+						<p role="alert" className="text-pretty text-bad-text">
+							{unavailable}
 						</p>
 					)}
 					{apply.error && (

@@ -277,6 +277,16 @@ function tcpCheck(port: number): string[] {
 	];
 }
 
+/**
+ * The port checked for listening when an application declares no healthcheck: only a service
+ * behind a domain gets one, on its first port or the domain's.
+ */
+export const fallbackHealthPort = (
+	app: { ports: { target: number }[] },
+	domains: { port: number }[],
+): number | undefined =>
+	domains.length ? (app.ports[0]?.target ?? domains[0]?.port) : undefined;
+
 function healthcheckTest(
 	check: HealthcheckSpec | undefined,
 	fallbackPort: number | undefined,
@@ -417,9 +427,7 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 				? gdef.healthcheck(game.port)
 				: healthcheckTest(
 						app?.healthcheck,
-						hasIngress
-							? (app?.ports[0]?.target ?? input.domains[0]?.port)
-							: undefined,
+						app ? fallbackHealthPort(app, input.domains) : undefined,
 					);
 
 	const deploymentLabel = { "logistack.deployment": input.deploymentId };

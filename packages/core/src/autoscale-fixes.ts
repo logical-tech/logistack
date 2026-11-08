@@ -16,7 +16,21 @@ export type FixContext = {
 	usage: CopyUsage;
 	/** Why a fix can't apply, found outside this module (e.g. a port conflict in the database). */
 	blocked?: Partial<Record<AutoscaleFixId, string>>;
+	/** The live HTTP test inside a running copy; absent until it ran. */
+	probe?: HealthProbe;
 };
+
+/** Result of requesting `path` on `port` inside a running copy. */
+export type HealthProbe =
+	| { ok: true; port: number; path: string; ms: number; tool: "wget" | "curl" }
+	| { ok: false; reason: string };
+
+/** The HTTP path the healthcheck fix requests. */
+export const HEALTH_PROBE_PATH = "/";
+
+/** The port the healthcheck fix tests: the service's first declared port. */
+export const healthProbePort = (spec: ApplicationSpec): number | undefined =>
+	spec.ports[0]?.target;
 
 /** A size must cover the peak by this factor, so a busy minute doesn't hit the limit. */
 const HEADROOM = 1.3;
@@ -161,12 +175,55 @@ export function planFix(
 				},
 			};
 		}
+		case "add_healthcheck": {
+			if (spec.healthcheck)
+				return { unavailable: "This service already has a healthcheck." };
+			const port = healthProbePort(spec);
+			if (port === undefined)
+				return {
+					unavailable:
+						"This service declares no port, so there is nothing to check. Add a command healthcheck in the service settings.",
+				};
+			if (ctx.probe && !ctx.probe.ok) return { unavailable: ctx.probe.reason };
+			const fix: AutoscaleFix = {
+				id,
+				title: "Add a healthcheck",
+				summary: `Copies get traffic only once ${HEALTH_PROBE_PATH} on port ${port} answers.`,
+				changes: [
+					{
+						label: "Healthcheck",
+						before: "None",
+						after: `HTTP GET ${HEALTH_PROBE_PATH} on port ${port}`,
+					},
+				],
+				notes: ctx.probe
+					? [
+							`We requested ${HEALTH_PROBE_PATH} on port ${port} inside a running copy: it answered in ${ctx.probe.ms} ms.`,
+						]
+					: [
+							`Before saving, we request ${HEALTH_PROBE_PATH} on port ${port} inside a running copy to make sure the check passes.`,
+						],
+				redeploy: true,
+				probe: true,
+			};
+			return {
+				fix,
+				spec: {
+					...spec,
+					healthcheck: { type: "http", port, path: HEALTH_PROBE_PATH },
+				},
+			};
+		}
 	}
 }
 
 /** The check each fix makes pass. */
 export const AUTOSCALE_FIX_CHECK: Record<AutoscaleFixId, AutoscaleCheck["id"]> =
-	{ apply_profile: "cpu_limit", ingress_ports: "host_ports" };
+	{
+		apply_profile: "cpu_limit",
+		ingress_ports: "host_ports",
+		add_healthcheck: "healthcheck",
+	};
 
 const fixOf = Object.fromEntries(
 	Object.entries(AUTOSCALE_FIX_CHECK).map(([fix, check]) => [check, fix]),

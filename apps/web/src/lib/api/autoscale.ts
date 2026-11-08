@@ -23,6 +23,10 @@ export type AutoscaleFixResult = InferResponseType<
 	(typeof a.fixes)[":fixId"]["$post"],
 	200
 >;
+export type AutoscaleFixProbe = InferResponseType<
+	(typeof a.fixes.add_healthcheck.probe)["$post"],
+	200
+>;
 export type PreviewQuery = Pick<
 	AutoscaleInput,
 	"minReplicas" | "maxReplicas" | "behavior" | "targetCpu"
@@ -33,12 +37,15 @@ export type AutoscaleApi = {
 	save(id: ServiceId, input: AutoscaleInput): Promise<AutoscaleView>;
 	preview(id: ServiceId, q: PreviewQuery): Promise<AutoscalePreview>;
 	fix(id: ServiceId, fixId: AutoscaleFixId): Promise<AutoscaleFixResult>;
+	probeHealthcheck(id: ServiceId): Promise<AutoscaleFixProbe>;
 };
 
 const http: AutoscaleApi = {
 	get: (id) => ok(a.$get({ param: { id } })),
 	save: (id, json) => ok(a.$put({ param: { id }, json })),
 	fix: (id, fixId) => ok(a.fixes[":fixId"].$post({ param: { id, fixId } })),
+	probeHealthcheck: (id) =>
+		ok(a.fixes.add_healthcheck.probe.$post({ param: { id } })),
 	preview: (id, q) =>
 		ok(
 			a.preview.$get({

@@ -65,7 +65,11 @@ export const autoscaleCheckIds = [
 	"nodes",
 ] as const;
 
-export const autoscaleFixIds = ["apply_profile", "ingress_ports"] as const;
+export const autoscaleFixIds = [
+	"apply_profile",
+	"ingress_ports",
+	"add_healthcheck",
+] as const;
 export const AutoscaleFixId = z.enum(autoscaleFixIds);
 export type AutoscaleFixId = z.infer<typeof AutoscaleFixId>;
 
@@ -83,6 +87,8 @@ export const AutoscaleFix = z
 		notes: z.array(z.string()),
 		/** Applying it starts a deployment. */
 		redeploy: z.boolean(),
+		/** The fix is only offered after a live test passes: call its probe before applying. */
+		probe: z.boolean().optional(),
 	})
 	.meta({ id: "AutoscaleFix" });
 export type AutoscaleFix = z.infer<typeof AutoscaleFix>;
@@ -159,3 +165,9 @@ export const AutoscaleFixResult = z
 	.object({ view: AutoscaleView, deploymentId: z.string().nullable() })
 	.meta({ id: "AutoscaleFixResult" });
 export type AutoscaleFixResult = z.infer<typeof AutoscaleFixResult>;
+
+/** A fix re-planned after its live test: the fix with the evidence, or why it isn't offered. */
+export const AutoscaleFixProbe = z
+	.object({ fix: AutoscaleFix.optional(), unavailable: z.string().optional() })
+	.meta({ id: "AutoscaleFixProbe" });
+export type AutoscaleFixProbe = z.infer<typeof AutoscaleFixProbe>;
