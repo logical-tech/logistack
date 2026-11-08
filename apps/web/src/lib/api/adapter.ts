@@ -51,6 +51,7 @@ import type {
 	UsageRange,
 } from "./types";
 import type { VariablesApi } from "./variables";
+import type { WorkApi } from "./work";
 
 /**
  * The one seam between the UI and the server. `http.ts` implements it against
@@ -144,6 +145,7 @@ export type ApiAdapter = {
 	stacks: StacksApi;
 	templates: TemplatesApi;
 	variables: VariablesApi;
+	work: WorkApi;
 };
 
 export class ApiError extends Error {
