@@ -64,6 +64,7 @@ import { templates } from "./routes/templates.ts";
 import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
 import { usage } from "./routes/usage.ts";
+import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
 import { realtime } from "./ws.ts";
 
@@ -161,6 +162,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
 		.route("/api", autoscale)
+		.route("/api", vulnerabilities)
 		.route("/api", usage)
 		.route("/api", nodes)
 		.route("/api", networkMapRoutes)

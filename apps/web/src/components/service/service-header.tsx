@@ -11,6 +11,7 @@ import {
 	changeCount,
 	PendingChangesDialog,
 } from "@/components/service/pending-changes";
+import { VulnerabilityBadge } from "@/components/service/security";
 import { ServiceGlyph } from "@/components/service/service-icon";
 import { ServiceStatus } from "@/components/status";
 import { Button } from "@/components/ui/button";
@@ -112,6 +113,7 @@ export function ServiceHeader({
 								Scales {autoscale.minReplicas}–{autoscale.maxReplicas}
 							</Link>
 						)}
+						<VulnerabilityBadge serviceId={o.id} projectId={projectId} />
 						{note && (
 							<span className="text-foreground">
 								Desired {o.desiredState}, {note}

@@ -147,6 +147,7 @@ export const EVENT_GROUPS: {
 			{ type: "service.crash_loop", label: "Service crash-looping" },
 			{ type: "service.threshold", label: "Service threshold crossed" },
 			{ type: "service.scaled", label: "Service scaled automatically" },
+			{ type: "image.vulnerable", label: "Critical vulnerability found" },
 			{ type: "metric.threshold", label: "Node threshold crossed" },
 		],
 	},

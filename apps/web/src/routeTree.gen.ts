@@ -103,6 +103,7 @@ import { Route as AppProjectsProjectIdServicesServiceIdFilesRouteImport } from '
 import { Route as AppProjectsProjectIdServicesServiceIdGameRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/game'
 import { Route as AppProjectsProjectIdServicesServiceIdLogsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/logs'
 import { Route as AppProjectsProjectIdServicesServiceIdMetricsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/metrics'
+import { Route as AppProjectsProjectIdServicesServiceIdSecurityRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/security'
 import { Route as AppProjectsProjectIdServicesServiceIdSettingsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/settings'
 import { Route as AppProjectsProjectIdServicesServiceIdStorageRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/storage'
 import { Route as AppProjectsProjectIdServicesServiceIdTerminalRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/terminal'
@@ -616,6 +617,12 @@ const AppProjectsProjectIdServicesServiceIdMetricsRoute =
     path: '/metrics',
     getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
   } as any)
+const AppProjectsProjectIdServicesServiceIdSecurityRoute =
+  AppProjectsProjectIdServicesServiceIdSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => AppProjectsProjectIdServicesServiceIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdSettingsRoute =
   AppProjectsProjectIdServicesServiceIdSettingsRouteImport.update({
     id: '/settings',
@@ -745,6 +752,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId/game': typeof AppProjectsProjectIdServicesServiceIdGameRoute
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
+  '/projects/$projectId/services/$serviceId/security': typeof AppProjectsProjectIdServicesServiceIdSecurityRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
   '/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
@@ -839,6 +847,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/$serviceId/game': typeof AppProjectsProjectIdServicesServiceIdGameRoute
   '/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
+  '/projects/$projectId/services/$serviceId/security': typeof AppProjectsProjectIdServicesServiceIdSecurityRoute
   '/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
   '/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
@@ -942,6 +951,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/$serviceId/game': typeof AppProjectsProjectIdServicesServiceIdGameRoute
   '/_app/projects/$projectId/services/$serviceId/logs': typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   '/_app/projects/$projectId/services/$serviceId/metrics': typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
+  '/_app/projects/$projectId/services/$serviceId/security': typeof AppProjectsProjectIdServicesServiceIdSecurityRoute
   '/_app/projects/$projectId/services/$serviceId/settings': typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
   '/_app/projects/$projectId/services/$serviceId/storage': typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   '/_app/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
@@ -1044,6 +1054,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/game'
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
+    | '/projects/$projectId/services/$serviceId/security'
     | '/projects/$projectId/services/$serviceId/settings'
     | '/projects/$projectId/services/$serviceId/storage'
     | '/projects/$projectId/services/$serviceId/terminal'
@@ -1138,6 +1149,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/game'
     | '/projects/$projectId/services/$serviceId/logs'
     | '/projects/$projectId/services/$serviceId/metrics'
+    | '/projects/$projectId/services/$serviceId/security'
     | '/projects/$projectId/services/$serviceId/settings'
     | '/projects/$projectId/services/$serviceId/storage'
     | '/projects/$projectId/services/$serviceId/terminal'
@@ -1240,6 +1252,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/$serviceId/game'
     | '/_app/projects/$projectId/services/$serviceId/logs'
     | '/_app/projects/$projectId/services/$serviceId/metrics'
+    | '/_app/projects/$projectId/services/$serviceId/security'
     | '/_app/projects/$projectId/services/$serviceId/settings'
     | '/_app/projects/$projectId/services/$serviceId/storage'
     | '/_app/projects/$projectId/services/$serviceId/terminal'
@@ -1915,6 +1928,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdMetricsRouteImport
       parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
     }
+    '/_app/projects/$projectId/services/$serviceId/security': {
+      id: '/_app/projects/$projectId/services/$serviceId/security'
+      path: '/security'
+      fullPath: '/projects/$projectId/services/$serviceId/security'
+      preLoaderRoute: typeof AppProjectsProjectIdServicesServiceIdSecurityRouteImport
+      parentRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/settings': {
       id: '/_app/projects/$projectId/services/$serviceId/settings'
       path: '/settings'
@@ -2013,6 +2033,7 @@ interface AppProjectsProjectIdServicesServiceIdRouteRouteChildren {
   AppProjectsProjectIdServicesServiceIdGameRoute: typeof AppProjectsProjectIdServicesServiceIdGameRoute
   AppProjectsProjectIdServicesServiceIdLogsRoute: typeof AppProjectsProjectIdServicesServiceIdLogsRoute
   AppProjectsProjectIdServicesServiceIdMetricsRoute: typeof AppProjectsProjectIdServicesServiceIdMetricsRoute
+  AppProjectsProjectIdServicesServiceIdSecurityRoute: typeof AppProjectsProjectIdServicesServiceIdSecurityRoute
   AppProjectsProjectIdServicesServiceIdSettingsRoute: typeof AppProjectsProjectIdServicesServiceIdSettingsRoute
   AppProjectsProjectIdServicesServiceIdStorageRoute: typeof AppProjectsProjectIdServicesServiceIdStorageRoute
   AppProjectsProjectIdServicesServiceIdTerminalRoute: typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
@@ -2039,6 +2060,8 @@ const AppProjectsProjectIdServicesServiceIdRouteRouteChildren: AppProjectsProjec
       AppProjectsProjectIdServicesServiceIdLogsRoute,
     AppProjectsProjectIdServicesServiceIdMetricsRoute:
       AppProjectsProjectIdServicesServiceIdMetricsRoute,
+    AppProjectsProjectIdServicesServiceIdSecurityRoute:
+      AppProjectsProjectIdServicesServiceIdSecurityRoute,
     AppProjectsProjectIdServicesServiceIdSettingsRoute:
       AppProjectsProjectIdServicesServiceIdSettingsRoute,
     AppProjectsProjectIdServicesServiceIdStorageRoute:

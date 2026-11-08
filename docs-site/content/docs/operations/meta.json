@@ -7,6 +7,7 @@
 		"metrics",
 		"nodes",
 		"alerts-and-notifications",
+		"vulnerability-scanning",
 		"usage",
 		"updates",
 		"migrate-from-dokploy",
