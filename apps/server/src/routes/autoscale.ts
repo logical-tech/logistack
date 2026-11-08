@@ -1,6 +1,8 @@
 import { createRoute } from "@hono/zod-openapi";
 import {
 	type ApplicationSpec,
+	AutoscaleFixId,
+	AutoscaleFixResult,
 	AutoscaleInput,
 	AutoscalePreview,
 	AutoscalePreviewQuery,
@@ -8,10 +10,12 @@ import {
 	AutoscaleView,
 } from "@logistack/contracts";
 import {
+	AUTOSCALE_FIX_CHECK,
 	attachFixes,
 	autoscaleChecks,
 	BEHAVIOR_CPU_TARGET,
 	type CopyUsage,
+	type FixContext,
 	ingressPortHolder,
 	type LoadPoint,
 	planFix,
@@ -19,17 +23,26 @@ import {
 	publishedPortConflicts,
 	targetCpuFor,
 } from "@logistack/core";
-import { type Db, mount, node, service, serviceAutoscale } from "@logistack/db";
+import {
+	type Db,
+	deployment,
+	mount,
+	node,
+	service,
+	serviceAutoscale,
+} from "@logistack/db";
 import { and, count, eq, sql } from "drizzle-orm";
 import type { Context } from "hono";
+import { z } from "zod";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound } from "../errors.ts";
-import { portHolders } from "../host-settings.ts";
+import { envelope } from "../events.ts";
+import { guardHostSettings, portHolders } from "../host-settings.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { readResourceProfiles } from "../resource-profiles.ts";
-import { byParam, requirePermission } from "../scope.ts";
+import { byParam, refuseArchived, requirePermission } from "../scope.ts";
 
 const tags = ["services"];
 
@@ -117,11 +130,12 @@ async function checksFor(
 		failing("cpu_limit") ? copyUsage(db, serviceId) : null,
 		failing("host_ports") ? ingressConflict(c, serviceId, spec) : undefined,
 	]);
-	return attachFixes(checks, spec, {
+	const ctx: FixContext = {
 		profiles,
 		usage,
 		blocked: conflict ? { ingress_ports: conflict } : {},
-	});
+	};
+	return { checks: attachFixes(checks, spec, ctx), ctx };
 }
 
 async function view(
@@ -135,7 +149,7 @@ async function view(
 		.select()
 		.from(serviceAutoscale)
 		.where(eq(serviceAutoscale.serviceId, serviceId));
-	const checks = await checksFor(c, organizationId, serviceId, spec);
+	const { checks } = await checksFor(c, organizationId, serviceId, spec);
 	if (!row)
 		return {
 			configured: false,
@@ -226,9 +240,9 @@ export const autoscale = router()
 			const organizationId = requireActor(c).organizationId;
 			const { spec } = await loadApp(db, id);
 			if (input.enabled) {
-				const blockers = (await checksFor(c, organizationId, id, spec)).filter(
-					(x) => x.level === "blocker" && !x.ok,
-				);
+				const blockers = (
+					await checksFor(c, organizationId, id, spec)
+				).checks.filter((x) => x.level === "blocker" && !x.ok);
 				if (blockers.length)
 					throw new Failure(
 						"bad_request",
@@ -280,6 +294,95 @@ export const autoscale = router()
 				after: settings,
 			});
 			return c.json(await view(c, organizationId, id), 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"service.autoscale_fix",
+			createRoute({
+				method: "post",
+				path: "/services/{id}/autoscale/fixes/{fixId}",
+				tags,
+				security,
+				summary: "Apply a one-click fix for a failed autoscaling check",
+				description:
+					"Recomputes the fix named by `fixId` on the current settings (the change never comes from the client), saves it to the spec and queues a deployment. A no-op when its check already passes. The fix and its effects are listed on the failed check in `GET /services/{id}/autoscale`.",
+				middleware: [
+					requirePermission("write", byParam("service")),
+					requirePermission("deploy", byParam("service")),
+				],
+				request: {
+					params: z.object({ id: z.string(), fixId: AutoscaleFixId }),
+				},
+				responses: { 200: json(AutoscaleFixResult, "Applied"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { id, fixId } = c.req.valid("param");
+			const { db } = c.var.deps;
+			const actor = requireActor(c);
+			await refuseArchived(c);
+			const queued = await db.transaction(async (tx) => {
+				// Serializes two clicks (or two tabs) on the same service.
+				const [svc] = await tx
+					.select()
+					.from(service)
+					.where(eq(service.id, id))
+					.for("update");
+				if (!svc) throw notFound("service");
+				if (svc.spec.kind !== "application")
+					throw new Failure(
+						"bad_request",
+						"Only application services can scale automatically",
+					);
+				const spec = svc.spec;
+				const { checks, ctx } = await checksFor(
+					c,
+					actor.organizationId,
+					id,
+					spec,
+				);
+				const check = checks.find((x) => x.id === AUTOSCALE_FIX_CHECK[fixId]);
+				if (check?.ok) return null;
+				const plan = planFix(fixId, spec, ctx);
+				if (!("spec" in plan))
+					throw new Failure("bad_request", plan.unavailable);
+				await guardHostSettings(c, {
+					serviceId: id,
+					spec: plan.spec,
+					before: spec,
+					nodeId: svc.nodeId,
+				});
+				await tx
+					.update(service)
+					.set({ spec: plan.spec })
+					.where(eq(service.id, id));
+				c.set("auditDiff", { before: spec, after: plan.spec });
+				const [row] = await tx
+					.insert(deployment)
+					.values({
+						serviceId: id,
+						trigger: actor.kind === "user" ? "manual" : "api",
+					})
+					.returning();
+				return row ?? null;
+			});
+			if (queued)
+				await c.var.deps.bus.publishEvent(
+					envelope(
+						"deployment.queued",
+						actor.organizationId,
+						{ type: "deployment", id: queued.id },
+						{ serviceId: id, trigger: queued.trigger },
+					),
+				);
+			return c.json(
+				{
+					view: await view(c, actor.organizationId, id),
+					deploymentId: queued?.id ?? null,
+				},
+				200,
+			);
 		},
 	)
 	.openapi(

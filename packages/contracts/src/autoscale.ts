@@ -153,3 +153,9 @@ export const ServiceScaledEventPayload = z.object({
 export type ServiceScaledEventPayload = z.infer<
 	typeof ServiceScaledEventPayload
 >;
+
+/** After an AutoFix: the fresh view and the deployment it queued (null when nothing changed). */
+export const AutoscaleFixResult = z
+	.object({ view: AutoscaleView, deploymentId: z.string().nullable() })
+	.meta({ id: "AutoscaleFixResult" });
+export type AutoscaleFixResult = z.infer<typeof AutoscaleFixResult>;

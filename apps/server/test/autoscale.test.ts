@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { auditLog, serviceAutoscale } from "@logistack/db";
+import { auditLog, deployment, service, serviceAutoscale } from "@logistack/db";
 import { and, asc, eq } from "drizzle-orm";
 import {
 	type Harness,
@@ -268,5 +268,123 @@ describe.skipIf(!hasDocker)("autoscale api", () => {
 			body: { manifest, dryRun: true },
 		});
 		expect(JSON.stringify(again.json.changes)).not.toContain("autoscale");
+	});
+
+	test("AutoFix applies the recomputed change once, queues a deploy and audits", async () => {
+		const svc = await create("fixme", {});
+		const fix = (id: string, c = cookie) =>
+			h.call("POST", `/api/services/${svc}/autoscale/fixes/${id}`, as(c));
+
+		expect((await fix("apply_profile", viewer)).status).toBe(403);
+		expect((await fix("nope")).status).toBe(400);
+
+		const first = await fix("apply_profile");
+		expect(first.status).toBe(200);
+		expect(first.json.deploymentId).toEqual(expect.any(String));
+		const cpu = first.json.view.checks.find(
+			(c: { id: string }) => c.id === "cpu_limit",
+		);
+		expect(cpu).toMatchObject({ ok: true });
+		expect(cpu.fix).toBeUndefined();
+		const [row] = await h.deps.db
+			.select({ spec: service.spec })
+			.from(service)
+			.where(eq(service.id, svc));
+		expect(row?.spec.kind === "application" && row.spec.resources).toEqual({
+			cpu: 0.25,
+			memoryMb: 256,
+		});
+
+		// A second click finds the check passing: nothing written, nothing queued.
+		const again = await fix("apply_profile");
+		expect(again.status).toBe(200);
+		expect(again.json.deploymentId).toBeNull();
+		const deploys = await h.deps.db
+			.select()
+			.from(deployment)
+			.where(eq(deployment.serviceId, svc));
+		expect(deploys).toHaveLength(1);
+
+		const [audit] = await h.deps.db
+			.select()
+			.from(auditLog)
+			.where(
+				and(
+					eq(auditLog.action, "service.autoscale_fix"),
+					eq(auditLog.resourceId, svc),
+					eq(auditLog.outcome, "success"),
+				),
+			)
+			.orderBy(asc(auditLog.at))
+			.limit(1);
+		expect(audit).toMatchObject({
+			outcome: "success",
+			diff: { after: { resources: { cpu: 0.25 } } },
+		});
+	});
+
+	test("AutoFix moves host ports to ingress unless another service holds the port", async () => {
+		const free = await create(
+			"hostfree",
+			{ cpu: 0.5 },
+			{ ports: [{ target: 80, published: 18181, protocol: "tcp" }] },
+		);
+		const moved = await h.call(
+			"POST",
+			`/api/services/${free}/autoscale/fixes/ingress_ports`,
+			as(),
+		);
+		expect(moved.status).toBe(200);
+		expect(
+			moved.json.view.checks.find((c: { id: string }) => c.id === "host_ports")
+				.ok,
+		).toBe(true);
+
+		await create(
+			"holder",
+			{ cpu: 0.5 },
+			{
+				ports: [
+					{ target: 80, published: 18282, protocol: "tcp", mode: "ingress" },
+				],
+			},
+		);
+		const clash = await create(
+			"hostclash",
+			{ cpu: 0.5 },
+			{ ports: [{ target: 80, published: 18283, protocol: "tcp" }] },
+		);
+		// In a real cluster this is a host port on another node; one test node can't hold both, so write it directly.
+		const [row] = await h.deps.db
+			.select({ spec: service.spec })
+			.from(service)
+			.where(eq(service.id, clash));
+		if (row?.spec.kind !== "application") throw new Error("not an app");
+		await h.deps.db
+			.update(service)
+			.set({
+				spec: {
+					...row.spec,
+					ports: [
+						{ target: 80, published: 18282, protocol: "tcp", mode: "host" },
+					],
+				},
+			})
+			.where(eq(service.id, clash));
+		const got = await h.call("GET", `/api/services/${clash}/autoscale`, as());
+		const check = got.json.checks.find(
+			(c: { id: string }) => c.id === "host_ports",
+		);
+		expect(check.fix).toBeUndefined();
+		expect(check.fixUnavailable).toContain("18282/tcp");
+		expect(
+			(
+				await h.call(
+					"POST",
+					`/api/services/${clash}/autoscale/fixes/ingress_ports`,
+					as(),
+				)
+			).status,
+		).toBe(400);
 	});
 });

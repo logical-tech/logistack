@@ -91,7 +91,7 @@ Additive: old clients ignore the new fields.
   2. Recompute checks on the current spec. **The server never takes the change from the client**: the client only names the fix.
   3. Check already `ok` → 200 with the current view and `deploymentId: null` (idempotent: a double click or two tabs do no harm).
   4. `applyFix` → `guardHostSettings` → update `service.spec`. The audit diff records spec before/after.
-  5. Create a deployment the same way the Deploy button does (reuse its function, `trigger: "autofix"`). A deployment already running → 409 "A deploy is running; try again when it finishes". Nothing is written in that case.
+  5. Queue a deployment the same way the Deploy button does (same trigger values, `deployment.queued` event). The worker runs deployments of a service one after another, so a running deploy needs no 409: the queued one picks up the new spec. The route needs both `write` and `deploy`.
   6. Response: `{ view: AutoscaleView, deploymentId }`.
 - `POST /services/:id/autoscale/fixes/add_healthcheck/probe` (v2): runs the probe, returns the fix or the reason it is not offered.
 
@@ -114,7 +114,7 @@ After it succeeds:
 - Invalidate the autoscale and service queries. The check turns green in place: the icon crossfades (`transitions-dev` icon swap) and the button fades out. No layout jump: the button slot keeps its width until the fade ends.
 - Toast "Size applied. Deploying…" with a link to the deployment.
 - In the wizard, the step's `ready()` re-reads the view, so **Next** unlocks without leaving the wizard.
-- On 409 or a refusal: the modal stays open with the error inline above the buttons.
+- On a refusal: the modal stays open with the error inline above the buttons.
 
 The PUT refusal path (blockers in the 400 body) renders the same `Checks` list, so AutoFix also appears there.
 
@@ -130,7 +130,7 @@ Mock data for screenshots: `apps/web/src/lib/api/mock/autoscale.ts` gets one ser
 ## PRs
 
 1. **FX-1 core + contracts.** `AutoscaleFix`, new check fields, `suggestProfile`, `fixFor`/`applyFix` for `apply_profile` and `ingress_ports`, table tests. `GET` returns fixes.
-2. **FX-2 API.** `POST …/fixes/{fixId}` with lock, idempotency, `guardHostSettings`, deploy, audit, 409. Route tests: 403, no-op when already ok, port conflict, running deployment.
+2. **FX-2 API.** `POST …/fixes/{fixId}` with lock, idempotency, `guardHostSettings`, deploy, audit, 409. Route tests: 403, no-op when already ok, port conflict.
 3. **FX-3 UI.** AutoFix button, modal, in-place check transition, wizard unlock, mock data, screenshots.
 4. **FX-4 healthcheck.** Correct the `healthcheck` check for the TCP fallback; probe endpoint; `add_healthcheck` fix.
 5. **FX-5 docs.** Section "Fix setup problems in one click" on `docs-site/content/docs/deploy/autoscaling.mdx`.

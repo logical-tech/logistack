@@ -164,10 +164,13 @@ export function planFix(
 	}
 }
 
-const fixOf: Partial<Record<AutoscaleCheck["id"], AutoscaleFixId>> = {
-	cpu_limit: "apply_profile",
-	host_ports: "ingress_ports",
-};
+/** The check each fix makes pass. */
+export const AUTOSCALE_FIX_CHECK: Record<AutoscaleFixId, AutoscaleCheck["id"]> =
+	{ apply_profile: "cpu_limit", ingress_ports: "host_ports" };
+
+const fixOf = Object.fromEntries(
+	Object.entries(AUTOSCALE_FIX_CHECK).map(([fix, check]) => [check, fix]),
+) as Partial<Record<AutoscaleCheck["id"], AutoscaleFixId>>;
 
 /** Adds the one-click fix (or why it can't apply) and manual links to failed checks. Pure. */
 export function attachFixes(
