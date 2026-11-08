@@ -17,7 +17,9 @@ const P = "/projects/prj_storefront";
 const SVC = `${P}/services/svc_storefront_production_web`;
 const PG = `${P}/services/svc_storefront_production_postgres`;
 const REDIS = `${P}/services/svc_storefront_production_redis`;
-const AUTOSCALE = `${P}/services/svc_storefront_production_api/settings?scaling=setup&step=`;
+// shortcut: ids assumed for the Work mock fixture (project "Shop"); align them when the fixture lands.
+const W = "/work/projects/prj_shop";
+const AUTOSCALE =`${P}/services/svc_storefront_production_api/settings?scaling=setup&step=`;
 
 /** A path, or a path plus the buttons/links to click (by accessible name, in order) before the shot. */
 type Shot = string | { path: string; click: string[] };
@@ -162,6 +164,16 @@ export const shots: Record<string, Shot> = {
 		click: ["Check for updates"],
 	},
 	"plugin-page": "/plugin/plg_deployalerts/failures",
+	"work-projects": "/work/projects",
+	"work-project": W,
+	"work-table": `${W}/v/wvw_shop_list`,
+	"work-board": `${W}/v/wvw_shop_board`,
+	"work-timeline": `${W}/v/wvw_shop_timeline`,
+	"work-calendar": `${W}/v/wvw_shop_calendar`,
+	"work-task": `${W}/v/wvw_shop_board?task=tsk_shop_42`,
+	"work-my-tasks": "/work",
+	"work-inbox": "/work/inbox",
+	"work-time": "/work/time",
 };
 
 // The mock has no plugin container behind /plugins/<id>/ui/*: serve a stand-in page that speaks
