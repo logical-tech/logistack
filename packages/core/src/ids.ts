@@ -56,6 +56,7 @@ export const idPrefixes = {
 	statusPage: "stp",
 	patchRun: "pat",
 	pluginInstall: "plg",
+	pluginIndex: "pidx",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];
