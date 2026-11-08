@@ -1,5 +1,13 @@
 {
 	"title": "Reference",
 	"icon": "BookOpen",
-	"pages": ["installer", "architecture", "troubleshooting", "faq", "glossary"]
+	"pages": [
+		"installer",
+		"architecture",
+		"security-model",
+		"no-license-gates",
+		"troubleshooting",
+		"faq",
+		"glossary"
+	]
 }

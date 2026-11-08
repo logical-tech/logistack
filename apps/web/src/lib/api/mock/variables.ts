@@ -23,6 +23,7 @@ export function variablesStore(db: MockDb) {
 		value,
 		isSecret,
 		secretId: null,
+		asFile: false,
 		isBuildTime: key.startsWith("NEXT_PUBLIC_"),
 		createdAt: iso(86_400_000 * 20),
 		updatedAt: iso(86_400_000 * 2),

@@ -180,7 +180,7 @@ async function deleteRecord(c: Context<Env>, row: DomainRow) {
 		);
 		const zone = findZoneForHostname(row.hostname, managedZones(p));
 		if (zone)
-			await (await openProvider(masterKey, p)).deleteRecord(
+			await (await openProvider({ db, masterKey }, p)).deleteRecord(
 				zone.id,
 				row.dnsRecordId,
 			);

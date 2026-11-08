@@ -29,7 +29,7 @@ Select **Database**. For SQL engines the explorer opens on **Data**, with the vi
 Select the expand icon at the top right to show the explorer full screen. Press **Esc** to leave.
 
 <Callout type="info">
-A database deployed before the explorer existed isn't on the explorer's private network yet. The tab then shows **Redeploy to open the explorer**. Select **Redeploy**. The data stays on its volume, and the explorer connects as soon as the new deployment is healthy.
+Each organization's databases share a private network that only they and the explorer join, so a database of another organization can't reach yours. A database deployed before the explorer existed isn't on it yet. The tab then shows **Redeploy to open the explorer**. Select **Redeploy**. The data stays on its volume, and the explorer connects as soon as the new deployment is healthy. Databases that were already running on the older shared network move to their organization's network on their next deploy, never on their own.
 </Callout>
 
 ## Browse tables
@@ -224,7 +224,7 @@ Type the service name, for example `postgres`, and start the restore. The dialog
 </Steps>
 
 <Callout type="warn">
-A restore from file can't be undone. Redis and libSQL dumps can't be restored here; restore them from a [volume backup](./restore.mdx).
+A restore from file can't be undone. Redis and libSQL dumps can't be restored here; restore them from a [volume backup](./restore.mdx). The file can be up to 20 GiB; the instance owner changes the limit with `MAX_RESTORE_BYTES` on the api. The upload streams straight into the restore tool, so nothing is buffered in between.
 </Callout>
 
 ## Add a sample dataset

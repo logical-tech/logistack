@@ -82,6 +82,8 @@ type Row = {
 	value: string | null;
 	isSecret: boolean;
 	isBuildTime: boolean;
+	/** A secret reference mounted as /run/secrets/<key> instead of an env var. */
+	asFile: boolean;
 	/** A new row whose Secret toggle follows its name until someone sets it. */
 	auto?: boolean;
 };
@@ -107,7 +109,7 @@ const uid = () => `r${uidSeq++}`;
 export type VarLike = Pick<
 	EffectiveEnvVar,
 	"key" | "value" | "isSecret" | "isBuildTime" | "secretId"
->;
+> & { asFile?: boolean };
 const toRow = (v: VarLike): Row => ({
 	uid: uid(),
 	key: v.key,
@@ -116,6 +118,7 @@ const toRow = (v: VarLike): Row => ({
 	value: v.secretId ? null : v.value,
 	isSecret: v.isSecret,
 	isBuildTime: v.isBuildTime,
+	asFile: v.asFile ?? false,
 });
 /** Content without row ids or order, to compare a draft with the server's set. */
 const signature = (rows: Row[]) =>
@@ -410,6 +413,7 @@ export function VariablesEditor({
 		value,
 		isSecret: service && looksSecret(key),
 		isBuildTime: false,
+		asFile: false,
 		auto: service,
 	});
 	const add = (key = "", value: string | null = "") =>
@@ -472,6 +476,7 @@ export function VariablesEditor({
 								isSecret: true,
 								isBuildTime: r.isBuildTime,
 								secretId: r.secretId,
+								asFile: r.asFile,
 							}
 						: {
 								key: r.key,
@@ -667,7 +672,7 @@ export function VariablesEditor({
 													r.mode === "secret" && "hidden md:block",
 												)}
 											>
-												{r.mode === "text" && (
+												{r.mode === "text" ? (
 													<Toggle
 														label="Secret"
 														checked={r.isSecret}
@@ -675,6 +680,25 @@ export function VariablesEditor({
 															update(r.uid, { isSecret, auto: false })
 														}
 													/>
+												) : (
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<span>
+																<Toggle
+																	label="File"
+																	checked={r.asFile}
+																	onChange={(asFile) =>
+																		update(r.uid, { asFile })
+																	}
+																/>
+															</span>
+														</TooltipTrigger>
+														<TooltipContent className="max-w-64">
+															Mounted as /run/secrets/{r.key || "KEY"}, with{" "}
+															{r.key || "KEY"}_FILE holding the path, instead of
+															an env var.
+														</TooltipContent>
+													</Tooltip>
 												)}
 											</span>
 										)}

@@ -27,6 +27,12 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 	"node.joined": { severity: "info", what: "Node joined" },
 	"node.down": { severity: "error", what: "Node down" },
 	"node.recovered": { severity: "success", what: "Node recovered" },
+	"node.patches_available": {
+		severity: "warning",
+		what: "Security updates available",
+	},
+	"node.patch_succeeded": { severity: "success", what: "Node patched" },
+	"node.patch_failed": { severity: "error", what: "Node patching failed" },
 	"metric.threshold": {
 		severity: "warning",
 		what: "Resource threshold crossed",
@@ -41,6 +47,8 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 		severity: "error",
 		what: "Critical vulnerabilities found",
 	},
+	"monitor.down": { severity: "error", what: "Monitor down" },
+	"monitor.up": { severity: "success", what: "Monitor up" },
 	"instance.update_available": {
 		severity: "info",
 		what: "LogiStack update available",
@@ -68,6 +76,7 @@ const details: [key: string, label: string][] = [
 	["status", "Status"],
 	["commit", "Commit"],
 	["expiresAt", "Expires"],
+	["target", "Target"],
 ];
 
 export function renderEvent(event: EventEnvelope): Rendered {

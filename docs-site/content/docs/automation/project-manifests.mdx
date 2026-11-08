@@ -17,7 +17,7 @@ An environment holds `variables`, git `stacks` and `services`. A service holds i
 | Rule | What it means |
 | --- | --- |
 | Identity | Apply matches environments and services by `slug`, variables by `key`, domains by hostname plus path prefix, backups by target, volume, destination and cron, stacks by name. Rename a service's `name` freely; changing its `slug` means a different service. |
-| Secrets | A secret variable is exported as `secret: true` with no `value`. On apply, a secret without a value keeps the stored one. A new secret without a value is a warning: set it afterwards, or inject the value in CI before applying. |
+| Secrets | Never exported with a value. A service's own secret is exported as `secret: true`; a reference to a secret defined elsewhere as `secretRef: {key, scope}`. See [Secrets in a manifest](#secrets-in-a-manifest). |
 | Organization resources | Git providers, backup destinations (S3 or any other kind), DNS providers and uploaded certificates are referenced by name: `gitProvider`, `destination`, `dnsProvider`, `certificate`. A name that matches nothing, or more than one resource, fails with a 400 listing each such name. |
 | Specs | A service's `spec` is the same object the [REST API](./rest-api.mdx) takes, except that a git source names its provider in the service's `gitProvider` field instead of `gitProviderId`. |
 
@@ -260,9 +260,33 @@ Over MCP the same routes are the `project_apply` and `environment_apply` tools.
   With `prune: true`, apply deletes every service, domain, variable, stack and backup policy that the manifest does not list, including databases. Always run a dry run with prune first and read every `delete` in the plan.
 </Callout>
 
+## Secrets in a manifest
+
+A manifest carries secret references, never values. A service variable can reference a managed secret by its key and, optionally, the level that defines it. Without `scope`, apply picks the most specific secret of that key on the service's chain, as the **Environment** tab does:
+
+```yaml title="storefront.logistack.yaml (excerpt)"
+variables:
+  - key: DB_PASSWORD
+    secretRef: { key: PG_PASSWORD, scope: environment }
+  - key: STRIPE_SECRET_KEY
+    secretRef: { key: STRIPE_SECRET_KEY }
+    asFile: true
+  - key: DATABASE_URL
+    value: postgres://app:${{ secrets.PG_PASSWORD }}@db:5432/app
+  - key: SESSION_SECRET
+    secret: true
+```
+
+- `secretRef` names the secret; the variable's `key` is the name the container sees. The secret must exist on the chain, or apply stops with `no secret PG_PASSWORD at environment scope on this service's chain that you can read`. Create secrets in **Secrets & variables** or with `POST /api/secrets` first.
+- `asFile: true` mounts the secret at `/run/secrets/<key>`: see [Mount a secret as a file](../deploy/environment-variables.mdx#mount-a-secret-as-a-file).
+- `${{ secrets.KEY }}` inside a plain value resolves at deploy time: see [Use a secret inside a value](../deploy/environment-variables.mdx#use-a-secret-inside-a-value).
+- `secret: true` without a value is the service's own secret: apply keeps the stored value. A new one without a value is a warning: set it afterwards.
+
+References belong to service variables; on a project or environment variable, apply skips them with a warning. Duplicating an environment keeps references as references.
+
 ## Apply from CI
 
-Keep the manifest in the repository and apply it on merge. This GitHub Actions job plans on pull requests and applies on `main`. Store the key as the `LOGISTACK_API_KEY` secret and the project ID and URL as repository variables. The key needs `write` on the project.
+The [logistack CLI](./cli.mdx) does this in one line: `logistack apply -f storefront.logistack.yaml --yes`. To apply on every push without CI, link the project with [GitOps](./gitops.mdx). With plain `curl`, keep the manifest in the repository and apply it on merge. This GitHub Actions job plans on pull requests and applies on `main`. Store the key as the `LOGISTACK_API_KEY` secret and the project ID and URL as repository variables. The key needs `write` on the project.
 
 ```yaml title=".github/workflows/logistack-manifest.yml"
 name: LogiStack manifest

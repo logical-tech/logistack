@@ -1,6 +1,8 @@
 import {
 	BACKUP_QUEUE,
 	type BackupJob,
+	DBOPS_QUEUE,
+	type DbOpsJob,
 	type EventEnvelope,
 	MIGRATION_QUEUE,
 	type MigrationJob,
@@ -9,8 +11,14 @@ import {
 	type ScanJob,
 	type ScheduleJob,
 } from "@logistack/contracts";
-import { deriveSecretsKek, importMasterKey } from "@logistack/core";
-import { backupPolicy, createDb, deployment, schedule } from "@logistack/db";
+import { loadMasterKeys } from "@logistack/core";
+import {
+	backupPolicy,
+	createDb,
+	deployment,
+	patchPolicy,
+	schedule,
+} from "@logistack/db";
 import { createDockerClient, type DockerEvent } from "@logistack/docker";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
@@ -18,7 +26,8 @@ import { eq, notInArray } from "drizzle-orm";
 import { ensureStackNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { installEmulation, probeBuildkit } from "./build-platforms.ts";
-import { createBus, log, setLogLevel } from "./bus.ts";
+import { createBus, log, setLogLevel, withLock } from "./bus.ts";
+import { caddyStorageKey } from "./caddy-storage.ts";
 import { checkCertificates } from "./certs.ts";
 import { CHECKS_POLL_MS, pollChecks } from "./checks.ts";
 import { loadCleanup, runCleanup } from "./cleanup.ts";
@@ -26,15 +35,20 @@ import { reportCommitStatus } from "./commit-status.ts";
 import { type Config, loadConfig } from "./config.ts";
 import { unfreeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
+import { reconcileDbAccess } from "./db-access.ts";
+import { runUpgrade } from "./db-upgrade.ts";
 import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { recheckExternalSecrets } from "./external-secrets.ts";
 import { checkForUpdate, renewSponsorKey } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
+import { rotateMasterKey } from "./master-key.ts";
 import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
+import { queueWindowRun, scanAll } from "./patching.ts";
+import { reconcilePlugins } from "./plugins.ts";
 import { expirePreviews } from "./previews.ts";
 import { listenForSyncRequests, syncProxy } from "./proxy.ts";
 import { switchProxy } from "./proxy-switch.ts";
@@ -52,11 +66,17 @@ import {
 	type RunQueues,
 	syncAllSchedulers,
 	syncCleanupScheduler,
+	syncPatchWindow,
 } from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
 import { convertLegacySecrets } from "./secrets.ts";
 import { syncTailscale } from "./tailscale.ts";
 import { syncTunnels } from "./tunnels.ts";
+import {
+	UPTIME_TICK_MS,
+	UPTIME_TICK_SCHEDULER,
+	uptimeWorker,
+} from "./uptime.ts";
 import { processScanJob } from "./vulnscan.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
@@ -131,8 +151,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		db: createDb(cfg.DATABASE_URL, { onnotice: () => {} }),
 		docker: createDockerClient({ socketPath: cfg.DOCKER_SOCKET }),
 		bus: await createBus(cfg.REDIS_URL),
-		masterKey: await importMasterKey(cfg.LOGISTACK_MASTER_KEY),
-		secretsKek: await deriveSecretsKek(cfg.LOGISTACK_MASTER_KEY),
+		...(await loadMasterKeys(
+			cfg.LOGISTACK_MASTER_KEY,
+			cfg.LOGISTACK_MASTER_KEY_PREVIOUS,
+		)),
 		queues: createQueues(connection),
 		nodes: await createNodeRunner(cfg.REDIS_URL),
 	};
@@ -189,6 +211,14 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 					});
 				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
+				else if (job.name === "db-access") await reconcileDbAccess(ctx);
+				else if (job.name === "plugins") await reconcilePlugins(ctx);
+				else if (job.name === "patch-scan")
+					await withLock(ctx.bus.redis, "ls:lock:patch-scan", 3_600_000, () =>
+						scanAll(ctx),
+					);
+				else if (job.name === "patch-window")
+					await queueWindowRun(ctx, job.data.organizationId);
 				else await sweepOrphans(ctx);
 			},
 			{
@@ -216,10 +246,22 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			(job) => processScanJob(ctx, job.data),
 			{ connection, concurrency: 1 },
 		),
+		uptimeWorker(ctx, connection, cfg.LS_UPTIME_CONCURRENCY),
 		new Worker("notify", (job) => notify.retry(job.data), {
 			connection,
 			concurrency: 8,
 		}),
+		// Upgrades run for hours; one per service is enforced by the api, several services may run.
+		new Worker<DbOpsJob>(
+			DBOPS_QUEUE,
+			(job) => runUpgrade(ctx, job.data.upgradeId),
+			{
+				connection,
+				concurrency: cfg.LS_RUN_CONCURRENCY,
+				// shortcut: a dead worker must not replay a half-done upgrade, so it fails as stalled and its row stays running; add a boot check once upgrades get long enough to matter.
+				maxStalledCount: 0,
+			},
+		),
 		// One cutover at a time: the wizard moves services in order, databases first.
 		new Worker<MigrationJob>(
 			MIGRATION_QUEUE,
@@ -244,11 +286,35 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		await ctx.db.select().from(schedule),
 	);
 	await syncCleanupScheduler(ctx.queues, await loadCleanup(ctx.db));
+	for (const p of await ctx.db.select().from(patchPolicy))
+		await syncPatchWindow(ctx.queues, p.organizationId, p);
 	// Not tied to the reconcile interval: a deployment awaiting checks must always be able to move on.
 	await ctx.queues.maintenance.upsertJobScheduler(
 		"checks-every",
 		{ every: CHECKS_POLL_MS },
 		{ name: "checks" },
+	);
+	// Port forwards must close at their expiry whatever the reconcile interval is.
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"db-access-every",
+		{ every: 30_000 },
+		{ name: "db-access" },
+	);
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"plugins-every",
+		{ every: 30_000 },
+		{ name: "plugins" },
+	);
+
+	// Uptime checks are due whatever the reconcile interval; Postgres says which.
+	await ctx.queues.uptime.upsertJobScheduler(
+		UPTIME_TICK_SCHEDULER,
+		{ every: UPTIME_TICK_MS },
+		{
+			name: "tick",
+			data: { name: "tick" },
+			opts: { removeOnComplete: true, removeOnFail: 50 },
+		},
 	);
 
 	if (cfg.LS_RECONCILE_INTERVAL_MS > 0) {
@@ -285,6 +351,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			{ name: "all", data: { all: true } },
 		);
 		await ctx.queues.maintenance.upsertJobScheduler(
+			"patch-scan-every",
+			{ every: 6 * 3_600_000 },
+			{ name: "patch-scan" },
+		);
+		await ctx.queues.maintenance.upsertJobScheduler(
 			"update-check-every",
 			{ every: 86_400_000 },
 			{ name: "update-check" },
@@ -312,6 +383,30 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 	void followDocker(ctx, events.signal);
 	const stopMonitoring = await startMonitoring(ctx);
 
+	// A master key rotation: re-encrypt to the new key before anything writes more under the old one.
+	if (cfg.LOGISTACK_MASTER_KEY_PREVIOUS) {
+		// Pinned under the previous key's derivation before anything re-derives it.
+		await caddyStorageKey(ctx).catch(() => undefined);
+		await rotateMasterKey(
+			ctx.db,
+			cfg.LOGISTACK_MASTER_KEY,
+			cfg.LOGISTACK_MASTER_KEY_PREVIOUS,
+		)
+			.then((r) =>
+				log(
+					r.unreadable ? "error" : "info",
+					r.unreadable
+						? "master key rotation left values that neither key opens"
+						: "master key rotation finished: LOGISTACK_MASTER_KEY_PREVIOUS can be removed",
+					r,
+				),
+			)
+			.catch((e) =>
+				log("error", "master key rotation failed", {
+					error: e instanceof Error ? e.message : String(e),
+				}),
+			);
+	}
 	// Secret variables from before managed secrets become secrets plus references.
 	await convertLegacySecrets(ctx)
 		.then((n) => n && log("info", "converted secret variables", { count: n }))

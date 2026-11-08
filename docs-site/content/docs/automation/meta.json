@@ -6,6 +6,8 @@
 		"rest-api",
 		"mcp-server",
 		"project-manifests",
+		"gitops",
+		"cli",
 		"git-webhooks",
 		"agent",
 		"ai-agents"

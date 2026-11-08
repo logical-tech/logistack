@@ -10,6 +10,8 @@ export const errorCodes = [
 	"two_factor_required",
 	"not_found",
 	"conflict",
+	/** The body is larger than the route accepts, or carries no length when the route needs one. */
+	"payload_too_large",
 	"rate_limited",
 	"internal",
 ] as const;

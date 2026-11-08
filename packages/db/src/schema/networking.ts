@@ -1,4 +1,4 @@
-import type { AccessRule } from "@logistack/contracts";
+import type { AccessRule, DomainEdge } from "@logistack/contracts";
 import {
 	boolean,
 	index,
@@ -12,6 +12,7 @@ import { organization } from "./auth.ts";
 import { id, timestamps, tstz } from "./columns.ts";
 import { certMode, dnsProviderKind, domainStatus } from "./enums.ts";
 import { service } from "./hierarchy.ts";
+import { pluginInstall } from "./plugins.ts";
 
 export const certificate = pgTable("certificate", {
 	id: id("crt"),
@@ -35,6 +36,11 @@ export const dnsProvider = pgTable("dns_provider", {
 	name: text("name").notNull(),
 	credentialsEncrypted: text("credentials_encrypted").notNull(),
 	zonesCache: jsonb("zones_cache"),
+	/** Kind `plugin`: the install contributing it and the provider's name in its manifest. */
+	pluginInstallId: text("plugin_install_id").references(() => pluginInstall.id),
+	pluginProvider: text("plugin_provider"),
+	/** Kind `plugin`: encrypted basic-auth password Caddy's acmeproxy module sends to `/acme-proxy/<id>`. */
+	acmeSecretEncrypted: text("acme_secret_encrypted"),
 	...timestamps,
 });
 
@@ -62,8 +68,12 @@ export const domain = pgTable(
 		dnsRecordId: text("dns_record_id"),
 		/** Served through the Cloudflare Tunnel of `dnsProviderId` instead of a public port. */
 		tunnel: boolean("tunnel").notNull().default(false),
+		/** Caddy serves the first-party analytics script and beacon under `/_ls/` before the upstream. */
+		webAnalytics: boolean("web_analytics").notNull().default(false),
 		/** Checks the proxy runs before the upstream; basic auth holds bcrypt hashes only. */
 		access: jsonb("access").$type<AccessRule[]>().notNull().default([]),
+		/** Rate limit, block rules and custom error page the proxy applies before `access`. */
+		edge: jsonb("edge").$type<Partial<DomainEdge>>().notNull().default({}),
 		status: domainStatus("status").notNull().default("pending"),
 		statusMessage: text("status_message"),
 		...timestamps,

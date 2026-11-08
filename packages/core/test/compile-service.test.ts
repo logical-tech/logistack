@@ -208,7 +208,7 @@ describe("deployment context", () => {
 		);
 		expect(injected.sort()).toEqual(
 			Object.keys(deploymentContextVars)
-				.filter((k) => !/COMMIT|BRANCH/.test(k))
+				.filter((k) => !/COMMIT|BRANCH|PREVIEW/.test(k))
 				.sort(),
 		);
 	});
@@ -771,5 +771,82 @@ test("a service bridged to Coolify carries container routers and the old names",
 	expect(spec.TaskTemplate.Networks?.at(-1)).toEqual({
 		Target: "net-coolify",
 		Aliases: ["k8s0wc8gw4o0c4ws"],
+	});
+});
+
+describe("database TLS for public access", () => {
+	const db = (engine: DatabaseEngine, version: string): CompileServiceInput =>
+		withFiles({
+			...app,
+			service: {
+				...app.service,
+				id: "svc_db00000000000000000000000",
+				spec: {
+					kind: "database",
+					engine,
+					version,
+					credentialsRef: "env",
+					resources: {},
+				},
+			},
+			env: databaseCredentials(engine),
+			pinNodeId: "node-a",
+			tls: { certPem: "CERT\n", keyPem: "KEY\n" },
+			networks: { ...app.networks, db: "net-org-db" },
+		});
+
+	test("postgres turns TLS on beside plain, with a key only its user reads", () => {
+		const spec = compileService(db("postgres", "16"));
+		expect(spec.TaskTemplate.ContainerSpec?.Args).toEqual([
+			"-c",
+			"ssl=on",
+			"-c",
+			"ssl_cert_file=/run/secrets/ls-tls.crt",
+			"-c",
+			"ssl_key_file=/run/secrets/ls-tls.key",
+		]);
+		const key = spec.TaskTemplate.ContainerSpec?.Secrets?.find(
+			(s) => s.File?.Name === "/run/secrets/ls-tls.key",
+		);
+		expect(key?.File).toMatchObject({ UID: "999", Mode: 0o600 });
+		const alpine = compileService(db("postgres", "16-alpine"));
+		expect(
+			alpine.TaskTemplate.ContainerSpec?.Secrets?.find(
+				(s) => s.File?.Name === "/run/secrets/ls-tls.key",
+			)?.File?.UID,
+		).toBe("70");
+		expect(spec.TaskTemplate.Networks).toContainEqual({ Target: "net-org-db" });
+	});
+
+	test("each engine gets its own TLS switch; secret names fit Docker's 64 characters", () => {
+		for (const [engine, version] of [
+			["mysql", "8.4"],
+			["mariadb", "11.4"],
+			["mongo", "8.0"],
+			["redis", "7"],
+		] as const) {
+			const input = {
+				...db(engine, version),
+				scope: { namePrefix: "ls-test-dbgw-", labels: {} },
+			};
+			const spec = compileService(withFiles(input));
+			const cmd = [
+				...(spec.TaskTemplate.ContainerSpec?.Command ?? []),
+				...(spec.TaskTemplate.ContainerSpec?.Args ?? []),
+			].join(" ");
+			expect(cmd).toMatch(/ssl-cert|tlsMode preferTLS|--tls-port 6380/);
+			for (const f of serviceFiles(input))
+				expect(f.name.length).toBeLessThanOrEqual(64);
+		}
+	});
+
+	test("an upgraded database mounts the volume the upgrade made", () => {
+		const spec = compileService({
+			...db("postgres", "17"),
+			dataVolumeOwner: "dbu_up0000000000000000000000",
+		});
+		expect(spec.TaskTemplate.ContainerSpec?.Mounts?.[0]).toMatchObject({
+			Source: "ls-vol-up0000000000000000000000",
+		});
 	});
 });

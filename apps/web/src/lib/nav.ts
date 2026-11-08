@@ -23,7 +23,9 @@ import {
 	Network,
 	Orbit,
 	Palette,
+	Puzzle,
 	ScrollText,
+	ServerCog,
 	Settings2,
 	ShieldCheck,
 	Sparkles,
@@ -384,6 +386,25 @@ export const NAV: NavGroup[] = [
 				keywords: ["token", "mcp", "ci"],
 			},
 			{
+				to: "/settings/plugins",
+				title: "Plugins",
+				icon: Puzzle,
+				description:
+					"Pages, events, agent tools and providers from containers you install, each with only the permissions you approve.",
+				empty: {
+					title: "No plugins installed",
+					body: "Install one from a container image, or point at a plugin you're developing with a dev URL.",
+					action: "Install plugin",
+				},
+				keywords: [
+					"extensions",
+					"addons",
+					"apps",
+					"marketplace",
+					"integrations",
+				],
+			},
+			{
 				to: "/settings/ssh-keys",
 				title: "SSH keys",
 				icon: TerminalSquare,
@@ -407,6 +428,14 @@ export const NAV: NavGroup[] = [
 					action: "Upload certificate",
 				},
 				keywords: ["tls", "ssl"],
+			},
+			{
+				to: "/settings/instance-admins",
+				title: "Instance admins",
+				icon: ServerCog,
+				description:
+					"Who may update LogiStack, manage servers and change instance-wide settings.",
+				keywords: ["superuser", "root", "server admin", "instance"],
 			},
 			{
 				to: "/settings/updates",

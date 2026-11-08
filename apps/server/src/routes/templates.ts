@@ -15,10 +15,16 @@ import {
 	type Resource,
 } from "@logistack/core";
 import { domain, instanceSettings, service, stack } from "@logistack/db";
-import { catalogIndex, logoPath, readTemplate } from "@logistack/templates";
+import { catalogIndex, logoPath } from "@logistack/templates";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { mutation } from "../audit.ts";
+import {
+	communityIndex,
+	communitySummaries,
+	findTemplate,
+	refreshCommunityIndex,
+} from "../community-templates.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound } from "../errors.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
@@ -40,9 +46,45 @@ const DeployResult = z
 	})
 	.openapi("TemplateDeployResult");
 
-/** Provenance kept on each created service: `template:<templateId>:<instance>/<service>`. */
-const provenance = (templateId: string, name: string, svc: string) =>
-	`template:${templateId}:${name}/${svc}`;
+/**
+ * Provenance kept on each created service: `template:<templateId>:<instance>/<service>`, with
+ * `@<index host>` after the id for a community template.
+ */
+const provenance = (
+	templateId: string,
+	name: string,
+	svc: string,
+	community?: string,
+) => `template:${templateId}${community ? `@${community}` : ""}:${name}/${svc}`;
+
+const CommunityIndexStatus = z
+	.object({
+		url: z.string(),
+		/** Host shown as the source of its templates. */
+		source: z.string(),
+		/** False until the instance sets LS_TEMPLATE_INDEX_KEYS: Refresh is refused. */
+		configured: z.boolean(),
+		fetchedAt: z.string().nullable(),
+		keyId: z.string().nullable(),
+		templates: z.int(),
+		/** Entries refused by the template schema or shadowing a built-in id. */
+		skipped: z.int(),
+	})
+	.openapi("CommunityTemplateIndex");
+
+async function indexStatus(c: Context<Env>) {
+	const { config } = c.var.deps;
+	const row = await communityIndex(c.var.deps);
+	return {
+		url: config.LS_TEMPLATE_INDEX_URL,
+		source: new URL(config.LS_TEMPLATE_INDEX_URL).hostname,
+		configured: config.LS_TEMPLATE_INDEX_KEYS.trim() !== "",
+		fetchedAt: row?.fetchedAt.toISOString() ?? null,
+		keyId: row?.keyId ?? null,
+		templates: row?.templates.length ?? 0,
+		skipped: row?.skipped ?? 0,
+	};
+}
 
 /** The stack an earlier deploy of instance `name` created, in the shape a deploy returns. */
 async function existingInstance(
@@ -133,10 +175,14 @@ export const templates = router()
 				...errors,
 			},
 		}),
-		(c) => {
+		async (c) => {
 			const { q, category } = c.req.valid("query");
 			const words = (q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-			const hits = catalogIndex().filter(
+			const all = [
+				...catalogIndex(),
+				...(await communitySummaries(c.var.deps)),
+			];
+			const hits = all.filter(
 				(t) =>
 					(!category || t.category === category) &&
 					words.every((w) =>
@@ -151,6 +197,52 @@ export const templates = router()
 	.openapi(
 		createRoute({
 			method: "get",
+			path: "/templates/community",
+			tags,
+			security,
+			summary: "The community template index",
+			description:
+				"Where community templates come from and when they were last fetched. They change only on Refresh.",
+			middleware: [requirePermission("read", inOrganization)],
+			responses: {
+				200: json(CommunityIndexStatus, "Index"),
+				...errors,
+			},
+		}),
+		async (c) => c.json(await indexStatus(c), 200),
+	)
+	.openapi(
+		mutation(
+			"template.index_refresh",
+			createRoute({
+				method: "post",
+				path: "/templates/community/refresh",
+				tags,
+				security,
+				summary: "Fetch the community template index again",
+				description:
+					"Downloads the signed index from LS_TEMPLATE_INDEX_URL, checks its Ed25519 signature against LS_TEMPLATE_INDEX_KEYS and replaces the cached copy. Entries that fail the template schema or reuse a built-in id are skipped. Never runs on a timer.",
+				middleware: [requirePermission("write", inOrganization)],
+				responses: {
+					200: json(CommunityIndexStatus, "Refreshed"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const row = await refreshCommunityIndex(c.var.deps);
+			c.set("auditDiff", {
+				url: row.url,
+				keyId: row.keyId,
+				templates: row.templates.length,
+				skipped: row.skipped,
+			});
+			return c.json(await indexStatus(c), 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
 			path: "/templates/{id}",
 			tags,
 			security,
@@ -158,10 +250,10 @@ export const templates = router()
 			request: { params: z.object({ id: z.string() }) },
 			responses: { 200: json(Template, "Template"), ...errors },
 		}),
-		(c) => {
-			const t = readTemplate(c.req.valid("param").id);
-			if (!t) throw notFound("template");
-			return c.json(t, 200);
+		async (c) => {
+			const found = await findTemplate(c.var.deps, c.req.valid("param").id);
+			if (!found) throw notFound("template");
+			return c.json(found.template, 200);
 		},
 	)
 	.openapi(
@@ -191,12 +283,14 @@ export const templates = router()
 			const { id: environmentId, templateId } = c.req.valid("param");
 			const input = c.req.valid("json");
 			check(c, "deploy", c.get("resource") as Resource);
-			const t = readTemplate(templateId);
-			if (!t) throw notFound("template");
+			const found = await findTemplate(c.var.deps, templateId);
+			if (!found) throw notFound("template");
+			const { template: t, community } = found;
 			const name = input.name ?? t.id;
 			c.set("auditResourceId", environmentId);
 			c.set("auditDiff", {
 				templateId,
+				...(community ? { community } : {}),
 				name,
 				// Keys only: values may be credentials whatever their name.
 				inputs: Object.keys(input.inputs),
@@ -249,10 +343,10 @@ export const templates = router()
 					services: planTemplate(t, values).map((p) => ({
 						plan: p,
 						id: ids.get(p.name) as string,
-						icon: templateIcon(t.id),
+						icon: community ? null : templateIcon(t.id),
 					})),
 					generated,
-					provenance: (svc) => provenance(t.id, name, svc),
+					provenance: (svc) => provenance(t.id, name, svc, community),
 				});
 			} catch (err) {
 				// A concurrent request with the same name won the stack: return what it made.

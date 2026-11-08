@@ -27,6 +27,7 @@ import {
 } from "@/lib/api/previews";
 import { projectQuery } from "@/lib/api/projects";
 import { servicesQuery } from "@/lib/api/services";
+import { stacksQuery } from "@/lib/api/stacks";
 
 type Variable = { key: string; value: string; secret: boolean; kept: boolean };
 
@@ -34,6 +35,7 @@ type V = {
 	projectId: string;
 	sourceEnvironmentId: string;
 	services: string[];
+	stacks: string[];
 	domains: "generated" | "pattern";
 	domainPattern: string;
 	variables: Variable[];
@@ -50,8 +52,9 @@ function defaults(projectId: string, s: PreviewSettings | null): V {
 		projectId,
 		sourceEnvironmentId: s?.sourceEnvironmentId ?? "",
 		services: s?.services ?? [],
+		stacks: s?.stacks ?? [],
 		domains: s?.domainPattern ? "pattern" : "generated",
-		domainPattern: s?.domainPattern ?? "pr-{number}.{wildcard}",
+		domainPattern: s?.domainPattern ?? "pr-{number}-{service}.{wildcard}",
 		variables: (s?.variables ?? []).map((v) => ({
 			key: v.key,
 			value: v.value ?? "",
@@ -89,15 +92,22 @@ function SourceStep({ w }: { w: WizardApi<V> }) {
 		...servicesQuery(w.values.sourceEnvironmentId),
 		enabled: Boolean(w.values.sourceEnvironmentId),
 	});
+	const { data: stacks } = useQuery({
+		...stacksQuery(w.values.sourceEnvironmentId),
+		enabled: Boolean(w.values.sourceEnvironmentId),
+	});
+	// A git stack's own build services follow with the stack, not one by one.
 	const git = services?.filter(
-		(s) => s.spec.kind === "application" && s.spec.source.type === "git",
+		(s) =>
+			s.spec.kind === "application" &&
+			s.spec.source.type === "git" &&
+			!stacks?.some((st) => st.id === s.stackId),
 	);
-	const toggle = (slug: string, on: boolean) =>
+	const gitStacks = stacks?.filter((s) => s.git);
+	const toggle = (key: "services" | "stacks", name: string, on: boolean) =>
 		w.set(
-			"services",
-			on
-				? [...w.values.services, slug]
-				: w.values.services.filter((s) => s !== slug),
+			key,
+			on ? [...w.values[key], name] : w.values[key].filter((s) => s !== name),
 		);
 	return (
 		<div className="grid gap-6">
@@ -112,6 +122,7 @@ function SourceStep({ w }: { w: WizardApi<V> }) {
 					onValueChange={(id) => {
 						w.set("sourceEnvironmentId", id);
 						w.set("services", []);
+						w.set("stacks", []);
 					}}
 				>
 					<SelectTrigger
@@ -134,14 +145,41 @@ function SourceStep({ w }: { w: WizardApi<V> }) {
 			{w.values.sourceEnvironmentId && (
 				<fieldset className="grid gap-2" aria-describedby="wz-services-msg">
 					<legend className="mb-2 text-sm font-medium">
-						Services that build the pull request
+						What follows the pull request
 					</legend>
-					{git?.length === 0 && (
+					{git?.length === 0 && gitStacks?.length === 0 && (
 						<p className="rounded-lg bg-muted/60 px-4 py-3 text-sm text-muted-foreground dark:bg-muted/40">
-							No service here builds from a Git repository, so there is nothing
-							a pull request could change.
+							No service or stack here comes from a Git repository, so there is
+							nothing a pull request could change.
 						</p>
 					)}
+					{gitStacks?.map((st) => {
+						const id = `wz-stk-${st.id}`;
+						return (
+							<label
+								key={st.id}
+								htmlFor={id}
+								className="flex items-center gap-3 rounded-lg bg-card px-4 py-3 text-sm ring-1 ring-border"
+							>
+								<Checkbox
+									id={id}
+									checked={w.values.stacks.includes(st.name)}
+									onCheckedChange={(c) => toggle("stacks", st.name, c === true)}
+								/>
+								<span className="min-w-0 flex-1">
+									<span className="block font-medium">
+										{st.name}{" "}
+										<span className="font-normal text-muted-foreground">
+											stack
+										</span>
+									</span>
+									<span className="block truncate font-mono text-xs text-muted-foreground">
+										{st.git?.repository}#{st.git?.branch}:{st.git?.composePath}
+									</span>
+								</span>
+							</label>
+						);
+					})}
 					{git?.map((s) => {
 						const id = `wz-svc-${s.id}`;
 						const source = s.spec.kind === "application" ? s.spec.source : null;
@@ -154,7 +192,9 @@ function SourceStep({ w }: { w: WizardApi<V> }) {
 								<Checkbox
 									id={id}
 									checked={w.values.services.includes(s.slug)}
-									onCheckedChange={(c) => toggle(s.slug, c === true)}
+									onCheckedChange={(c) =>
+										toggle("services", s.slug, c === true)
+									}
 								/>
 								<span className="min-w-0 flex-1">
 									<span className="block font-medium">{s.name}</span>
@@ -177,7 +217,7 @@ function SourceStep({ w }: { w: WizardApi<V> }) {
 						}
 					>
 						{w.error("services") ??
-							"These build the pull request's head commit; the others run what the source runs. Pull requests on their repository open previews."}
+							"Services build the pull request's head commit and stacks read their compose file from its branch; everything else runs what the source runs. Pull requests on their repository open previews."}
 					</p>
 				</fieldset>
 			)}
@@ -220,9 +260,14 @@ function DomainsStep({ w }: { w: WizardApi<V> }) {
 							<code className="font-mono">{"{number}"}</code> is the pull
 							request, <code className="font-mono">{"{service}"}</code> the
 							service and <code className="font-mono">{"{wildcard}"}</code> the
-							instance's custom wildcard. Without{" "}
-							<code className="font-mono">{"{service}"}</code>, the first
-							service takes the host and the rest get generated ones. For #42:{" "}
+							instance's custom wildcard. Every exposed service of a stack gets
+							one too, and each container finds the others' URLs in{" "}
+							<code className="font-mono">
+								LOGISTACK_PREVIEW_URL_&lt;SERVICE&gt;
+							</code>
+							. Without <code className="font-mono">{"{service}"}</code>, the
+							first service takes the host and the rest get generated ones. For
+							#42:{" "}
 							<span className="whitespace-nowrap font-mono text-foreground">
 								{example(w.values.domainPattern, "web")}
 							</span>
@@ -234,7 +279,7 @@ function DomainsStep({ w }: { w: WizardApi<V> }) {
 						autoCapitalize="none"
 						spellCheck={false}
 						className="font-mono"
-						placeholder="pr-{number}.{wildcard}"
+						placeholder="pr-{number}-{service}.{wildcard}"
 					/>
 				</Field>
 			)}
@@ -445,12 +490,18 @@ const STEPS: WizardStep<V>[] = [
 		title: "What a preview runs",
 		description:
 			"Each pull request gets its own environment, pr-<number>, listed with the project's environments.",
-		schema: z.object({
-			sourceEnvironmentId: z
-				.string()
-				.min(1, "Choose the environment to clone."),
-			services: z.array(z.string()).min(1, "Choose at least one service."),
-		}),
+		schema: z
+			.object({
+				sourceEnvironmentId: z
+					.string()
+					.min(1, "Choose the environment to clone."),
+				services: z.array(z.string()),
+				stacks: z.array(z.string()),
+			})
+			.refine((v) => v.services.length + v.stacks.length > 0, {
+				message: "Choose at least one service or stack.",
+				path: ["services"],
+			}),
 		render: (w) => <SourceStep w={w} />,
 	},
 	{
@@ -524,7 +575,13 @@ const STEPS: WizardStep<V>[] = [
 									label: "Clone from",
 									value: <EnvName w={w} />,
 								},
-								{ label: "Follow the PR", value: v.services.join(", ") },
+								{
+									label: "Follow the PR",
+									value: [
+										...v.services,
+										...v.stacks.map((x) => `${x} (stack)`),
+									].join(", "),
+								},
 							],
 						},
 						{
@@ -614,6 +671,7 @@ export function PreviewWizard({
 					enabled: v.enabled,
 					sourceEnvironmentId: v.sourceEnvironmentId,
 					services: v.services,
+					stacks: v.stacks,
 					domainPattern:
 						v.domains === "pattern" ? v.domainPattern.trim() : null,
 					variables: v.variables.map((x) => ({

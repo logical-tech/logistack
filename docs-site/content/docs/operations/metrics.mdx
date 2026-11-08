@@ -7,7 +7,7 @@ LogiStack collects CPU, memory, disk and network figures from every server and e
 
 ## How metrics are collected
 
-- The agent runs on every node of the cluster and reports host figures (CPU, memory, disk, network) and per-container figures (CPU, memory, network, block I/O) every 10 seconds.
+- The agent runs on every node of the cluster and reports host figures (CPU, memory, disk, network, disk I/O, temperature) and per-container figures (CPU, memory, network, block I/O) every 10 seconds.
 - LogiStack keeps the raw samples for a short time and rolls them up into 1-minute and 1-hour buckets, so a 30-day chart loads as fast as a 1-hour one.
 - Each chart picks the tier that covers its range: raw samples up to **1h**, 1-minute rollups for **6h** to **7d**, 1-hour rollups for **30d**.
 
@@ -53,7 +53,7 @@ Your `api` service has a 512 MB limit and restarts a few times a day. On **7d**,
 <Step>
 ### Open Monitoring
 
-Select **Monitoring** in the sidebar. **Overview** opens with the **Cluster** heading, a count of nodes by state (for example `5 nodes · 3 ready · 1 draining · 1 down`) and four charts.
+Select **Monitoring** in the sidebar. **Overview** opens with the **Cluster** heading, a count of nodes by state (for example `5 nodes · 3 ready · 1 draining · 1 down`) and the charts.
 
 ![The Monitoring overview, with a 5-node cluster and its CPU, memory, disk and network charts over 24 hours](/screens/monitoring.webp)
 </Step>
@@ -71,10 +71,12 @@ Select **1h**, **6h**, **24h**, **7d** or **30d**.
 
 | Chart | What it shows |
 | --- | --- |
-| **CPU** | Percent of all cores in use. |
+| **CPU** | Percent of all cores in use. Beside the latest value: **iowait**, the time spent waiting for disks, and **steal**, the time the hypervisor gave to other virtual machines. High steal means a noisy neighbour on a shared VPS. |
 | **Memory** | Percent of memory used, with used and total, for example `74.4 GiB of 144 GiB`. |
 | **Disk** | Percent of disk used, with used and total. |
 | **Network** | Traffic **In** and **Out** of the nodes, in bytes per second. |
+| **Disk I/O** | **Read** and **Write** on the physical disks, in bytes per second. |
+| **Temperature** | The hottest sensor, in °C. Shown only when a node has sensors; most cloud VMs have none. |
 
 Below the charts, **Nodes** lists one card per server with its state, labels and current CPU, memory and disk. Select a card to open the node, or **Manage nodes** for the list. See [Nodes](./nodes.mdx).
 
@@ -82,7 +84,7 @@ If you see **Metrics start with the first agent report**, no node has reported y
 
 ## Read one node's metrics
 
-Select **Monitoring** › **Nodes**, then a node. The node page shows **Usage** charts (CPU, memory, disk, network) with the same range picker, a **Right now** panel, and the node's **Details**.
+Select **Monitoring** › **Nodes**, then a node. The node page shows **Usage** charts (CPU, memory, disk, network, disk I/O and, when the node has sensors, temperature) with the same range picker, a **Right now** panel, and the node's **Details**.
 
 ![The fra-1 node page, with CPU, memory, disk and network charts and its details](/screens/node.webp)
 
@@ -127,5 +129,6 @@ LogiStack deletes samples older than each tier's retention, so a chart only reac
 
 ## Related
 
+- [Traffic analytics](./traffic-analytics.mdx) for requests, latency and visitors per service.
 - [Usage](./usage.mdx) for averages per project and service.
 - [Alerts and notifications](./alerts-and-notifications.mdx) to be told when a figure crosses a limit.

@@ -18,6 +18,7 @@ import { aiAgentConversation, aiAgentMessage, type Db } from "@logistack/db";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { type Actor, grantsFor } from "../actor.ts";
 import { createApp } from "../app.ts";
+import { acquireLease } from "../cluster.ts";
 import type { Deps } from "../env.ts";
 import { live } from "../live.ts";
 import { log } from "../log.ts";
@@ -27,6 +28,7 @@ import {
 	type OpenApiDoc,
 	toolsFrom,
 } from "../mcp.ts";
+import { redisFor } from "../redis.ts";
 import { asMember } from "./gateway.ts";
 
 /**
@@ -275,14 +277,15 @@ const awaitingApproval = (m: Row | undefined) =>
 
 class Stopped extends Error {}
 
-const running = new Set<string>();
-
 /** Runs a conversation until the model answers without calling tools, an approval is due, or Stop. */
 export async function runAgent(deps: Deps, conversationId: string) {
-	// shortcut: one api process runs a conversation; take a row lease once the api has replicas.
-	if (running.has(conversationId)) return;
-	running.add(conversationId);
 	const { db, config } = deps;
+	// One replica runs a conversation; the others' resume sweeps skip it while the lease lives.
+	const lease = await acquireLease(
+		redisFor(config.REDIS_URL),
+		`ls:lease:ai-agent:${conversationId}`,
+	);
+	if (!lease) return;
 	const setStatus = async (
 		status: AiAgentStatus,
 		error: string | null = null,
@@ -334,6 +337,7 @@ export async function runAgent(deps: Deps, conversationId: string) {
 		};
 
 		for (let step = 0; step < MAX_STEPS; step++) {
+			if (lease.lost) return;
 			if (await stopRequested()) throw new Stopped();
 			let rows = await db
 				.select()
@@ -381,7 +385,7 @@ export async function runAgent(deps: Deps, conversationId: string) {
 			);
 		}
 	} finally {
-		running.delete(conversationId);
+		await lease.release();
 	}
 }
 
@@ -691,7 +695,7 @@ async function runTool(
 	}
 }
 
-/** On api start: continues conversations a restart interrupted. */
+/** On api start and every sweep: continues conversations no live replica holds (a restart or a dead replica interrupted). */
 export async function resumeAgents(deps: Deps) {
 	const rows = await deps.db
 		.select({ id: aiAgentConversation.id })

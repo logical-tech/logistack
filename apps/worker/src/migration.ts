@@ -280,7 +280,7 @@ async function restoreSource(ctx: Ctx, state: MigrationSourceState) {
 }
 
 /** Queues a deployment and waits for it; anything but healthy throws with its error. */
-async function deploy(ctx: Ctx, serviceId: string) {
+export async function deploy(ctx: Ctx, serviceId: string) {
 	await ctx.db
 		.update(service)
 		.set({ desiredState: "running" })

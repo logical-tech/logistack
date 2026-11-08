@@ -243,6 +243,16 @@ describe.skipIf(!hasDocker)("sso providers", () => {
 		);
 		expect(await roleOf(sam.id)).toEqual(["developer"]);
 
+		// Racing first sign-ins: the unique (organization, user) index lets one insert win.
+		const kim = await newUser("kim@example.com");
+		const raced = await Promise.all(
+			Array.from({ length: 6 }, () =>
+				joinOrganization(h.deps.db, kim, provider),
+			),
+		);
+		expect(raced.filter((r) => r === "joined")).toHaveLength(1);
+		expect(await roleOf(kim.id)).toEqual(["developer"]);
+
 		const outsider = await newUser("eve@elsewhere.org");
 		expect(await joinOrganization(h.deps.db, outsider, provider)).toBe(
 			"skipped",

@@ -1,0 +1,122 @@
+---
+title: Patch the OS of your servers
+description: See pending apt and dnf updates on every node, then patch nodes one at a time with drain, upgrade, reboot and health checks, by hand or on a schedule.
+---
+
+Every server in your cluster runs an operating system that needs security updates. LogiStack checks each node for pending package updates and patches nodes for you: it moves services off a node, upgrades its packages, reboots it when a new kernel needs it, waits until the node and every service are back, and then lets the node take work again. Use it instead of logging in to each server over SSH, and set a patch window so updates land even when nobody remembers them.
+
+## Before you start
+
+- The node runs the LogiStack agent and shows **Ready** under **Monitoring** › **Nodes**. Checks and upgrades run through the agent; a node without a connected agent cannot be checked or patched.
+- The node uses `apt` (Ubuntu, Debian and derivatives) or `dnf` (Fedora, RHEL, Rocky Linux, AlmaLinux, CentOS Stream). Other systems show an error after the check.
+- Your role is **Admin** or **Owner**. Members with other roles can see pending updates but not start a check or a patch run.
+
+## How LogiStack checks for updates
+
+The worker checks every node with a connected agent every 6 hours. A check refreshes the package index (`apt-get update` or `dnf makecache`) and lists what an upgrade would change. It installs nothing. For each node it records:
+
+- the operating system and the running kernel,
+- every package with an update, its installed and new version, and whether the update comes from a security repository (apt) or a security advisory (dnf),
+- whether a reboot is pending: `/var/run/reboot-required` exists (apt), `needs-restarting -r` says so (dnf), or `/boot` holds a newer kernel than the one running.
+
+When a check finds security updates it had not seen before, LogiStack emits a `node.patches_available` event.
+
+## See pending updates
+
+<Steps>
+<Step>
+### Open OS updates
+
+Select **Monitoring** › **OS updates**. Each node shows its operating system and kernel, the number of updates, how many are security updates, **Reboot pending** when a reboot is due, and when it was last checked.
+
+![The OS updates tab listing five nodes with their operating system, kernel, pending updates and security updates](/screens/patches.webp)
+</Step>
+<Step>
+### Look at one node
+
+Select a node's name to open its page. The **OS updates** panel lists the packages, security updates first. Select the refresh icon to check the node again now.
+</Step>
+</Steps>
+
+## Patch nodes
+
+A patch run works on one node at a time, in order. For each node it:
+
+1. Checks for updates again.
+2. Drains the node, so Swarm moves its services to other nodes, and waits until no replicated task runs there.
+3. Upgrades the packages. With **Security updates only** on, only packages with a security update are upgraded.
+4. Reboots the node when an update needs it, and waits until the node is back with a new boot and its agent connected.
+5. Waits until every service runs all of its tasks.
+6. Makes the node active again.
+
+If a step fails, the run stops there: the node is made active again and the nodes after it are skipped. A node that was already drained before the run stays drained.
+
+<Steps>
+<Step>
+### Pick the nodes
+
+On **Monitoring** › **OS updates**, select the nodes to patch. Nodes with pending updates are selected for you. Select **Patch 3 nodes** (the label counts your selection). To patch a single node, you can also select **Patch** in the **OS updates** panel on its page.
+</Step>
+<Step>
+### Choose the options
+
+Turn on **Security updates only** to leave other updates for later. Under **Reboot**, keep **When an update needs it**, or select **Never, I'll reboot myself** to skip the reboot.
+
+![The Patch 3 nodes dialog with the nodes in order, the security-only switch, the reboot options and a warning about the leader](/screens/patch-dialog.webp)
+</Step>
+<Step>
+### Start the run
+
+Select **Start rolling patch** (or **Patch now** for one node). The run appears under **Running now** with each node's current step. Open **Log** to follow the commands it runs.
+</Step>
+</Steps>
+
+To stop a run, select **Cancel**. The step in progress finishes first, then the node is made active again and the remaining nodes are skipped.
+
+<Callout type="warn">
+The leader manager runs LogiStack itself and is never drained. Its services stay in place while it upgrades, and if it reboots, those services and the dashboard are offline for a minute or two. Patch the leader last; the patch window does this for you. On a single-server installation every reboot is downtime.
+</Callout>
+
+## Patch on a schedule
+
+<Steps>
+<Step>
+### Turn on the patch window
+
+On **Monitoring** › **OS updates**, under **Patch window**, turn on **Patch on a schedule**.
+</Step>
+<Step>
+### Pick when it runs
+
+Under **Window**, pick a day and time, or switch to **Cron** and enter an expression such as `0 4 * * 0` (Sundays at 04:00). Pick the **Time zone**. Choose a quiet hour: services move between nodes while each one patches.
+</Step>
+<Step>
+### Choose what it installs
+
+Turn **Security updates only** on or off, and pick when to **Reboot**. Select **Save**.
+</Step>
+</Steps>
+
+At each window LogiStack starts a rolling run over every active node: workers first, the leader last. Drained nodes are left out. If a run is still in progress, the next one waits for it.
+
+## Check that it worked
+
+After a run, the node shows **Up to date** (or only the updates you left out) and the run shows **Patched**. On the node's page, the **OS updates** panel shows the new kernel after a reboot.
+
+LogiStack emits `node.patch_succeeded` when a run finishes and `node.patch_failed` when a node fails. Route them to a channel in [Alerts and notifications](./alerts-and-notifications.mdx). Every check, run, cancel and patch window change is in the audit log as `node.patch_scan`, `patch_run.create`, `patch_run.cancel` and `patch_policy.update`.
+
+## Common problems
+
+**Not scanned: the agent is unreachable.** The node's agent is not connected. Check the node under [Nodes](./nodes.mdx).
+
+**has no supported package manager (apt or dnf).** The node runs a system LogiStack cannot patch, for example Alpine. Patch it by hand.
+
+**gave up after 10 min waiting for tasks to leave the node.** Swarm could not place a service elsewhere, often because of a placement constraint or a node label only this node has. Free capacity or relax the constraint, then run again.
+
+**gave up after 20 min waiting for the node to come back.** The node did not boot back or its agent did not reconnect. Check the server's console with your hosting provider.
+
+**gave up after 10 min waiting for every service to run its tasks.** A service did not come back to its full task count. Open the service and look at its logs.
+
+## How it works
+
+Every command runs on the node's host as an argument list, never as a shell string: the agent starts a short-lived privileged container in the host's process namespace and enters the host with `nsenter`. The run's progress is stored in the database after every step, so if the worker restarts (for example when the leader reboots), it continues the run where it stopped.

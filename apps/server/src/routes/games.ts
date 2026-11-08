@@ -150,7 +150,7 @@ async function syncRecords(
 				"bad_request",
 				`no zone of this DNS provider holds ${row.hostname}`,
 			);
-		const provider = await openProvider(masterKey, p);
+		const provider = await openProvider({ db, masterKey }, p);
 		const ids: Partial<EndpointRow> = {};
 		for (const r of endpointRecords(game, row.hostname, address, port)) {
 			const saved = await viaProvider(() =>
@@ -193,7 +193,7 @@ async function deleteRecords(c: Context<Env>, row: EndpointRow) {
 		);
 		const zone = findZoneForHostname(row.hostname, managedZones(p));
 		if (!zone) return;
-		const provider = await openProvider(masterKey, p);
+		const provider = await openProvider({ db, masterKey }, p);
 		for (const id of [row.srvRecordId, row.addressRecordId])
 			if (id) await provider.deleteRecord(zone.id, id);
 	} catch (err) {

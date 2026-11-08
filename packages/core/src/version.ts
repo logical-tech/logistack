@@ -1,3 +1,5 @@
+import type { ReleaseChannel } from "@logistack/contracts";
+
 /** `1.2.3` or `1.2.3-rc.1`, with an optional leading `v` as git tags carry it. */
 const RELEASE = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
@@ -36,4 +38,110 @@ export function compareVersions(a: string, b: string): number {
 		if (d) return d;
 	}
 	return xa.length - xb.length;
+}
+
+const COMPARATOR =
+	/^(>=|<=|>|<|=|\^|~)?\s*v?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/;
+
+/** One comparator, as `>=0.6.0`, `^1.2.0` or `~1.2.0`; false when it does not parse. */
+function satisfiesOne(version: string, comparator: string): boolean {
+	if (comparator === "*" || comparator === "x") return true;
+	const m = COMPARATOR.exec(comparator);
+	if (!m) return false;
+	const [, op = "=", ma, mi, pa, pre = ""] = m;
+	const base = `${ma}.${mi}.${pa}${pre}`;
+	const d = compareVersions(version, base);
+	const below = (major: number, minor: number, patch = 0) =>
+		compareVersions(version, `${major}.${minor}.${patch}-0`) < 0;
+	switch (op) {
+		case ">=":
+			return d >= 0;
+		case ">":
+			return d > 0;
+		case "<=":
+			return d <= 0;
+		case "<":
+			return d < 0;
+		case "^":
+			return (
+				d >= 0 &&
+				(Number(ma) > 0
+					? below(Number(ma) + 1, 0)
+					: Number(mi) > 0
+						? below(0, Number(mi) + 1)
+						: below(0, 0, Number(pa) + 1))
+			);
+		case "~":
+			return d >= 0 && below(Number(ma), Number(mi) + 1);
+		default:
+			return d === 0;
+	}
+}
+
+/**
+ * Whether `version` is in a manifest's `logistack` range: comparators joined by spaces (and)
+ * and `||` (or), as `>=0.6.0 <1.0.0 || ^1.2.0`. A range that does not parse is not satisfied.
+ * shortcut: no hyphen ranges or partial versions (`1.x`); add them when a plugin needs them.
+ */
+export function satisfiesRange(version: string, range: string): boolean {
+	return range.split("||").some((alt) => {
+		const parts = alt
+			.trim()
+			.replace(/(>=|<=|>|<|=|\^|~)\s+/g, "$1")
+			.split(/\s+/)
+			.filter(Boolean);
+		return parts.length > 0 && parts.every((c) => satisfiesOne(version, c));
+	});
+}
+
+const CHANNEL_RANK: Record<ReleaseChannel, number> = {
+	stable: 0,
+	beta: 1,
+	nightly: 2,
+};
+
+/** The channel a version ships on: no prerelease is stable, `-nightly.N` nightly, any other prerelease beta. */
+export function versionChannel(v: string): ReleaseChannel {
+	const pre = RELEASE.exec(v)?.[4];
+	if (pre === undefined) return "stable";
+	return pre.startsWith("nightly") ? "nightly" : "beta";
+}
+
+/** Each channel also offers every less adventurous one: beta gets stable releases, nightly gets both. */
+export const onChannel = (v: string, channel: ReleaseChannel) =>
+	isReleaseVersion(v) &&
+	CHANNEL_RANK[versionChannel(v)] <= CHANNEL_RANK[channel];
+
+/** The `## Breaking changes` section `.github/release-notes.sh` writes first, up to the next `##`. */
+const BREAKING =
+	/^##[ \t]+Breaking changes[ \t]*\r?\n([\s\S]*?)(?=^##[ \t]|(?![\s\S]))/im;
+
+/** The notes' breaking changes without their heading, or null when the notes have none. */
+export function breakingChanges(notes: string): string | null {
+	return BREAKING.exec(notes)?.[1]?.trim() || null;
+}
+
+/** The notes without their breaking changes, for a page that shows those apart. */
+export const withoutBreakingChanges = (notes: string) =>
+	notes.replace(BREAKING, "").trim();
+
+/**
+ * The releases an update from `current` to `target` crosses, newest first: every stable release in
+ * between, plus the target. A prerelease's notes already cover everything since the last stable
+ * release, so the betas or nightlies before it would only repeat them.
+ */
+export function releasesBetween<T extends { version: string }>(
+	releases: T[],
+	current: string,
+	target: string,
+): T[] {
+	return releases
+		.filter(
+			(r) =>
+				compareVersions(r.version, current) > 0 &&
+				compareVersions(r.version, target) <= 0 &&
+				(compareVersions(r.version, target) === 0 ||
+					versionChannel(r.version) === "stable"),
+		)
+		.sort((a, b) => compareVersions(b.version, a.version));
 }

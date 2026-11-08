@@ -109,6 +109,10 @@ describe.skipIf(!hasDocker)("organization two-factor requirement", () => {
 
 	test("after the grace period the member is blocked from organization routes, audited once in the audit log", async () => {
 		await enabledDaysAgo(8);
+		// The first requests after the deadline race to write the lockout row.
+		await Promise.all(
+			Array.from({ length: 6 }, () => h.call("GET", "/api/folders", asOwner())),
+		);
 		const projects = await h.call("GET", "/api/projects", asOwner());
 		expect(projects.status).toBe(403);
 		expect(projects.json.error.code).toBe("two_factor_required");

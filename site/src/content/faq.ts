@@ -6,7 +6,7 @@ export const faq = [
 	},
 	{
 		q: "Is LogiStack free?",
-		a: "Yes. LogiStack is open source under the Apache 2.0 license, and every feature is in the build you install: SSO, custom roles, the audit log and multi-node clusters included. There is no paid edition. Sponsors fund development.",
+		a: "Yes. LogiStack is open source under the Apache 2.0 license, and every feature is in the build you install: SSO, custom roles, the audit log and multi-node clusters included. There is no paid edition and no license check in the code; SSO, the audit log and custom roles are not held back under a separate license. Sponsors fund development.",
 	},
 	{
 		q: "What do I need to run it?",
@@ -21,8 +21,12 @@ export const faq = [
 		a: "Postgres, MySQL, MariaDB, MongoDB, Redis and libSQL in one click, each with a built-in editor for tables, keys and documents, scheduled encrypted backups and restore.",
 	},
 	{
-		q: "Can I move from another self-hosted PaaS?",
-		a: "Yes. The importer reads existing projects, env vars and domains, freezes the old setup and moves services one at a time. Each service can be rolled back until you switch the old platform off.",
+		q: "Can I move from Dokploy or Coolify?",
+		a: "Yes, on the same server. Install LogiStack next to Dokploy or Coolify v4 and a wizard reads its projects, databases, env vars and domains, moves services one at a time and then switches ports 80 and 443. Each service can be moved back until you remove the old platform.",
+	},
+	{
+		q: "How does LogiStack avoid the security problems of other PaaS tools?",
+		a: "Most public advisories against self-hosted PaaS tools are root command injection through shell strings and authorization checks missing between teams. LogiStack never builds shell commands from your input: it calls Docker through its API and other tools with argument lists. Every route checks the action and the scope it acts on, cleanup only touches objects LogiStack labeled, and database migrations only add, so a rollback keeps working.",
 	},
 	{
 		q: "Does it work with AI coding agents?",

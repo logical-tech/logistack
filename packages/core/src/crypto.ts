@@ -1,6 +1,34 @@
 const VERSION = "v1";
 const IV_BYTES = 12;
 
+// While the master key rotates, a key may name the key it replaced: decrypting with it falls back
+// to the old one, so v1 values and wrapped data keys not re-encrypted yet stay readable.
+const fallbacks = new WeakMap<CryptoKey, CryptoKey>();
+
+/** Lets `decrypt`, `unseal` and `unwrapDataKey` with `key` fall back to `previous`. */
+export function withPreviousKey(key: CryptoKey, previous: CryptoKey) {
+	fallbacks.set(key, previous);
+	return key;
+}
+
+async function aesOpen(
+	key: CryptoKey,
+	params: {
+		name: "AES-GCM";
+		iv: Uint8Array<ArrayBuffer>;
+		additionalData?: Uint8Array<ArrayBuffer>;
+	},
+	data: Uint8Array<ArrayBuffer>,
+): Promise<ArrayBuffer> {
+	try {
+		return await crypto.subtle.decrypt(params, key, data);
+	} catch (e) {
+		const previous = fallbacks.get(key);
+		if (!previous) throw e;
+		return crypto.subtle.decrypt(params, previous, data);
+	}
+}
+
 /** Imports the 32-byte AES-256-GCM master key, given as base64. */
 export async function importMasterKey(base64: string): Promise<CryptoKey> {
 	const raw = Uint8Array.fromBase64(base64.trim());
@@ -44,9 +72,9 @@ export async function decrypt(
 	}
 	const iv = Uint8Array.fromBase64(ivB64);
 	if (iv.length !== IV_BYTES) throw new Error("unsupported ciphertext format");
-	const pt = await crypto.subtle.decrypt(
-		{ name: "AES-GCM", iv },
+	const pt = await aesOpen(
 		key,
+		{ name: "AES-GCM", iv },
 		Uint8Array.fromBase64(ctB64),
 	);
 	return new TextDecoder().decode(pt);
@@ -138,9 +166,9 @@ async function openBytes(
 	const iv = Uint8Array.fromBase64(ivB64);
 	if (iv.length !== IV_BYTES) throw new Error("unsupported ciphertext format");
 	return new Uint8Array(
-		await crypto.subtle.decrypt(
-			{ name: "AES-GCM", iv, additionalData: encoder.encode(aad) },
+		await aesOpen(
 			key,
+			{ name: "AES-GCM", iv, additionalData: encoder.encode(aad) },
 			Uint8Array.fromBase64(ctB64),
 		),
 	);
@@ -199,4 +227,35 @@ export async function unwrapDataKey(
 	} finally {
 		raw.fill(0);
 	}
+}
+
+/** A wrapped data key, re-wrapped from one KEK to another; the raw key never leaves this function. */
+export async function rewrapDataKey(
+	from: CryptoKey,
+	to: CryptoKey,
+	organizationId: string,
+	version: number,
+	wrapped: string,
+): Promise<string> {
+	const aad = dataKeyAad(organizationId, version);
+	const raw = await openBytes(from, aad, wrapped);
+	try {
+		return await seal(to, aad, raw);
+	} finally {
+		raw.fill(0);
+	}
+}
+
+/**
+ * The master key and the secrets KEK derived from it. With `previous` (a master key rotation in
+ * progress), both fall back to the keys of `previous` for data not re-encrypted yet.
+ */
+export async function loadMasterKeys(current: string, previous?: string) {
+	const masterKey = await importMasterKey(current);
+	const secretsKek = await deriveSecretsKek(current);
+	if (previous) {
+		withPreviousKey(masterKey, await importMasterKey(previous));
+		withPreviousKey(secretsKek, await deriveSecretsKek(previous));
+	}
+	return { masterKey, secretsKek };
 }

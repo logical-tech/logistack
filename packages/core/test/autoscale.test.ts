@@ -211,6 +211,16 @@ describe("autoscaleChecks", () => {
 				fallbackPort: 80,
 			}),
 		).toEqual([]);
+		// Without a shell in the image the compiler skips that check.
+		expect(
+			failed({
+				spec: spec({ ports: [{ target: 80, protocol: "tcp" }] }),
+				volumes: 0,
+				nodes: 2,
+				fallbackPort: 80,
+				imageShell: false,
+			}),
+		).toEqual(["warning:healthcheck"]);
 	});
 });
 

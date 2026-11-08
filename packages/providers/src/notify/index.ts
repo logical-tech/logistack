@@ -40,6 +40,6 @@ export const notificationChannels = {
 	pushover,
 	webhook,
 } satisfies Record<
-	NotificationChannelKind,
+	Exclude<NotificationChannelKind, "plugin">,
 	ProviderDef<z.ZodType, NotificationChannel>
 >;

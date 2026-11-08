@@ -28,6 +28,16 @@ Env values in a template reference inputs with `${{ inputs.<key> }}` and sibling
 }
 ```
 
+## Community templates
+
+Besides the catalog that ships with your release, the gallery can list templates from a community index. They carry a **Community** badge and the index's host, as in "From templates.example.com", and deploy the same way as built-in ones.
+
+- **Only on Refresh.** LogiStack fetches the index only when someone selects **Refresh community** on the project's **Templates** page, which needs the Write action on the organization. It never fetches on a timer. Hover the button to see how many templates were fetched, from where and when.
+- **Signed.** The index answer is signed with Ed25519, like the [plugin index](../plugins/publish.mdx#run-a-private-index). A tampered or unsigned answer is refused and the previous copy is kept.
+- **Checked against your release.** Entries that do not match this release's template format, or that reuse the id of a built-in template, are skipped. Community entries show no logo.
+
+The instance reads one index, set by the `LS_TEMPLATE_INDEX_URL` and `LS_TEMPLATE_INDEX_KEYS` (comma-separated base64url Ed25519 public keys) environment variables of the api. Until a key is set, **Refresh community** fails with `no public key for the community index: set LS_TEMPLATE_INDEX_KEYS` and the gallery lists only the built-in catalog.
+
 ## Deploy a template
 
 <Steps>

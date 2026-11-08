@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	ApiError,
 	CreateDatabase,
 	CreateRole,
 	DatabaseSchema,
@@ -301,7 +302,12 @@ export const databases = router()
 			c.set("auditResourceId", id);
 			c.set("auditDiff", diff);
 			const db = await openDatabase(c, id, database);
-			const result = await runQuery(db, requireActor(c).id, input);
+			const result = await runQuery(
+				c.var.deps.config.REDIS_URL,
+				db,
+				requireActor(c).id,
+				input,
+			);
 			if (result.error) c.set("auditDiff", { ...diff, error: result.error });
 			return c.json(result, 200);
 		},
@@ -325,7 +331,15 @@ export const databases = router()
 		async (c) => {
 			const { id, runId } = c.req.valid("param");
 			c.set("auditResourceId", id);
-			if (!cancelRun(id, requireActor(c).id, runId)) throw notFound("run");
+			if (
+				!(await cancelRun(
+					c.var.deps.config.REDIS_URL,
+					id,
+					requireActor(c).id,
+					runId,
+				))
+			)
+				throw notFound("run");
 			return c.body(null, 204);
 		},
 	)
@@ -488,12 +502,13 @@ export const databases = router()
 				security,
 				summary: "Restore a dump into a database service, replacing its data",
 				description:
-					"The raw request body (a file from the dump route, or the engine tool's own format) is piped into the engine's restore tool in the running replica, never buffered. Existing data is replaced. Needs `admin`. A non-zero exit is a 409 with `details.reason` `tool_failed`, its exit code and the tail of stderr. Redis is a 400: restore its volume from a backup instead.",
+					"The raw request body (a file from the dump route, or the engine tool's own format) is piped into the engine's restore tool in the running replica, never buffered. It must carry a `Content-Length` no larger than the instance's limit (`MAX_RESTORE_BYTES`, default 20 GiB), checked before any byte reaches the tool: otherwise a 413 with `details.reason` `length_required` or `too_large` and `details.maxBytes`. Existing data is replaced. Needs `admin`. A non-zero exit is a 409 with `details.reason` `tool_failed`, its exit code and the tail of stderr. Redis is a 400: restore its volume from a backup instead.",
 				middleware: [requirePermission("admin", svc)],
 				request: { params: Id },
 				responses: {
 					200: json(z.object({ bytes: z.number() }), "Restored"),
 					...errors,
+					413: json(ApiError, "No Content-Length, or above the limit"),
 				},
 			}),
 		),

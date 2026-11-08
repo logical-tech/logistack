@@ -13,7 +13,7 @@ The Agent is in alpha. Check what it did in the chat and in the [audit log](../t
 
 - Your role needs the **AI** permission. Owners and admins have it. Other members need a role that grants it, see [Roles and permissions](../team/roles-and-permissions.mdx).
 - The Agent uses the models of the LogiStack AI gateway. An owner or admin adds model providers on the **AI** page, in the **Providers** tab.
-- Every answer spends your AI budget, set by an owner or admin in the **Budgets** tab of the **AI** page.
+- Every answer spends your AI budget, set by an owner or admin in the **Budgets** tab of the **AI** page. While a model call runs, its highest possible cost is held against the budget, so answers running side by side can't spend past it together.
 
 ## Start a conversation
 
@@ -71,6 +71,8 @@ While it waits, the message box says **Waiting for your approval**. If you type 
 The Agent sees the same operations as the [REST API](./rest-api.mdx) and the [MCP server](./mcp-server.mdx): projects, services, deployments, domains, variables, backups, databases, nodes and the rest. It searches them by what you ask, then calls them as you. It cannot change its own conversations, and it cannot do anything your role does not allow: an operation you are not permitted to run fails, and the Agent tells you so.
 
 Every change it makes appears in the [audit log](../team/audit-log.mdx) under your name.
+
+Tools that installed [plugins](../plugins/index.mdx) add are operations too: the Agent can list them and run them through the plugin. A tool the plugin marks destructive asks for your approval first, like any destructive operation.
 
 ## Common problems
 

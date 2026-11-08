@@ -154,6 +154,30 @@ export function projectHealth(statuses: ObservedStatus[]): ProjectHealth {
 /** Sort key so lists and strips read worst-first. */
 export const severityRank = (s: ObservedStatus) => SEVERITY.indexOf(s);
 
+/** A patch run as a whole. */
+export const PATCH_RUN_STATUS: Record<
+	"queued" | "running" | "succeeded" | "failed" | "cancelled",
+	StatusMeta
+> = {
+	queued: { label: "Queued", tone: "idle", live: true },
+	running: { label: "Patching", tone: "info", live: true },
+	succeeded: { label: "Patched", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	cancelled: { label: "Cancelled", tone: "idle" },
+};
+
+/** One node of a patch run. */
+export const PATCH_NODE_STATUS: Record<
+	"pending" | "running" | "succeeded" | "failed" | "skipped",
+	StatusMeta
+> = {
+	pending: { label: "Waiting", tone: "idle" },
+	running: { label: "In progress", tone: "info", live: true },
+	succeeded: { label: "Patched", tone: "ok" },
+	failed: { label: "Failed", tone: "bad" },
+	skipped: { label: "Skipped", tone: "idle" },
+};
+
 export const TONE_DOT: Record<Tone, string> = {
 	ok: "bg-ok",
 	busy: "bg-busy",
@@ -181,4 +205,26 @@ export const VULN_SEVERITY: Record<Severity, StatusMeta> = {
 	medium: { label: "Medium", tone: "idle" },
 	low: { label: "Low", tone: "idle" },
 	unknown: { label: "Unknown", tone: "idle" },
+};
+
+/** The last GitOps sync of a project (`project_gitops.last_status`). */
+export const GITOPS_STATUS: Record<
+	"applied" | "unchanged" | "planned" | "failed",
+	StatusMeta
+> = {
+	applied: { label: "Applied", tone: "ok" },
+	unchanged: { label: "In sync", tone: "ok" },
+	planned: { label: "Changes waiting", tone: "warn" },
+	failed: { label: "Sync failed", tone: "bad" },
+};
+
+/** A plugin install (`plugin_install.status`); `disabled` is the kill switch. */
+export const PLUGIN_STATUS: Record<
+	"pending" | "running" | "disabled" | "error",
+	StatusMeta
+> = {
+	pending: { label: "Starting", tone: "busy", live: true },
+	running: { label: "Running", tone: "ok" },
+	disabled: { label: "Turned off", tone: "idle" },
+	error: { label: "Failed", tone: "bad" },
 };

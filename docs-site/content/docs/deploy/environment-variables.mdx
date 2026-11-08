@@ -76,6 +76,22 @@ PUBLIC_URL="https://shop.example.com"
 LOG_LEVEL=warn
 ```
 
+## Use a secret inside a value
+
+A plain variable can embed a secret with `${{ secrets.KEY }}`. LogiStack replaces it at deploy time with the value of the most specific secret named `KEY` on the service's chain, so the connection string stays readable while the password stays a secret:
+
+```bash title="Service variable"
+DATABASE_URL=postgres://app:${{ secrets.PG_PASSWORD }}@db:5432/app
+```
+
+The variable is stored as typed, with the expression, and never holds the value. Once resolved, it is treated as a secret: masked in logs, and passed to a build as a BuildKit secret when marked **Build**. A name that no secret on the chain defines fails the deployment with `DATABASE_URL uses ${{ secrets.PG_PASSWORD }}, but no secret of that name is defined on this service's chain`. A value with an expression is never turned into a service secret, even with **Secret** on.
+
+## Mount a secret as a file
+
+Some images read credentials from a file, through variables like `POSTGRES_PASSWORD_FILE`. On a service's **Environment** tab, turn on **File** on a row that references a secret. On the next deployment the value is mounted read-only as a Swarm secret at `/run/secrets/<KEY>`, and the container gets `<KEY>_FILE=/run/secrets/<KEY>` instead of `<KEY>`. For example, `DB_PASSWORD` with **File** on gives the container the file `/run/secrets/DB_PASSWORD` and `DB_PASSWORD_FILE=/run/secrets/DB_PASSWORD`.
+
+The value is not in the service's environment, so `docker service inspect` does not show it. A file is not passed to builds.
+
 ## See, change and roll back a secret
 
 On the **Secrets** tab:
@@ -92,6 +108,82 @@ Values never appear in variable lists, the API's variable endpoints, manifests, 
 Each organization has its own data key. Every secret version is encrypted with AES-256-GCM under that key and bound to its organization, secret and version number, so a value copied into another row does not decrypt. Data keys are themselves encrypted with a key derived from the instance master key, which never leaves the LogiStack containers.
 
 An organization admin can select **Rotate encryption key** on **Settings** › **Secrets & variables**. LogiStack creates a new data key and re-encrypts every secret version. Values, versions and references don't change.
+
+## Rotate the master key
+
+The master key encrypts integration credentials, files and variables directly, and wraps every organization's data key. Rotate it if it may have leaked. LogiStack re-encrypts everything to the new key while it runs: during the rotation it reads values with either key.
+
+<Steps>
+<Step>
+
+### Create the new key as a Docker secret
+
+On a manager node, save the new key and create the secret from it:
+
+```bash
+openssl rand -base64 32 | tr -d '\n' > /root/logistack-master-key.new
+docker secret create logistack-master-key-next /root/logistack-master-key.new
+```
+
+</Step>
+<Step>
+
+### Give it to the API and the worker, with the old key as the previous one
+
+```bash
+for svc in logistack_logistack-api logistack_logistack-worker; do
+  docker service update \
+    --secret-add source=logistack-master-key-next,target=master_key_next \
+    --env-add LOGISTACK_MASTER_KEY_FILE=/run/secrets/master_key_next \
+    --env-add LOGISTACK_MASTER_KEY_PREVIOUS_FILE=/run/secrets/master_key \
+    "$svc"
+done
+```
+
+</Step>
+<Step>
+
+### Wait for the worker to finish
+
+When the worker starts, it re-encrypts every stored value and re-wraps every data key, then logs `master key rotation finished: LOGISTACK_MASTER_KEY_PREVIOUS can be removed`. Rerunning is safe: values already on the new key are skipped.
+
+```bash
+docker service logs logistack_logistack-worker 2>&1 | grep "master key rotation"
+```
+
+</Step>
+<Step>
+
+### Make the new key the permanent one
+
+The installer and in-app updates mount the secret named `logistack-master-key`, so replace it with the new value. Docker secrets cannot change in place, so each service lets go of it first:
+
+```bash
+for svc in logistack_logistack-api logistack_logistack-worker; do
+  docker service update --secret-rm logistack-master-key \
+    --env-rm LOGISTACK_MASTER_KEY_PREVIOUS_FILE "$svc"
+done
+docker secret rm logistack-master-key
+docker secret create logistack-master-key /root/logistack-master-key.new
+for svc in logistack_logistack-api logistack_logistack-worker; do
+  docker service update \
+    --secret-add source=logistack-master-key,target=master_key \
+    --env-rm LOGISTACK_MASTER_KEY_FILE \
+    --secret-rm logistack-master-key-next "$svc"
+done
+docker secret rm logistack-master-key-next
+```
+
+Then put the new key in `/etc/logistack/credentials` and delete `/root/logistack-master-key.new`.
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+  Don't start an in-app update until the last step is done, and keep the new key in `/etc/logistack/credentials`. Without it, a restored database cannot be decrypted.
+</Callout>
+
+Caddy's certificate storage key (with `LS_CADDY_STORAGE_ENCRYPTION`) is pinned before the rotation, so stored certificates stay readable.
 
 ## Plain variables
 
@@ -119,7 +211,7 @@ curl -fsS -X POST "https://stack.example.com/api/secrets" \
   }'
 ```
 
-`scope` is `organization`, `folder`, `project`, `environment` or `service`. To reference it, send `{"key": "DB_PASSWORD", "secretId": "sec_...", "isSecret": true, "isBuildTime": false}` in `PUT /api/services/{id}/env-vars`. `POST /api/secrets/{id}/reveal` returns the value.
+`scope` is `organization`, `folder`, `project`, `environment` or `service`. To reference it, send `{"key": "DB_PASSWORD", "secretId": "sec_...", "isSecret": true, "isBuildTime": false}` in `PUT /api/services/{id}/env-vars`; add `"asFile": true` to mount it as a file. `POST /api/secrets/{id}/reveal` returns the value.
 
 Secret variables created the older way, through `POST /api/env-vars` or a [project manifest](../automation/project-manifests.mdx) with `secret: true`, are converted into secrets on the next deployment. Every service that received one keeps receiving it through a reference.
 
@@ -138,6 +230,8 @@ LogiStack sets these on every container. They are read-only, and names starting 
 | `LOGISTACK_SERVICE` | Name of the service |
 | `LOGISTACK_URL` | Primary domain with its scheme, such as `https://app.example.com`. Unset without a domain |
 | `LOGISTACK_FQDN` | Every hostname the service answers on, comma-separated. Unset without a domain |
+| `LOGISTACK_PREVIEW_URL` | Pull request previews only: the preview's main URL. See [Preview environments](./preview-environments.mdx#reach-one-service-from-another) |
+| `LOGISTACK_PREVIEW_URL_<SERVICE>` | Pull request previews only: the URL of each exposed service of the preview, such as `LOGISTACK_PREVIEW_URL_API` |
 
 A Dockerfile build gets the ones it declares with `ARG`:
 

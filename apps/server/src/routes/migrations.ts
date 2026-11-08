@@ -17,7 +17,7 @@ import {
 } from "@logistack/core";
 import { migration, migrationItem } from "@logistack/db";
 import { and, asc, desc, eq } from "drizzle-orm";
-import type { Context } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
@@ -27,7 +27,11 @@ import { type Plan, planMigration, runImport } from "../migration/import.ts";
 import { detectSource } from "../migration/sources.ts";
 import { errors, IdParam, json, router, security } from "../openapi.ts";
 import { runQueues } from "../run-queues.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	assertInstanceAdmin,
+	inOrganization,
+	requirePermission,
+} from "../scope.ts";
 
 const ItemService = z.object({
 	name: z.string(),
@@ -118,7 +122,11 @@ const SourceView = z
 	})
 	.openapi("MigrationSource");
 
-const admin = requirePermission("admin", inOrganization);
+// Migrations read the source panel on the host and switch its proxy: instance-level.
+const admin: MiddlewareHandler<Env> = async (c, next) => {
+	assertInstanceAdmin(c);
+	await requirePermission("admin", inOrganization)(c, next);
+};
 const tags = ["migrations"];
 
 type MigrationRow = typeof migration.$inferSelect;

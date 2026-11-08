@@ -1,0 +1,76 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`plugin egress compiles the proxy service 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+  },
+  "Labels": {
+    "logistack.kind": "system",
+    "logistack.managed": "true",
+    "logistack.org": "system",
+    "logistack.resource": "plugin-egress",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-plugin-egress",
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "CapabilityDrop": [
+        "ALL",
+      ],
+      "Env": [
+        "ROLE=egressproxy",
+        "LS_EGRESS_LISTEN=3128",
+        "LS_EGRESS_KEY=k",
+        "LS_EGRESS_RULES={"plg_a":["x.io"],"plg_b":["a.io","b.io"]}",
+      ],
+      "Healthcheck": {
+        "Test": [
+          "NONE",
+        ],
+      },
+      "Image": "ghcr.io/logical-tech/logistack:0.6.0",
+      "Labels": {
+        "logistack.kind": "system",
+        "logistack.managed": "true",
+        "logistack.org": "system",
+        "logistack.resource": "plugin-egress",
+      },
+      "Mounts": [
+        {
+          "Target": "/tmp",
+          "TmpfsOptions": {
+            "SizeBytes": 16777216,
+          },
+          "Type": "tmpfs",
+        },
+      ],
+      "ReadOnly": true,
+      "StopGracePeriod": 5000000000,
+    },
+    "Networks": [
+      {
+        "Target": "net-plugins",
+      },
+      {
+        "Target": "net-egress",
+      },
+    ],
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 134217728,
+        "NanoCPUs": 500000000,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+}
+`;

@@ -7,12 +7,13 @@ import {
 	STORAGE_REGION,
 	storageEngineDefs,
 } from "@logistack/core";
-import { domain, envVar, service } from "@logistack/db";
+import { domain, service } from "@logistack/db";
 import { type StorageClient, storageClient } from "@logistack/providers";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Context } from "hono";
 import type { Deps, Env } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
+import { serviceEnvValues } from "./secret-refs.ts";
 
 /**
  * Where the api dials a storage service: its Swarm service name, which resolves on `ls-storage`
@@ -37,21 +38,7 @@ export type StorageService = {
 const ready = new Map<string, Promise<void>>();
 
 async function rootEnv(deps: Deps, serviceId: string) {
-	const rows = await deps.db
-		.select({ key: envVar.key, value: envVar.valueEncrypted })
-		.from(envVar)
-		.where(
-			and(
-				eq(envVar.scope, "service"),
-				eq(envVar.scopeId, serviceId),
-				inArray(envVar.key, Object.values(STORAGE_ENV)),
-			),
-		);
-	return Object.fromEntries(
-		await Promise.all(
-			rows.map(async (r) => [r.key, await decrypt(deps.masterKey, r.value)]),
-		),
-	) as Record<string, string>;
+	return serviceEnvValues(deps, serviceId, Object.values(STORAGE_ENV));
 }
 
 /** The storage service behind `serviceId` with its root client, bootstrapped (Garage) once per process. */

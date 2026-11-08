@@ -359,6 +359,18 @@ export const metrics = router()
 			);
 			for (const t of input.thresholds)
 				if (t.nodeId && !nodeIds.has(t.nodeId)) throw notFound("node");
+			// Retention and node cleanup apply to every organization; thresholds are this one's.
+			if (!requireActor(c).instanceAdmin) {
+				const current = await loadCleanup(db);
+				if (
+					!Bun.deepEquals(input.retention, await loadRetention(db.$client)) ||
+					(input.cleanup && !Bun.deepEquals(input.cleanup, current.cleanup))
+				)
+					throw new Failure(
+						"forbidden",
+						"retention and node cleanup are instance-wide: only an instance admin can change them",
+					);
+			}
 			if (input.retention.minuteDays * 24 < input.retention.rawHours)
 				throw new Failure(
 					"bad_request",

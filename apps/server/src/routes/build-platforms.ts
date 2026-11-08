@@ -14,7 +14,11 @@ import type { Env } from "../env.ts";
 import { Failure } from "../errors.ts";
 import { errors, json, router, security } from "../openapi.ts";
 import { runQueues } from "../run-queues.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	inOrganization,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 
 const tags = ["builds"];
 /** A setup stuck this long (worker restarted mid-way) may be started again. */
@@ -64,7 +68,10 @@ export const buildPlatforms = router()
 				summary: "Ask BuildKit again which platforms it can build",
 				description:
 					"Queues a probe (`buildctl debug workers`) on the worker, starting BuildKit if needed. Poll GET /build-platforms for `buildkit.checkedAt` to change.",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				responses: { 202: json(BuildPlatforms, "Probe queued"), ...errors },
 			}),
 		),
@@ -88,7 +95,10 @@ export const buildPlatforms = router()
 				summary: "Set up QEMU emulation for cross-architecture builds",
 				description:
 					"Runs tonistiigi/binfmt once, as a Swarm job with CAP_SYS_ADMIN on BuildKit's node, to register QEMU for the missing platforms in that node's kernel, then restarts BuildKit so it detects them. The registration lasts until the node reboots. Poll GET /build-platforms for `buildkit.emulation.state`.",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				responses: { 202: json(BuildPlatforms, "Setup queued"), ...errors },
 			}),
 		),

@@ -1,5 +1,9 @@
-import { GithubRelease, RELEASES_REPO } from "@logistack/contracts";
-import { compareVersions, isReleaseVersion } from "@logistack/core";
+import {
+	GithubRelease,
+	RELEASES_REPO,
+	type ReleaseChannel,
+} from "@logistack/contracts";
+import { compareVersions, onChannel } from "@logistack/core";
 import { z } from "zod";
 import { type Deps, Http, ProviderError } from "./http.ts";
 
@@ -22,24 +26,23 @@ const view = (r: GithubRelease): Release => ({
 });
 
 /**
- * The newest published release (GitHub's `releases/latest` skips drafts and prereleases). With
- * `beta`, the newest of the recent releases including prereleases, the builds of `staging`.
- * Unauthenticated: 60 requests an hour per IP, so callers cache. Null when nothing is released yet.
+ * Published releases on `channel` (see `onChannel`), newest first, from the most recent 100 on
+ * GitHub. Drafts and tags that aren't versions are skipped. Unauthenticated: 60 requests an hour
+ * per IP, so callers cache. Empty when nothing is released yet.
  */
-export async function latestRelease(
+export async function listReleases(
 	deps: Deps = {},
 	{
-		beta = false,
+		channel = "stable",
 		repo = RELEASES_REPO,
-	}: { beta?: boolean; repo?: string } = {},
-): Promise<Release | null> {
+	}: { channel?: ReleaseChannel; repo?: string } = {},
+): Promise<Release[]> {
 	const http = new Http("github", deps);
-	const base = `https://api.github.com/repos/${repo}/releases`;
 	let raw: unknown;
 	try {
 		raw = await http.json(
-			"latest release",
-			beta ? `${base}?per_page=30` : `${base}/latest`,
+			"releases",
+			`https://api.github.com/repos/${repo}/releases?per_page=100`,
 			{
 				headers: {
 					accept: "application/vnd.github+json",
@@ -49,24 +52,22 @@ export async function latestRelease(
 			},
 		);
 	} catch (err) {
-		if (err instanceof ProviderError && err.status === 404) return null;
+		if (err instanceof ProviderError && err.status === 404) return [];
 		throw err;
-	}
-	if (!beta) {
-		const r = GithubRelease.safeParse(raw);
-		if (!r.success)
-			throw new ProviderError(
-				"github",
-				"latest release",
-				"unexpected response",
-			);
-		return view(r.data);
 	}
 	const list = z.array(GithubRelease).safeParse(raw);
 	if (!list.success)
-		throw new ProviderError("github", "latest release", "unexpected response");
-	const newest = list.data
-		.filter((r) => !r.draft && isReleaseVersion(r.tag_name))
-		.sort((a, b) => compareVersions(b.tag_name, a.tag_name))[0];
-	return newest ? view(newest) : null;
+		throw new ProviderError("github", "releases", "unexpected response");
+	return list.data
+		.filter((r) => !r.draft && onChannel(r.tag_name, channel))
+		.sort((a, b) => compareVersions(b.tag_name, a.tag_name))
+		.map(view);
+}
+
+/** The newest release on `channel`, or null when nothing is released yet. */
+export async function latestRelease(
+	deps: Deps = {},
+	opts: { channel?: ReleaseChannel; repo?: string } = {},
+): Promise<Release | null> {
+	return (await listReleases(deps, opts))[0] ?? null;
 }

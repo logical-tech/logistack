@@ -66,7 +66,9 @@ const LABEL: Record<CoolifyNotification["type"], string> = {
 function channelOf(
 	n: CoolifyNotification,
 	notes: string[],
-): { kind: NotificationChannelKind; config: unknown } | undefined {
+):
+	| { kind: Exclude<NotificationChannelKind, "plugin">; config: unknown }
+	| undefined {
 	switch (n.type) {
 		case "discord":
 		case "slack":

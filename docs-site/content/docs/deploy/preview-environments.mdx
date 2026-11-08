@@ -3,12 +3,12 @@ title: Preview environments for pull requests
 description: Give every pull request its own live LogiStack environment with its own URL, cloned from staging or production and removed when the pull request closes.
 ---
 
-A preview environment is a temporary copy of a project for one pull request. When someone opens a pull request, LogiStack clones an environment you choose into `pr-<number>`, builds the pull request's head commit, gives it its own URL and posts that URL on the pull request. Closing or merging the pull request removes the copy. Use previews so reviewers can click through a change before it merges.
+A preview environment is a temporary copy of a project for one pull request. When someone opens a pull request, LogiStack clones an environment you choose into `pr-<number>`, builds the pull request's head commit, gives each exposed service its own URL and posts the URLs on the pull request. Docker Compose stacks come along too: a stack deployed from Git can read its compose file from the pull request's branch. Closing or merging the pull request removes the copy. Use previews so reviewers can click through a change before it merges.
 
 ## Before you start
 
 - Connect the repository through a Git provider that sends pull request events: GitHub, GitLab, Gitea or Bitbucket. See [Deploy from Git](./from-git.mdx#connect-a-git-provider).
-- Have an environment to clone, usually **Staging**, with at least one service that builds from that repository.
+- Have an environment to clone, usually **Staging**, with at least one service or Compose stack that comes from that repository. A stack must be deployed from Git to follow pull requests; see [Compose stacks](./compose-stacks.mdx).
 
 ## Turn on previews
 
@@ -29,7 +29,9 @@ Open the project, open the actions menu in the project header and select **Previ
 On **What a preview runs**:
 
 - **Clone from**: the environment each preview copies. Every preview starts with its services, stacks and variables. Volumes and databases are never shared: each preview gets empty ones.
-- **Services that build the pull request**: tick the Git services that should build the pull request's head commit, for example `web` and `api`. The others run what the source runs. Pull requests on these services' repository open previews.
+- **What follows the pull request**: tick the Git services that should build the pull request's head commit, for example `web` and `api`, and the Git stacks that should read their compose file from the pull request's branch. Everything else runs what the source runs. Pull requests on these repositories open previews.
+
+Every stack of the source environment is copied into the preview as a stack of its own, with new services, new volumes and Docker names derived from their new IDs. A followed stack reads `docker-compose.yml` from the pull request's branch, so a pull request that adds a service to the compose file previews that service too, and its `build:` services build the branch. Other stacks run the compose file the source runs.
 
 </Step>
 <Step>
@@ -42,9 +44,11 @@ On **Where it is reached**, every service the source exposes on a domain gets on
 - **A pattern**: readable hosts on a domain you point at this server. The **Pattern** must include `{number}`, and can use `{service}` and `{wildcard}`.
 
 ```text title="Pattern examples"
-pr-{number}.{wildcard}
+pr-{number}-{service}.{wildcard}
 pr-{number}-{service}.preview.example.com
 ```
+
+Use `{service}` when the preview has more than one exposed service, such as a stack with `web` and `api`: without it, the first service takes the host and the others get generated ones. A stack service is exposed in the preview when its counterpart in the source has a domain, on the same port.
 
 For `pr-{number}-{service}.preview.example.com`, create a wildcard DNS record `*.preview.example.com` pointing at the server. See [Wildcard DNS](../networking/wildcard-dns.mdx).
 
@@ -86,15 +90,36 @@ Check the summary and select **Turn on previews**. Later edits use **Save change
 </Step>
 </Steps>
 
+## Reach one service from another
+
+Every container of a preview, stack services included, gets the preview's URLs as variables:
+
+| Variable | Value |
+|---|---|
+| `LOGISTACK_PREVIEW_URL` | The preview's main URL: that of the first followed service with a domain |
+| `LOGISTACK_PREVIEW_URL_<SERVICE>` | The URL of each exposed service, by its name in upper case with dashes as underscores |
+
+For a stack with `web` and `api` and the pattern `pr-{number}-{service}.preview.example.com`, pull request 42 sets `LOGISTACK_PREVIEW_URL_API=https://pr-42-api.preview.example.com` in both containers. Point the front end at its API with it:
+
+```yaml title="docker-compose.yml"
+services:
+  web:
+    build: .
+    environment:
+      API_URL: ${LOGISTACK_PREVIEW_URL_API:-https://api.example.com}
+```
+
+Compose fills `${...}` when LogiStack reads the file, before the variable exists, so the default applies there. Read `LOGISTACK_PREVIEW_URL_API` at runtime in your app instead, or add a preview variable override on **Variables**. A container reads the variables when it starts: when a new pull request commit adds an exposed service, LogiStack redeploys the preview's other services so they see its URL.
+
 ## Check that it worked
 
 Open a pull request on the repository. Then:
 
 - A new environment `pr-<number>` appears among the project's environments.
-- A comment on the pull request shows the preview URL. LogiStack keeps it up to date as you push.
-- Each push to the pull request's branch redeploys the followed services.
+- A comment on the pull request shows the preview URLs. LogiStack keeps it up to date as you push.
+- Each push to the pull request's branch redeploys the followed services. A followed stack re-reads its compose file and redeploys what changed and every service it builds.
 
-From the environment's menu, **Open preview** opens its URL and **Pull request #&lt;number&gt;** opens the pull request.
+Select the preview's environment tab to see its pull request, commit and each service's URL. From the environment's menu, **Open preview** opens the main URL and **Pull request #&lt;number&gt;** opens the pull request.
 
 ## How a preview is removed
 
@@ -109,3 +134,5 @@ A preview is deleted, with its volumes and databases, when:
 - **No comment on the pull request**: for GitHub, the app needs read and write access to **Pull requests**; for GitLab, Gitea and Bitbucket, the token needs write access.
 - **The preview can't reach its database**: each preview gets an empty database. Run migrations with a pre-deploy command, and seed data in it if your app needs some. See [Deployments](./deployments.mdx#release-commands).
 - **"Include `{number}`, so each pull request gets its own host"**: add `{number}` to the pattern.
+- **"A stack did not follow the last commit"** on the preview's tab: the stack's compose file on the pull request's branch can't run, or can't be read. The message says why; the rest of the preview runs, and the stack keeps what it ran. Push a fix to the pull request. The stack's own page shows the same reason.
+- **A stack service has no URL**: only services whose counterpart in the source has a domain get one. Add a domain to the service in the source environment.

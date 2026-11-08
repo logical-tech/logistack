@@ -1,0 +1,29 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`a status page hostname compiles to an HTTPS route with an http redirect 1`] = `
+{
+  "@id": "ls-domain-status-stp_a",
+  "handle": [
+    {
+      "handler": "reverse_proxy",
+      "load_balancing": {
+        "try_duration": "30s",
+        "try_interval": "250ms",
+      },
+      "upstreams": [
+        {
+          "dial": "logistack-api:3000",
+        },
+      ],
+    },
+  ],
+  "match": [
+    {
+      "host": [
+        "status.example.com",
+      ],
+    },
+  ],
+  "terminal": true,
+}
+`;

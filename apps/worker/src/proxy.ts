@@ -1,16 +1,24 @@
 import { createPrivateKey, X509Certificate } from "node:crypto";
-import type { AccessRule } from "@logistack/contracts";
+import type {
+	AccessRule,
+	DomainEdge,
+	ServiceMaintenance,
+} from "@logistack/contracts";
 import { decrypt } from "@logistack/core";
 import {
 	certificate,
+	databaseAccess,
 	dnsProvider,
 	domain,
 	environment,
 	instanceSettings,
+	organization,
 	project,
 	registry,
 	service,
 	serviceBasicAuth,
+	serviceMaintenance,
+	statusPage,
 } from "@logistack/db";
 import type { Task } from "@logistack/docker";
 import {
@@ -21,19 +29,23 @@ import {
 	findZoneForHostname,
 } from "@logistack/providers";
 import {
+	type Branding,
 	type CaddyConfig,
 	compileProxy,
 	type DnsChallenge,
+	maintenancePage,
 	type ProxyInput,
 	type ProxyRoute,
 	ProxySync,
+	statusPageRoutes,
+	unavailablePage,
 } from "@logistack/proxy";
 import { RedisClient } from "bun";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { log } from "./bus.ts";
 import { caddyStorageKey } from "./caddy-storage.ts";
-import { refreshCertSnapshot } from "./certs.ts";
+import { covers, refreshCertSnapshot } from "./certs.ts";
 import type { Ctx } from "./ctx.ts";
 import type { DomainRow } from "./load.ts";
 import { svcName } from "./load.ts";
@@ -95,6 +107,23 @@ export function dnsChallengeFor(kind: string, config: unknown): DnsChallenge {
 	const { name, ...credentials } = caddyDnsChallenge(k, parsed);
 	return { provider: name, credentials } as DnsChallenge;
 }
+
+/**
+ * A plugin DNS provider's challenge: Caddy's acmeproxy module calls the api on the control
+ * network (`/acme-proxy/<id>/present|cleanup`, apps/server/src/acme-proxy.ts) with basic auth.
+ */
+export const acmeProxyChallenge = (
+	apiUpstream: string,
+	providerId: string,
+	password: string,
+): DnsChallenge => ({
+	provider: "acmeproxy",
+	credentials: {
+		endpoint: `http://${apiUpstream}/acme-proxy/${providerId}`,
+		username: providerId,
+		password,
+	},
+});
 
 /** Why Caddy would refuse this pair, or null. A bad upload must not fail every other route's /load. */
 export function customCertProblem(certPem: string, keyPem: string) {
@@ -180,6 +209,27 @@ export function routeAccess(
 	];
 }
 
+/** A domain's edge rules and its service's maintenance mode as the compiler takes them. */
+export function routeEdge(
+	edge: Partial<DomainEdge>,
+	maintenance: ServiceMaintenance | null | undefined,
+	branding: Branding,
+): Pick<ProxyRoute, "edge" | "maintenance"> {
+	return {
+		edge: {
+			...(edge.rateLimit && { rateLimit: edge.rateLimit }),
+			...(edge.block && { block: edge.block }),
+			errorPage: edge.errorPage ?? unavailablePage(branding),
+		},
+		...(maintenance?.enabled && {
+			maintenance: {
+				allowCidrs: maintenance.allowCidrs,
+				page: maintenancePage(branding, maintenance.message),
+			},
+		}),
+	};
+}
+
 /**
  * Splits routes into those compileProxy accepts and those it throws on, by compiling each
  * alone. The API rejects such rows up front; this keeps one that slipped through (an old
@@ -251,6 +301,39 @@ export function withInstanceWildcard(
 								},
 								...policies,
 							],
+				},
+			},
+		},
+	} as CaddyConfig;
+}
+
+/**
+ * Has Caddy obtain and renew certificates for names it routes nothing to: public database
+ * hostnames, whose certificate the database serves itself (docs/plans/database-ops.md). A name
+ * the instance wildcard covers needs none of its own.
+ */
+export function withAutomatedNames(
+	config: CaddyConfig,
+	names: string[],
+	wildcard?: string,
+): CaddyConfig {
+	const tls = config.apps.tls as CaddyConfig["apps"]["tls"] & {
+		certificates?: { automate?: string[] };
+	};
+	const have = new Set(tls.certificates?.automate ?? []);
+	const add = [...new Set(names)]
+		.filter((n) => !have.has(n) && !(wildcard && covers(wildcard, n)))
+		.sort();
+	if (!add.length) return config;
+	return {
+		...config,
+		apps: {
+			...config.apps,
+			tls: {
+				...tls,
+				certificates: {
+					...tls.certificates,
+					automate: [...have, ...add],
 				},
 			},
 		},
@@ -335,12 +418,17 @@ export async function syncProxy(
 			organizationId: project.organizationId,
 			projectId: project.id,
 			basicAuth: serviceBasicAuth.users,
+			maintenance: serviceMaintenance.settings,
+			orgName: organization.name,
+			orgLogo: organization.logo,
 		})
 		.from(domain)
 		.innerJoin(service, eq(service.id, domain.serviceId))
 		.leftJoin(serviceBasicAuth, eq(serviceBasicAuth.serviceId, service.id))
+		.leftJoin(serviceMaintenance, eq(serviceMaintenance.serviceId, service.id))
 		.innerJoin(environment, eq(environment.id, service.environmentId))
 		.innerJoin(project, eq(project.id, environment.projectId))
+		.innerJoin(organization, eq(organization.id, project.organizationId))
 		.where(eq(service.desiredState, "running"));
 
 	const certIds = rows.flatMap((r) => r.domain.customCertificateId ?? []);
@@ -357,9 +445,18 @@ export async function syncProxy(
 	const challengeOf = (p: (typeof providers)[number]) => {
 		let c = challenges.get(p.id);
 		if (!c) {
-			c = open(p.credentialsEncrypted).then((s) =>
-				dnsChallengeFor(p.kind, JSON.parse(s)),
-			);
+			c =
+				p.kind === "plugin"
+					? p.acmeSecretEncrypted
+						? open(p.acmeSecretEncrypted).then((secret) =>
+								acmeProxyChallenge(ctx.cfg.LS_API_UPSTREAM, p.id, secret),
+							)
+						: Promise.reject(
+								new Error("the plugin DNS provider has no DNS-01 secret"),
+							)
+					: open(p.credentialsEncrypted).then((s) =>
+							dnsChallengeFor(p.kind, JSON.parse(s)),
+						);
 			challenges.set(p.id, c);
 		}
 		return c;
@@ -367,7 +464,7 @@ export async function syncProxy(
 
 	const candidates: ProxyRoute[] = [];
 	const outcome = new Map<string, string | null>();
-	for (const { domain: d, basicAuth } of rows) {
+	for (const { domain: d, basicAuth, maintenance, orgName, orgLogo } of rows) {
 		try {
 			const c = certs.find((x) => x.id === d.customCertificateId);
 			const p = providers.find((x) => x.id === d.dnsProviderId);
@@ -388,6 +485,8 @@ export async function syncProxy(
 				candidates.push({
 					...r.route,
 					access: routeAccess(d.access, basicAuth),
+					...routeEdge(d.edge, maintenance, { orgName, logo: orgLogo }),
+					...(d.webAnalytics && { webAnalytics: true }),
 				});
 			else outcome.set(d.id, r.error);
 		} catch (e) {
@@ -432,6 +531,31 @@ export async function syncProxy(
 			);
 	}
 
+	const dbHostnames = (
+		await ctx.db
+			.select({ hostname: databaseAccess.hostname })
+			.from(databaseAccess)
+			.where(isNotNull(databaseAccess.hostname))
+	).flatMap((r) => (r.hostname ? [r.hostname] : []));
+	// Status pages on their own hostname: served by the API, which routes them by Host.
+	const [apiHost, apiPort] = ctx.cfg.LS_API_UPSTREAM.split(":");
+	const apiUpstream = {
+		host: apiHost as string,
+		port: Number(apiPort ?? 3000),
+	};
+	candidates.push(
+		...statusPageRoutes(
+			await ctx.db
+				.select({
+					id: statusPage.id,
+					hostname: statusPage.hostname,
+					published: statusPage.published,
+				})
+				.from(statusPage),
+			apiUpstream,
+		),
+	);
+
 	const addresses = await caddyAddresses(ctx, opts.starting);
 	if (!addresses.length) {
 		log("warn", "proxy sync: no running Caddy task", {
@@ -439,7 +563,6 @@ export async function syncProxy(
 		});
 		return { instances: 0, failures: [] };
 	}
-	const [apiHost, apiPort] = ctx.cfg.LS_API_UPSTREAM.split(":");
 	const encryptionKey = await caddyStorageKey(ctx);
 	const common = (ip: string): Omit<ProxyInput, "routes"> => ({
 		settings: {
@@ -453,7 +576,7 @@ export async function syncProxy(
 		},
 		dashboard: {
 			hostname: dashboardHost,
-			upstream: { host: apiHost as string, port: Number(apiPort ?? 3000) },
+			upstream: apiUpstream,
 		},
 	});
 	const isolated = isolateRoutes(candidates, common(addresses[0] as string));
@@ -469,6 +592,7 @@ export async function syncProxy(
 				wildcard.hostname,
 				wildcard.challenge,
 			);
+		config = withAutomatedNames(config, dbHostnames, wildcard?.hostname);
 		config = withAcmeDirectory(
 			config,
 			z

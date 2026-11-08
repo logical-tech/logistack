@@ -32,6 +32,9 @@ export type MigrationJob =
 	/** Gives Coolify's control plane back, as it was before the first cutover froze it (COOL-5). */
 	| { migrationId: string; action: "unfreeze" };
 export const SCHEDULE_QUEUE = "schedule";
+/** Database major-version upgrades; one job per upgrade (job id = upgrade id). */
+export const DBOPS_QUEUE = "dbops";
+export type DbOpsJob = { upgradeId: string };
 
 /** Job Scheduler ids: one per policy and kind, one per schedule. */
 export const backupSchedulerId = (

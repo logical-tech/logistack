@@ -17,7 +17,7 @@ The service needs:
 
 These are also recommended, but not required:
 
-- **A health check**, so a new copy gets traffic only once it is ready. Without one, requests can fail for a few seconds after each scale-up. A service behind a [domain](../networking/domains.mdx) already gets one: LogiStack checks that its port accepts connections, unless the image has no shell (see [Images without a shell](./service-settings.mdx#images-without-a-shell)).
+- **A health check**, so a new copy gets traffic only once it is ready. Without one, requests can fail for a few seconds after each scale-up. A service behind a [domain](../networking/domains.mdx) already gets one: LogiStack checks that its port accepts connections, unless the image has no shell (see [Images without a shell](./service-settings.mdx#images-without-a-shell)). For such an image, the check stays a warning after its first deploy.
 - **More than one server**, so copies spread out instead of sharing one server's CPU. See [Nodes](../operations/nodes.mdx).
 
 ## Turn on automatic scaling

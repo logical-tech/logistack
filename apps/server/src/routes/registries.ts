@@ -13,7 +13,11 @@ import { mutation } from "../audit.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { checkRegistry } from "../registry/client.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	inOrganization,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 import { guardedFetch, hostPolicy } from "../ssrf.ts";
 
 export const DEFAULT_KEEP_TAGS = 10;
@@ -325,7 +329,10 @@ export const registries = router()
 				summary: "Turn the managed local registry on or off",
 				description:
 					"On: the worker runs Zot with a volume behind Caddy on `registry.<instance domain>`, with generated credentials, and it becomes the default. Off: the service stops and the images stay, unless `purge` is set, which deletes them with the credentials.",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(
 					z.object({ enabled: z.boolean(), purge: z.boolean().default(false) }),
 				),

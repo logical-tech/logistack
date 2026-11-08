@@ -4,6 +4,7 @@ import {
 	deployment,
 	environment,
 	mount,
+	organization,
 	project,
 	service,
 	serviceAutoscale,
@@ -337,7 +338,11 @@ export async function sweepOrphans(
 				? [labels[LABEL_RESOURCE] ?? ""]
 				: [];
 		const existing = async (
-			table: typeof service | typeof environment | typeof mount,
+			table:
+				| typeof service
+				| typeof environment
+				| typeof mount
+				| typeof organization,
 			wanted: string[],
 		) =>
 			new Set(
@@ -395,13 +400,13 @@ export async function sweepOrphans(
 				orphans.push({ key: `file:${f.name}`, remove: f.remove, data: false });
 
 		const networks = await ctx.docker.networks.list(filters);
-		const liveEnvs = await existing(
-			environment,
-			networks.flatMap((n) => ids(["network"], n.Labels)),
-		);
+		const netIds = networks.flatMap((n) => ids(["network"], n.Labels));
+		// An environment's network, or an organization's database network (`ls-db-<org>`).
+		const liveEnvs = await existing(environment, netIds);
+		const liveOrgs = await existing(organization, netIds);
 		for (const n of networks)
 			for (const id of ids(["network"], n.Labels))
-				if (!liveEnvs.has(id))
+				if (!liveEnvs.has(id) && !liveOrgs.has(id))
 					orphans.push({
 						key: `network:${n.Name}`,
 						remove: () => ctx.docker.networks.remove(n.Id),

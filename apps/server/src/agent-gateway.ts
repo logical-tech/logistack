@@ -19,6 +19,8 @@ import {
 	type RpcErrorCode,
 	type ServerMessageInput,
 	STALL_TIMEOUT_MS,
+	TRAFFIC_STREAM,
+	type TrafficConfig,
 } from "@logistack/contracts";
 import type { RedisClient, ServerWebSocket } from "bun";
 import type { Hono } from "hono";
@@ -63,6 +65,8 @@ export type AgentGatewayDeps = {
 	): Promise<AgentAdmission | AgentRefusal>;
 	/** `ls:nodes:<id>` TTL, and how long a closed node may take to come back before `node.down`. */
 	ttlSec?: number;
+	/** Names this replica in `ls:nodes:<id>`, so only the replica holding the newest socket serves its RPCs. */
+	replicaId?: string;
 };
 
 /** One shared token admits any node into `organizationId`; for tests and the RSS soak, which have no database. */
@@ -144,6 +148,10 @@ export type CallOptions = { signal?: AbortSignal };
 
 export type Agents = {
 	connected(): AgentNode[];
+	/** This replica's name in `ls:nodes:<id>`. */
+	replicaId: string;
+	/** Closes a node's socket on this replica, if it holds one (a revoked token). */
+	disconnect(nodeId: string, reason: string): boolean;
 	/** Called when a node's socket on this replica opens (also on a replacing reconnect) or closes. */
 	watch(listener: (nodeId: string, connected: boolean) => void): () => void;
 	exec(nodeId: string, req: Req<"exec.start">, opts?: CallOptions): ExecHandle;
@@ -160,6 +168,8 @@ export type Agents = {
 	): Promise<{ usage: DiskUsage; report: PruneReport | null }>;
 	/** Replaces a node's drain setup; false when its agent is gone or predates `log-drains`. */
 	pushDrains(nodeId: string, config: DrainsConfig): boolean;
+	/** Replaces a node's traffic analytics setup; false when its agent is gone or predates `traffic`. */
+	pushTraffic(nodeId: string, config: TrafficConfig): boolean;
 	/** Sends one test line through `drain` from that node. */
 	testDrain(
 		nodeId: string,
@@ -242,6 +252,7 @@ export function mountAgentGateway(
 ): Agents {
 	const { redis, bus } = deps;
 	const ttl = deps.ttlSec ?? 30;
+	const replicaId = deps.replicaId ?? crypto.randomUUID();
 	const nodes = new Map<string, Conn>();
 	const watchers = new Set<(nodeId: string, connected: boolean) => void>();
 	const notify = (nodeId: string, connected: boolean) => {
@@ -279,7 +290,7 @@ export function mountAgentGateway(
 	const touch = (node: AgentNode) =>
 		redis.send("SET", [
 			NODE_KEY(node.nodeId),
-			JSON.stringify({ ...node, lastSeenAt: new Date() }),
+			JSON.stringify({ ...node, replica: replicaId, lastSeenAt: new Date() }),
 			"EX",
 			String(ttl),
 		]);
@@ -352,6 +363,21 @@ export function mountAgentGateway(
 					"event",
 					JSON.stringify(m.event),
 				]);
+				return;
+			case "traffic":
+				// Acked only once durable in Redis; the agent keeps (bounded) and resends until then.
+				await redis.send("XADD", [
+					TRAFFIC_STREAM,
+					"MAXLEN",
+					"~",
+					"20000",
+					"*",
+					"node",
+					conn.node.nodeId,
+					"data",
+					JSON.stringify(m.minutes),
+				]);
+				send(conn, { type: "traffic.ack", seq: m.seq });
 				return;
 			case "drains.status":
 				for (const d of m.drains) {
@@ -566,6 +592,14 @@ export function mountAgentGateway(
 
 	return {
 		connected: () => [...nodes.values()].map((c) => c.node),
+		replicaId,
+
+		disconnect(nodeId, reason) {
+			const conn = nodes.get(nodeId);
+			if (!conn) return false;
+			conn.ws.close(4001, reason);
+			return true;
+		},
 
 		watch(listener) {
 			watchers.add(listener);
@@ -667,6 +701,13 @@ export function mountAgentGateway(
 			const conn = nodes.get(nodeId);
 			if (!conn?.node.capabilities.includes("log-drains")) return false;
 			send(conn, { type: "drains.config", ...config });
+			return true;
+		},
+
+		pushTraffic(nodeId, config) {
+			const conn = nodes.get(nodeId);
+			if (!conn?.node.capabilities.includes("traffic")) return false;
+			send(conn, { type: "traffic.config", ...config });
 			return true;
 		},
 

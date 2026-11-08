@@ -35,7 +35,12 @@ import {
 } from "../openapi.ts";
 import { commonName, covers, parseCertificate } from "../pem.ts";
 import { requestProxySync } from "../redis.ts";
-import { byParam, inOrganization, requirePermission } from "../scope.ts";
+import {
+	byParam,
+	inOrganization,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 
 // `privateKey`, not `keyPem`: the audit redactor masks keys matching /private/.
 const Upload = z.object({
@@ -302,7 +307,7 @@ export const certificates = router()
 				summary: "Switch the ACME directory Caddy issues from",
 				description:
 					"Takes effect at the next proxy sync. Certificates already issued stay until they renew.",
-				middleware: admin,
+				middleware: [...admin, requireInstanceAdmin],
 				request: body(Issuer),
 				responses: { 200: json(Issuer, "Updated"), ...errors },
 			}),

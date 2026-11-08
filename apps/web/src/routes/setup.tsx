@@ -60,7 +60,9 @@ export const Route = createFileRoute("/setup")({
 	component: SetupPage,
 });
 
-type DnsChoice = DnsKind | "manual";
+/** The first-run wizard offers built-in providers only: no plugin is installed yet. */
+type SetupDnsKind = Exclude<DnsKind, "plugin">;
+type DnsChoice = SetupDnsKind | "manual";
 
 type SetupValues = {
 	/** install.sh --public-setup prints it; never persisted. */
@@ -95,10 +97,12 @@ const DEFAULTS: SetupValues = {
 };
 
 const DNS_PROVIDERS: { value: DnsChoice; label: string }[] = [
-	...(Object.keys(DNS_KINDS) as DnsKind[]).map((k) => ({
-		value: k,
-		label: DNS_KINDS[k].label,
-	})),
+	...(Object.keys(DNS_KINDS) as DnsKind[])
+		.filter((k): k is SetupDnsKind => k !== "plugin")
+		.map((k) => ({
+			value: k,
+			label: DNS_KINDS[k].label,
+		})),
 	{ value: "manual", label: "None, I'll manage records myself" },
 ];
 

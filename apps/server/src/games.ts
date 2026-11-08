@@ -7,8 +7,8 @@ import {
 	gamePorts,
 	gameRecords,
 } from "@logistack/contracts";
-import { decrypt, dockerName, GAME_ENV, gameAdminPort } from "@logistack/core";
-import { envVar, node, service } from "@logistack/db";
+import { dockerName, GAME_ENV, gameAdminPort } from "@logistack/core";
+import { node, service } from "@logistack/db";
 import {
 	a2sInfo,
 	minecraftBedrockStatus,
@@ -16,11 +16,12 @@ import {
 	mumbleStatus,
 	teamspeakStatus,
 } from "@logistack/providers";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Context } from "hono";
 import type { Deps, Env } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
 import { publicIp } from "./probe.ts";
+import { serviceEnvValues } from "./secret-refs.ts";
 import { isPrivateAddress } from "./ssrf.ts";
 
 /**
@@ -68,21 +69,7 @@ export async function openGame(
 }
 
 async function gameEnv(deps: Deps, serviceId: string) {
-	const rows = await deps.db
-		.select({ key: envVar.key, value: envVar.valueEncrypted })
-		.from(envVar)
-		.where(
-			and(
-				eq(envVar.scope, "service"),
-				eq(envVar.scopeId, serviceId),
-				inArray(envVar.key, Object.values(GAME_ENV)),
-			),
-		);
-	return Object.fromEntries(
-		await Promise.all(
-			rows.map(async (r) => [r.key, await decrypt(deps.masterKey, r.value)]),
-		),
-	) as Record<string, string>;
+	return serviceEnvValues(deps, serviceId, Object.values(GAME_ENV));
 }
 
 /** The container port the status probe dials: the game port, or ServerQuery for TeamSpeak. */

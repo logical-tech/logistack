@@ -2,6 +2,7 @@ import type {
 	EnvironmentColor,
 	PreviewInfo,
 	ServiceIcon,
+	ServiceMaintenance,
 	ServiceSpec,
 	StackGitSource,
 } from "@logistack/contracts";
@@ -164,6 +165,11 @@ export const service = pgTable(
 		stackId: text("stack_id").references((): AnyPgColumn => stack.id, {
 			onDelete: "cascade",
 		}),
+		/**
+		 * Owner id of a database's data volume (`ls-vol-<id>`) once a major-version upgrade moved
+		 * it to a new one; null: the service id.
+		 */
+		dataVolumeId: text("data_volume_id"),
 		...timestamps,
 	},
 	(t) => [
@@ -193,6 +199,8 @@ export const envVar = pgTable(
 		secretId: text("secret_id").references(() => secret.id, {
 			onDelete: "restrict",
 		}),
+		/** A secret reference mounted as `/run/secrets/<key>` (a Swarm secret) instead of an env var. */
+		asFile: boolean("as_file").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [
@@ -247,5 +255,14 @@ export const serviceBasicAuth = pgTable("service_basic_auth", {
 		.primaryKey()
 		.references(() => service.id, { onDelete: "cascade" }),
 	users: jsonb("users").$type<{ username: string; hash: string }[]>().notNull(),
+	...timestamps,
+});
+
+/** Maintenance mode: the proxy answers 503 with a branded page on every domain of the service. */
+export const serviceMaintenance = pgTable("service_maintenance", {
+	serviceId: text("service_id")
+		.primaryKey()
+		.references(() => service.id, { onDelete: "cascade" }),
+	settings: jsonb("settings").$type<ServiceMaintenance>().notNull(),
 	...timestamps,
 });

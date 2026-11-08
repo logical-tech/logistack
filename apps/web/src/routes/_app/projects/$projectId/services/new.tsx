@@ -10,7 +10,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
 	Box,
 	ChevronDown,
-	ChevronsUpDown,
 	Container,
 	Database,
 	Gamepad2,
@@ -19,7 +18,6 @@ import {
 	HardDrive,
 	Layers,
 	Link2Off,
-	Lock,
 	Network,
 	PenLine,
 	Server,
@@ -39,6 +37,7 @@ import {
 	gameSteps,
 	gameSummary,
 } from "@/components/game/wizard-steps";
+import { BranchField, RepoPicker } from "@/components/git/repo-picker";
 import { GIT_KIND } from "@/components/integration-kinds";
 import { Page, PageHeader } from "@/components/page-header";
 import {
@@ -70,26 +69,12 @@ import {
 	storageSummary,
 } from "@/components/storage/wizard-steps";
 import { TemplatesTile } from "@/components/templates/templates-tile";
-import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -110,12 +95,9 @@ import { useResourceProfiles } from "@/lib/api/access";
 import { gamesApi } from "@/lib/api/games";
 import { instanceStatusQuery } from "@/lib/api/instance";
 import {
-	branchesQuery,
 	type GitProvider,
-	type GitRepo,
 	gitProvidersQuery,
 	integrations,
-	reposQuery,
 	type WebhookOutcome,
 } from "@/lib/api/integrations";
 import { dnsProvidersQuery } from "@/lib/api/networking";
@@ -870,106 +852,6 @@ const BUILD_LABEL: Record<V["build"], string> = {
 
 const PUBLIC = "__public";
 
-function RepoPicker({ w }: { w: WizardApi<V> }) {
-	const { data: repos, isPending } = useQuery(reposQuery(w.values.providerId));
-	const [open, setOpen] = useState(false);
-	const value = w.values.repository;
-	const pick = (r: GitRepo) => {
-		w.set("repository", r.fullName);
-		w.set("branch", r.defaultBranch ?? "main");
-		setOpen(false);
-	};
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<Button
-					id="wz-repository"
-					type="button"
-					variant="outline"
-					role="combobox"
-					aria-expanded={open}
-					aria-invalid={w.error("repository") ? true : undefined}
-					aria-describedby="wz-repository-msg"
-					className="h-8 w-full justify-between font-normal"
-				>
-					<span
-						className={cn(
-							"truncate",
-							value ? "font-mono text-sm" : "text-muted-foreground",
-						)}
-					>
-						{value ||
-							(isPending ? "Loading repositories…" : "Choose a repository")}
-					</span>
-					<ChevronsUpDown className="opacity-50" aria-hidden />
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				className="w-(--radix-popover-trigger-width) p-0"
-				align="start"
-			>
-				<Command>
-					<CommandInput placeholder="Search repositories" />
-					<CommandList>
-						<CommandEmpty>
-							{isPending ? "Loading…" : "No repository matches."}
-						</CommandEmpty>
-						<CommandGroup>
-							{repos?.map((r) => (
-								<CommandItem
-									key={r.fullName}
-									value={r.fullName}
-									data-checked={r.fullName === value}
-									onSelect={() => pick(r)}
-								>
-									<span className="min-w-0 flex-1 truncate font-mono text-xs">
-										{r.fullName}
-									</span>
-									{r.private && (
-										<Lock
-											className="size-3.5 text-muted-foreground"
-											aria-label="Private"
-										/>
-									)}
-								</CommandItem>
-							))}
-						</CommandGroup>
-					</CommandList>
-				</Command>
-			</PopoverContent>
-		</Popover>
-	);
-}
-
-function BranchField({ w }: { w: WizardApi<V> }) {
-	const { providerId, repository, branch } = w.values;
-	const { data: branches } = useQuery(branchesQuery(providerId, repository));
-	// Generic SSH remotes list no branches: the branch is typed by hand.
-	const choices = branches?.length
-		? [...new Set([branch, ...branches].filter(Boolean))]
-		: null;
-	return (
-		<Field id="wz-branch" label="Branch" error={w.error("branch")}>
-			{choices ? (
-				<Select value={branch} onValueChange={(b) => w.set("branch", b)}>
-					<SelectTrigger id="wz-branch" className="w-full font-mono">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{choices.map((b) => (
-							<SelectItem key={b} value={b} className="font-mono">
-								{b}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			) : (
-				<Input {...w.bind("branch")} className="font-mono" spellCheck={false} />
-			)}
-		</Field>
-	);
-}
-
 function NameField({ w }: { w: WizardApi<V> }) {
 	const fallback = serviceName({ ...w.values, name: "" });
 	return (
@@ -1114,7 +996,7 @@ function ConfigureStep({
 						label="Repository"
 						error={w.error("repository")}
 					>
-						<RepoPicker key={v.providerId} w={w} />
+						<RepoPicker key={v.providerId} w={w as never} />
 					</Field>
 				) : (
 					<Field
@@ -1139,7 +1021,7 @@ function ConfigureStep({
 				)}
 				<div className="grid gap-4 sm:grid-cols-2">
 					{v.providerId ? (
-						<BranchField w={w} />
+						<BranchField w={w as never} />
 					) : (
 						<Field id="wz-branch" label="Branch" error={w.error("branch")}>
 							<Input
@@ -1350,10 +1232,10 @@ function ConfigureStep({
 						label="Repository"
 						error={w.error("repository")}
 					>
-						<RepoPicker key={v.providerId} w={w} />
+						<RepoPicker key={v.providerId} w={w as never} />
 					</Field>
 					<div className="grid gap-4 sm:grid-cols-2">
-						<BranchField w={w} />
+						<BranchField w={w as never} />
 						<Field
 							id="wz-composePath"
 							label="Compose file path"

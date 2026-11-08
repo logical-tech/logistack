@@ -1,0 +1,99 @@
+---
+title: Migrate from Dokploy or Coolify in 10 minutes
+description: The short path from a Dokploy or Coolify server to LogiStack on the same machine. Install next to it, run the migration wizard, and switch traffic.
+---
+
+LogiStack can take over a server that runs Dokploy or Coolify v4, on the same machine, without a maintenance window. You install LogiStack next to the old platform, and a wizard reads it, imports your projects, moves services one at a time, and then hands ports 80 and 443 over. Use this page for the short path; [Migrate from Dokploy](./migrate-from-dokploy.mdx) and [Migrate from Coolify](./migrate-from-coolify.mdx) cover every detail.
+
+The ten minutes are your clicks. Pulling images and the health check of each moved service add time, more on a server with many services or slow downloads.
+
+## Before you start
+
+- Back up anything you cannot lose. The migration never deletes a volume, but a backup is your safety net.
+- Dokploy runs as the Swarm service `dokploy`; v0.30.0 and v0.30.10 are tested. Coolify is a stable v4 release; 4.0.0, 4.5.3 and 4.6.0 are tested, and betas are refused.
+- You will be an admin in LogiStack. The wizard is admin only.
+
+## Migrate
+
+<Steps>
+<Step>
+### Install LogiStack next to the old platform
+
+On the server, run:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
+```
+
+The installer finds Dokploy or Coolify, explains the plan and asks before it changes anything. It leaves ingress off, so the old proxy keeps ports 80 and 443 and every site keeps answering. LogiStack only reads the old platform's database.
+</Step>
+<Step>
+### Open the setup wizard through an SSH tunnel
+
+Next to Dokploy, LogiStack listens on port 3001, because Dokploy uses 3000. Next to Coolify it listens on 3000. From your computer:
+
+<Tabs items={["Dokploy", "Coolify"]}>
+<Tab value="Dokploy">
+
+```bash
+ssh -L 3001:127.0.0.1:3001 root@49.12.88.7
+```
+
+Open `http://localhost:3001`.
+
+</Tab>
+<Tab value="Coolify">
+
+```bash
+ssh -L 3000:127.0.0.1:3000 root@49.12.88.7
+```
+
+Open `http://localhost:3000`.
+
+</Tab>
+</Tabs>
+
+Finish the [setup wizard](../getting-started/setup-wizard.mdx).
+</Step>
+<Step>
+### Start the migration
+
+Home shows **Dokploy runs on this server** or **Coolify runs on this server**. Select **Start migration**.
+
+![The Home page with the migration panel and its Start migration button](/screens/home.webp)
+</Step>
+<Step>
+### Read and review
+
+On **Review what moves**, select **Read Dokploy** or **Read Coolify**. Each item says **Full**, **Partial** or **Not supported**; open the notes of a **Partial** item to see what stays behind. Turn off any item you want to keep on the old platform, then select **Continue**.
+
+![The migration wizard on its first step, Review what moves](/screens/settings-migrate.webp)
+</Step>
+<Step>
+### Import
+
+Select **Import** with the item count, for example **Import 14 items**. Nothing runs on LogiStack yet. Select **Continue**.
+</Step>
+<Step>
+### Move services
+
+Select **Move 9 services in order** (the count is yours) and confirm. Databases move first and keep their data: LogiStack adopts the same Docker volume, and the service keeps its old hostname, so connection strings keep working. A service that does not turn healthy goes back to the old platform on its own. Select **Continue**.
+</Step>
+<Step>
+### Switch traffic
+
+Select **Switch traffic** and confirm. The old proxy stops and LogiStack's Caddy takes ports 80 and 443, with the old proxy's certificates already in place. If Caddy is not up within 90 seconds, the old proxy starts again. Then select **Move webhook** for each GitHub App, so pushes deploy on LogiStack.
+</Step>
+</Steps>
+
+## Check that it worked
+
+- Every moved service reads **Running** on its project page.
+- Every row under **Domains** on **Switch traffic** passes its HTTPS check.
+- A push to a connected repository starts a deployment in LogiStack.
+
+Until you remove the old platform, **Move back** on any service undoes its move. When every site works, select **Remove Dokploy** or **Remove Coolify** on **Done**; LogiStack archives the old database and configuration under `/var/lib/logistack/migration/` first, and keeps every volume.
+
+## What stays behind
+
+Most apps, Compose files, databases, domains, variables, backups policies, registries, S3 destinations, notifications and GitHub Apps carry over. Some settings do not, for example redirects, preview deployments, databases on a custom image, and Git providers that the old platform connected over OAuth. Each item's notes list what it leaves behind; the full lists are in [Migrate from Dokploy](./migrate-from-dokploy.mdx#what-carries-over) and [Migrate from Coolify](./migrate-from-coolify.mdx#what-carries-over).

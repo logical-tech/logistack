@@ -1,4 +1,4 @@
-import { deriveSecretsKek, importMasterKey } from "@logistack/core";
+import { loadMasterKeys } from "@logistack/core";
 import { createDb, runMigrations } from "@logistack/db";
 import { createNodeRunner } from "@logistack/worker/node-runner";
 import { mountAgentGateway } from "./agent-gateway.ts";
@@ -6,6 +6,7 @@ import { serveAgentRpc } from "./agent-rpc.ts";
 import { resumeAgents } from "./ai/agent.ts";
 import { createApp } from "./app.ts";
 import { createAuth } from "./auth.ts";
+import { closeCluster, cluster, NODE_REVOKED_CHANNEL } from "./cluster.ts";
 import { type Config, loadConfig } from "./config.ts";
 import { startDrainSync } from "./drains.ts";
 import type { Deps } from "./env.ts";
@@ -15,6 +16,7 @@ import { resumeImports } from "./migration/import.ts";
 import { nodeTokenAuth } from "./node-tokens.ts";
 import { closeRedis, redisFor } from "./redis.ts";
 import { closeRunQueues } from "./run-queues.ts";
+import { startTrafficSync } from "./traffic-sync.ts";
 import { websocket } from "./ws.ts";
 
 export type { Actor } from "./actor.ts";
@@ -22,14 +24,19 @@ export type { AppType } from "./app.ts";
 export { createApp } from "./app.ts";
 export { envelope } from "./events.ts";
 
+/** How often a replica looks for imports and agent runs no live replica holds (leases last 30 s). */
+const RESUME_SWEEP_MS = 15_000;
+
 export async function createDeps(config: Config): Promise<Deps> {
 	const db = createDb(config.DATABASE_URL);
 	return {
 		config,
 		db,
 		auth: createAuth(config, db),
-		masterKey: await importMasterKey(config.LOGISTACK_MASTER_KEY),
-		secretsKek: await deriveSecretsKek(config.LOGISTACK_MASTER_KEY),
+		...(await loadMasterKeys(
+			config.LOGISTACK_MASTER_KEY,
+			config.LOGISTACK_MASTER_KEY_PREVIOUS,
+		)),
 		bus: await createBus(config.REDIS_URL),
 		nodes: await createNodeRunner(config.REDIS_URL),
 	};
@@ -38,6 +45,7 @@ export async function createDeps(config: Config): Promise<Deps> {
 export async function closeDeps(deps: Deps) {
 	deps.nodes.close();
 	closeRedis(deps.config.REDIS_URL);
+	closeCluster(deps.config.REDIS_URL);
 	await closeRunQueues();
 	deps.bus.close();
 	await deps.db.$client.end();
@@ -53,11 +61,25 @@ export async function startServer(config: Config) {
 		authenticate: nodeTokenAuth(deps.db, config.LOGISTACK_AGENT_TOKEN),
 	});
 	const rpc = await serveAgentRpc(agents, config.REDIS_URL);
+	const unrevoke = await cluster(config.REDIS_URL).on(
+		NODE_REVOKED_CHANNEL,
+		(m) => {
+			const nodeId = (m as { nodeId?: unknown } | null)?.nodeId;
+			if (typeof nodeId === "string")
+				agents.disconnect(nodeId, "node token revoked");
+		},
+	);
 	const drains = await startDrainSync({
 		db: deps.db,
 		masterKey: deps.masterKey,
 		agents,
 		redisUrl: config.REDIS_URL,
+	});
+	const traffic = await startTrafficSync({
+		db: deps.db,
+		agents,
+		redisUrl: config.REDIS_URL,
+		caddyService: config.LS_CADDY_SERVICE,
 	});
 	const server = Bun.serve({
 		port: config.PORT,
@@ -72,8 +94,10 @@ export async function startServer(config: Config) {
 		agents,
 		async stop() {
 			await server.stop(true);
+			unrevoke();
 			rpc.close();
 			drains.close();
+			traffic.close();
 			await closeDeps(deps);
 		},
 	};
@@ -85,9 +109,21 @@ if (import.meta.main) {
 	await runMigrations(config.DATABASE_URL);
 	const running = await startServer(config);
 	log("info", "listening", { url: running.server.url.href });
-	await resumeImports(running.deps);
-	await resumeAgents(running.deps);
+	// Other replicas may die mid-run: every replica sweeps up runs whose lease lapsed.
+	const sweep = async () => {
+		await resumeImports(running.deps);
+		await resumeAgents(running.deps);
+	};
+	await sweep();
+	const sweeper = setInterval(
+		() =>
+			void sweep().catch((error) =>
+				log("error", "resume sweep failed", { error: String(error) }),
+			),
+		RESUME_SWEEP_MS,
+	);
 	const stop = async () => {
+		clearInterval(sweeper);
 		await running.stop();
 		process.exit(0);
 	};

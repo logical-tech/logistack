@@ -29,6 +29,7 @@ import {
 } from "./enums.ts";
 import { project, service } from "./hierarchy.ts";
 import { s3Destination } from "./integrations.ts";
+import { pluginInstall } from "./plugins.ts";
 
 const org = () =>
 	text("organization_id")
@@ -148,6 +149,9 @@ export const notificationChannel = pgTable("notification_channel", {
 	name: text("name").notNull(),
 	// Encrypted JSON document (v1:<iv>:<ct>), not jsonb: webhook URLs and tokens are secrets.
 	configEncrypted: text("config_encrypted").notNull(),
+	/** Kind `plugin`: the install contributing it and the channel's name in its manifest. */
+	pluginInstallId: text("plugin_install_id").references(() => pluginInstall.id),
+	pluginProvider: text("plugin_provider"),
 	...timestamps,
 });
 

@@ -11,7 +11,7 @@ import {
 	deploymentContext,
 	type ServiceContext,
 } from "../src/load.ts";
-import { domainRoute, routeAccess } from "../src/proxy.ts";
+import { domainRoute, routeAccess, routeEdge } from "../src/proxy.ts";
 import { crashLoop, observe } from "../src/reconcile.ts";
 
 describe("buildPlan", () => {
@@ -503,5 +503,39 @@ describe("deploymentContext", () => {
 		);
 		expect(env.LOGISTACK_BRANCH).toBeUndefined();
 		expect(env.LOGISTACK_COMMIT_SHA).toBe("abc");
+	});
+});
+
+describe("routeEdge", () => {
+	const brand = { orgName: "Acme", logo: null };
+
+	test("no settings still gives the organization's 502-504 page and no maintenance", () => {
+		const r = routeEdge({}, null, brand);
+		expect(r.edge?.errorPage).toContain("Acme");
+		expect(r.edge?.rateLimit).toBeUndefined();
+		expect(r.maintenance).toBeUndefined();
+	});
+
+	test("a custom error page and rules pass through", () => {
+		const rateLimit = { requestsPerSecond: 5, burst: 10, exemptCidrs: [] };
+		const block = { paths: ["/x*"], userAgents: [] };
+		expect(
+			routeEdge({ errorPage: "<p>own</p>", rateLimit, block }, null, brand)
+				.edge,
+		).toEqual({ errorPage: "<p>own</p>", rateLimit, block });
+	});
+
+	test("maintenance applies only while enabled, with the message on the page", () => {
+		const settings = {
+			enabled: true,
+			allowCidrs: ["10.0.0.1"],
+			message: "Back at 9",
+		};
+		const on = routeEdge({}, settings, brand).maintenance;
+		expect(on?.allowCidrs).toEqual(["10.0.0.1"]);
+		expect(on?.page).toContain("Back at 9");
+		expect(
+			routeEdge({}, { ...settings, enabled: false }, brand).maintenance,
+		).toBeUndefined();
 	});
 });

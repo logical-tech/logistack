@@ -6,11 +6,15 @@
 		"logs-and-terminal",
 		"log-drains",
 		"metrics",
+		"traffic-analytics",
 		"nodes",
+		"os-patching",
 		"alerts-and-notifications",
+		"uptime-and-status-pages",
 		"vulnerability-scanning",
 		"usage",
 		"updates",
+		"migrate-in-ten-minutes",
 		"migrate-from-dokploy",
 		"migrate-from-coolify"
 	]

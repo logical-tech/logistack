@@ -10,12 +10,14 @@ import {
 	organization,
 	passkey,
 	ssoProvider,
+	twoFactorLockout,
 	user,
 } from "@logistack/db";
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Context } from "hono";
-import { recordAudit } from "./audit.ts";
+import { auditRow } from "./audit.ts";
 import type { Env } from "./env.ts";
+import { log } from "./log.ts";
 
 /*
  * The policy lives in `organization.metadata` (better-auth's JSON text column) as
@@ -39,7 +41,7 @@ export const defaultTwoFactorPolicy: StoredTwoFactorPolicy = {
 const metadataJson = sql`coalesce(${organization.metadata}::jsonb, '{}'::jsonb)`;
 
 export async function readTwoFactorPolicy(
-	db: Db,
+	db: Pick<Db, "select">,
 	organizationId: string,
 ): Promise<StoredTwoFactorPolicy> {
 	const [row] = await db
@@ -52,7 +54,7 @@ export async function readTwoFactorPolicy(
 
 /** Saves `next`; the grace clock starts when the mode turns to required and keeps running across edits. */
 export async function writeTwoFactorPolicy(
-	db: Db,
+	db: Pick<Db, "select" | "update">,
 	organizationId: string,
 	next: TwoFactorPolicy,
 	now = new Date(),
@@ -197,24 +199,25 @@ export async function auditBlocked(
 ) {
 	const actor = c.get("actor");
 	if (!actor) return;
-	const [seen] = await c.var.deps.db
-		.select({ id: auditLog.id })
-		.from(auditLog)
-		.where(
-			and(
-				eq(auditLog.organizationId, actor.organizationId),
-				gte(auditLog.at, deadline),
-				eq(auditLog.action, TWO_FACTOR_BLOCKED),
-				eq(auditLog.actorId, actor.id),
-			),
-		)
-		.limit(1);
-	if (seen) return;
-	// shortcut: check-then-insert, so two concurrent first requests can both write a row; harmless duplicate.
-	await recordAudit(c, {
-		action: TWO_FACTOR_BLOCKED,
-		resourceId: memberId,
-		diff: { deadline: deadline.toISOString() },
-		outcome: "denied",
-	});
+	// The lockout key decides who writes the row, so racing first requests write one, not two.
+	await c.var.deps.db
+		.transaction(async (tx) => {
+			const [first] = await tx
+				.insert(twoFactorLockout)
+				.values({ memberId, deadline })
+				.onConflictDoNothing()
+				.returning({ memberId: twoFactorLockout.memberId });
+			if (!first) return;
+			await tx.insert(auditLog).values(
+				auditRow(c, {
+					action: TWO_FACTOR_BLOCKED,
+					resourceId: memberId,
+					diff: { deadline: deadline.toISOString() },
+					outcome: "denied",
+				}),
+			);
+		})
+		.catch((error: unknown) =>
+			log("error", "two-factor lockout audit failed", { error: String(error) }),
+		);
 }

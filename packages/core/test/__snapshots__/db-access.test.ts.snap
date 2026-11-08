@@ -1,0 +1,73 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`the gateway compiles to a host-mode service on the org network, pinned to the database's node 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "tcp",
+        "PublishMode": "host",
+        "PublishedPort": 15001,
+        "TargetPort": 15001,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.kind": "gateway",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "dba_gw0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-gw-gw0000000000000000000000",
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Env": [
+        "ROLE=dbgateway",
+        "LS_GW_LISTEN=15001",
+        "LS_GW_UPSTREAM=ls-svc-db0000000000000000000000:5432",
+        "LS_GW_MODE=postgres",
+        "LS_GW_ALLOW=203.0.113.7,198.51.100.0/24",
+        "LS_GW_EXPIRES_AT=2026-11-08T12:00:00.000Z",
+      ],
+      "Healthcheck": {
+        "Test": [
+          "NONE",
+        ],
+      },
+      "Image": "ghcr.io/logical-tech/logistack:0.6.0",
+      "Labels": {
+        "logistack.kind": "gateway",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "dba_gw0000000000000000000000",
+      },
+      "StopGracePeriod": 5000000000,
+    },
+    "Networks": [
+      {
+        "Target": "net-org-db",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node-a",
+      ],
+    },
+    "RestartPolicy": {
+      "Condition": "on-failure",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;

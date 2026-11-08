@@ -311,7 +311,18 @@ export function createMockDb(): MockDb {
 				headBranch: "feat/saved-cards",
 				headSha: "9f2c4e1a7b3d5e6f8091a2b3c4d5e6f708192a3b",
 				author: "giulia",
-				urls: ["https://pr-128.preview.logical.it"],
+				urls: [
+					"https://pr-128-api.preview.logical.it",
+					"https://pr-128-storefront.preview.logical.it",
+				],
+				serviceUrls: {
+					api: "https://pr-128-api.preview.logical.it",
+					storefront: "https://pr-128-storefront.preview.logical.it",
+				},
+				primaryUrl: "https://pr-128-storefront.preview.logical.it",
+				stackErrors: {
+					search: "the compose file uses features LogiStack cannot run",
+				},
 				expiresAt: ago(-60 * 48),
 			},
 		},

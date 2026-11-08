@@ -21,6 +21,7 @@ import {
 	type Outcome,
 } from "../src/notify.ts";
 import {
+	acmeProxyChallenge,
 	dnsChallengeFor,
 	domainRoute,
 	isolateRoutes,
@@ -117,6 +118,45 @@ describe("proxy sync inputs", () => {
 			},
 		});
 		expect(() => dnsChallengeFor("gandi", {})).toThrow("no DNS-01 support");
+	});
+
+	test("a plugin DNS provider issues through acmeproxy pointed at the api", () => {
+		const route = domainRoute(
+			{
+				id: "d1",
+				hostname: "*.apps.example.com",
+				port: 80,
+				https: true,
+				cert: "auto",
+			} as DomainRow,
+			"ls-svc-1",
+			{
+				dnsChallenge: acmeProxyChallenge(
+					"logistack-api:3000",
+					"dns_plugin1",
+					"pw",
+				),
+			},
+		);
+		if (!route.ok) throw new Error(route.error);
+		const policies = compileProxy({ ...base, routes: [route.route] }).apps.tls
+			.automation.policies;
+		expect(policies[0]).toMatchSnapshot();
+		expect(policies[0]?.issuers).toEqual([
+			expect.objectContaining({
+				challenges: {
+					dns: {
+						provider: {
+							name: "acmeproxy",
+							endpoint: "http://logistack-api:3000/acme-proxy/dns_plugin1",
+							password: "pw",
+							username: "dns_plugin1",
+						},
+					},
+				},
+			}),
+		]);
+		expect(() => dnsChallengeFor("plugin", {})).toThrow("no DNS-01 support");
 	});
 
 	test("the instance wildcard gets one DNS-01 policy and is automated", () => {

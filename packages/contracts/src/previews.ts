@@ -19,7 +19,12 @@ export const PreviewSettings = z
 		/** The environment each preview is cloned from. */
 		sourceEnvironmentId: z.string().min(1),
 		/** Slugs of the source environment's git services that build the pull request's head commit. */
-		services: z.array(z.string().min(1)).min(1),
+		services: z.array(z.string().min(1)).default([]),
+		/**
+		 * Names of the source environment's git stacks that read their compose file, and build, from the
+		 * pull request's head. The other stacks are copied as they are.
+		 */
+		stacks: z.array(z.string().min(1)).default([]),
 		/**
 		 * e.g. `pr-{number}.{wildcard}` or `pr-{number}-{service}.preview.example.com`. Null gives each
 		 * service a generated hostname. A service whose host another one already took also gets a generated one.
@@ -43,6 +48,10 @@ export const PreviewSettings = z
 		/** Off by default: a fork's code would run with the preview's variables and secrets. */
 		allowForks: z.boolean().default(false),
 	})
+	.refine((s) => s.services.length + s.stacks.length > 0, {
+		message: "follow at least one service or stack",
+		path: ["services"],
+	})
 	.meta({ id: "PreviewSettings" });
 export type PreviewSettings = z.infer<typeof PreviewSettings>;
 
@@ -58,6 +67,12 @@ export const PreviewInfo = z
 		author: z.string(),
 		/** `https://` URLs of the preview's domains. */
 		urls: z.array(z.string()),
+		/** Each exposed service's URL by slug, stack services included; what `LOGISTACK_PREVIEW_URL_<SERVICE>` holds. */
+		serviceUrls: z.record(z.string(), z.string()).optional(),
+		/** The URL of the first followed service with a domain, else the first URL; `LOGISTACK_PREVIEW_URL`. */
+		primaryUrl: z.string().optional(),
+		/** Why a stack of the preview could not follow the pull request's last commit, by stack name. */
+		stackErrors: z.record(z.string(), z.string()).optional(),
 		/** The provider comment LogiStack keeps up to date on the pull request. */
 		commentId: z.string().optional(),
 		expiresAt: z.iso.datetime(),

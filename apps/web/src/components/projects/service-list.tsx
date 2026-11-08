@@ -1,7 +1,7 @@
 import type { StorageEngine } from "@logistack/contracts";
 import { GAMES } from "@logistack/contracts";
 import { Link } from "@tanstack/react-router";
-import { Container, GitBranch, Globe } from "lucide-react";
+import { CircleAlert, Container, GitBranch, Globe } from "lucide-react";
 import { ServiceGlyph, StackGlyph } from "@/components/service/service-icon";
 import { SignalStrip } from "@/components/signal-strip";
 import { stackStatus } from "@/components/stack/stack-header";
@@ -278,6 +278,15 @@ function StackRow({
 								? "Compose"
 								: "Template"}
 					</span>
+					{stack.gitSyncError && (
+						<span
+							className="flex shrink-0 items-center gap-1 text-warn-text"
+							title={stack.gitSyncError.message}
+						>
+							<CircleAlert className="size-3.5" aria-hidden />
+							Last push not applied
+						</span>
+					)}
 				</div>
 			</div>
 			<Domains domains={primary.domains} />
