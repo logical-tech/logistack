@@ -37,6 +37,21 @@ export const manifest = defineManifest({
 	},
 	contributes: {
 		events: ["deployment.failed", "deployment.succeeded"],
+		tools: [
+			{
+				name: "post-message",
+				description:
+					"Post a message to the chat webhook, as a test or a heads-up.",
+				inputSchema: {
+					type: "object",
+					properties: {
+						text: { type: "string", minLength: 1, maxLength: 2000 },
+					},
+					required: ["text"],
+				},
+				destructive: false,
+			},
+		],
 		pages: [
 			{
 				id: "failures",

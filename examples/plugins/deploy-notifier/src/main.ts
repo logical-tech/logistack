@@ -103,6 +103,22 @@ const ui = new Hono<PluginEnv>()
 export const app = createPlugin({
 	manifest,
 	ui,
+	tools: {
+		async "post-message"(input, ctx) {
+			const { text } = input as { text: string };
+			const config = await ctx.logistack.config<Config>();
+			const res = await fetch(config.webhookUrl, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					text: [config.mention, text].filter(Boolean).join(" "),
+				}),
+				signal: AbortSignal.timeout(10_000),
+			});
+			if (!res.ok) throw new Error(`the chat webhook answered ${res.status}`);
+			return { posted: true };
+		},
+	},
 	validateConfig(config) {
 		const url = String(config.webhookUrl ?? "");
 		if (!/^https:\/\//.test(url)) return "the webhook URL must be https";

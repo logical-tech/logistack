@@ -57,7 +57,7 @@ const METHODS = ["get", "post", "put", "patch", "delete"] as const;
 /** First-run setup is not something an agent with an API key should drive. */
 const EXCLUDED_TAGS = new Set(["setup"]);
 const RESERVED = new Set(["body", "confirm"]);
-const DESTRUCTIVE_VERB = /(^|[_/])(stop|restore|rollback)$/;
+const DESTRUCTIVE_VERB = /(^|[_/])(stop|restore|rollback|destructive)$/;
 
 /** Inlines `#/components/schemas/*` references; MCP clients expect self-contained schemas. */
 function deref(

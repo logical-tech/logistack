@@ -253,6 +253,66 @@ async function contextResource(
 	return organizationResource(orgId);
 }
 
+const ToolView = z
+	.object({
+		installId: z.string(),
+		pluginId: z.string(),
+		pluginName: z.string(),
+		name: z.string(),
+		description: z.string(),
+		inputSchema: z.record(z.string(), z.unknown()),
+		/** Run it with `POST /plugins/{id}/tools/{name}/destructive`, which asks for confirmation. */
+		destructive: z.boolean(),
+	})
+	.openapi("PluginTool");
+
+const ToolParams = z.object({ id: z.string(), name: z.string() });
+const ToolInput = z.object({
+	input: z.record(z.string(), z.unknown()).default({}),
+});
+const ToolOutput = z
+	.object({ output: z.unknown() })
+	.openapi("PluginToolOutput");
+
+/** Calls a contributed tool after checking it exists, its kind and its input schema. */
+async function runTool(c: Context<Env>, destructive: boolean) {
+	const row = await byInstall(c);
+	const { name } = c.req.valid("param" as never) as { name: string };
+	const { input } = c.req.valid("json" as never) as {
+		input: Record<string, unknown>;
+	};
+	c.set("auditResourceId", row.id);
+	if (!row.enabled) throw new Failure("conflict", "the plugin is disabled");
+	const tool = row.manifest.contributes.tools.find((t) => t.name === name);
+	if (!tool)
+		throw new Failure(
+			"not_found",
+			`${row.manifest.name} has no tool '${name}'`,
+		);
+	if (tool.destructive !== destructive)
+		throw new Failure(
+			"bad_request",
+			destructive
+				? `'${name}' is not destructive; call /tools/${name}`
+				: `'${name}' is destructive; call /tools/${name}/destructive`,
+		);
+	validateConfig(tool.inputSchema, input);
+	const actor = requireActor(c);
+	c.set("auditDiff", { tool: name, input });
+	try {
+		const r = await callInstall<{ output?: unknown }>(
+			c.var.deps,
+			row,
+			`/v1/tools/${name}`,
+			{ input, caller: { userId: actor.userId, kind: actor.kind } },
+			{ timeoutMs: 60_000 },
+		);
+		return { output: r?.output ?? null };
+	} catch (e) {
+		throw new Failure("bad_request", errMsg(e));
+	}
+}
+
 export const plugins = router()
 	.openapi(
 		createRoute({
@@ -309,6 +369,80 @@ export const plugins = router()
 				200,
 			);
 		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/plugins/tools",
+			tags: ["plugins"],
+			security,
+			summary:
+				"Tools that enabled plugins contribute, with their input schemas",
+			middleware: [requirePermission("read", inOrganization)],
+			responses: { 200: json(z.array(ToolView), "Tools"), ...errors },
+		}),
+		async (c) => {
+			const rows = await c.var.deps.db
+				.select()
+				.from(pluginInstall)
+				.where(
+					and(
+						eq(pluginInstall.organizationId, requireActor(c).organizationId),
+						eq(pluginInstall.enabled, true),
+					),
+				)
+				.orderBy(asc(pluginInstall.createdAt));
+			return c.json(
+				rows.flatMap((r) =>
+					r.manifest.contributes.tools.map((t) => ({
+						installId: r.id,
+						pluginId: r.pluginId,
+						pluginName: r.manifest.name,
+						name: t.name,
+						description: t.description,
+						inputSchema: t.inputSchema as Record<string, unknown>,
+						destructive: t.destructive,
+					})),
+				),
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
+			"plugin.tool_call",
+			createRoute({
+				method: "post",
+				path: "/plugins/{id}/tools/{name}",
+				tags: ["plugins"],
+				security,
+				summary: "Run a plugin's tool",
+				description:
+					"List tools and their input schemas with `GET /plugins/tools`. The plugin runs it with its own scoped key; destructive tools go through `/destructive`.",
+				middleware: [requirePermission("write", inOrganization)],
+				request: { params: ToolParams, ...body(ToolInput) },
+				responses: { 200: json(ToolOutput, "Output"), ...errors },
+			}),
+		),
+		async (c) => c.json(await runTool(c, false), 200),
+	)
+	.openapi(
+		mutation(
+			"plugin.tool_call_destructive",
+			createRoute({
+				method: "post",
+				path: "/plugins/{id}/tools/{name}/destructive",
+				tags: ["plugins"],
+				security,
+				summary: "Run a plugin's destructive tool",
+				description:
+					"For tools the plugin marks destructive. Needs the `delete` action; the Agent asks the user first.",
+				middleware: [requirePermission("delete", inOrganization)],
+				request: { params: ToolParams, ...body(ToolInput) },
+				responses: { 200: json(ToolOutput, "Output"), ...errors },
+			}),
+		),
+		async (c) => c.json(await runTool(c, true), 200),
 	)
 	.openapi(
 		createRoute({

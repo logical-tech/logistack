@@ -184,6 +184,32 @@ describe.skipIf(!hasDocker)("plugins", () => {
 		expect(other.has(installId)).toBe(false);
 	});
 
+	test("tools are listed with their schemas and run through the plugin", async () => {
+		const list = await h.call("GET", "/api/plugins/tools", as());
+		expect(list.json).toHaveLength(1);
+		expect(list.json[0].name).toBe("post-message");
+		const bad = await h.call(
+			"POST",
+			`/api/plugins/${installId}/tools/post-message`,
+			{ ...as(), body: { input: {} } },
+		);
+		expect(bad.status).toBe(400);
+		const res = await h.call(
+			"POST",
+			`/api/plugins/${installId}/tools/post-message`,
+			{ ...as(), body: { input: { text: "hello" } } },
+		);
+		expect(res.status).toBe(200);
+		expect(res.json.output).toEqual({ posted: true });
+		expect(posted.at(-1)).toEqual({ text: "@oncall hello" });
+		const wrongKind = await h.call(
+			"POST",
+			`/api/plugins/${installId}/tools/post-message/destructive`,
+			{ ...as(), body: { input: { text: "x" } } },
+		);
+		expect(wrongKind.status).toBe(400);
+	});
+
 	test("pages are proxied into an opaque origin, with no cookies either way", async () => {
 		const res = await h.app.request(`/plugins/${installId}/ui/failures`, {
 			headers: { cookie },
