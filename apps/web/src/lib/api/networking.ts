@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import type { StatusCode } from "hono/utils/http-status";
+import type { PluginRef } from "../plugin-providers";
 import { api } from ".";
 import { client, setupHeader } from "./client";
 import { done, ok } from "./http";
@@ -66,6 +67,7 @@ export type NetworkingApi = {
 		test(
 			kind: DnsKind,
 			credentials: Record<string, unknown>,
+			plugin?: PluginRef,
 		): Promise<{ zones: DnsZone[] }>;
 		create(input: CreateDnsProvider): Promise<DnsProvider>;
 		update(id: string, patch: UpdateDnsProvider): Promise<DnsProvider>;
@@ -119,6 +121,7 @@ export type NetworkingApi = {
 		testConfig(
 			kind: ChannelKind,
 			config: Record<string, unknown>,
+			plugin?: PluginRef,
 		): Promise<void>;
 		createChannel(input: CreateChannel): Promise<Channel>;
 		testChannel(id: string): Promise<void>;
@@ -138,8 +141,12 @@ export const networkingHttp: NetworkingApi = {
 	schemas: () => ok(a().integrations.schemas.$get()),
 	dns: {
 		list: () => ok(a()["dns-providers"].$get()),
-		test: (kind, credentials) =>
-			ok(a()["dns-providers"].test.$post({ json: { kind, credentials } })),
+		test: (kind, credentials, plugin) =>
+			ok(
+				a()["dns-providers"].test.$post({
+					json: { kind, credentials, ...plugin },
+				}),
+			),
 		create: (json) => ok(a()["dns-providers"].$post({ json })),
 		update: (v, json) =>
 			ok(a()["dns-providers"][":id"].$patch({ ...id(v), json })),
@@ -221,9 +228,11 @@ export const networkingHttp: NetworkingApi = {
 	},
 	notifications: {
 		channels: () => ok(a()["notification-channels"].$get()),
-		testConfig: async (kind, config) => {
+		testConfig: async (kind, config, plugin) => {
 			await ok(
-				a()["notification-channels"].test.$post({ json: { kind, config } }),
+				a()["notification-channels"].test.$post({
+					json: { kind, config, ...plugin },
+				}),
 			);
 		},
 		createChannel: (json) => ok(a()["notification-channels"].$post({ json })),

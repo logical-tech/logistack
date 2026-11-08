@@ -30,6 +30,8 @@ const providers: DnsProvider[] = [
 	{
 		id: "dns_cf_logical",
 		kind: "cloudflare",
+		pluginInstallId: null,
+		pluginProvider: null,
 		name: "Cloudflare · Logical",
 		zones: [
 			{ id: "z_logical", name: "logical.it" },
@@ -42,6 +44,8 @@ const providers: DnsProvider[] = [
 	{
 		id: "dns_hz_nordwind",
 		kind: "hetzner",
+		pluginInstallId: null,
+		pluginProvider: null,
 		name: "Hetzner · Nordwind",
 		zones: [{ id: "z_nordwind", name: "nordwind.de" }],
 		domains: 1,
@@ -294,6 +298,8 @@ const channels: Channel[] = [
 	{
 		id: "nch_ops",
 		kind: "slack",
+		pluginInstallId: null,
+		pluginProvider: null,
 		name: "#ops-alerts",
 		rules: 2,
 		delivery: {
@@ -307,6 +313,8 @@ const channels: Channel[] = [
 	{
 		id: "nch_oncall",
 		kind: "email",
+		pluginInstallId: null,
+		pluginProvider: null,
 		name: "On-call inbox",
 		rules: 1,
 		delivery: {
@@ -320,6 +328,8 @@ const channels: Channel[] = [
 	{
 		id: "nch_hook",
 		kind: "webhook",
+		pluginInstallId: null,
+		pluginProvider: null,
 		name: "Acme status relay",
 		rules: 1,
 		delivery: null,
@@ -483,6 +493,8 @@ export const networkingMock: NetworkingApi = {
 			const p: DnsProvider = {
 				id: rid("dns"),
 				kind: input.kind,
+				pluginInstallId: input.pluginInstallId ?? null,
+				pluginProvider: input.pluginProvider ?? null,
 				name: input.name,
 				zones: input.zones,
 				domains: 0,
@@ -766,6 +778,8 @@ export const networkingMock: NetworkingApi = {
 			const c: Channel = {
 				id: rid("nch"),
 				kind: input.kind,
+				pluginInstallId: input.pluginInstallId ?? null,
+				pluginProvider: input.pluginProvider ?? null,
 				name: input.name,
 				rules: 0,
 				delivery: null,

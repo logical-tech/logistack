@@ -20,6 +20,7 @@ import { api } from "@/lib/api";
 import { schemasQuery, useInvalidating } from "@/lib/api/networking";
 import type { SecretProviderKind } from "@/lib/api/secrets";
 import { SECRET_PROVIDER_KINDS } from "@/lib/integrations";
+import { usePluginChoices } from "@/lib/plugin-providers";
 import { stepParam } from "@/lib/search";
 
 export const Route = createFileRoute(
@@ -30,9 +31,10 @@ export const Route = createFileRoute(
 	component: NewSecretProvider,
 });
 
-type V = { kind: SecretProviderKind; config: ConfigValues; name: string };
+/** `kind` is the radio value: a built-in kind, or a plugin provider's key. */
+type V = { kind: string; config: ConfigValues; name: string };
 
-const HINTS: Record<SecretProviderKind, Record<string, string>> = {
+const HINTS: Partial<Record<SecretProviderKind, Record<string, string>>> = {
 	vault: {
 		url: "The Vault address, like https://vault.example.com:8200. Plain http works only to a private address, once private hosts are allowed in Settings.",
 		token:
@@ -63,10 +65,25 @@ function NewSecretProvider() {
 	const create = useInvalidating(api.secrets.providers.create, [
 		["secret-providers"],
 	]);
+	const fromPlugins = usePluginChoices<SecretProviderKind>("secretProviders");
+	const { resolve } = fromPlugins;
 	const schemaOf = useCallback(
-		(kind: SecretProviderKind) =>
-			schemas?.secrets[kind] as ConfigSchema | undefined,
-		[schemas],
+		(value: string) => {
+			const { kind, plugin } = resolve(value);
+			return plugin
+				? plugin.schema
+				: (schemas?.secrets[kind] as ConfigSchema | undefined);
+		},
+		[schemas, resolve],
+	);
+	/** The label and reference shape of a radio value. */
+	const meta = useCallback(
+		(value: string) => {
+			const { kind, plugin } = resolve(value);
+			const k = SECRET_PROVIDER_KINDS[kind];
+			return { ...k, kind, plugin, label: plugin?.title ?? k.label };
+		},
+		[resolve],
 	);
 
 	const steps = useMemo((): WizardStep<V>[] => {
@@ -89,14 +106,17 @@ function NewSecretProvider() {
 							const s = schemaOf(kind);
 							w.set("config", s ? initialValues(s) : {});
 						}}
-						choices={(
-							Object.keys(SECRET_PROVIDER_KINDS) as SecretProviderKind[]
-						).map((k) => ({
-							value: k,
-							title: SECRET_PROVIDER_KINDS[k].label,
-							description: SECRET_PROVIDER_KINDS[k].blurb,
-							icon: SECRET_PROVIDER_KINDS[k].icon,
-						}))}
+						choices={[
+							...(Object.keys(SECRET_PROVIDER_KINDS) as SecretProviderKind[])
+								.filter((k) => k !== "plugin")
+								.map((k) => ({
+									value: k as string,
+									title: SECRET_PROVIDER_KINDS[k].label,
+									description: SECRET_PROVIDER_KINDS[k].blurb,
+									icon: SECRET_PROVIDER_KINDS[k].icon,
+								})),
+							...fromPlugins.choices,
+						]}
 					/>
 				),
 			},
@@ -127,7 +147,7 @@ function NewSecretProvider() {
 							errors={
 								w.error("config") ? missingFields(s, w.values.config) : {}
 							}
-							hints={HINTS[w.values.kind]}
+							hints={HINTS[meta(w.values.kind).kind]}
 						/>
 					);
 				},
@@ -140,10 +160,15 @@ function NewSecretProvider() {
 				testKeys: ["kind", "config"],
 				test: async (v) => {
 					try {
-						await api.secrets.providers.testConfig(v.kind, config(v));
+						const m = meta(v.kind);
+						await api.secrets.providers.testConfig(
+							m.kind,
+							config(v),
+							m.plugin?.ref,
+						);
 						return {
 							ok: true,
-							message: `Signed in to ${SECRET_PROVIDER_KINDS[v.kind].label}`,
+							message: `Signed in to ${m.label}`,
 							detail: "The credentials work from this server.",
 						};
 					} catch (err) {
@@ -158,7 +183,7 @@ function NewSecretProvider() {
 					<TestPanel
 						w={w}
 						action="Test connection"
-						idle={`We'll sign in to ${SECRET_PROVIDER_KINDS[w.values.kind].label} from this server.`}
+						idle={`We'll sign in to ${meta(w.values.kind).label} from this server.`}
 					/>
 				),
 			},
@@ -187,7 +212,7 @@ function NewSecretProvider() {
 									Secrets will read{" "}
 									<code className="font-mono text-foreground">
 										secret://{w.values.name || "name"}/
-										{SECRET_PROVIDER_KINDS[w.values.kind].path}
+										{meta(w.values.kind).path}
 									</code>
 								</>
 							}
@@ -198,7 +223,7 @@ function NewSecretProvider() {
 								autoComplete="off"
 								spellCheck={false}
 								className="font-mono"
-								placeholder={`${w.values.kind}-prod`}
+								placeholder={`${meta(w.values.kind).kind}-prod`}
 							/>
 						</Field>
 					</div>
@@ -219,15 +244,14 @@ function NewSecretProvider() {
 								rows: [
 									{
 										label: "Kind",
-										value: SECRET_PROVIDER_KINDS[w.values.kind].label,
+										value: meta(w.values.kind).label,
 									},
 									{ label: "Name", value: w.values.name },
 									{
 										label: "Example",
 										value: (
 											<code className="font-mono">
-												secret://{w.values.name}/
-												{SECRET_PROVIDER_KINDS[w.values.kind].example}
+												secret://{w.values.name}/{meta(w.values.kind).example}
 											</code>
 										),
 									},
@@ -239,7 +263,7 @@ function NewSecretProvider() {
 				),
 			},
 		];
-	}, [schemaOf]);
+	}, [schemaOf, meta, fromPlugins.choices]);
 
 	const onStepChange = useCallback(
 		(id: string, { replace }: { replace: boolean }) =>
@@ -269,10 +293,12 @@ function NewSecretProvider() {
 				finishLabel="Add provider"
 				onComplete={async (v) => {
 					const s = schemaOf(v.kind);
+					const m = meta(v.kind);
 					const p = await create.mutateAsync({
-						kind: v.kind,
+						kind: m.kind,
 						name: v.name.trim(),
 						config: s ? toConfig(s, v.config) : {},
+						...m.plugin?.ref,
 					});
 					toast.success(`${p.name} added`, {
 						description: `Reference its secrets as secret://${p.name}/…`,
