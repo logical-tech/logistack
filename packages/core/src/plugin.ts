@@ -47,6 +47,8 @@ export type PluginInput = {
 	env: Omit<PluginEnv, "LOGISTACK_INSTALL_ID" | "PORT">;
 	/** Id or name of the plugins overlay. */
 	network: string;
+	/** `HTTP_PROXY` and friends from `egressClientEnv`: the only way out of the internal overlay. */
+	proxyEnv?: Record<string, string>;
 	scope?: { namePrefix: string; labels: Labels };
 };
 
@@ -79,7 +81,9 @@ export function compilePlugin(i: PluginInput): ServiceSpec {
 			ContainerSpec: {
 				Image: install.image,
 				Labels: labels,
-				Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
+				Env: Object.entries({ ...i.proxyEnv, ...env }).map(
+					([k, v]) => `${k}=${v}`,
+				),
 				ReadOnly: true,
 				CapabilityDrop: ["ALL"],
 				Mounts: [

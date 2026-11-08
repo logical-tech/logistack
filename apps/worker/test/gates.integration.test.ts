@@ -51,7 +51,7 @@ describe.skipIf(!hasDocker)("deploy gates", () => {
 			async fetch(req) {
 				if (new URL(req.url).pathname !== "/v1/gates/deploy")
 					return new Response("no", { status: 404 });
-				asked.push(await req.json());
+				asked.push((await req.json()) as (typeof asked)[number]);
 				return answer();
 			},
 		});

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Entrypoint of the logistack images. Dispatches on ROLE=api|worker|dbgateway.
+# Entrypoint of the logistack images. Dispatches on ROLE=api|worker|dbgateway|egressproxy.
 set -eu
 
 # Docker secrets arrive as files (FOO_FILE=/run/secrets/...); the apps read plain FOO.
@@ -40,8 +40,12 @@ dbgateway)
 	# A database's public port or port forward: no secrets, no socket, nothing to drop.
 	exec bun apps/worker/src/db-gateway.ts
 	;;
+egressproxy)
+	# The plugins' only route out: declared hosts only, no socket, no secrets but its HMAC key.
+	exec bun apps/worker/src/egress-proxy.ts
+	;;
 *)
-	echo "logistack: ROLE must be 'api', 'worker' or 'dbgateway' (got '${ROLE:-}')" >&2
+	echo "logistack: ROLE must be 'api', 'worker', 'dbgateway' or 'egressproxy' (got '${ROLE:-}')" >&2
 	exit 64
 	;;
 esac

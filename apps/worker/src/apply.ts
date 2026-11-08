@@ -89,6 +89,8 @@ export async function ensureEnvNetwork(
 export async function ensureStackNetwork(
 	ctx: Ctx,
 	name: string,
+	/** No route out (the plugins overlay); the api and worker keep theirs through other networks. */
+	opts: { internal?: boolean } = {},
 ): Promise<void> {
 	const stack = ctx.cfg.LS_STACK_NAME;
 	const names = [`${stack}_logistack-api`, `${stack}_logistack-worker`];
@@ -105,6 +107,7 @@ export async function ensureStackNetwork(
 				Driver: "overlay",
 				Attachable: true,
 				Scope: "swarm",
+				...(opts.internal ? { Internal: true } : {}),
 				Labels: { "com.docker.stack.namespace": stack },
 			}),
 	);
