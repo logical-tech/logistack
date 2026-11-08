@@ -23,7 +23,15 @@ export type Resource = {
 	serviceId?: string;
 };
 
-export type BuiltinRole = "owner" | "admin" | "developer" | "viewer";
+export type BuiltinRole =
+	| "owner"
+	| "admin"
+	| "developer"
+	| "viewer"
+	/** Project manager: Work only, no ops `read`. */
+	| "manager"
+	/** Reads and comments on Work; granted on a project scope only. */
+	| "guest";
 export type CustomRole = { id: string; actions: readonly PermissionAction[] };
 export type Grant = {
 	subjectId: string;
@@ -35,9 +43,18 @@ export type Actor = { id: string };
 const builtinActions: Record<BuiltinRole, readonly PermissionAction[]> = {
 	owner: permissionActions,
 	admin: permissionActions,
-	developer: ["read", "deploy", "write"],
-	viewer: ["read"],
+	developer: ["read", "deploy", "write", "read:work", "work"],
+	viewer: ["read", "read:work", "comment:work"],
+	manager: ["read:work", "work", "work:admin"],
+	guest: ["read:work", "comment:work"],
 };
+
+/** Holding the key implies each listed action, so a custom role may list just `work`. */
+const implied: Partial<Record<PermissionAction, readonly PermissionAction[]>> =
+	{
+		"comment:work": ["work"],
+		"read:work": ["comment:work", "work"],
+	};
 
 function ancestry(r: Resource): Set<string> {
 	const keys = [`organization:${r.organizationId}`];
@@ -58,8 +75,15 @@ function allows(
 		return role === "owner";
 	const actions =
 		typeof role === "string" ? builtinActions[role] : role.actions;
-	return actions.includes(action);
+	return (
+		actions.includes(action) ||
+		(implied[action]?.some((a) => actions.includes(a)) ?? false)
+	);
 }
+
+/** True when `role` allows `action` somewhere below the organization (used for shell surfaces). */
+export const roleAllows = (role: Grant["role"], action: PermissionAction) =>
+	allows(role, action, { type: "project", organizationId: "_" });
 
 /** Allow-only: true when some grant held by `actor`, on the resource or an ancestor scope, includes `action`. */
 export function can(

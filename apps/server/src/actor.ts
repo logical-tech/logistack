@@ -84,6 +84,8 @@ export const builtinRoles: Record<string, BuiltinRole> = {
 	admin: "admin",
 	developer: "developer",
 	viewer: "viewer",
+	manager: "manager",
+	guest: "guest",
 	// better-auth's default invitation role.
 	member: "viewer",
 };

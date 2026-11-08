@@ -13,6 +13,7 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import {
 	actionsOf,
+	assertGuestScope,
 	assertOwnershipChange,
 	builtinRoleNames,
 	customRoleRow,
@@ -165,6 +166,7 @@ export const members = router()
 			const input = c.req.valid("json");
 			const { db } = c.var.deps;
 			const orgId = requireActor(c).organizationId;
+			assertGuestScope(input.role, "organization");
 			await resolveRole(c, input.role);
 			await assertOwnershipChange(c, undefined, input.role);
 			const u = one(
@@ -235,6 +237,7 @@ export const members = router()
 			const { role } = c.req.valid("json");
 			c.set("auditResourceId", id);
 			const current = await memberRow(c, id);
+			assertGuestScope(role, "organization");
 			await resolveRole(c, role);
 			await assertOwnershipChange(c, current.role, role);
 			await c.var.deps.db.transaction(async (tx) => {
@@ -338,6 +341,7 @@ export const members = router()
 			const input = c.req.valid("json");
 			const actor = requireActor(c);
 			const { db } = c.var.deps;
+			assertGuestScope(input.role, "organization");
 			await resolveRole(c, input.role);
 			await assertOwnershipChange(c, undefined, input.role);
 			const already = await db
@@ -496,6 +500,7 @@ export const members = router()
 					"bad_request",
 					"ownership is organization-wide; change the member's role instead",
 				);
+			assertGuestScope(input.role, input.scope.kind);
 			await resolveRole(c, input.role);
 			const isMember = await db.$count(
 				member,

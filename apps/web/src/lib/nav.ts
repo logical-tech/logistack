@@ -364,7 +364,7 @@ export const NAV: NavGroup[] = [
 				title: "Roles",
 				icon: ShieldCheck,
 				description:
-					"Owner, admin, developer and viewer, plus custom roles scoped from folder to service.",
+					"Owner, admin, developer, viewer, project manager and guest, plus custom roles scoped from folder to service.",
 				empty: {
 					title: "Four built-in roles cover most teams",
 					body: "Create a custom role when someone needs deploy rights on one project without seeing secrets.",

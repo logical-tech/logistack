@@ -1510,7 +1510,8 @@ export type WorkTimeReport = z.infer<typeof WorkTimeReport>;
 
 export const WorkTemplate = z.object({
 	id: Id,
-	organizationId: Id,
+	/** Null: built-in, seeded per instance. */
+	organizationId: z.string().nullable(),
 	/** Null: organization-wide. */
 	projectId: z.string().nullable(),
 	kind: WorkTemplateKind,
