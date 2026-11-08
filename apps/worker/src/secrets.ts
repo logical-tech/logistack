@@ -125,7 +125,7 @@ async function writeVersion(
 		),
 		createdBy: userId,
 	});
-	// shortcut: v1 copy kept for the previous release and for in-process credential readers; drop next release.
+	// shortcut: v1 copy kept only for v0.5.0, whose credential readers still read it; stop writing it next release.
 	await ctx.db
 		.update(envVar)
 		.set({ valueEncrypted: await encrypt(ctx.masterKey, value) })

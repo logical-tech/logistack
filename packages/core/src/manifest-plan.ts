@@ -71,12 +71,29 @@ const changedFields = <T extends object>(a: T, b: T) =>
 	);
 
 /** A secret in the manifest without a value means "keep the stored one". */
+const isSecret = (v: ManifestVariable) => v.secret || !!v.secretRef;
+const refName = (r: NonNullable<ManifestVariable["secretRef"]>) =>
+	r.scope ? `${r.key}@${r.scope}` : r.key;
+
 function variableChanges(have: ManifestVariable, want: ManifestVariable) {
 	const lines: string[] = [];
 	if (want.value !== undefined && want.value !== have.value)
 		lines.push("value changed");
-	if (want.secret !== have.secret)
-		lines.push(want.secret ? "now secret" : "no longer secret");
+	if (isSecret(want) !== isSecret(have))
+		lines.push(isSecret(want) ? "now secret" : "no longer secret");
+	if (want.secretRef) {
+		// A reference without a scope names whichever scope defines the key: same key, same secret.
+		const h = have.secretRef;
+		if (
+			!h ||
+			h.key !== want.secretRef.key ||
+			(want.secretRef.scope && h.scope !== want.secretRef.scope)
+		)
+			lines.push(`now references ${refName(want.secretRef)}`);
+	} else if (have.secretRef && want.value !== undefined)
+		lines.push("no longer a reference");
+	if (!!want.asFile !== !!have.asFile && isSecret(want))
+		lines.push(want.asFile ? "now a file" : "no longer a file");
 	if (want.buildTime !== have.buildTime)
 		lines.push(want.buildTime ? "now build time" : "no longer build time");
 	return lines;
@@ -94,6 +111,16 @@ const mintedKeys = (spec: ServiceSpec) =>
 					: {},
 	);
 
+/** One entry of `PUT /services/{id}/env-vars`, with a reference still named rather than resolved to an id. */
+export type ServiceVariableBody = {
+	key: string;
+	value?: string;
+	isSecret: boolean;
+	isBuildTime: boolean;
+	secretRef?: NonNullable<ManifestVariable["secretRef"]>;
+	asFile?: boolean;
+};
+
 /**
  * Pure: the service-scope variables `PUT /services/{id}/env-vars` should get, and whether that
  * differs from `have`. Without `prune` a key the manifest does not list is kept. A secret with no
@@ -107,22 +134,19 @@ export function serviceVariables(
 	const stored = new Map(have.map((v) => [v.key, v]));
 	const listed = new Set(want.map((v) => v.key));
 	const lines: string[] = [];
-	const body: {
-		key: string;
-		value?: string;
-		isSecret: boolean;
-		isBuildTime: boolean;
-	}[] = [];
+	const body: ServiceVariableBody[] = [];
 	for (const v of want) {
 		const prev = stored.get(v.key);
-		if (!prev && v.value === undefined) continue;
+		if (!prev && v.value === undefined && !v.secretRef) continue;
 		const diff = prev ? variableChanges(prev, v) : ["added"];
 		if (diff.length) lines.push(`variable ${v.key} ${diff.join(", ")}`);
 		body.push({
 			key: v.key,
 			...(v.value !== undefined && { value: v.value }),
-			isSecret: v.secret,
+			isSecret: isSecret(v),
 			isBuildTime: v.buildTime,
+			...(v.secretRef && { secretRef: v.secretRef }),
+			...(isSecret(v) && { asFile: !!v.asFile }),
 		});
 	}
 	for (const v of have)
@@ -131,7 +155,7 @@ export function serviceVariables(
 			else
 				body.push({
 					key: v.key,
-					isSecret: v.secret,
+					isSecret: isSecret(v),
 					isBuildTime: v.buildTime,
 				});
 		}
@@ -214,8 +238,14 @@ function planVariables(
 	where: string,
 ) {
 	const stored = new Set(have.map((v) => v.key));
+	for (const v of want)
+		if (v.secretRef)
+			ctx.warnings.push(
+				`${where}: ${v.key} references a secret; references belong to service variables, so it is skipped`,
+			);
+	want = want.filter((v) => !v.secretRef);
 	const missing = want.filter(
-		(v) => v.value === undefined && !stored.has(v.key),
+		(v) => v.value === undefined && !v.secretRef && !stored.has(v.key),
 	);
 	for (const v of missing)
 		ctx.warnings.push(
@@ -229,7 +259,7 @@ function planVariables(
 		(v) => v.key,
 		variableChanges,
 		{},
-		(v) => [v.secret ? "new secret" : "new"],
+		(v) => [isSecret(v) ? "new secret" : "new"],
 	);
 }
 
@@ -260,7 +290,11 @@ function serviceChanges(
 		...serviceVariables(have.variables, want.variables, ctx.prune).lines,
 	);
 	for (const v of want.variables)
-		if (v.value === undefined && !have.variables.some((h) => h.key === v.key))
+		if (
+			v.value === undefined &&
+			!v.secretRef &&
+			!have.variables.some((h) => h.key === v.key)
+		)
 			ctx.warnings.push(
 				`${ctx.environment}/${want.slug}: secret ${v.key} has no value in the manifest; set it after applying`,
 			);
@@ -290,7 +324,7 @@ function serviceCreated(ctx: Ctx, want: ManifestService) {
 	if (want.stack) return [`created by stack ${want.stack}`];
 	const minted = new Set(mintedKeys(want.spec));
 	for (const v of want.variables)
-		if (v.value === undefined && !minted.has(v.key))
+		if (v.value === undefined && !v.secretRef && !minted.has(v.key))
 			ctx.warnings.push(
 				`${ctx.environment}/${want.slug}: secret ${v.key} has no value in the manifest; set it after applying`,
 			);

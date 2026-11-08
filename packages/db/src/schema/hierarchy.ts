@@ -193,6 +193,8 @@ export const envVar = pgTable(
 		secretId: text("secret_id").references(() => secret.id, {
 			onDelete: "restrict",
 		}),
+		/** A secret reference mounted as `/run/secrets/<key>` (a Swarm secret) instead of an env var. */
+		asFile: boolean("as_file").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [

@@ -36,6 +36,7 @@ import { files } from "./routes/files.ts";
 import { folders } from "./routes/folders.ts";
 import { games } from "./routes/games.ts";
 import { git } from "./routes/git.ts";
+import { gitops } from "./routes/gitops.ts";
 import { health } from "./routes/health.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
@@ -155,6 +156,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", services)
 		.route("/api", stacks)
 		.route("/api", manifests)
+		.route("/api", gitops)
 		.route("/api", previews)
 		.route("/api", envVars)
 		.route("/api", secrets)

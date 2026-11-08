@@ -1,0 +1,119 @@
+---
+title: Deploy a project from a manifest in git (GitOps)
+description: Link a project to a manifest file in a git repository so every push that changes it is planned, applied and deployed, and optionally refuse manual edits.
+---
+
+GitOps keeps a project's desired state in a [project manifest](./project-manifests.mdx) inside a git repository. When a push changes the file, LogiStack reads it at the pushed commit, plans it against the project, applies the changes and deploys the services that changed. The file's history becomes the project's history: every change has an author, a diff and a review. Use it when a team wants changes reviewed in pull requests instead of made by hand in the dashboard.
+
+You need a connected [git provider](../deploy/from-git.mdx) whose webhook reaches LogiStack, and a project manifest in the repository. The easiest start is to export the project you already run: open the project's actions menu (**⋯**), select **Export manifest** and commit the file.
+
+## Link a project to a repository
+
+<Steps>
+<Step>
+
+### Open GitOps
+
+Open the project, open its actions menu (**⋯**) and select **GitOps…**.
+
+</Step>
+<Step>
+
+### Choose the repository
+
+Pick the **Git provider**, the **Repository** and the **Branch** LogiStack follows. Select **Continue**.
+
+</Step>
+<Step>
+
+### Point at the manifest and test it
+
+Enter the **Manifest path** inside the repository, for example `deploy/logistack.yaml`. Select **Read and plan**: LogiStack reads the file at the branch head, validates it and lists what applying it would change. Nothing is applied yet.
+
+![The Manifest step of the GitOps wizard for the Storefront project, with the path storefront/logistack.yaml and the Read and plan test](/screens/project-gitops-wizard.webp)
+
+A file exported from this project plans no change: "it matches what the project runs".
+
+</Step>
+<Step>
+
+### Choose how it applies
+
+- **Apply on push**: a push that changes the manifest applies it and deploys the services it changed. Turned off, a push only records what would change, and you apply it with **Sync now**.
+- **Managed by git**: edits to the project in the dashboard, the API and the MCP server are refused. See [Managed by git](#managed-by-git).
+- **Delete what the manifest leaves out**: environments, services, domains, variables and backup policies the file does not list are removed on apply.
+
+</Step>
+<Step>
+
+### Review and save
+
+Check the summary and select **Follow this repository**. The next push that changes the file applies it. Select **Sync now** to apply the branch head at once.
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+  With **Delete what the manifest leaves out**, a service removed from the file is deleted with its volumes. Keep it off until the manifest lists everything the project runs.
+</Callout>
+
+## What happens on a push
+
+The webhook that already deploys services from git also drives GitOps. For each project that follows the pushed repository and branch:
+
+1. LogiStack checks the push touches the manifest path. A push that leaves the file alone does nothing to the project.
+2. It reads the file at the pushed commit and validates it as a project manifest (`kind: project`).
+3. It applies the manifest, or only plans it when **Apply on push** is off.
+4. It queues a deployment of every running service the apply changed: the service itself, or every service under a changed environment or project variable. Services that belong to a git stack are deployed by their stack.
+
+The apply runs as a system actor that holds the admin role on that project and nothing else, so a manifest cannot change anything outside its project. Each apply is recorded in the [audit log](../team/audit-log.mdx) as `project.apply`, with the actor `gitops-<project id>`.
+
+## Check that it worked
+
+The **GitOps** page shows the repository, the manifest path and the last sync: its status, when it ran and the commit it read.
+
+![The GitOps page of the Storefront project: acme-retail/infra#main, storefront/logistack.yaml, a failed sync with the apply error and its details](/screens/project-gitops.webp)
+
+The project header shows **Managed by git** (or **Follows git** when edits are still allowed). It adds **sync failed** while the last sync has an error.
+
+## When a sync fails
+
+A manifest that does not read, does not validate or does not apply leaves the project as it was and records the error on the **GitOps** page: the message, the commit, and one line per detail, such as each invalid path or each missing organization resource. Fix the file and push again, or select **Sync now**. The next sync that works clears the error.
+
+## Managed by git
+
+With **Managed by git** on, any change to the project made outside the repository gets a 409 that names the file and the repository:
+
+```text
+this project is managed by git: change deploy/logistack.yaml in acme/infra (main) instead, or turn off "Managed by git" in the project's GitOps settings
+```
+
+This covers the project, its environments, services, variables, domains, stacks and backup policies, from the dashboard, the API and the MCP server. Three things stay open:
+
+- **Secrets**, because their values never live in the repository. Reference them from the manifest by name with `secretRef`: see [Secrets in a manifest](./project-manifests.mdx#secrets-in-a-manifest).
+- **Deploys**, restarts and rollbacks, which run what the desired state already says.
+- **The GitOps settings**, so an admin can turn the mode off.
+
+## Stop following a repository
+
+On the **GitOps** page, select **Stop following**, then **Confirm stop**. The project keeps its current state and takes edits again.
+
+## With the API
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/projects/{id}/gitops` | The link and its last sync, or `null`. |
+| `POST /api/projects/{id}/gitops/check` | Reads the file and returns the plan, without linking. |
+| `PUT /api/projects/{id}/gitops` | Links or updates: `gitProviderId`, `repository`, `branch`, `path`, `autoApply`, `prune`, `managed`. `prune` needs `delete` on the project. |
+| `POST /api/projects/{id}/gitops/sync` | Syncs the branch head now. |
+| `DELETE /api/projects/{id}/gitops` | Stops following. |
+
+Every route needs `write` on the project, except `GET`, which needs `read`.
+
+## Common problems
+
+- **`couldn't read acme/infra@main:deploy/logistack.yaml`.** The path, branch or repository is wrong, or the provider cannot read the repository. Check the provider's access in **Integrations** › **Git providers**.
+- **`… is an environment manifest`.** GitOps follows a project manifest. Export the project, not an environment.
+- **`the manifest names organization resources that are not here`.** A git provider, DNS provider, S3 destination or certificate in the file has no match by name in this organization. The details list each one.
+- **A push did nothing.** The push did not touch the manifest path, went to another branch, or carries a skip marker such as `[skip ci]` in its message. The webhook's response lists a `gitops` entry for every project it synced.
+- **A dashboard edit returns 409.** The project is managed by git. Change the file, or turn the mode off on the **GitOps** page.

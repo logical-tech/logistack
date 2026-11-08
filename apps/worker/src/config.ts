@@ -22,6 +22,8 @@ const ConfigSchema = z.object({
 	DATABASE_URL: z.url(),
 	REDIS_URL: z.url(),
 	LOGISTACK_MASTER_KEY: z.string().min(1),
+	/** The master key being replaced: set during a rotation, the worker re-encrypts everything to the new key at boot. */
+	LOGISTACK_MASTER_KEY_PREVIOUS: z.string().min(1).optional(),
 	DOCKER_SOCKET: z.string().default("/var/run/docker.sock"),
 	/** Clones and per-deployment log files live here. */
 	LS_WORK_DIR: z.string().default("/var/lib/logistack"),

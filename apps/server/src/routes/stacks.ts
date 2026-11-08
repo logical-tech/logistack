@@ -21,6 +21,7 @@ import {
 	type Resource,
 	type StackDelta,
 	StackUpdateError,
+	secretExpressions,
 	type TemplateEnvEntry,
 	type TemplateMount,
 	type TemplateServicePlan,
@@ -426,7 +427,10 @@ function composePlan(
 	const out = plans.map((p) => {
 		const env = p.env.map((e) => ({
 			...e,
-			isSecret: e.isSecret || looksSecret(e.key, e.value),
+			// A `${{ secrets.KEY }}` value is a reference, resolved at deploy: stored plain, never as a secret.
+			isSecret:
+				!secretExpressions(e.value).length &&
+				(e.isSecret || looksSecret(e.key, e.value)),
 		}));
 		const b = builds?.get(p.name);
 		if (!b || !git || p.spec.kind !== "application") return { ...p, env };

@@ -96,6 +96,8 @@ What LogiStack does with it:
 - `db-data` and `event-data` become named volumes.
 - `${SECRET_KEY_BASE:-change-me}` takes its default. Replace it by setting `SECRET_KEY_BASE` on the `plausible` service.
 
+To keep a credential out of the compose file, reference a managed secret: `SECRET_KEY_BASE: ${{ secrets.PLAUSIBLE_SECRET_KEY_BASE }}`. The service stores the expression as a plain variable and resolves it at deploy time from the most specific secret of that name on its chain. See [Use a secret inside a value](./environment-variables.mdx#use-a-secret-inside-a-value).
+
 After it runs, open the `plausible` container and add `stats.example.com` in its **Domains** tab, pointing at port `8000`. See [Domains](../networking/domains.mdx).
 
 ## What is converted

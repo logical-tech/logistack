@@ -50,7 +50,8 @@
 			"includes": [
 				"packages/templates/**",
 				"**/test/template*.test.ts",
-				"**/test/templates*.test.ts"
+				"**/test/templates*.test.ts",
+				"**/test/secrets*.test.ts"
 			],
 			"linter": {
 				"rules": {

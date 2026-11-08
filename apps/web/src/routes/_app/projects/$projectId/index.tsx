@@ -11,6 +11,7 @@ import {
 	FileUp,
 	Folder,
 	Gauge,
+	GitBranch,
 	GitPullRequest,
 	MoreHorizontal,
 	Plus,
@@ -30,6 +31,7 @@ import { ENV_COLORS, EnvDot, envColor } from "@/components/projects/env-color";
 import { ServiceList } from "@/components/projects/service-list";
 import { SignalStrip } from "@/components/signal-strip";
 import { SlidingTabs } from "@/components/sliding-tabs";
+import { StatusDot } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -42,6 +44,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { foldersQuery } from "@/lib/api/folders";
+import { gitopsQuery } from "@/lib/api/gitops";
 import { downloadManifest } from "@/lib/api/manifest";
 import {
 	projectQuery,
@@ -56,6 +59,7 @@ import type {
 	EnvironmentId,
 	ProjectId,
 } from "@/lib/api/types";
+import { GITOPS_STATUS } from "@/lib/status";
 
 export const Route = createFileRoute("/_app/projects/$projectId/")({
 	validateSearch: z.object({
@@ -125,6 +129,7 @@ function ProjectDetail() {
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data: project } = useQuery(projectQuery(projectId));
 	const { data: folders = [] } = useQuery(foldersQuery);
+	const { data: gitops } = useQuery(gitopsQuery(projectId));
 	const [creatingEnv, setCreatingEnv] = useState(false);
 	const [archiving, setArchiving] = useState(false);
 	const setArchived = useSetArchived(projectId);
@@ -166,6 +171,24 @@ function ProjectDetail() {
 							>
 								<Folder className="size-3.5" aria-hidden />
 								{[parent?.name, folder.name].filter(Boolean).join(" / ")}
+							</Link>
+						)}
+						{gitops && (
+							<Link
+								to="/projects/$projectId/gitops"
+								params={{ projectId }}
+								className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-border transition-colors hover:bg-muted/70"
+								title={`${gitops.repository}#${gitops.branch}: ${gitops.path}`}
+							>
+								{gitops.lastStatus === "failed" ? (
+									<StatusDot meta={GITOPS_STATUS.failed} />
+								) : (
+									<GitBranch className="size-3.5" aria-hidden />
+								)}
+								{gitops.managed ? "Managed by git" : "Follows git"}
+								{gitops.lastStatus === "failed" && (
+									<span className="text-bad-text">sync failed</span>
+								)}
 							</Link>
 						)}
 						{project.description}
@@ -215,6 +238,15 @@ function ProjectDetail() {
 										>
 											<Variable />
 											Secrets & variables
+										</Link>
+									</DropdownMenuItem>
+									<DropdownMenuItem asChild>
+										<Link
+											to="/projects/$projectId/gitops"
+											params={{ projectId }}
+										>
+											<GitBranch />
+											GitOps…
 										</Link>
 									</DropdownMenuItem>
 									<DropdownMenuItem asChild>

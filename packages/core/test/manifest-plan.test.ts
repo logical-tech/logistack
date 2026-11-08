@@ -184,3 +184,78 @@ describe("planProject", () => {
 		);
 	});
 });
+
+describe("secret references", () => {
+	const ref = (key: string, scope?: string, extra: object = {}) => ({
+		key: "DB_PASSWORD",
+		secretRef: { key, ...(scope && { scope }) },
+		...extra,
+	});
+	const vars = (v: unknown[]) => env([web(v)]).services[0]?.variables ?? [];
+
+	test("a reference needs no value, never warns, and is sent by name", () => {
+		const plan = planEnvironment(
+			env([web()]),
+			env([web([ref("PG_PASSWORD", "organization", { asFile: true })])]),
+			false,
+		);
+		expect(plan.warnings).toEqual([]);
+		const { body, lines } = serviceVariables(
+			[],
+			vars([ref("PG_PASSWORD")]),
+			false,
+		);
+		expect(lines).toEqual(["variable DB_PASSWORD added"]);
+		expect(body).toEqual([
+			{
+				key: "DB_PASSWORD",
+				isSecret: true,
+				isBuildTime: false,
+				secretRef: { key: "PG_PASSWORD" },
+				asFile: false,
+			},
+		]);
+	});
+
+	test("the same reference is no change; another key, scope or file mode is", () => {
+		const have = vars([ref("PG_PASSWORD", "organization", { secret: true })]);
+		expect(
+			serviceVariables(have, vars([ref("PG_PASSWORD")]), false).lines,
+		).toEqual([]);
+		expect(
+			serviceVariables(
+				have,
+				vars([ref("PG_PASSWORD", "organization", { secret: true })]),
+				false,
+			).lines,
+		).toEqual([]);
+		expect(
+			serviceVariables(have, vars([ref("PG_PASSWORD", "project")]), false)
+				.lines,
+		).toEqual(["variable DB_PASSWORD now references PG_PASSWORD@project"]);
+		expect(
+			serviceVariables(
+				have,
+				vars([ref("PG_PASSWORD", undefined, { asFile: true })]),
+				false,
+			).lines,
+		).toEqual(["variable DB_PASSWORD now a file"]);
+	});
+
+	test("an environment variable cannot reference a secret", () => {
+		const plan = planEnvironment(env([]), env([], [ref("PG_PASSWORD")]), false);
+		expect(plan.steps).toEqual([]);
+		expect(plan.warnings[0]).toContain(
+			"references belong to service variables",
+		);
+	});
+
+	test("a manifest refuses a reference with a value, and a plain file", () => {
+		expect(() => vars([{ ...ref("X"), value: "v" }])).toThrow(
+			"carries no value",
+		);
+		expect(() => vars([{ key: "A", value: "v", asFile: true }])).toThrow(
+			"only a secret",
+		);
+	});
+});

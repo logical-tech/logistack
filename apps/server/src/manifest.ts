@@ -14,6 +14,7 @@ import {
 	type ManifestService,
 	type ManifestVariable,
 	ProjectManifest,
+	type SecretScope,
 	type ServiceSpec,
 } from "@logistack/contracts";
 import {
@@ -26,6 +27,7 @@ import {
 	manifestPhases,
 	planEnvironment,
 	planProject,
+	type ServiceVariableBody,
 	serviceVariables,
 } from "@logistack/core";
 import {
@@ -39,6 +41,7 @@ import {
 	mount,
 	project,
 	s3Destination,
+	secret,
 	service,
 	serviceAutoscale,
 	stack,
@@ -206,6 +209,18 @@ export async function snapshot(
 				inArray(serviceAutoscale.serviceId, svcIds.length ? svcIds : none),
 			),
 	]);
+	const refIds = [
+		...new Set(vars.flatMap((v) => (v.secretId ? [v.secretId] : []))),
+	];
+	const referenced = new Map(
+		(refIds.length
+			? await db
+					.select({ id: secret.id, key: secret.key, scope: secret.scope })
+					.from(secret)
+					.where(inArray(secret.id, refIds))
+			: []
+		).map((r) => [r.id, r]),
+	);
 	const ids: Ids = new Map();
 	const variablesOf = async (
 		scope: string,
@@ -218,13 +233,20 @@ export async function snapshot(
 				.filter((v) => v.scope === scope && v.scopeId === scopeId)
 				.map(async (v): Promise<ManifestVariable> => {
 					ids.set(at("variable", env, svc, v.key), v.id);
+					const ref = v.secretId ? referenced.get(v.secretId) : undefined;
+					// A service's own secret of the same key reads like a plain secret variable;
+					// any other reference is named, never valued.
+					const named = ref && !(ref.scope === "service" && ref.key === v.key);
 					return {
 						key: v.key,
-						...((!v.isSecret || reveal) && {
-							value: await decrypt(masterKey, v.valueEncrypted),
-						}),
+						...((!v.isSecret || reveal) &&
+							!named && {
+								value: await decrypt(masterKey, v.valueEncrypted),
+							}),
 						secret: v.isSecret,
 						buildTime: v.isBuildTime,
+						...(named && { secretRef: { key: ref.key, scope: ref.scope } }),
+						...(v.asFile && { asFile: true }),
 					};
 				}),
 		);
@@ -565,6 +587,36 @@ const backupFields = (b: ManifestBackup) => ({
 	enabled: b.enabled,
 });
 
+/**
+ * Turns each named secret reference into the id of the secret it names on the service's chain:
+ * the given scope's (the most specific folder for `folder`), else the most specific of that key.
+ */
+async function resolveRefs(
+	call: Call,
+	serviceId: string,
+	body: ServiceVariableBody[],
+) {
+	if (!body.some((v) => v.secretRef)) return body;
+	const available = await call<
+		{ id: string; key: string; scope: SecretScope; shadowed: boolean }[]
+	>("GET", `/secrets/available?serviceId=${serviceId}`);
+	return body.map(({ secretRef, ...v }) => {
+		if (!secretRef) return v;
+		const same = available.filter(
+			(s) =>
+				s.key === secretRef.key &&
+				(!secretRef.scope || s.scope === secretRef.scope),
+		);
+		// `available` lists the most specific scope first within a key.
+		const hit = same[0];
+		if (!hit)
+			throw new Error(
+				`${v.key}: no secret ${secretRef.key}${secretRef.scope ? ` at ${secretRef.scope} scope` : ""} on this service's chain that you can read`,
+			);
+		return { ...v, secretId: hit.id };
+	});
+}
+
 async function run(
 	call: Call,
 	snap: Snap,
@@ -683,7 +735,9 @@ async function run(
 					prune,
 				);
 				if (body.length || minted.length)
-					await call("PUT", `/services/${id}/env-vars`, { variables: body });
+					await call("PUT", `/services/${id}/env-vars`, {
+						variables: await resolveRefs(call, id, body),
+					});
 				if (want.autoscale)
 					await call("PUT", `/services/${id}/autoscale`, want.autoscale);
 				return;
@@ -700,7 +754,9 @@ async function run(
 				});
 			const vars = serviceVariables(have.variables, want.variables, prune);
 			if (vars.lines.length)
-				await call("PUT", `/services/${id}/env-vars`, { variables: vars.body });
+				await call("PUT", `/services/${id}/env-vars`, {
+					variables: await resolveRefs(call, id, vars.body),
+				});
 			if (autoscaleChanged(have, want))
 				await call("PUT", `/services/${id}/autoscale`, want.autoscale);
 			for (const m of changedConfigs(have, want))

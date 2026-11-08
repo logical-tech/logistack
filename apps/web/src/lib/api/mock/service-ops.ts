@@ -178,6 +178,7 @@ export function serviceOpsMock(
 			value: secretId ? null : value,
 			isSecret: secretId !== null,
 			secretId,
+			asFile: false,
 			isBuildTime: false,
 			overridden: false,
 			createdAt: iso(86_400_000 * 20),
@@ -407,6 +408,7 @@ export function serviceOpsMock(
 						value: null,
 						isSecret: false,
 						secretId: null,
+						asFile: false,
 					};
 					const kind = input.secretId
 						? { isSecret: true, secretId: input.secretId, value: null }
@@ -423,6 +425,7 @@ export function serviceOpsMock(
 					return {
 						...base,
 						...kind,
+						asFile: !!input.asFile && (kind.isSecret ?? base.isSecret),
 						key: input.key,
 						isBuildTime: input.isBuildTime,
 						updatedAt: iso(),
