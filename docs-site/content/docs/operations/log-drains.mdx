@@ -102,7 +102,7 @@ The drain's status on the Log drains page comes from the nodes' own reports, eve
 
 In Grafana, query Loki with labels, for example:
 
-```logql
+```text
 {project="Storefront", environment="production", service="web"} |= "error"
 ```
 

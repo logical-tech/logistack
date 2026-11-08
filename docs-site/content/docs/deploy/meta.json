@@ -14,6 +14,7 @@
 		"environment-variables",
 		"external-secrets",
 		"environments",
+		"archive-projects",
 		"preview-environments",
 		"service-settings",
 		"autoscaling",

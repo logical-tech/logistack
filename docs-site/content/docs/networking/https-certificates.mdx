@@ -204,6 +204,20 @@ The dashboard warns you in three places:
 - The Domains page summary counts certificates expiring within 14 days.
 - LogiStack sends a `certificate.expiring` event 14, 7 and 3 days before expiry, once per threshold. Route it to Slack, email or another channel in [Alerts and notifications](../operations/alerts-and-notifications.mdx).
 
+## Encrypt stored certificate keys
+
+Caddy keeps every certificate and its private key in LogiStack's Redis. By default the keys are stored as Caddy writes them. To seal them with AES-256-GCM, using a key derived from LogiStack's master key, set `LS_CADDY_STORAGE_ENCRYPTION=true` on the worker:
+
+```sh
+docker service update --env-add LS_CADDY_STORAGE_ENCRYPTION=true logistack_worker
+```
+
+The worker then gives Caddy the encryption key with its next configuration, and reads and imports certificates in the same format.
+
+<Callout type="warn">
+Turning it on is one way. A worker without the setting, after you remove it or roll back to a release that predates it, sends Caddy a configuration without the key, and Caddy can no longer read the certificates it stored encrypted. Running the installer again redeploys the stack from its stack file, so set the variable again after an installer upgrade or repair.
+</Callout>
+
 ## Common problems
 
 **`too many certificates already issued for "sslip.io"`.** Generated sslip.io and nip.io hostnames share one Let's Encrypt budget with every other user of those services. Set up a [per-server wildcard](./wildcard-dns.mdx), or switch the authority to **ZeroSSL** while you test.

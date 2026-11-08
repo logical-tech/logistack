@@ -87,6 +87,7 @@ export const shots: Record<string, Shot> = {
 	"dns-zone": "/integrations/dns/dns_cf_logical/z_logical",
 	tunnels: "/integrations/tunnels",
 	"tunnel-new": "/integrations/tunnels/new",
+	agent: "/agent",
 	"log-drains": "/integrations/log-drains",
 	"log-drain-new": "/integrations/log-drains/new",
 	tailscale: "/integrations/tailscale",
