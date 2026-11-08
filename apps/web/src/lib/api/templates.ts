@@ -26,6 +26,10 @@ export type TemplateDeployResult = InferResponseType<
 	201
 >;
 export type DeployedService = TemplateDeployResult["services"][number];
+export type CommunityIndex = InferResponseType<
+	Api["templates"]["community"]["$get"],
+	200
+>;
 export type DeploymentRecord = InferResponseType<
 	Api["deployments"][":id"]["$get"],
 	200
@@ -43,6 +47,10 @@ export type TemplatesApi = {
 		input: TemplateDeployInput,
 	): Promise<TemplateDeployResult>;
 	deployment(id: string): Promise<DeploymentRecord>;
+	/** Where community templates come from and when they were last fetched. */
+	communityIndex(): Promise<CommunityIndex>;
+	/** Fetches and verifies the signed index again; 400 when it does not verify. */
+	refreshCommunity(): Promise<CommunityIndex>;
 };
 
 const t = () => client.api.templates;
@@ -59,9 +67,11 @@ export const templatesHttp: TemplatesApi = {
 			}),
 		),
 	deployment: (id) => ok(client.api.deployments[":id"].$get({ param: { id } })),
+	communityIndex: () => ok(t().community.$get()),
+	refreshCommunity: () => ok(t().community.refresh.$post()),
 };
 
-// The catalog only changes with a release, so it is fetched once per session.
+// The catalog only changes with a release or a community Refresh, so it is fetched once per session.
 export const templatesQuery = queryOptions({
 	queryKey: ["templates"],
 	queryFn: () => api.templates.list(),
@@ -74,6 +84,22 @@ export const templateQuery = (id: string) =>
 		queryFn: () => api.templates.get(id),
 		staleTime: Number.POSITIVE_INFINITY,
 	});
+
+export const communityIndexQuery = queryOptions({
+	queryKey: ["templates-community"],
+	queryFn: () => api.templates.communityIndex(),
+});
+
+export function useRefreshCommunity() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: () => api.templates.refreshCommunity(),
+		onSuccess: (index) => {
+			qc.setQueryData(communityIndexQuery.queryKey, index);
+			return qc.invalidateQueries({ queryKey: ["templates"] });
+		},
+	});
+}
 
 export const deploymentQuery = (id: string) =>
 	queryOptions({

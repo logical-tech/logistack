@@ -100,6 +100,15 @@ const ConfigSchema = z.object({
 		.enum(["", "0", "1", "true", "false"])
 		.optional()
 		.transform((v) => v === "1" || v === "true"),
+	/**
+	 * Community templates (docs/plans/plugins.md, phase 0): the signed index fetched on Refresh,
+	 * and the keys that may sign it: base64url raw Ed25519 public keys, comma-separated, as for
+	 * the plugin index. No key: Refresh is refused.
+	 */
+	LS_TEMPLATE_INDEX_URL: z
+		.url()
+		.default("https://stack.logicaltech.it/templates/api/v1/index"),
+	LS_TEMPLATE_INDEX_KEYS: z.string().default(""),
 	GITHUB_CLIENT_ID: optional,
 	GITHUB_CLIENT_SECRET: optional,
 	GOOGLE_CLIENT_ID: optional,

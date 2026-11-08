@@ -134,6 +134,7 @@ import { Route as AppProjectsProjectIdServicesServiceIdTerminalRouteImport } fro
 import { Route as AppProjectsProjectIdStacksStackIdIndexRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/index'
 import { Route as AppProjectsProjectIdStacksStackIdComposeRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/compose'
 import { Route as AppProjectsProjectIdStacksStackIdLogsRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/logs'
+import { Route as AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport } from './routes/_app/projects/$projectId/plugin.$installId.$pageId.$'
 import { Route as AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/plugin.$installId.$pageId.$'
 
 const AppRoute = AppRouteImport.update({
@@ -821,6 +822,12 @@ const AppProjectsProjectIdStacksStackIdLogsRoute =
     path: '/logs',
     getParentRoute: () => AppProjectsProjectIdStacksStackIdRouteRoute,
   } as any)
+const AppProjectsProjectIdPluginInstallIdPageIdSplatRoute =
+  AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport.update({
+    id: '/plugin/$installId/$pageId/$',
+    path: '/plugin/$installId/$pageId/$',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute =
   AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRouteImport.update(
     {
@@ -954,6 +961,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
+  '/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute
 }
 export interface FileRoutesByTo {
@@ -1074,6 +1082,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdIndexRoute
+  '/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute
 }
 export interface FileRoutesById {
@@ -1203,6 +1212,7 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
   '/_app/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/_app/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
+  '/_app/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
   '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRoute
 }
 export interface FileRouteTypes {
@@ -1331,6 +1341,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/stacks/$stackId/logs'
     | '/projects/$projectId/services/$serviceId/'
     | '/projects/$projectId/stacks/$stackId/'
+    | '/projects/$projectId/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1451,6 +1462,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/stacks/$stackId/logs'
     | '/projects/$projectId/services/$serviceId'
     | '/projects/$projectId/stacks/$stackId'
+    | '/projects/$projectId/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
   id:
     | '__root__'
@@ -1579,6 +1591,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/stacks/$stackId/logs'
     | '/_app/projects/$projectId/services/$serviceId/'
     | '/_app/projects/$projectId/stacks/$stackId/'
+    | '/_app/projects/$projectId/plugin/$installId/$pageId/$'
     | '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
   fileRoutesById: FileRoutesById
 }
@@ -2465,6 +2478,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdLogsRouteImport
       parentRoute: typeof AppProjectsProjectIdStacksStackIdRouteRoute
     }
+    '/_app/projects/$projectId/plugin/$installId/$pageId/$': {
+      id: '/_app/projects/$projectId/plugin/$installId/$pageId/$'
+      path: '/plugin/$installId/$pageId/$'
+      fullPath: '/projects/$projectId/plugin/$installId/$pageId/$'
+      preLoaderRoute: typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
     '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$': {
       id: '/_app/projects/$projectId/services/$serviceId/plugin/$installId/$pageId/$'
       path: '/plugin/$installId/$pageId/$'
@@ -2636,6 +2656,7 @@ interface AppProjectsProjectIdRouteRouteChildren {
   AppProjectsProjectIdServicesNewRoute: typeof AppProjectsProjectIdServicesNewRoute
   AppProjectsProjectIdTemplatesTemplateIdRoute: typeof AppProjectsProjectIdTemplatesTemplateIdRoute
   AppProjectsProjectIdTemplatesIndexRoute: typeof AppProjectsProjectIdTemplatesIndexRoute
+  AppProjectsProjectIdPluginInstallIdPageIdSplatRoute: typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
 }
 
 const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChildren =
@@ -2656,6 +2677,8 @@ const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChil
       AppProjectsProjectIdTemplatesTemplateIdRoute,
     AppProjectsProjectIdTemplatesIndexRoute:
       AppProjectsProjectIdTemplatesIndexRoute,
+    AppProjectsProjectIdPluginInstallIdPageIdSplatRoute:
+      AppProjectsProjectIdPluginInstallIdPageIdSplatRoute,
   }
 
 const AppProjectsProjectIdRouteRouteWithChildren =

@@ -69,6 +69,12 @@ const DEPLOY_ALERTS: PluginManifest = {
 				location: "service-tab",
 				path: "/ui/service",
 			},
+			{
+				id: "project",
+				title: "Deploy alerts",
+				location: "project-tab",
+				path: "/ui/project",
+			},
 		],
 		tools: [],
 		dnsProviders: [],
@@ -310,6 +316,7 @@ let installs: PluginInstall[] = [
 		verified: true,
 		yanked: false,
 		previousVersion: null,
+		gate: { timeoutSeconds: 10, failMode: "closed" },
 		createdAt: iso(9 * DAY),
 		updatedAt: iso(2 * DAY),
 	},
@@ -511,6 +518,7 @@ export const mockPlugins: PluginsApi = {
 			verified: inspected.verified,
 			yanked: false,
 			previousVersion: null,
+			gate: { timeoutSeconds: 10, failMode: "closed" },
 			createdAt: iso(),
 			updatedAt: iso(),
 		};
@@ -544,6 +552,7 @@ export const mockPlugins: PluginsApi = {
 			row.enabled = patch.enabled;
 			row.status = patch.enabled ? "running" : "disabled";
 		}
+		if (patch.gate) row.gate = { ...row.gate, ...patch.gate };
 		row.updatedAt = iso();
 		return delay(row);
 	},

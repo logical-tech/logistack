@@ -310,6 +310,24 @@ describe.skipIf(!hasDocker)("plugins", () => {
 		});
 	});
 
+	test("deploy gate settings default to 10 s fail-closed and patch one field at a time", async () => {
+		const path = `/api/plugins/${installId}`;
+		expect((await h.call("GET", path, as())).json.gate).toEqual({
+			timeoutSeconds: 10,
+			failMode: "closed",
+		});
+		const res = await h.call("PATCH", path, {
+			...as(),
+			body: { gate: { failMode: "open" } },
+		});
+		expect(res.json.gate).toEqual({ timeoutSeconds: 10, failMode: "open" });
+		const tooLong = await h.call("PATCH", path, {
+			...as(),
+			body: { gate: { timeoutSeconds: 61 } },
+		});
+		expect(tooLong.status).toBe(400);
+	});
+
 	test("the instance policy can turn installs off", async () => {
 		await h.call("PUT", "/api/plugins/policy", {
 			...as(),

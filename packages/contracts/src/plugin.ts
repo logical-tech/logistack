@@ -129,6 +129,8 @@ export const PluginManifest = z.object({
 			notificationChannels: z.array(PluginProvider).max(10).default([]),
 			secretProviders: z.array(PluginProvider).max(10).default([]),
 			backupDestinations: z.array(PluginProvider).max(10).default([]),
+			/** Synchronous hooks LogiStack waits on (phase 4); see "Deploy gates" below. */
+			gates: z.lazy(() => PluginGates).optional(),
 		})
 		.default({
 			events: [],
@@ -328,3 +330,49 @@ export const SignedIndexResponse = z.object({
 });
 export type SignedIndexResponse = z.infer<typeof SignedIndexResponse>;
 // ---- end plugin index ---------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Deploy gates (docs/plans/plugins.md, phase 4). A plugin that declares
+// `contributes.gates.deploy` is asked `POST /v1/gates/deploy` before each rollout in its
+// organization and may reject it. The worker waits at most the install's timeout, then applies
+// its fail mode. One answer per deployment and install is kept, so a retried job does not ask again.
+// ---------------------------------------------------------------------------------------------
+
+export const PluginGates = z.object({
+	/** The plugin serves `POST /v1/gates/deploy`. */
+	deploy: z.boolean().default(false),
+});
+export type PluginGates = z.infer<typeof PluginGates>;
+
+export const pluginGateFailModes = ["open", "closed"] as const;
+export const PluginGateFailMode = z.enum(pluginGateFailModes);
+export type PluginGateFailMode = z.infer<typeof PluginGateFailMode>;
+
+/** Per install: how long a deploy waits for the gate and what happens when it does not answer. */
+export const PluginGateSettings = z.object({
+	timeoutSeconds: z.int().min(1).max(60).default(10),
+	/** `closed`: no answer fails the deployment; `open`: it goes ahead. */
+	failMode: PluginGateFailMode.default("closed"),
+});
+export type PluginGateSettings = z.infer<typeof PluginGateSettings>;
+
+/** Body of `POST /v1/gates/deploy`. `deploymentId` is the idempotency key. */
+export type DeployGateRequest = {
+	deploymentId: string;
+	organizationId: string;
+	project: { id: string; name: string };
+	environment: { id: string; name: string; kind: string };
+	service: { id: string; name: string; kind: string };
+	/** The image about to roll out. */
+	imageRef: string;
+	commitSha: string | null;
+	commitMessage: string | null;
+	gitRef: string | null;
+	trigger: string;
+};
+
+/** The plugin's answer; `reason` is shown in the deployment log and error. */
+export const DeployGateResponse = z.object({
+	allow: z.boolean(),
+	reason: z.string().max(500).optional(),
+});
+export type DeployGateResponse = z.infer<typeof DeployGateResponse>;

@@ -1,4 +1,6 @@
 import {
+	type DeployGateRequest,
+	type DeployGateResponse,
 	type DnsRecordType,
 	type EventEnvelope,
 	type PermissionAction,
@@ -12,7 +14,14 @@ import { Hono, type MiddlewareHandler } from "hono";
 // @logistack/plugin-sdk: the plugin side of the contract in docs/plans/plugins.md.
 // shortcut: imports types from the private @logistack/contracts workspace; bundle them in before publishing to npm.
 
-export type { DnsRecordType, EventEnvelope, PluginManifest, PluginUserClaims };
+export type {
+	DeployGateRequest,
+	DeployGateResponse,
+	DnsRecordType,
+	EventEnvelope,
+	PluginManifest,
+	PluginUserClaims,
+};
 
 /** Checks and fills a manifest; use the result for the image label and for `createPlugin`. */
 export const defineManifest = (m: PluginManifestInput): PluginManifest =>
@@ -233,6 +242,18 @@ export type PluginHandlers = {
 	/** DNS providers, notification channels and secret providers from `contributes`. */
 	providers?: ProviderHandlers;
 	/**
+	 * Synchronous hooks LogiStack waits on; declare them in `contributes.gates`. `deploy` runs
+	 * before each rollout in the organization: return `{ allow: false, reason }` to fail it. It
+	 * must answer within the install's timeout (10 s by default) and be idempotent per
+	 * `deploymentId`.
+	 */
+	gates?: {
+		deploy?: (
+			request: DeployGateRequest,
+			ctx: PluginContext,
+		) => DeployGateResponse | Promise<DeployGateResponse>;
+	};
+	/**
 	 * Your pages and their backend, mounted at `/ui`. Requests under `/ui/api` are verified and
 	 * carry the viewer in `c.get("user")`.
 	 */
@@ -354,6 +375,14 @@ export function createPlugin(h: PluginHandlers): Hono<PluginEnv> {
 			return c.json({ error: e instanceof Error ? e.message : String(e) }, 502);
 		}
 	});
+
+	const deployGate = h.gates?.deploy;
+	if (deployGate)
+		app.post("/v1/gates/deploy", async (c) =>
+			c.json(
+				await deployGate(await c.req.json<DeployGateRequest>(), context()),
+			),
+		);
 
 	app.use("/ui/api/*", signed);
 	app.use("/ui/api/*", async (c, next) => {

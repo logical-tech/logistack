@@ -6,7 +6,11 @@ import {
 } from "@logistack/contracts";
 import catalog from "@logistack/templates/catalog/index.json";
 import { ApiError } from "../adapter";
-import type { DeployedService, TemplatesApi } from "../templates";
+import type {
+	CommunityIndex,
+	DeployedService,
+	TemplatesApi,
+} from "../templates";
 import type { Deployment, Service, ServiceSpec } from "../types";
 import type { MockDb } from "./fixtures";
 
@@ -92,6 +96,16 @@ function inputIssues(t: Template, given: Record<string, string>) {
 }
 
 export const templatesMock = (db: MockDb): TemplatesApi => {
+	// The mock trusts no index key: Refresh shows the "not configured" state.
+	const community: CommunityIndex = {
+		url: "https://stack.logicaltech.it/templates/api/v1/index",
+		source: "stack.logicaltech.it",
+		configured: false,
+		fetchedAt: null,
+		keyId: null,
+		templates: 0,
+		skipped: 0,
+	};
 	/** Queued, then deploying, then healthy, one service after another in dependency order. */
 	function progress(service: Service, deployment: Deployment, order: number) {
 		const at = (ms: number, fn: () => void) =>
@@ -257,5 +271,14 @@ export const templatesMock = (db: MockDb): TemplatesApi => {
 				? delay(d, 120)
 				: Promise.reject(new ApiError(404, "deployment not found"));
 		},
+		communityIndex: () => delay(community, 120),
+		refreshCommunity: () =>
+			Promise.reject(
+				new ApiError(
+					400,
+					"no public key for the community index: set LS_TEMPLATE_INDEX_KEYS",
+					"validation_failed",
+				),
+			),
 	};
 };

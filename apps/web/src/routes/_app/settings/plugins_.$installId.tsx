@@ -32,6 +32,14 @@ import { useTogglePlugin } from "@/components/plugins/use-toggle-plugin";
 import { StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ApiError } from "@/lib/api";
 import { useInvalidating } from "@/lib/api/networking";
@@ -111,6 +119,92 @@ function SettingsPanel({ p }: { p: PluginInstall }) {
 					<Button type="submit" disabled={!dirty || save.isPending}>
 						{save.isPending && <Loader2 className="animate-spin" />}
 						Save settings
+					</Button>
+				</div>
+			</form>
+		</Panel>
+	);
+}
+
+/** Shown when the plugin declares a deploy gate: how long deploys wait and what a silence means. */
+function GatePanel({ p }: { p: PluginInstall }) {
+	const [timeout, setTimeoutS] = useState(String(p.gate.timeoutSeconds));
+	const [failMode, setFailMode] = useState(p.gate.failMode);
+	const save = useInvalidating(
+		(gate: PluginInstall["gate"]) => pluginsApi.update(p.id, { gate }),
+		[["plugins"]],
+	);
+	const seconds = Number(timeout);
+	const valid = Number.isInteger(seconds) && seconds >= 1 && seconds <= 60;
+	const dirty =
+		seconds !== p.gate.timeoutSeconds || failMode !== p.gate.failMode;
+	return (
+		<Panel title="Deploy gate" id="gate">
+			<form
+				className="grid gap-5 p-4 sm:p-5"
+				onSubmit={async (e) => {
+					e.preventDefault();
+					if (!valid) return;
+					try {
+						await save.mutateAsync({ timeoutSeconds: seconds, failMode });
+						toast.success("Deploy gate saved");
+					} catch (err) {
+						toast.error("Couldn't save the deploy gate", {
+							description: err instanceof Error ? err.message : String(err),
+						});
+					}
+				}}
+			>
+				<p className="text-sm text-pretty text-muted-foreground">
+					{p.name} is asked before every rollout in this organization and can
+					stop it. Its reason shows in the deployment log.
+				</p>
+				<div className="grid gap-4 sm:grid-cols-2">
+					<div className="grid gap-1.5">
+						<Label htmlFor="gate-timeout">Wait for an answer (seconds)</Label>
+						<Input
+							id="gate-timeout"
+							type="number"
+							inputMode="numeric"
+							min={1}
+							max={60}
+							value={timeout}
+							onChange={(e) => setTimeoutS(e.target.value)}
+							aria-invalid={!valid}
+							aria-describedby="gate-timeout-hint"
+							className="tabular"
+						/>
+						<p
+							id="gate-timeout-hint"
+							className={
+								valid
+									? "text-xs text-muted-foreground"
+									: "text-xs text-bad-text"
+							}
+						>
+							Between 1 and 60.
+						</p>
+					</div>
+					<div className="grid gap-1.5 content-start">
+						<Label htmlFor="gate-fail-mode">If it doesn't answer</Label>
+						<Select
+							value={failMode}
+							onValueChange={(v) => setFailMode(v as typeof failMode)}
+						>
+							<SelectTrigger id="gate-fail-mode" className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="closed">Fail the deployment</SelectItem>
+								<SelectItem value="open">Deploy anyway</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+				<div className="flex justify-end">
+					<Button type="submit" disabled={!dirty || !valid || save.isPending}>
+						{save.isPending && <Loader2 className="animate-spin" />}
+						Save deploy gate
 					</Button>
 				</div>
 			</form>
@@ -347,6 +441,9 @@ function PluginDetail() {
 					)}
 				</Panel>
 				<SettingsPanel key={p.updatedAt} p={p} />
+				{p.manifest.contributes.gates?.deploy && (
+					<GatePanel key={`gate-${p.updatedAt}`} p={p} />
+				)}
 				<section aria-labelledby="manifest" className="grid gap-2.5">
 					<h2
 						id="manifest"

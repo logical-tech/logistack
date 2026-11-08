@@ -1,11 +1,19 @@
 import { TemplateCategory } from "@logistack/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { z } from "zod";
 import { Page, PageHeader } from "@/components/page-header";
 import { TemplateGallery } from "@/components/templates/gallery";
+import { Button } from "@/components/ui/button";
 import { projectQuery } from "@/lib/api/projects";
-import { templatesQuery } from "@/lib/api/templates";
+import {
+	communityIndexQuery,
+	templatesQuery,
+	useRefreshCommunity,
+} from "@/lib/api/templates";
+import { relativeTime } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/projects/$projectId/templates/")({
 	validateSearch: z.object({
@@ -44,6 +52,7 @@ function TemplatesPage() {
 						<span className="text-foreground">{env.name}</span>.
 					</>
 				}
+				actions={<RefreshCommunity />}
 			/>
 			<TemplateGallery
 				templates={templates}
@@ -62,5 +71,41 @@ function TemplatesPage() {
 				}
 			/>
 		</Page>
+	);
+}
+
+/** Community templates change only here: an explicit fetch of the signed index, never a timer. */
+function RefreshCommunity() {
+	const { data: index } = useQuery(communityIndexQuery);
+	const refresh = useRefreshCommunity();
+	if (!index) return null;
+	const fetched = index.fetchedAt
+		? `${index.templates} from ${index.source}, fetched ${relativeTime(index.fetchedAt)}`
+		: `Not fetched yet from ${index.source}`;
+	return (
+		<Button
+			variant="outline"
+			title={fetched}
+			disabled={refresh.isPending}
+			onClick={() =>
+				refresh.mutate(undefined, {
+					onSuccess: (i) =>
+						toast.success("Community templates refreshed", {
+							description: `${i.templates} from ${i.source}${i.skipped ? `, ${i.skipped} skipped` : ""}.`,
+						}),
+					onError: (e) =>
+						toast.error("Couldn't refresh community templates", {
+							description: e instanceof Error ? e.message : undefined,
+						}),
+				})
+			}
+		>
+			<RefreshCw
+				data-icon="inline-start"
+				className={refresh.isPending ? "animate-spin" : undefined}
+				aria-hidden
+			/>
+			Refresh community
+		</Button>
 	);
 }

@@ -29,6 +29,7 @@ export * from "./patching.ts";
 export * from "./pending-diff.ts";
 export * from "./permissions.ts";
 export * from "./plugin.ts";
+export * from "./plugin-egress.ts";
 export * from "./plugin-index.ts";
 export * from "./ports.ts";
 export * from "./preview.ts";

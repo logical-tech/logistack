@@ -150,7 +150,7 @@ export async function rollRenewedCertificates(ctx: Ctx, onlyWaiting = false) {
 }
 
 /** The image gateways run: ours, from config or from the worker's own stack service. */
-async function gatewayImage(ctx: Ctx): Promise<string | undefined> {
+export async function gatewayImage(ctx: Ctx): Promise<string | undefined> {
 	if (ctx.cfg.LS_GATEWAY_IMAGE) return ctx.cfg.LS_GATEWAY_IMAGE;
 	const self = await inspectService(
 		ctx,
