@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { SPONSOR_URL, sponsorQuery, useIsSponsor } from "@/lib/api/sponsor";
 import { updateStatusQuery } from "@/lib/api/updates";
+import { useSponsorGlow } from "@/lib/sponsor-glow";
 
 const DISMISS_KEY = "ls-sponsor-card-hidden-until";
 const HIDE_FOR = 30 * 86_400_000;
@@ -80,6 +81,17 @@ export function SponsorCard() {
 			</button>
 		</div>
 	);
+}
+
+/**
+ * A thank-you for sponsors: a faint rose light rising from the bottom-left corner.
+ * Sits above the shell but below overlays, never takes pointer events.
+ */
+export function SponsorGlow() {
+	const { sponsor } = useIsSponsor();
+	const on = useSponsorGlow();
+	if (!sponsor || !on) return null;
+	return <div aria-hidden className="sponsor-glow" />;
 }
 
 /** The sponsor mark in the sidebar footer, beside the version. */

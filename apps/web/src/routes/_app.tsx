@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { CommandMenuProvider } from "@/components/shell/command-menu";
+import { SponsorGlow } from "@/components/shell/sponsor-card";
 import { TopBar } from "@/components/shell/top-bar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { meQuery } from "@/lib/api/access";
@@ -40,6 +41,7 @@ function AppLayout() {
 					<TopBar />
 					<Outlet />
 				</SidebarInset>
+				<SponsorGlow />
 			</CommandMenuProvider>
 		</SidebarProvider>
 	);
