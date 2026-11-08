@@ -5,7 +5,7 @@ description: Connect an S3-compatible bucket such as AWS S3, Cloudflare R2, Back
 
 An S3 destination is a bucket that backup policies write to. It holds the endpoint, bucket, region, an optional prefix and a key pair. Any S3-compatible store works. Add one before you create your first [backup policy](./backups.mdx), and prefer a bucket at another provider or region than your server, so a lost server doesn't take its backups with it.
 
-![The S3 destinations page, listing an R2, a Hetzner, a B2 and a MinIO destination with their bucket, prefix and how many policies use them](/screens/s3.webp)
+![The Backup destinations page, listing R2, Hetzner, B2 and MinIO buckets next to an SFTP NAS and a node folder, each with its location and how many policies use it](/screens/s3.webp)
 
 ## Before you start
 
@@ -18,18 +18,18 @@ An S3 destination is a bucket that backup policies write to. It holds the endpoi
 <Steps>
 <Step>
 
-### Open S3 destinations
+### Open Backup destinations
 
-In the sidebar, under **Integrations**, select **S3 destinations**, then **Add destination**.
+In the sidebar, under **Integrations**, select **Backup destinations**, then **Add destination**.
 
 </Step>
 <Step>
 
 ### Pick the provider
 
-In **Where should backups go?**, pick **Amazon S3**, **Cloudflare R2**, **Backblaze B2**, **Hetzner Object Storage**, **MinIO**, **Wasabi** or **S3-compatible**. The preset fills in the endpoint, region and addressing. Select **Continue**.
+In **Where should backups go?**, under **Object storage**, pick **Amazon S3**, **Cloudflare R2**, **Backblaze B2**, **Hetzner Object Storage**, **MinIO**, **Wasabi** or **S3-compatible**. The preset fills in the endpoint, region and addressing. Select **Continue**.
 
-![The Add an S3 destination wizard, on the provider step](/screens/s3-new.webp)
+![The Add a backup destination wizard, on the provider step](/screens/s3-new.webp)
 
 </Step>
 <Step>
@@ -56,7 +56,7 @@ In **Access keys**, paste the **Access key ID** and the **Secret access key**. T
 
 ### Test the bucket
 
-In **Test the bucket**, select **Run test**. LogiStack writes a small probe object under `<bucket>/<prefix>/.logistack-probe-…`, reads it back and deletes it. A pass means the keys can put, get and delete: the three things backups, restores and retention do. Nothing is saved until the test passes.
+In **Test the destination**, select **Run test**. LogiStack writes a small probe object under `<bucket>/<prefix>/.logistack-probe-…`, reads it back and deletes it. A pass means the keys can put, get and delete: the three things backups, restores and retention do. Nothing is saved until the test passes.
 
 </Step>
 <Step>
@@ -141,13 +141,15 @@ Use the API address (port 9000 by default), not the console. The region is `us-e
 
 For Hetzner, use `https://fsn1.your-objectstorage.com` (or `nbg1`, `hel1`) with the matching region. For Wasabi, use the service URL of the bucket's region, such as `https://s3.eu-central-1.wasabisys.com`; Wasabi bills deleted objects for 90 days. **S3-compatible** covers Ceph, Garage, SeaweedFS and any store that signs requests with Signature V4.
 
+Not on S3? A NAS over SFTP or WebDAV, Azure Blob Storage, Google Drive, Backblaze B2's native API and a folder on a node work too: see [Other backup destinations](./backup-destinations.mdx).
+
 <Callout>
 An [object storage service](./object-storage.mdx) on LogiStack can become a destination in one step with **Use for backups**. Keep an off-site destination too: backups on the same server don't survive losing it.
 </Callout>
 
 ## Check it worked
 
-The destination shows under **Destinations** with its provider, endpoint host, bucket and prefix, region, and **Not used yet**. Once a policy writes to it, the row shows **Used by 1 policy**. Select **Run now** on a policy and check that a file appears in the bucket under the prefix.
+The destination shows under **Destinations** with its provider, its location (`s3://<bucket>/<prefix>`) and **Not used yet**. Once a policy writes to it, the row shows **Used by 1 policy**. Select **Run now** on a policy and check that a file appears in the bucket under the prefix.
 
 ## Remove a destination
 
