@@ -23,8 +23,7 @@
 		{
 			"binding": "PLUGIN_INDEX",
 			"database_name": "logistack-plugin-index",
-			// Replace with the id `wrangler d1 create logistack-plugin-index` prints.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "22f36351-e5c4-4fbf-8594-da4f5b214a26",
 			"migrations_dir": "migrations"
 		}
 	],
@@ -54,7 +53,7 @@
 				{
 					"binding": "PLUGIN_INDEX",
 					"database_name": "logistack-plugin-index-sandbox",
-					"database_id": "00000000-0000-0000-0000-000000000000",
+					"database_id": "a87aa5f4-d825-4cfa-93e1-c14944f30d91",
 					"migrations_dir": "migrations"
 				}
 			]

@@ -117,7 +117,11 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		h = await startHarness({
 			area: "plugmkt",
 			label: "plugmkt",
-			env: { LOGISTACK_VERSION: "0.6.0" },
+			// The official index stays off the network: nothing listens on port 9.
+			env: {
+				LOGISTACK_VERSION: "0.6.0",
+				LS_PLUGIN_INDEX_URL: "http://127.0.0.1:9/plugins/api",
+			},
 		});
 		await h.call("POST", "/api/setup", { body: setupBody });
 		cookie = await h.signIn(owner.email, owner.password);
@@ -262,7 +266,7 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		expect(row.plugins).toBe(2);
 	});
 
-	test("the marketplace merges cached entries; the unconfigured official index is not fetched", async () => {
+	test("the marketplace merges cached entries; an unreachable official index records its error", async () => {
 		const res = await h.call("GET", "/api/plugins/marketplace", as());
 		expect(res.status).toBe(200);
 		const hello = res.json.entries.find(
@@ -275,7 +279,8 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		const official = res.json.indexes.find(
 			(i: { builtin: boolean }) => i.builtin,
 		);
-		expect(official.lastError).toContain("no public key");
+		expect(official.lastError).toBeTruthy();
+		expect(official.publicKeys.length).toBeGreaterThan(0);
 	});
 
 	test("the verified policy refuses unverified entries and images, allows verified ones", async () => {
