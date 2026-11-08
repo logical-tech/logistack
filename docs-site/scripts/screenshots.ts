@@ -76,6 +76,8 @@ export const shots: Record<string, Shot> = {
 	nodes: "/monitoring/nodes",
 	node: "/monitoring/nodes/node_fra1",
 	"node-new": "/monitoring/nodes/new",
+	patches: "/monitoring/patches",
+	"patch-dialog": { path: "/monitoring/patches", click: ["Patch 3 nodes"] },
 	git: "/integrations/git",
 	"git-new": "/integrations/git/new",
 	registries: "/integrations/registries",

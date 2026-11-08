@@ -126,6 +126,7 @@ The rule appears as a sentence, for example **Deployment failed, Node down, Back
 | | Certificate failed, Certificate issued | `certificate.failed`, `certificate.issued` |
 | | Domain error, Domain active | `domain.error`, `domain.active` |
 | Nodes and services | Node down, Node recovered, Node joined | `node.down`, `node.recovered`, `node.joined` |
+| | Security updates available, Node patching failed, Node patched | `node.patches_available`, `node.patch_failed`, `node.patch_succeeded`, from [OS patching](./os-patching.mdx) |
 | | Service status changed | `service.status_changed` |
 | | Service crash-looping | `service.crash_loop`, when tasks keep failing, and again when it settles |
 | | Service threshold crossed | `service.threshold` |
