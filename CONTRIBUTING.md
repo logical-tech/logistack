@@ -38,6 +38,7 @@ bun run check
 - Never build shell strings. Call Docker through the Engine API and other tools with `Bun.spawn([...argv])`. Pass secrets through env or stdin.
 - Parse external input with zod at the boundary.
 - Do not copy code from Dokploy or Coolify.
+- No feature is gated behind a license, a key or a sponsorship. A change that adds such a check is not merged.
 
 A test that creates Docker objects names them `ls-test-<area>-*`, where `<area>` is your package or app, and labels them `logistack.test=<area>`. Cleanup removes objects by that exact prefix only. A filter on `label=logistack.test` or `name=ls-test-` alone matches other suites, so cleanup code must not use it.
 

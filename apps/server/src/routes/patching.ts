@@ -29,7 +29,11 @@ import { Failure, notFound, one } from "../errors.ts";
 import { live } from "../live.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { runQueues } from "../run-queues.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	inOrganization,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 
 const tags = ["patching"];
 
@@ -153,7 +157,10 @@ export const patching = router()
 					"Refresh the package index on a node and list its pending updates",
 				description:
 					"Admins only. Runs `apt-get update` (or `dnf makecache`) on the host through the node's agent; installs nothing. Takes as long as the package index download.",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: { params: IdParam },
 				responses: { 200: json(NodePatchStatus, "Scanned"), ...errors },
 			}),
@@ -234,7 +241,10 @@ export const patching = router()
 				summary: "Patch nodes, one at a time",
 				description:
 					"Per node, in order: scan, drain, upgrade, reboot when one is due, wait for the node and every service, activate. A failed node stops the run and is activated again. The leader runs LogiStack and is never drained; rebooting it restarts LogiStack.",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(PatchRunInput),
 				responses: { 201: json(PatchRun, "Queued"), ...errors },
 			}),
@@ -297,7 +307,10 @@ export const patching = router()
 				summary: "Stop a patch run after the step in progress",
 				description:
 					"An upgrade already running finishes first; the node is then activated and the remaining nodes are skipped.",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: { params: IdParam },
 				responses: { 200: json(PatchRun, "Cancelling"), ...errors },
 			}),
@@ -375,7 +388,10 @@ export const patching = router()
 				security,
 				summary:
 					"Set the patch window: a rolling run over every active node on a cron",
-				middleware: [requirePermission("admin", inOrganization)],
+				middleware: [
+					requirePermission("admin", inOrganization),
+					requireInstanceAdmin,
+				],
 				request: body(PolicyInput),
 				responses: { 200: json(PatchPolicy, "Saved"), ...errors },
 			}),

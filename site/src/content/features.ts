@@ -425,7 +425,7 @@ export const areas = (templates: number): Area[] => [
 			],
 			[
 				"Updates",
-				"See what a release changes and update in one click. Choose the stable or beta channel.",
+				"Read the changelog of every release an update crosses, breaking changes first, then update in one click. Choose the stable, beta or nightly channel.",
 			],
 			[
 				"Light and dark",

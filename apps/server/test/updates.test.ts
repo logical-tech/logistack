@@ -4,7 +4,7 @@ import {
 	type LiveMessage,
 	updateChannel,
 } from "@logistack/contracts";
-import { auditLog, instanceUpdate } from "@logistack/db";
+import { auditLog, instanceSettings, instanceUpdate } from "@logistack/db";
 import { RedisClient } from "bun";
 import { eq } from "drizzle-orm";
 import { websocket } from "../src/ws.ts";
@@ -33,6 +33,20 @@ const beta = {
 	prerelease: true,
 };
 
+const nightly = {
+	...release,
+	tag_name: "v0.2.1-nightly.9",
+	name: "v0.2.1-nightly.9",
+	prerelease: true,
+};
+
+const older = {
+	...release,
+	tag_name: "v0.1.1",
+	name: "v0.1.1",
+	body: "## Breaking changes\n\n- **server:** drop /api/v0 (abc1234)\n\n## Fixes\n\n- x",
+};
+
 describe.skipIf(!hasDocker)("updates", () => {
 	let h: Harness;
 	let cookie: string;
@@ -47,10 +61,8 @@ describe.skipIf(!hasDocker)("updates", () => {
 		) => {
 			if (String(input).startsWith("https://api.github.com/")) {
 				asked++;
-				// The beta channel lists recent releases, prereleases included.
-				return String(input).endsWith("?per_page=30")
-					? Response.json([release, beta])
-					: Response.json(release);
+				// Every channel reads the same list and keeps its own builds.
+				return Response.json([nightly, older, release, beta]);
 			}
 			return real(input, init);
 		}) as typeof fetch;
@@ -82,8 +94,21 @@ describe.skipIf(!hasDocker)("updates", () => {
 			latestError: null,
 			updateAvailable: true,
 			autoCheck: true,
+			channel: "stable",
 			run: null,
 		});
+		// The changelog crosses 0.1.1 on the way and flags its breaking change.
+		expect(
+			r.json.changelog.map(
+				(e: { version: string; breaking: string | null }) => [
+					e.version,
+					e.breaking,
+				],
+			),
+		).toEqual([
+			["0.2.0", null],
+			["0.1.1", "- **server:** drop /api/v0 (abc1234)"],
+		]);
 		await h.call("GET", "/api/instance/update", as());
 		// A forced refresh within a minute of the last ask is served from the cache too.
 		await h.call("GET", "/api/instance/update?refresh=true", as());
@@ -189,31 +214,59 @@ describe.skipIf(!hasDocker)("updates", () => {
 		expect(status.json.autoCheck).toBe(false);
 	});
 
-	test("beta updates offer the newest prerelease until turned off again", async () => {
-		const off = await h.call("GET", "/api/instance/update", as());
-		expect(off.json).toMatchObject({
+	test("the channel picks stable, beta or nightly builds and keeps beta_updates in step", async () => {
+		const read = async () =>
+			(await h.call("GET", "/api/instance/update", as())).json;
+		const settings = async () =>
+			(
+				await h.deps.db
+					.select({
+						channel: instanceSettings.updateChannel,
+						beta: instanceSettings.betaUpdates,
+					})
+					.from(instanceSettings)
+			)[0];
+		expect(await read()).toMatchObject({
+			channel: "stable",
 			beta: false,
 			latest: { version: "0.2.0" },
 		});
-		const r = await h.call("PUT", "/api/instance/update/beta", {
+		for (const [channel, version] of [
+			["nightly", "0.2.1-nightly.9"],
+			["beta", "0.2.1-beta.4"],
+		] as const) {
+			const r = await h.call("PUT", "/api/instance/update/channel", {
+				...as(),
+				body: { channel },
+			});
+			expect(r.status).toBe(200);
+			expect(await read()).toMatchObject({
+				channel,
+				beta: true,
+				latest: { version },
+				updateAvailable: true,
+			});
+			expect(await settings()).toEqual({ channel, beta: true });
+		}
+		// A prerelease's notes cover everything since the last stable, so only stables sit between.
+		expect(
+			(await read()).changelog.map((e: { version: string }) => e.version),
+		).toEqual(["0.2.1-beta.4", "0.2.0", "0.1.1"]);
+		const bad = await h.call("PUT", "/api/instance/update/channel", {
 			...as(),
-			body: { enabled: true },
+			body: { channel: "edge" },
 		});
-		expect(r.status).toBe(200);
-		const on = await h.call("GET", "/api/instance/update", as());
-		expect(on.json).toMatchObject({
-			beta: true,
-			latest: { version: "0.2.1-beta.4" },
-			updateAvailable: true,
-		});
+		expect(bad.status).toBe(400);
+		// The old boolean route still works and maps onto the channel.
 		await h.call("PUT", "/api/instance/update/beta", {
 			...as(),
 			body: { enabled: false },
 		});
-		const back = await h.call("GET", "/api/instance/update", as());
-		expect(back.json).toMatchObject({
+		expect(await read()).toMatchObject({
+			channel: "stable",
 			beta: false,
 			latest: { version: "0.2.0" },
 		});
+		expect(await settings()).toEqual({ channel: "stable", beta: false });
 	});
 });

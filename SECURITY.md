@@ -11,7 +11,16 @@ Include the LogiStack version (`/etc/logistack/version` on the server), the step
 
 ## Supported versions
 
-Only the latest release gets security fixes. Upgrade before you report, if you can.
+Only the latest stable release gets security fixes. Betas and nightlies are fixed by the next build on their channel, not patched. Upgrade before you report, if you can.
+
+## How we handle a report
+
+1. We confirm that we received it within three working days.
+2. We reproduce it and agree a severity with you, using the threat model below.
+3. We fix it in a private fork through a GitHub security advisory, and credit you unless you prefer otherwise.
+4. We publish the release with the fix, then the advisory with a CVE, on the date we agreed.
+
+The design rules that keep most bugs of this class out are described in the [security model](https://stack.logicaltech.it/docs/reference/security-model/).
 
 ## In scope
 

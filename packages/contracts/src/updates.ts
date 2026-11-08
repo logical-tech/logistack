@@ -57,3 +57,10 @@ export const GithubRelease = z.object({
 	prerelease: z.boolean(),
 });
 export type GithubRelease = z.infer<typeof GithubRelease>;
+
+/**
+ * Which builds an instance is offered: `stable` tags only, `beta` adds the prereleases built from
+ * `staging` (`-beta.N`), `nightly` adds the daily builds of `develop` (`-nightly.N`).
+ */
+export const ReleaseChannel = z.enum(["stable", "beta", "nightly"]);
+export type ReleaseChannel = z.infer<typeof ReleaseChannel>;

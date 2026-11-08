@@ -14,6 +14,7 @@
 		"vulnerability-scanning",
 		"usage",
 		"updates",
+		"migrate-in-ten-minutes",
 		"migrate-from-dokploy",
 		"migrate-from-coolify"
 	]

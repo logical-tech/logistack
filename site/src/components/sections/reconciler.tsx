@@ -17,6 +17,16 @@ const compare = [
 		"On the node that holds the data",
 	],
 	[
+		"A branch is named feature/$(id)",
+		"Can end up in a shell command run as root",
+		"One argv entry, never a shell string",
+	],
+	[
+		"Cleanup runs on a shared server",
+		"Can remove containers and volumes it didn't create",
+		"Only touches objects labeled logistack.managed",
+	],
+	[
 		"You need SSO, roles and an audit log",
 		"Often a paid plan",
 		"In the open-source build, free",

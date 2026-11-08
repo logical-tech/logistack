@@ -1,0 +1,36 @@
+---
+title: No license gates
+description: Every LogiStack feature, including SSO, the audit log, custom roles and multi-node clusters, is free and open source under Apache 2.0. There is no paid edition.
+---
+
+LogiStack is open source under the Apache License 2.0, and the build you install is the whole product. No feature checks for a license key, no feature stops at a number of users or servers, and there is no enterprise edition with extra code. Read this page if you are choosing a platform for a team and want to know what you will pay for later.
+
+## What is included
+
+The features other platforms often sell separately are in every install:
+
+| Feature | In LogiStack |
+| --- | --- |
+| Single sign-on | OIDC and SAML 2.0, with automatic join by email domain. See [Single sign-on](../team/sso.mdx). |
+| Audit log | Every change through the dashboard, the API or MCP, append-only, with filters and CSV or JSON export. See [Audit log](../team/audit-log.mdx). |
+| Custom roles | Your own roles from individual actions, granted on an organization, folder, project, environment or service. See [Roles and permissions](../team/roles-and-permissions.mdx). |
+| Branding | Your organization's name and logo, and color themes. See [Organization settings and appearance](../team/appearance.mdx). |
+| Two-factor and passkeys | TOTP, backup codes, passkeys, and a policy that requires them for everyone. See [Two-factor authentication and passkeys](../team/two-factor-and-passkeys.mdx). |
+| Multi-node clusters | Add servers from the dashboard over SSH, with no limit on their number. See [Nodes](../operations/nodes.mdx). |
+| Automation | The REST API, scoped API keys, service accounts and the MCP server. See [REST API](../automation/rest-api.mdx). |
+
+## How LogiStack is funded
+
+Sponsors pay for the work. A sponsoring instance shows a faint glow in the dashboard as a thank-you, and hides the line that asks for sponsorship; that is all a sponsorship changes. Nothing works better, faster or longer on a sponsoring instance, and no feature waits for one.
+
+The rule is written into the project's contribution rules (`CONTRIBUTING.md`): no feature is gated behind a license, a key or a sponsorship, and a change that adds such a check is not merged.
+
+## Compared with Dokploy
+
+Since January 2026, Dokploy ships its single sign-on, audit logs, custom roles and whitelabel features under the Dokploy Source Available License (DSAL), a proprietary license, while the rest of Dokploy stays under Apache 2.0. In LogiStack the same kinds of features are part of the Apache 2.0 build.
+
+Coolify is also open source under Apache 2.0 with no license gates.
+
+## What the license allows
+
+Apache 2.0 lets you run LogiStack for any purpose, including commercially, change it, and redistribute it, as long as you keep the license and the `NOTICE` file. It includes a patent grant from contributors. The full text is in `LICENSE` in the repository.

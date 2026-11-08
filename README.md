@@ -1,48 +1,85 @@
 # LogiStack
 
-LogiStack is a self-hosted PaaS that runs on Docker Swarm, an alternative to Dokploy and Coolify. You push code or pick an image, and LogiStack builds it, deploys it, gives it a domain with HTTPS, and backs up its data. It differs from those two in four ways. Postgres holds the desired state, and a reconciler converges Docker and Caddy to it, so a manual change on the server is reverted instead of drifting. The worker configures Caddy through its admin API, so a domain change never redeploys the app or restarts the proxy. An agent on every node collects logs and metrics, and runs backups and schedules on the node where the container lives. No feature is behind a license: audit log, custom roles, SSO, and multi-node are all in the open-source build.
+LogiStack is an open-source, self-hosted PaaS on Docker Swarm, an alternative to Dokploy and Coolify. Push code or pick an image: LogiStack builds it, deploys it with zero downtime, gives it a domain with HTTPS, and backs up its data, on servers you own.
 
-Documentation, with step-by-step guides and screenshots: https://stack.logicaltech.it/docs/
+It is built around a few rules instead of shell scripts. Postgres holds the desired state and a reconciler converges Docker and Caddy to it, so a manual change on a server is reverted instead of drifting. Docker is driven through its Engine API, never a shell string. Cleanup only touches objects LogiStack labeled. And no feature is behind a license: SSO, the audit log, custom roles and multi-node clusters are all in the Apache 2.0 build.
 
-## Quick start
+[Documentation](https://stack.logicaltech.it/docs/) · [Security model](https://stack.logicaltech.it/docs/reference/security-model/) · [Migrate from Dokploy or Coolify](https://stack.logicaltech.it/docs/operations/migrate-in-ten-minutes/) · [Releases](https://github.com/logical-tech/logistack/releases)
 
-Run the installer as root on a fresh server:
+![A LogiStack project: services, databases and their status on one page](docs-site/public/screens/project.webp)
+
+## Try it in 60 seconds
+
+On a fresh Ubuntu 22.04+ or Debian 12+ server with 2 GB of RAM, run:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/logical-tech/logistack/main/install/install.sh | sudo bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --public-setup
 ```
 
-The installer installs Docker if it is missing, initialises Swarm, creates the secrets, deploys the stack, and prints a URL such as `http://203-0-113-7.sslip.io`. Open it to finish the setup in the browser. To see the plan without changing anything, add `-s -- --dry-run` after `bash`.
+The installer installs Docker if it is missing, initialises Swarm, creates the secrets and deploys the stack. Most of its few minutes go to pulling images. It ends with a link that carries a one-time setup token:
 
-Requirements:
+```text
+http://203-0-113-7.sslip.io/setup#token=Qm9yZWQ...
+```
 
-- Ubuntu 22.04 or later, or Debian 12 or later. Other distributions with Docker 26 or later work, but the installer warns that they are untested.
-- amd64 or arm64, at least 2 GB of RAM, and 10 GB of free disk.
-- Ports 80/tcp, 443/tcp, and 443/udp free on the server and open in your provider's firewall.
+Open it and the setup wizard asks for the owner account, the organization, the domain for your services and a Let's Encrypt email. The token sits in the URL fragment, so your browser never sends it to a server log, and it stops working once the owner exists. A bot that finds the server first cannot claim it.
 
-The guided setup asks for these, in order:
+Without `--public-setup`, setup stays private on `127.0.0.1:3000` and you reach it through an SSH tunnel (`ssh -L 3000:127.0.0.1:3000 root@<server>`). To see the plan without changing anything, add `--dry-run`.
 
-1. The owner account: name, email, and password.
-2. The organization name.
-3. The domain that service hostnames live under, and the dashboard URL.
-4. A DNS check, when you chose your own domain.
-5. The email address Let's Encrypt sends certificate notices to.
-6. Whether to run a local registry for images built from your repositories.
+Requirements: amd64 or arm64, 2 GB of RAM, 10 GB of free disk, and ports 80/tcp, 443/tcp and 443/udp open. `/etc/logistack/credentials` holds the master key that encrypts every stored secret: back it up. The [install guide](https://stack.logicaltech.it/docs/getting-started/install/) covers every flag and how to pick a domain.
 
-`/etc/logistack/credentials` holds the master key that encrypts every stored secret. Back it up. Docker secrets cannot be read back.
+<table>
+<tr>
+<td><img src="docs-site/public/screens/service-overview.webp" alt="A service's overview: three replicas across two nodes, desired and observed state, and its domain"></td>
+<td><img src="docs-site/public/screens/service-deployments.webp" alt="A service's deployments, each with its commit, duration and status, with rollback"></td>
+</tr>
+<tr>
+<td><img src="docs-site/public/screens/database-postgres.webp" alt="The built-in Postgres editor with tables, rows and a SQL console"></td>
+<td><img src="docs-site/public/screens/monitoring.webp" alt="Monitoring: CPU, memory and disk of every node"></td>
+</tr>
+</table>
 
-### Pick a domain
+## Features
 
-Use a wildcard domain you control, such as `*.srv1.example.com`. Create two A records, `*.srv1.example.com` and `srv1.example.com`, that point at the server. If your DNS is on Cloudflare, Route 53, or Hetzner, give the wizard an API token. LogiStack then creates the records and requests one wildcard certificate over DNS-01, so a new service gets HTTPS without a new certificate request. Without a token, Caddy requests a certificate per hostname over HTTP-01.
+| Area | What LogiStack does |
+| --- | --- |
+| Sources | GitHub App, GitLab, Gitea, Bitbucket, any git URL, or a container image. Deploy on push, filtered by watch paths, with preview environments for pull requests. |
+| Builds | Dockerfile, railpack or static, built by rootless BuildKit for amd64 and arm64. Images are tagged by deployment id, never `:latest`. |
+| Deployments | Start-first rolling updates, health checks, autoscaling, rollback to any earlier deployment, cancel. |
+| Templates | Hundreds of one-click apps, and any Compose file as a stack. |
+| Databases | Postgres, MySQL, MariaDB, MongoDB, Redis and libSQL, each with a built-in editor. |
+| Domains | Automatic HTTPS over HTTP-01 or DNS-01, wildcard and custom certificates, redirects, basic auth, Cloudflare Tunnels and Tailscale. |
+| Backups | Databases and volumes to S3, SFTP, WebDAV and more, with retention, scheduled restore checks and restore. |
+| Servers | Add nodes from the dashboard over SSH. An agent on every node streams logs and metrics and runs backups and schedules where the data lives. |
+| Observability | Metrics, logs, log drains, alerts to email, Slack, Discord, Telegram, Teams and more, and image vulnerability scanning. |
+| Access | Organizations, folders, projects and environments. Built-in and custom roles per scope. Passkeys, TOTP, OIDC and SAML. Append-only audit log. |
+| Automation | REST API with OpenAPI, scoped API keys, service accounts, project manifests, and an MCP server at `/mcp`. |
+| Updates | One click from the dashboard on the stable, beta or nightly channel, with the changelog and its breaking changes shown first, and automatic rollback. |
 
-For a quick start, pick sslip.io or nip.io. A hostname such as `app.203-0-113-7.sslip.io` resolves to the server with no DNS setup. These domains are not on the Public Suffix List, so every sslip.io user on the internet shares one Let's Encrypt limit of 50 certificates per week. Certificate requests can fail for reasons outside your control. Move to your own domain before you rely on the server.
+## How it compares
+
+LogiStack learned a lot from Dokploy and Coolify, and both have much larger communities. The table shows the design choices that differ, as of November 2026.
+
+| | LogiStack | Dokploy | Coolify |
+| --- | --- | --- | --- |
+| License | Apache 2.0, every feature | Apache 2.0, with SSO, audit logs, custom roles and whitelabel under the proprietary DSAL since January 2026 | Apache 2.0, every feature |
+| Talks to Docker through | The Engine API; other tools with argv lists | Shell commands on the host | Shell commands over SSH |
+| Proxy | Caddy, configured through its admin API without reloads | Traefik | Traefik or Caddy |
+| Multi-node | Docker Swarm, with an agent per node | Docker Swarm | Swarm support deprecated; the announced v5 drops it |
+| GitHub security advisories, last 12 months | None published yet | About 55 | 61, 16 critical |
+
+Most advisories against the other two are root command injection through shell strings and cross-tenant authorization flaws; the [security model](https://stack.logicaltech.it/docs/reference/security-model/) explains how LogiStack's rules target both, with links to both advisory lists. LogiStack is younger and has had far fewer eyes on it, so "none published yet" is not a claim that it has no bugs.
+
+## Migrate from Dokploy or Coolify
+
+Install LogiStack on the same server. It finds Dokploy or Coolify v4, leaves its proxy on ports 80 and 443, and Home offers **Start migration**. The wizard reads the old platform, imports projects, apps, Compose files, databases, domains and settings, moves services one at a time with a rollback for each, then switches traffic. Databases keep their volumes and hostnames. Read the [ten-minute guide](https://stack.logicaltech.it/docs/operations/migrate-in-ten-minutes/).
 
 ## Install next to an existing proxy
 
 If another proxy holds ports 80 and 443, for example the Traefik of a Dokploy install, run the installer with `--no-ingress`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/logical-tech/logistack/main/install/install.sh | sudo bash -s -- --no-ingress
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --no-ingress
 ```
 
 Caddy stays at zero tasks, and the API listens on `127.0.0.1:3000` on the server only. Open an SSH tunnel from your machine, then open `http://localhost:3000` to run the setup:
@@ -54,46 +91,17 @@ ssh -L 3000:127.0.0.1:3000 root@<server-ip>
 If port 3000 is taken on the server, set `LOGISTACK_TUNNEL_PORT=<port>` before you run the installer. A plain re-run keeps ingress off. When ports 80 and 443 are free, turn Caddy on:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/logical-tech/logistack/main/install/install.sh | sudo bash -s -- --enable-ingress
-```
-
-## Migrate from Dokploy
-
-The importer reads Dokploy's compose directories and creates one LogiStack project per compose, with its env vars and domains. It writes through the API's own routes, so validation, permission checks, and audit entries apply. It maps single-service composes that use an image. It refuses `build:`, several services, and named volumes, and lists the reason. A re-run skips services it already imported.
-
-On the server, copy Dokploy's compose directory into the API container and run a dry run first:
-
-```sh
-api=$(docker ps -q --filter name=logistack_logistack-api | head -n1)
-docker cp /etc/dokploy/compose "$api":/import
-docker exec -it "$api" /app/install/entrypoint.sh \
-	bun apps/server/scripts/import-dokploy.ts --source /import --org <org-slug> --dry-run
-```
-
-Run it again without `--dry-run` to create the services. Other options:
-
-| Flag | Effect |
-| --- | --- |
-| `--folder <name>` | Folder for the new projects. Defaults to `Imported from Dokploy`. |
-| `--deploy` | Queue a deployment of every imported service. |
-| `--stopped <appName,...>` | Create these services with desired state stopped. |
-| `--allow-sensitive` | Allow bind mounts of sensitive host paths. |
-| `--dokploy-db <url>` | Read project and compose names from Dokploy's Postgres instead of folder names. |
-
-Remove the copy when you are done, because the `.env` files hold secrets:
-
-```sh
-docker exec -u root "$api" rm -rf /import
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --enable-ingress
 ```
 
 ## Upgrade
 
-In the dashboard, an admin opens **Settings > Updates**, reads the notes of the latest release, and clicks **Update to vX**. The worker pulls every image first and changes nothing if a pull fails. It then updates the api, which runs database migrations at startup under a Postgres advisory lock, waits for it to turn healthy, and then updates the agent, Caddy, and the worker last. A service that does not turn healthy rolls back, and so does every service updated before it. Progress streams live on the page. With **Check daily** on, LogiStack asks GitHub once a day and sends `instance.update_available` to your notification channels.
+In the dashboard, an admin opens **Settings > Updates**, picks the stable, beta or nightly channel, reads the changelog of every release the update crosses, breaking changes first, and clicks **Update to vX**. The worker pulls every image first and changes nothing if a pull fails. It lets running deployments and backups finish, migrates the database once, then updates the api, the agent, Caddy, and the worker last, waiting for each to turn healthy. A service that does not turn healthy rolls back, and so does every service updated before it. Progress streams live on the page. With **Check daily** on, LogiStack asks GitHub once a day and sends `instance.update_available` to your notification channels.
 
 From the server, run the installer with a release, or `latest`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/logical-tech/logistack/main/install/install.sh | sudo bash -s -- --version 0.2.0
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.2.0
 ```
 
 This is also how an install built with `--local-build` moves to the published images. An in-app update swaps only images, so a release that changes `install/stack.yml` says so in its notes and needs this command. A plain re-run keeps the release that runs now and never rotates existing secrets.
@@ -107,23 +115,6 @@ curl -fsSL https://raw.githubusercontent.com/logical-tech/logistack/main/install
 `uninstall.sh` removes the stack and its networks. Volumes, secrets, and `/etc/logistack` stay, so the installer brings LogiStack back with its data. To delete everything, including the database, run it with `-s -- --purge`. It asks you to type `purge`. Docker and Swarm stay installed.
 
 [The installer reference](https://stack.logicaltech.it/docs/reference/installer/) covers every installer flag, the objects the installer creates, firewall rules for more nodes, and how to build the images.
-
-## Features
-
-| Area | What LogiStack does |
-| --- | --- |
-| Sources | GitHub App, GitLab, Gitea, Bitbucket, any git URL, or a container image. Deploy on push, filtered by watch paths. |
-| Builds | Dockerfile, railpack, or static, built by rootless BuildKit. Images are tagged by deployment id, never `:latest`. |
-| Deployments | Start-first rolling updates, health checks, rollback to an earlier deployment, cancel. |
-| Databases | Postgres, MySQL, MariaDB, MongoDB, Redis. |
-| Domains | Automatic HTTPS from Let's Encrypt over HTTP-01 or DNS-01, wildcard certificates, custom certificates, redirects. |
-| Backups | Databases and volumes to any S3-compatible storage, with retention, scheduled restore checks, and restore. |
-| Schedules | Cron jobs in an ephemeral container, inside a service, or on a node. |
-| Servers | Add nodes from the dashboard over SSH. Per-node metrics and logs from the agent. |
-| Notifications | Email, Slack, Discord, Telegram, Teams, Mattermost, ntfy, Gotify, Pushover, webhook. |
-| Access | Organizations, folders, projects, and environments. Built-in and custom roles per scope. Passkeys, TOTP, OIDC, and SAML. |
-| Automation | REST API with OpenAPI, scoped API keys, machine accounts, and an MCP server at `/mcp`. |
-| Audit | Append-only audit log with the actor, the outcome, and a diff with secrets redacted. |
 
 ## Architecture
 

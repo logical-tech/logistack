@@ -407,6 +407,13 @@
       "when": 1794200000006,
       "tag": "0057_node_patching",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794200000007,
+      "tag": "0058_update_channel",
+      "breakpoints": true
     }
   ]
 }

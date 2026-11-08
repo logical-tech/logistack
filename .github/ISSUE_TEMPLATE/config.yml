@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/logical-tech/logistack/security/advisories/new
+    about: Report it privately. Never open a public issue for a security problem.
+  - name: Ask a question or share an idea
+    url: https://github.com/logical-tech/logistack/discussions
+    about: Questions, setups and ideas belong in Discussions; issues track bugs and planned changes.
+  - name: Read the documentation
+    url: https://stack.logicaltech.it/docs/
+    about: Install, migration, every feature, and troubleshooting.

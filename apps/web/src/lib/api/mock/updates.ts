@@ -1,9 +1,16 @@
 import {
 	type LiveMessage,
+	type ReleaseChannel,
 	type UpdateStep,
 	type UpdateStepState,
 	updateChannel,
 } from "@logistack/contracts";
+import {
+	breakingChanges,
+	compareVersions,
+	onChannel,
+	releasesBetween,
+} from "@logistack/core/version";
 import { ApiError } from "../adapter";
 import type { UpdateRun, UpdateStatus, UpdatesApi } from "../updates";
 
@@ -36,23 +43,80 @@ curl -fsSL https://github.com/logical-tech/logistack/releases/download/v0.2.0/in
 
 **Full changelog:** https://github.com/logical-tech/logistack/compare/v0.1.0...v0.2.0`;
 
+const PATCH_NOTES = `## Breaking changes
+
+- **server:** API keys created before 0.1.1 lose the \`deploy:*\` wildcard scope; give them explicit scopes in **Settings > API keys** (7b2e1d4)
+
+## Fixes
+
+- **worker:** backups of volumes with spaces in their names (a51c0f2)
+- **web:** the Domains tab keeps its sort order after a deploy (e03b6a9)
+
+## Upgrade
+
+In the dashboard, open **Settings > Updates** and choose **Update to v0.1.1**.`;
+
+const BETA_NOTES = `## Features
+
+- **web:** release channels: stable, beta and nightly (c19d2e0)
+- **web:** the changelog of every release an update crosses, with breaking changes first (5d0a7f3)
+
+## Fixes
+
+- **agent:** reconnects after the api restarts mid-update (8e4410b)`;
+
+const release = (version: string, notes: string, days: number) => ({
+	version,
+	name: `v${version}`,
+	notes,
+	url: `https://github.com/logical-tech/logistack/releases/tag/v${version}`,
+	publishedAt: new Date(Date.now() - days * DAY).toISOString(),
+});
+
+/** What GitHub lists, newest first; each channel keeps its own builds and steadier ones. */
+const RELEASES = [
+	release("0.2.1-nightly.31", BETA_NOTES, 0.4),
+	release("0.2.1-beta.4", BETA_NOTES, 1),
+	release("0.2.0", NOTES, 2),
+	release("0.1.1", PATCH_NOTES, 9),
+];
+
 const state: UpdateStatus = {
 	current: { version: "0.1.0", commit: "5ed55b5" },
-	latest: {
-		version: "0.2.0",
-		name: "v0.2.0",
-		notes: NOTES,
-		url: "https://github.com/logical-tech/logistack/releases/tag/v0.2.0",
-		publishedAt: new Date(Date.now() - 2 * DAY).toISOString(),
-	},
+	latest: null,
 	latestError: null,
 	checkedAt: new Date().toISOString(),
-	/** `ls-mock-update-none=1` starts the mock up to date (no sidebar update card). */
-	updateAvailable: localStorage.getItem("ls-mock-update-none") !== "1",
+	updateAvailable: false,
 	autoCheck: true,
+	channel: "stable",
 	beta: false,
+	changelog: [],
 	run: null,
 };
+
+/** Fills `latest` and `changelog` from the channel, as the api does. */
+function pick(channel: ReleaseChannel) {
+	const releases = RELEASES.filter((r) => onChannel(r.version, channel));
+	const latest = releases[0] ?? null;
+	// `ls-mock-update-none=1` starts the mock up to date (no sidebar update card).
+	const none = localStorage.getItem("ls-mock-update-none") === "1";
+	if (none && latest) state.current.version = latest.version;
+	const available =
+		!!latest && compareVersions(latest.version, state.current.version) > 0;
+	Object.assign(state, {
+		channel,
+		beta: channel !== "stable",
+		latest,
+		updateAvailable: available,
+		changelog:
+			latest && available
+				? releasesBetween(releases, state.current.version, latest.version).map(
+						(r) => ({ ...r, breaking: breakingChanges(r.notes) }),
+					)
+				: [],
+	});
+}
+pick("stable");
 
 const listeners = new Map<string, Set<(m: LiveMessage) => void>>();
 const emit = (run: UpdateRun, line?: string) => {
@@ -138,7 +202,7 @@ async function play(run: UpdateRun) {
 	emit(run, "Deployments, backups and migrations resumed");
 	run.state = "succeeded";
 	state.current = { version: run.toVersion, commit: "4f1c2a9" };
-	state.updateAvailable = false;
+	pick(state.channel);
 	emit(run, `Updated to ${run.toVersion}`);
 }
 
@@ -180,9 +244,9 @@ export const mockUpdates: UpdatesApi = {
 		state.autoCheck = enabled;
 		return delay({ enabled });
 	},
-	setBeta: (enabled) => {
-		state.beta = enabled;
-		return delay({ enabled });
+	setChannel: (channel) => {
+		pick(channel);
+		return delay({ channel });
 	},
 	live: (channel, fn) => {
 		const set = listeners.get(channel) ?? new Set();
