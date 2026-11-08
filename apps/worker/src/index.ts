@@ -58,11 +58,9 @@ import { convertLegacySecrets } from "./secrets.ts";
 import { syncTailscale } from "./tailscale.ts";
 import { syncTunnels } from "./tunnels.ts";
 import {
-	processCheck,
 	UPTIME_TICK_MS,
 	UPTIME_TICK_SCHEDULER,
-	type UptimeJob,
-	uptimeTick,
+	uptimeWorker,
 } from "./uptime.ts";
 import { processScanJob } from "./vulnscan.ts";
 
@@ -223,15 +221,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			(job) => processScanJob(ctx, job.data),
 			{ connection, concurrency: 1 },
 		),
-		new Worker<UptimeJob>(
-			"uptime",
-			async (job) => {
-				if (job.data.name === "check")
-					await processCheck(ctx, job.data.monitorId);
-				else await uptimeTick(ctx);
-			},
-			{ connection, concurrency: cfg.LS_UPTIME_CONCURRENCY },
-		),
+		uptimeWorker(ctx, connection, cfg.LS_UPTIME_CONCURRENCY),
 		new Worker("notify", (job) => notify.retry(job.data), {
 			connection,
 			concurrency: 8,

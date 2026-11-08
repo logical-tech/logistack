@@ -1,5 +1,5 @@
 import { monitor } from "@logistack/db";
-import type { Queue } from "bullmq";
+import { type ConnectionOptions, type Queue, Worker } from "bullmq";
 import { eq, sql } from "drizzle-orm";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
@@ -9,7 +9,7 @@ import { type Publish, recordResult } from "./uptime-record.ts";
 
 // Postgres holds each monitor's `next_check_at`; a BullMQ Job Scheduler fires `tick` every
 // TICK_MS on any worker replica. The tick claims due monitors (skip locked, so replicas never
-// share one) and queues one `check` job per monitor, its id the monitor's, so a monitor never
+// share one) and queues one `check` job per monitor, its id derived from the monitor's, so a monitor never
 // runs twice at once.
 
 export const UPTIME_TICK_MS = 5_000;
@@ -48,7 +48,8 @@ export async function enqueueDue(
 				name: "check",
 				data: { name: "check", monitorId: m.id } satisfies UptimeJob,
 				opts: {
-					jobId: `check:${m.id}`,
+					// BullMQ refuses ":" in custom ids (except its own 3-part form).
+					jobId: `check-${m.id}`,
 					removeOnComplete: true,
 					removeOnFail: true,
 				},
@@ -112,4 +113,21 @@ export async function uptimeTick(ctx: Ctx) {
 		await applyUptimeRetention(ctx).catch((e: unknown) =>
 			log("warn", "uptime retention failed", { error: String(e) }),
 		);
+}
+
+/** The `uptime` queue's processor: ticks claim and queue, checks run. */
+export function uptimeWorker(
+	ctx: Ctx,
+	connection: ConnectionOptions,
+	concurrency: number,
+) {
+	return new Worker<UptimeJob>(
+		"uptime",
+		async (job) => {
+			if (job.data.name === "check")
+				await processCheck(ctx, job.data.monitorId);
+			else await uptimeTick(ctx);
+		},
+		{ connection, concurrency },
+	);
 }

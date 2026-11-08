@@ -28,7 +28,7 @@ Ideas only. We copied no code and kept no code open while writing ours.
 
 ## Scheduling
 
-Postgres holds `next_check_at` (rule 1). A BullMQ Job Scheduler fires an `uptime` tick every 5 s. The tick claims due monitors with `update … where id in (select … for update skip locked) returning`, so several worker replicas never run the same check. It enqueues one `check` job per monitor, with job id `check:<id>` so the same monitor never runs twice at once. The same tick marks silent push monitors as failed and, once an hour, deletes expired raw and rolled-up rows.
+Postgres holds `next_check_at` (rule 1). A BullMQ Job Scheduler fires an `uptime` tick every 5 s. The tick claims due monitors with `update … where id in (select … for update skip locked) returning`, so several worker replicas never run the same check. It enqueues one `check` job per monitor, with job id `check-<id>` so the same monitor never runs twice at once. The same tick marks silent push monitors as failed and, once an hour, deletes expired raw and rolled-up rows.
 
 ## SSRF
 

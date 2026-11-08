@@ -10,7 +10,13 @@ import { eq } from "drizzle-orm";
 import type { Bus } from "../../worker/src/bus.ts";
 import type { Ctx } from "../../worker/src/ctx.ts";
 import { dispatch, dispatchDeps } from "../../worker/src/notify.ts";
-import { claimDue, enqueueDue, processCheck } from "../../worker/src/uptime.ts";
+import { createQueues, redisConnection } from "../../worker/src/queues.ts";
+import {
+	claimDue,
+	enqueueDue,
+	processCheck,
+	uptimeWorker,
+} from "../../worker/src/uptime.ts";
 import { tlsCheck } from "../../worker/src/uptime-checks.ts";
 import { envelope } from "../src/events.ts";
 import { resetStatusHosts } from "../src/status-pages.ts";
@@ -493,6 +499,37 @@ describe.skipIf(!hasDocker)("uptime end to end", () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
+
+	test("through BullMQ: a tick job claims the due monitor and its check job records a result", async () => {
+		const created = await h.call(
+			"POST",
+			"/api/monitors",
+			as({
+				name: "Queue path",
+				config: { kind: "tcp", tcp: { host: "127.0.0.1", port: 9 } },
+			}),
+		);
+		const id = created.json.id;
+		const connection = redisConnection(h.config.REDIS_URL);
+		const queues = createQueues(connection);
+		const worker = uptimeWorker({ ...ctx, queues } as Ctx, connection, 4);
+		try {
+			await queues.uptime.add("tick", { name: "tick" });
+			const deadline = Date.now() + 15_000;
+			let m: typeof monitor.$inferSelect | undefined;
+			while (Date.now() < deadline) {
+				[m] = await h.deps.db.select().from(monitor).where(eq(monitor.id, id));
+				if (m?.lastCheckAt) break;
+				await Bun.sleep(100);
+			}
+			expect(m?.lastCheckAt).toBeInstanceOf(Date);
+			expect(m?.streak).toBe(-1);
+			expect(m?.lastError).toBeTruthy();
+		} finally {
+			await worker.close();
+			await Promise.all(Object.values(queues).map((q) => q.close()));
+		}
+	}, 30_000);
 
 	test("suggestions and permissions", async () => {
 		const s = await h.call("GET", "/api/monitors/suggestions", as());
