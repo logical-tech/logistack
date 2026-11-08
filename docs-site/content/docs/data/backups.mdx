@@ -1,13 +1,13 @@
 ---
-title: Back up a database or volume to S3
-description: Create a backup policy that dumps a database or archives a volume to an S3 bucket on a cron, with retention, age encryption, scheduled verifies and run history.
+title: Back up a database or volume
+description: Create a backup policy that dumps a database or archives a volume to S3, SFTP or another destination on a cron, with retention, encryption and verifies.
 ---
 
-A backup policy copies one thing from a service to an S3 bucket on a schedule: a dump of the database, or an archive of one volume. It deletes old copies by your retention rules, can encrypt every backup before it leaves the server, and can test the newest backup on its own schedule. Set one up on every service whose data you can't rebuild, before you go to production.
+A backup policy copies one thing from a service to a backup destination on a schedule: a dump of the database, or an archive of one volume. It deletes old copies by your retention rules, can encrypt every backup before it leaves the server, and can test the newest backup on its own schedule. Set one up on every service whose data you can't rebuild, before you go to production.
 
 ## Before you start
 
-- Add at least one destination: an [S3 bucket](./s3-destinations.mdx), or an [SFTP server, WebDAV share, Azure container, Google Drive folder, B2 bucket or node folder](./backup-destinations.mdx). Pick a bucket that doesn't live on the same server: a backup on the machine you lose doesn't help.
+- Add at least one destination: an [S3 bucket](./s3-destinations.mdx), or an [SFTP server, WebDAV share, Azure container, Google Drive folder, B2 bucket or node folder](./backup-destinations.mdx). Pick a destination that doesn't live on the same server: a backup on the machine you lose doesn't help.
 - You need write access to the service.
 
 ## What a policy backs up

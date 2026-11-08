@@ -63,7 +63,7 @@ Every resource (service, domain, variable, volume, schedule) is a row in Postgre
 
 Every operation is idempotent. If the worker stops halfway through a deploy, the next attempt finds the half-applied state and finishes it instead of starting over. The compilers that turn a row into a Docker service spec or a Caddy config are pure functions with no I/O.
 
-Rollouts are done by Swarm itself: each service updates start-first, monitors new tasks, and rolls back automatically when they fail. A service with a domain and no health check of its own gets a TCP check on its port, so a rollout only completes once the new replicas listen.
+Rollouts are done by Swarm itself: each service updates start-first, monitors new tasks, and rolls back automatically when they fail. A service with a domain and no health check of its own gets a TCP check on its port when its image has a shell, so a rollout only completes once the new replicas listen.
 
 ## Labels and names
 

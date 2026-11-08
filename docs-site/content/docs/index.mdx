@@ -34,7 +34,7 @@ LogiStack has no paid edition. Every feature in these docs ships in the same ope
 | Environments | Production, staging, custom environments and pull request previews, each with its own variables, network and domains. |
 | Domains and HTTPS | Generated hostnames that work right away, your own domains, wildcard certificates over DNS-01 through Cloudflare, Route 53, Hetzner DNS, DigitalOcean, OVHcloud or Porkbun, and Cloudflare Tunnels. |
 | Databases | PostgreSQL, MySQL, MariaDB, MongoDB, Redis and libSQL, with a database editor in the browser. |
-| Backups | Scheduled database and volume backups to any S3-compatible bucket, with retention and restore. |
+| Backups | Scheduled database and volume backups to S3-compatible buckets, SFTP, WebDAV, Azure Blob, Google Drive, B2 or a node folder, with retention and restore. |
 | Object storage | S3-compatible storage (MinIO, RustFS, Garage, SeaweedFS) with buckets, scoped keys and share links. |
 | Observability | Live logs, a terminal into running containers, CPU, memory, disk and network metrics, alert thresholds and notifications to Slack, Discord, email and more. |
 | Cluster | Add servers from the dashboard. LogiStack runs on Docker Swarm, so services spread across nodes. |
@@ -56,7 +56,7 @@ If you already run Dokploy or Coolify, LogiStack can move your projects, databas
   <Card title="Deploy your first app" href="/getting-started/first-deploy" description="Create a project, add a service, attach a domain and open it over HTTPS." />
   <Card title="Deploy from Git" href="/deploy/from-git" description="Connect GitHub, GitLab, Gitea or Bitbucket and deploy on every push." />
   <Card title="Domains" href="/networking/domains" description="Generated hostnames, your own domains and automatic certificates." />
-  <Card title="Backups" href="/data/backups" description="Scheduled database and volume backups to S3-compatible storage." />
+  <Card title="Backups" href="/data/backups" description="Scheduled database and volume backups to S3, SFTP and other destinations." />
   <Card title="MCP server" href="/automation/mcp-server" description="Let an AI agent deploy and inspect services through MCP." />
   <Card title="Concepts" href="/getting-started/concepts" description="Organizations, projects, environments, services and how they converge." />
   <Card title="Dashboard tour" href="/getting-started/dashboard-tour" description="Where everything lives in the sidebar, and the command menu." />

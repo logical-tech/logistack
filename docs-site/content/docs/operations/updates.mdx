@@ -17,7 +17,7 @@ The **Version** panel shows:
 - **Latest release** (or **Latest beta** with beta updates on): the newest release on GitHub, when it was published, and a **GitHub** link.
 - A status: **v0.2.0 is available**, **Up to date**, **No release published yet**, or **Couldn't reach GitHub**, with when it last checked.
 
-Below it, **What's new in v0.2.0** shows the release notes. Select **Check now** to ask GitHub again.
+Below it, **What's new in v0.2.0** shows the release notes of the available update, or **Release notes for v0.1.0** when you are up to date. Long notes are cut short: select **Show all notes** to read the rest. Select **Check now** to ask GitHub again.
 
 When an update is available, the sidebar also shows a card such as **v0.2.0 available** with **Update** and **What's new**.
 
@@ -70,17 +70,17 @@ The database stays migrated after a rollback. LogiStack releases only add to the
 
 ### Check that it worked
 
-The **Version** panel shows the new release under **This instance** and the status **Up to date**. **Settings** › **Updates** keeps the run's panel with every step **Done**.
+The **Version** panel shows the new release under **This instance** and the status **Up to date**. A tab that was open during the update shows the run's panel with every step **Done**; once you reload the page, a successful run is no longer shown. A failed run stays on the page.
 
 ## Check for updates automatically
 
-Under **Automatic checks**, **Check daily** is on by default. Once a day LogiStack asks GitHub for the latest release and, when it is newer, sends `instance.update_available` to the notification rules that include **Update available**. Nothing updates until an admin chooses to.
+In the **Settings** panel, **Check daily** is on by default. Once a day LogiStack asks GitHub for the latest release and, when it is newer, sends `instance.update_available` to the notification rules that include **Update available**. Nothing updates until an admin chooses to.
 
 To get an email for each new release, add a rule with **Update available** sent to an email channel. See [Alerts and notifications](./alerts-and-notifications.mdx).
 
 ## Get beta releases
 
-Under **Release channel**, turn on **Beta updates** to be offered builds of the staging branch ahead of the stable release they lead to. The latest version then reads **Latest beta**.
+In the **Settings** panel, turn on **Beta updates** to be offered builds of the staging branch ahead of the stable release they lead to. The latest version then reads **Latest beta**.
 
 <Callout type="warn">
 Betas aren't ready for production. They pass the build but not the full test suite, and a migration they bring can't be undone. Keep this off on servers that host anything you depend on.

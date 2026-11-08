@@ -15,6 +15,8 @@ The catalog ships with LogiStack in `packages/templates/catalog`, one JSON file 
 - **Start order**: which services start after which.
 - **Source and license**: most templates are adapted from the Coolify or Dokploy catalogs. The detail page names the upstream file and its license.
 
+Database passwords, admin passwords and API tokens are inputs of a generated type (password, secret, base64 or UUID), so each deploy gets its own values. Public URLs built from your domain use `https://`.
+
 Env values in a template reference inputs with `${{ inputs.<key> }}` and sibling services with `${{ services.<name>.host }}`. For example, the YOURLS template sets:
 
 ```json title="packages/templates/catalog/yourls.json (excerpt)"
@@ -65,7 +67,7 @@ On **Settings**, only the required fields need an answer:
 - **Address** › **Public URL**: your own hostname, such as `n8n.example.com`. Leave it empty to get a generated address like `n8n-a1b2c3.203-0-113-10.sslip.io`.
 - **Required**: values the app can't guess, such as an admin email.
 - **Credentials**: passwords and keys marked **Auto-generated**. They are generated when you deploy and stored as secret variables. Select **Set my own** only if you need a known value, and **Generate instead** to go back.
-- **Optional settings**: extra values with safe defaults.
+- **Optional settings**: extra values with safe defaults, such as **Timezone**, which defaults to `UTC`.
 
 </Step>
 <Step>
@@ -85,11 +87,12 @@ The template becomes a stack in the environment. Its **Overview** tab lists the 
 
 ## Find the generated secrets
 
-Generated passwords live as secret variables on the services that use them. Open the service (for example `n8n`), select **Environment**, and reveal the value with the eye icon. You need permission to read secrets. See [Environment variables](./environment-variables.mdx).
+Generated passwords, keys and tokens live as secret variables on the services that use them. Open the service (for example `n8n`), select **Environment**, and reveal the value with the eye icon. You need permission to read secrets. See [Environment variables](./environment-variables.mdx).
 
 ## Common problems
 
 - **"Production already has a service named postgres"**: each service keeps its template name, because the others reach it by that name. Deploy the template into another environment, or create a new one. See [Environments](./environments.mdx).
 - **"Nothing new was created"**: you deployed the same template with the same name into the same environment again. LogiStack returns the services from the first deploy instead of creating duplicates.
+- **Mail or cloud storage doesn't work**: a few templates keep placeholder values for outside services, such as `SMTP_PASSWORD` or `AWS_SECRET_ACCESS_KEY`. Set the real values under the service's **Environment** tab and redeploy.
 - **A service failed**: open it, read its deployment log in **Deployments**, fix the setting there and redeploy.
 - **The custom domain shows a certificate error**: the DNS record doesn't point at the server yet. See [Domains](../networking/domains.mdx).

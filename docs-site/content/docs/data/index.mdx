@@ -1,25 +1,26 @@
 ---
 title: Data, backups and storage
-description: Browse and edit databases, back them up to S3 on a cron, restore them, run object storage and scheduled jobs, and manage files in volumes.
+description: Browse and edit databases, back them up on a cron, restore them, run object storage and scheduled jobs, and manage files in volumes.
 ---
 
-This section covers everything that holds state in LogiStack: the databases you run, the backups that protect them, the S3 buckets those backups go to, object storage for your apps, files in volumes, and cron jobs. Read it when you need to look inside a database, set up backups before going to production, or recover from a mistake.
+This section covers everything that holds state in LogiStack: the databases you run, the backups that protect them, the destinations those backups go to, object storage for your apps, files in volumes, and cron jobs. Read it when you need to look inside a database, set up backups before going to production, or recover from a mistake.
 
 ## What each part does
 
 - The **Database** tab of a database service is a built-in explorer. You browse tables, edit rows, run SQL, manage roles and download or restore a dump without a separate client.
-- A **backup policy** dumps a database, or archives a volume, to an S3 bucket on a cron. It keeps as many copies as you choose and can encrypt them with [age](https://age-encryption.org).
+- A **backup policy** dumps a database, or archives a volume, to a backup destination on a cron. It keeps as many copies as you choose and can encrypt them with [age](https://age-encryption.org).
 - The **restore wizard** brings a backup back, into the service itself or into a copy beside it.
-- **S3 destinations** are the buckets backups write to: AWS S3, Cloudflare R2, Backblaze B2, Hetzner, MinIO, Wasabi or any S3-compatible store.
+- **Backup destinations** are where backups go: an S3 bucket (AWS S3, Cloudflare R2, Backblaze B2, Hetzner, MinIO, Wasabi or any S3-compatible store), an SFTP server, a WebDAV share, Azure Blob Storage, Google Drive, B2's native API or a folder on a node.
 - **Object storage** services run an S3-compatible server (MinIO, RustFS, Garage or SeaweedFS) in your project, with a file browser, scoped keys and share links.
 - The **Files** tab shows a service's config files and volumes, and lets you browse the running container's filesystem.
 - **Schedules** run a shell script on a cron, in a fresh container, inside a service or on a node.
 
 <Cards>
   <Card title="Database editor" href="./database-editor.mdx" description="Tables, rows, filters, SQL, diagram, roles, dumps, Redis keys and MongoDB documents." />
-  <Card title="Backups" href="./backups.mdx" description="Back up a database or volume to S3 on a schedule, with retention and encryption." />
+  <Card title="Backups" href="./backups.mdx" description="Back up a database or volume on a schedule, with retention and encryption." />
   <Card title="Restore a backup" href="./restore.mdx" description="Restore into the service or into a copy, or decrypt a backup by hand." />
   <Card title="S3 destinations" href="./s3-destinations.mdx" description="Connect AWS S3, Cloudflare R2, Backblaze B2, MinIO and other buckets." />
+  <Card title="Other backup destinations" href="./backup-destinations.mdx" description="Back up to SFTP, WebDAV, Azure Blob, Google Drive, B2 native or a folder on a node." />
   <Card title="Object storage" href="./object-storage.mdx" description="Run your own S3 server: buckets, uploads, share links and access keys." />
   <Card title="Volumes and files" href="./volumes-and-files.mdx" description="Edit config files, upload to volumes and browse a container's filesystem." />
   <Card title="Schedules" href="./schedules.mdx" description="Run scripts on a cron with a timezone, a timeout and run history." />
@@ -28,7 +29,7 @@ This section covers everything that holds state in LogiStack: the databases you 
 ## A typical setup
 
 1. Deploy a database, for example PostgreSQL. See [Databases](../deploy/databases.mdx).
-2. Add an [S3 destination](./s3-destinations.mdx) that lives off the server, such as an R2 or B2 bucket.
+2. Add a destination that lives off the server, such as an [R2 or B2 bucket](./s3-destinations.mdx) or a [storage box over SFTP](./backup-destinations.mdx).
 3. Create a [backup policy](./backups.mdx) on the database with encryption on, and save the key somewhere outside the server.
 4. Turn on scheduled verifies, so LogiStack restores the newest backup into a throwaway container every week and tells you if it fails.
 5. Practice a [restore into a copy](./restore.mdx) once, before you need it.
