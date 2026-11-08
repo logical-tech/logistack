@@ -1,3 +1,8 @@
+import type { ReleaseChannel } from "@logistack/contracts";
+import {
+	versionChannel,
+	withoutBreakingChanges,
+} from "@logistack/core/version";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -14,19 +19,21 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Page, PageHeader } from "@/components/page-header";
 import { Panel, SkeletonRows } from "@/components/panel";
+import { Segmented } from "@/components/segmented";
 import { StatusDot, StatusLabel } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { meQuery } from "@/lib/api/access";
 import { SPONSOR_URL, useIsSponsor } from "@/lib/api/sponsor";
 import {
+	type ChangelogEntry,
 	isActive,
 	type UpdateRun,
 	type UpdateStatus,
 	type UpdateStepId,
 	useCheckNow,
 	useSetAutoCheck,
-	useSetBeta,
+	useSetChannel,
 	useStartUpdate,
 	useUpdateStatus,
 } from "@/lib/api/updates";
@@ -46,6 +53,30 @@ export const Route = createFileRoute("/_app/settings/updates")({
 
 /** Releases read as tags (`v0.2.0`); a checkout's `dev` stays as it is. */
 const tag = (v: string) => (/^\d/.test(v) ? `v${v}` : v);
+
+const CHANNELS: Record<
+	ReleaseChannel,
+	{ label: string; latest: string; detail: string }
+> = {
+	stable: {
+		label: "Stable",
+		latest: "Latest release",
+		detail:
+			"Tagged releases only. Each one passes the full test suite and an install and update smoke test.",
+	},
+	beta: {
+		label: "Beta",
+		latest: "Latest beta",
+		detail:
+			"Builds of the staging branch, ahead of the stable release they lead to, plus every stable release.",
+	},
+	nightly: {
+		label: "Nightly",
+		latest: "Latest nightly",
+		detail:
+			"A build of the develop branch every night it changed, plus every beta and stable release.",
+	},
+};
 
 const STEPS: { id: UpdateStepId; name: string; detail: string }[] = [
 	{
@@ -119,7 +150,7 @@ function Updates() {
 	const check = useCheckNow();
 	const start = useStartUpdate();
 	const autoCheck = useSetAutoCheck();
-	const beta = useSetBeta();
+	const channel = useSetChannel();
 	const [confirming, setConfirming] = useState(false);
 
 	const busy = isActive(s?.run);
@@ -197,9 +228,9 @@ function Updates() {
 								</div>
 								<VersionCell
 									label={
-										s.latest?.version.includes("-")
-											? "Latest beta"
-											: "Latest release"
+										CHANNELS[
+											s.latest ? versionChannel(s.latest.version) : "stable"
+										].latest
 									}
 									version={s.latest ? tag(s.latest.version) : "None yet"}
 								>
@@ -248,17 +279,21 @@ function Updates() {
 
 				{run && <RunPanel run={run} />}
 
-				{s?.latest?.notes && (
-					<Panel
-						id="notes"
-						title={
-							target
-								? `What's new in ${tag(s.latest.version)}`
-								: `Release notes for ${tag(s.latest.version)}`
-						}
-					>
-						<Notes key={s.latest.version} source={s.latest.notes} />
-					</Panel>
+				{target && s?.changelog.length ? (
+					<Changelog
+						key={target.version}
+						from={s.current.version}
+						entries={s.changelog}
+					/>
+				) : (
+					s?.latest?.notes && (
+						<Panel
+							id="notes"
+							title={`Release notes for ${tag(s.latest.version)}`}
+						>
+							<Notes key={s.latest.version} source={s.latest.notes} />
+						</Panel>
+					)
 				)}
 
 				<Panel id="settings" title="Settings" bodyClassName="divide-y">
@@ -300,39 +335,44 @@ function Updates() {
 							}
 						/>
 					</div>
-					<div className="flex items-start justify-between gap-6 p-4 sm:px-5">
+					<div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-5">
 						<div className="min-w-0">
-							<label htmlFor="beta-switch" className="text-sm font-medium">
-								Beta updates
-							</label>
+							<div id="channel-label" className="text-sm font-medium">
+								Release channel
+							</div>
 							<p
-								id="beta-msg"
-								className="mt-1 max-w-[60ch] text-sm text-pretty text-muted-foreground"
+								key={s?.channel}
+								className="t-swap mt-1 max-w-[60ch] text-sm text-pretty text-muted-foreground"
 							>
-								Offer the builds of the staging branch as updates, ahead of the
-								stable release they lead to. Turning this off doesn't roll back:
-								the instance stays on its beta until a newer stable release is
-								out.
+								{CHANNELS[s?.channel ?? "stable"].detail} Switching to a
+								steadier channel doesn't roll back: the instance stays where it
+								is until that channel has a newer build.
 							</p>
 						</div>
-						<Switch
-							id="beta-switch"
-							aria-describedby="beta-msg"
-							checked={s?.beta ?? false}
-							disabled={!s || !admin || beta.isPending}
-							onCheckedChange={(on) =>
-								beta.mutate(on, {
-									onSuccess: () =>
-										toast(on ? "Beta updates on" : "Beta updates off"),
-									onError: (err) =>
-										toast.error("Couldn't change the setting", {
-											description: err.message,
-										}),
-								})
-							}
-						/>
+						<div className="shrink-0">
+							<Segmented
+								label="Release channel"
+								value={s?.channel ?? "stable"}
+								disabled={!s || !admin || channel.isPending}
+								options={(Object.keys(CHANNELS) as ReleaseChannel[]).map(
+									(c) => ({ value: c, label: CHANNELS[c].label }),
+								)}
+								onChange={(c) =>
+									channel.mutate(c, {
+										onSuccess: () =>
+											toast(`${CHANNELS[c].label} channel`, {
+												description: "Checking for updates on this channel.",
+											}),
+										onError: (err) =>
+											toast.error("Couldn't change the channel", {
+												description: err.message,
+											}),
+									})
+								}
+							/>
+						</div>
 					</div>
-					{s?.beta && (
+					{s && s.channel !== "stable" && (
 						<div className="border-t-0! px-4 pb-4 sm:px-5">
 							<div className="t-reveal flex items-start gap-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm">
 								<TriangleAlert
@@ -341,11 +381,12 @@ function Updates() {
 								/>
 								<p className="max-w-[68ch] text-pretty">
 									<span className="font-medium">
-										Betas aren't ready for production.
+										{s.channel === "beta" ? "Betas" : "Nightlies"} aren't ready
+										for production.
 									</span>{" "}
 									<span className="text-muted-foreground">
 										They pass the build but not the full test suite, and a
-										migration they bring can't be undone. Keep this off on
+										migration they bring can't be undone. Keep this channel off
 										servers that host anything you depend on.
 									</span>
 								</p>
@@ -368,6 +409,7 @@ function Updates() {
 					pending={start.isPending}
 					onConfirm={update}
 				>
+					<BreakingSummary entries={s?.changelog ?? []} />
 					<p className="text-sm text-muted-foreground">
 						The dashboard stays up while the API rolls over. New deployments
 						wait in the queue until the update ends. Sites pause for a few
@@ -376,6 +418,98 @@ function Updates() {
 				</ConfirmDialog>
 			)}
 		</Page>
+	);
+}
+
+/** Every release the update crosses, newest first, breaking changes set apart above each one's notes. */
+function Changelog({
+	from,
+	entries,
+}: {
+	from: string;
+	entries: ChangelogEntry[];
+}) {
+	const breaking = entries.filter((e) => e.breaking).length;
+	const [newest] = entries;
+	if (!newest) return null;
+	return (
+		<Panel
+			id="changelog"
+			title={`What changes from ${tag(from)} to ${tag(newest.version)}`}
+			actions={
+				breaking > 0 && (
+					<span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-warn-text">
+						<TriangleAlert className="size-3.5" aria-hidden />
+						{breaking === 1
+							? "1 breaking change"
+							: `${breaking} releases with breaking changes`}
+					</span>
+				)
+			}
+			bodyClassName="divide-y"
+		>
+			{entries.map((e) => (
+				<section key={e.version} aria-labelledby={`release-${e.version}`}>
+					<div className="flex items-baseline justify-between gap-4 px-4 pt-4 sm:px-5">
+						<h3
+							id={`release-${e.version}`}
+							className="font-mono text-sm font-medium"
+						>
+							{tag(e.version)}
+						</h3>
+						<div className="flex items-center gap-3 text-[13px] text-muted-foreground">
+							{e.publishedAt && <span>{relativeTime(e.publishedAt)}</span>}
+							<a
+								href={e.url}
+								target="_blank"
+								rel="noreferrer"
+								className="inline-flex items-center gap-1 rounded-sm font-medium text-foreground underline decoration-foreground/30 underline-offset-[3px] outline-none hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+							>
+								GitHub
+								<ExternalLink className="size-3" aria-hidden />
+							</a>
+						</div>
+					</div>
+					{e.breaking && (
+						<div className="mx-4 mt-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm sm:mx-5">
+							<div className="mb-1.5 flex items-center gap-2 font-medium">
+								<TriangleAlert
+									className="size-4 shrink-0 text-warn-text"
+									aria-hidden
+								/>
+								Breaking changes
+							</div>
+							<Markdown source={e.breaking} />
+						</div>
+					)}
+					<Notes source={withoutBreakingChanges(e.notes)} />
+				</section>
+			))}
+		</Panel>
+	);
+}
+
+/** In the confirm dialog: the releases whose breaking changes need reading before updating. */
+function BreakingSummary({ entries }: { entries: ChangelogEntry[] }) {
+	const breaking = entries.filter((e) => e.breaking);
+	if (!breaking.length) return null;
+	return (
+		<div className="flex items-start gap-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm">
+			<TriangleAlert
+				className="mt-0.5 size-4 shrink-0 text-warn-text"
+				aria-hidden
+			/>
+			<p className="text-pretty">
+				<span className="font-medium">
+					{breaking.map((e) => tag(e.version)).join(", ")}{" "}
+					{breaking.length === 1 ? "has" : "have"} breaking changes.
+				</span>{" "}
+				<span className="text-muted-foreground">
+					Read them in the changelog on this page before you update; some need a
+					change on your side.
+				</span>
+			</p>
+		</div>
 	);
 }
 

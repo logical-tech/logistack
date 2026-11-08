@@ -1,5 +1,6 @@
 import type {
 	BuildkitState,
+	ReleaseChannel,
 	UpdateState,
 	UpdateSteps,
 } from "@logistack/contracts";
@@ -38,6 +39,14 @@ export const instanceSettings = pgTable(
 		autoCheckUpdates: boolean("auto_check_updates").notNull().default(true),
 		/** Updates follow `staging` builds (GitHub prereleases), not only stable releases. */
 		betaUpdates: boolean("beta_updates").notNull().default(false),
+		/**
+		 * `stable`, `beta` or `nightly` (`ReleaseChannel`). Supersedes `betaUpdates`, which the API
+		 * keeps in step (true unless stable) for a previous release that still reads it.
+		 */
+		updateChannel: text("update_channel")
+			.$type<ReleaseChannel>()
+			.notNull()
+			.default("stable"),
 		/** The worker's last BuildKit probe and QEMU setup; null until the first. */
 		buildkit: jsonb("buildkit").$type<BuildkitState>(),
 		/** An `lss_` key signed by the sponsors Worker; verified on read, renewed by the worker. */

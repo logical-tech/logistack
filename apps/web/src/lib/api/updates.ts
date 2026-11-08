@@ -1,4 +1,8 @@
-import { type LiveMessage, updateChannel } from "@logistack/contracts";
+import {
+	type LiveMessage,
+	type ReleaseChannel,
+	updateChannel,
+} from "@logistack/contracts";
 import {
 	queryOptions,
 	useMutation,
@@ -17,13 +21,14 @@ type UpdateApi = typeof client.api.instance.update;
 export type UpdateStatus = InferResponseType<UpdateApi["$get"], 200>;
 export type UpdateRun = NonNullable<UpdateStatus["run"]>;
 export type UpdateStepId = keyof UpdateRun["steps"];
+export type ChangelogEntry = UpdateStatus["changelog"][number];
 
 export type UpdatesApi = {
 	/** `refresh` asks GitHub again unless it was asked in the last minute. */
 	status(refresh?: boolean): Promise<UpdateStatus>;
 	start(version: string): Promise<UpdateRun>;
 	setAutoCheck(enabled: boolean): Promise<{ enabled: boolean }>;
-	setBeta(enabled: boolean): Promise<{ enabled: boolean }>;
+	setChannel(channel: ReleaseChannel): Promise<{ channel: ReleaseChannel }>;
 	/** Live `data` frames for a /ws channel; the mock simulates them. */
 	live(channel: string, fn: (data: LiveMessage) => void): () => void;
 };
@@ -34,7 +39,7 @@ const http: UpdatesApi = {
 		ok(a.$get({ query: refresh ? { refresh: "true" } : {} })),
 	start: (version) => ok(a.$post({ json: { version } })),
 	setAutoCheck: (enabled) => ok(a["auto-check"].$put({ json: { enabled } })),
-	setBeta: (enabled) => ok(a.beta.$put({ json: { enabled } })),
+	setChannel: (channel) => ok(a.channel.$put({ json: { channel } })),
 	live: subscribe,
 };
 
@@ -114,13 +119,13 @@ export function useSetAutoCheck() {
 	});
 }
 
-export function useSetBeta() {
+export function useSetChannel() {
 	const qc = useQueryClient();
 	return useMutation({
-		mutationFn: updatesApi.setBeta,
-		onSuccess: ({ enabled }) => {
+		mutationFn: updatesApi.setChannel,
+		onSuccess: ({ channel }) => {
 			qc.setQueryData(updateStatusQuery.queryKey, (s) =>
-				s ? { ...s, beta: enabled } : s,
+				s ? { ...s, channel, beta: channel !== "stable" } : s,
 			);
 			// The latest release depends on the channel, so the status is asked for again.
 			void qc.invalidateQueries({ queryKey: updateStatusQuery.queryKey });

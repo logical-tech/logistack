@@ -1,15 +1,18 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { UpdateState, UpdateSteps } from "@logistack/contracts";
+import { ReleaseChannel, UpdateState, UpdateSteps } from "@logistack/contracts";
 import {
+	breakingChanges,
 	compareVersions,
 	isReleaseVersion,
 	normalizeVersion,
+	releasesBetween,
 } from "@logistack/core";
 import { instanceSettings, instanceUpdate } from "@logistack/db";
-import { latestRelease, type Release } from "@logistack/providers";
+import { listReleases, type Release } from "@logistack/providers";
 import { desc, eq, inArray } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
+import type { Deps } from "../env.ts";
 import { Failure } from "../errors.ts";
 import { live } from "../live.ts";
 import { log } from "../log.ts";
@@ -27,6 +30,11 @@ const ReleaseView = z
 		publishedAt: z.string().nullable(),
 	})
 	.openapi("Release");
+
+const ChangelogEntry = ReleaseView.extend({
+	/** The notes' `## Breaking changes` section, without its heading; null when there is none. */
+	breaking: z.string().nullable(),
+}).openapi("ChangelogEntry");
 
 const UpdateRun = z
 	.object({
@@ -52,8 +60,15 @@ const UpdateStatus = z
 		checkedAt: z.string().nullable(),
 		updateAvailable: z.boolean(),
 		autoCheck: z.boolean(),
-		/** `latest` includes prereleases, the builds of `staging`. */
+		/** Which builds `latest` is picked from. */
+		channel: ReleaseChannel,
+		/** `channel` is not stable. Kept for API clients that predate channels. */
 		beta: z.boolean(),
+		/**
+		 * The releases an update to `latest` crosses, newest first: the stable ones on the way and
+		 * `latest` itself. Empty when there is no update.
+		 */
+		changelog: z.array(ChangelogEntry),
 		run: UpdateRun.nullable(),
 	})
 	.openapi("UpdateStatus");
@@ -62,12 +77,12 @@ const UpdateStatus = z
 const FRESH_MS = 3_600_000;
 const RETRY_MS = 300_000;
 const FORCE_MIN_MS = 60_000;
-type Check = { at: number; release: Release | null; error: string | null };
-/** One entry per channel, so flipping beta updates never serves the other channel's answer. */
-const cache = new Map<boolean, Check>();
+type Check = { at: number; releases: Release[]; error: string | null };
+/** One entry per channel, so switching channels never serves the other channel's answer. */
+const cache = new Map<ReleaseChannel, Check>();
 
-async function latest(force: boolean, beta: boolean) {
-	const cached = cache.get(beta);
+async function check(force: boolean, channel: ReleaseChannel) {
+	const cached = cache.get(channel);
 	const age = cached ? Date.now() - cached.at : Number.POSITIVE_INFINITY;
 	const ttl = cached?.error ? RETRY_MS : FRESH_MS;
 	if (cached && age < (force ? FORCE_MIN_MS : ttl)) return cached;
@@ -75,18 +90,25 @@ async function latest(force: boolean, beta: boolean) {
 	try {
 		next = {
 			at: Date.now(),
-			release: await latestRelease({}, { beta }),
+			releases: await listReleases({}, { channel }),
 			error: null,
 		};
 	} catch (e) {
 		const error = e instanceof Error ? e.message : String(e);
 		log("warn", "release check failed", { error });
-		// Keep showing the last release we saw; only the error is new.
-		next = { at: Date.now(), release: cached?.release ?? null, error };
+		// Keep showing the last releases we saw; only the error is new.
+		next = { at: Date.now(), releases: cached?.releases ?? [], error };
 	}
-	cache.set(beta, next);
+	cache.set(channel, next);
 	return next;
 }
+
+/** `betaUpdates` stays in step for a previous release that reads it during an update or after a rollback. */
+const setChannel = (db: Deps["db"], channel: ReleaseChannel) =>
+	db
+		.update(instanceSettings)
+		.set({ updateChannel: channel, betaUpdates: channel !== "stable" })
+		.where(eq(instanceSettings.id, "singleton"));
 
 const runView = (r: typeof instanceUpdate.$inferSelect) => ({
 	id: r.id,
@@ -123,7 +145,7 @@ export const updates = router()
 				db
 					.select({
 						autoCheck: instanceSettings.autoCheckUpdates,
-						beta: instanceSettings.betaUpdates,
+						channel: instanceSettings.updateChannel,
 					})
 					.from(instanceSettings),
 				db
@@ -132,23 +154,35 @@ export const updates = router()
 					.orderBy(desc(instanceUpdate.createdAt))
 					.limit(1),
 			]);
-			const beta = settings?.beta ?? false;
-			const check = await latest(c.req.valid("query").refresh ?? false, beta);
+			const channel = settings?.channel ?? "stable";
+			const { releases, at, error } = await check(
+				c.req.valid("query").refresh ?? false,
+				channel,
+			);
+			const latest = releases[0] ?? null;
 			const current = config.LOGISTACK_VERSION;
+			const updateAvailable =
+				!!latest && compareVersions(latest.version, current) > 0;
 			return c.json(
 				{
 					current: {
 						version: current,
 						commit: config.LOGISTACK_COMMIT ?? null,
 					},
-					latest: check.release,
-					latestError: check.error,
-					checkedAt: new Date(check.at).toISOString(),
-					updateAvailable:
-						!!check.release &&
-						compareVersions(check.release.version, current) > 0,
+					latest,
+					latestError: error,
+					checkedAt: new Date(at).toISOString(),
+					updateAvailable,
 					autoCheck: settings?.autoCheck ?? true,
-					beta,
+					channel,
+					beta: channel !== "stable",
+					changelog:
+						latest && updateAvailable
+							? releasesBetween(releases, current, latest.version).map((r) => ({
+									...r,
+									breaking: breakingChanges(r.notes),
+								}))
+							: [],
 					run: run ? runView(run) : null,
 				},
 				200,
@@ -238,7 +272,7 @@ export const updates = router()
 				tags,
 				security,
 				summary:
-					"Offer staging builds (prereleases) as updates, not only stable releases",
+					"Deprecated: PUT /instance/update/channel. true picks the beta channel, false stable",
 				middleware: [requirePermission("admin", inOrganization)],
 				request: body(z.object({ enabled: z.boolean() })),
 				responses: {
@@ -249,11 +283,35 @@ export const updates = router()
 		),
 		async (c) => {
 			const { enabled } = c.req.valid("json");
-			await c.var.deps.db
-				.update(instanceSettings)
-				.set({ betaUpdates: enabled })
-				.where(eq(instanceSettings.id, "singleton"));
-			c.set("auditDiff", { after: { betaUpdates: enabled } });
+			await setChannel(c.var.deps.db, enabled ? "beta" : "stable");
+			c.set("auditDiff", {
+				after: { updateChannel: enabled ? "beta" : "stable" },
+			});
 			return c.json({ enabled }, 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"instance.update",
+			createRoute({
+				method: "put",
+				path: "/instance/update/channel",
+				tags,
+				security,
+				summary:
+					"Pick the builds offered as updates: stable releases, betas of staging, or nightlies of develop",
+				middleware: [requirePermission("admin", inOrganization)],
+				request: body(z.object({ channel: ReleaseChannel })),
+				responses: {
+					200: json(z.object({ channel: ReleaseChannel }), "Saved"),
+					...errors,
+				},
+			}),
+		),
+		async (c) => {
+			const { channel } = c.req.valid("json");
+			await setChannel(c.var.deps.db, channel);
+			c.set("auditDiff", { after: { updateChannel: channel } });
+			return c.json({ channel }, 200);
 		},
 	);

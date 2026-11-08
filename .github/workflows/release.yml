@@ -3,12 +3,18 @@ name: Release
 # Push a tag such as v0.2.0: the smoke test, then four multi-arch images on ghcr.io tagged 0.2.0 and
 # latest, then a GitHub Release with notes from the conventional commits since the previous tag.
 # Push to staging: the same images as a beta, 0.2.1-beta.<run> after the latest stable 0.2.0, and a
-# GitHub prerelease that instances with beta updates on are offered. No tests, no latest tag.
+# GitHub prerelease that instances on the beta channel are offered. No tests, no latest tag.
+# Every night, when develop changed since the last nightly: 0.2.1-nightly.<run>, a prerelease for the
+# nightly channel; only the newest 14 nightlies are kept. Schedules run from the default branch's copy
+# of this file and build develop.
 on:
   push:
     tags: ["v*"]
     branches: [staging]
-  # Re-runs a release on a tag ref, or skips its smoke test when that run already covered it.
+  schedule:
+    - cron: "17 2 * * *"
+  # Re-runs a release on a tag ref, skips its smoke test when that run already covered it, or builds
+  # a nightly now when dispatched on develop.
   workflow_dispatch:
     inputs:
       smoke:
@@ -32,28 +38,42 @@ jobs:
       tag: ${{ steps.v.outputs.tag }}
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
+      nightly: ${{ steps.v.outputs.nightly }}
+      # The commit every later job checks out and builds: develop's tip for a nightly.
+      sha: ${{ steps.v.outputs.sha }}
+      skip: ${{ steps.v.outputs.skip }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || github.ref }}
       - id: v
         env:
+          EVENT: ${{ github.event_name }}
           REF_TYPE: ${{ github.ref_type }}
           REF: ${{ github.ref_name }}
           RUN: ${{ github.run_number }}
         run: |
-          if [ "$REF_TYPE" = tag ]; then
+          sha=$(git rev-parse HEAD)
+          nightly=false skip=false
+          if [ "$EVENT" = schedule ] || { [ "$EVENT" = workflow_dispatch ] && [ "$REF" = develop ]; }; then
+            nightly=true
+            # Nothing new on develop since the last nightly: no build, no release.
+            if [ -n "$(git tag --points-at "$sha" --list 'v*-nightly.*')" ]; then skip=true; fi
+          fi
+          if [ "$REF_TYPE" = tag ] && [ "$nightly" = false ]; then
             TAG=$REF
-          elif [ "$REF" = staging ]; then
+          elif [ "$nightly" = true ] || [ "$REF" = staging ]; then
             # The patch after the latest stable release anywhere, even one staging hasn't merged:
             # newer than every stable out, older than the stable release it leads to.
             # awk reads to the end: an early exit would break the pipe under pipefail.
             stable=$(git tag --list 'v*' --sort=-v:refname | awk '!/-/ && !f { print; f = 1 }')
             stable=${stable:-v0.0.0}
             IFS=. read -r major minor patch <<<"${stable#v}"
-            TAG=v$major.$minor.$((patch + 1))-beta.$RUN
+            if [ "$nightly" = true ]; then pre=nightly; else pre=beta; fi
+            TAG=v$major.$minor.$((patch + 1))-$pre.$RUN
           else
-            echo "::error::releases come from a v* tag or the staging branch, not $REF"; exit 1
+            echo "::error::releases come from a v* tag, the staging branch or develop, not $REF"; exit 1
           fi
           version=${TAG#v}
           [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] ||
@@ -61,6 +81,9 @@ jobs:
           {
             echo "tag=$TAG"
             echo "version=$version"
+            echo "nightly=$nightly"
+            echo "sha=$sha"
+            echo "skip=$skip"
             if [[ $version == *-* ]]; then echo prerelease=true; else echo prerelease=false; fi
           } >>"$GITHUB_OUTPUT"
 
@@ -80,8 +103,9 @@ jobs:
   # One native runner per architecture (no QEMU), each pushing an untagged image by digest.
   build:
     needs: [prepare, smoke]
-    # A skipped smoke test (a beta, or a dispatch without it) doesn't skip the build; a failed one does.
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.smoke.result != 'failure' }}
+    # A skipped smoke test (a beta, a nightly, or a dispatch without it) doesn't skip the build; a
+    # failed one does.
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.skip != 'true' && needs.smoke.result != 'failure' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     permissions:
@@ -101,6 +125,8 @@ jobs:
           - { platform: linux/arm64, runner: ubuntu-24.04-arm, arch: arm64 }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
@@ -124,7 +150,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             LOGISTACK_VERSION=${{ needs.prepare.outputs.version }}
-            LOGISTACK_COMMIT=${{ github.sha }}
+            LOGISTACK_COMMIT=${{ needs.prepare.outputs.sha }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
           provenance: mode=max
           sbom: true
@@ -201,13 +227,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.sha }}
       - name: Notes and assets
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          SHA: ${{ needs.prepare.outputs.sha }}
         run: |
-          # A beta's tag exists only once the release below creates it; the notes need it locally.
-          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || git tag "$TAG" "$GITHUB_SHA"
+          # A beta's or nightly's tag exists only once the release below creates it; the notes need it locally.
+          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || git tag "$TAG" "$SHA"
           bash .github/release-notes.sh "$TAG" >notes.md
           mkdir dist
           # The attached installer installs this release when run without --version.
@@ -221,14 +249,25 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
           REF_TYPE: ${{ github.ref_type }}
+          NIGHTLY: ${{ needs.prepare.outputs.nightly }}
+          SHA: ${{ needs.prepare.outputs.sha }}
         run: |
           flags=()
           if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); else flags+=(--latest); fi
-          # A pushed tag must exist already; a staging beta's tag is created here, at this commit.
-          # Tags created with this token start no workflow, so the beta doesn't release twice.
-          if [ "$REF_TYPE" = tag ]; then flags+=(--verify-tag); else flags+=(--target "$GITHUB_SHA"); fi
+          # A pushed tag must exist already; a beta's or nightly's tag is created here, at its commit.
+          # Tags created with this token start no workflow, so the build doesn't release twice.
+          if [ "$REF_TYPE" = tag ] && [ "$NIGHTLY" = false ]; then flags+=(--verify-tag); else flags+=(--target "$SHA"); fi
           gh release create "$TAG" --title "$TAG" --notes-file notes.md "${flags[@]}" \
             dist/install.sh dist/stack.yml
+      # Nightlies pile up daily; the releases list instances read holds 100, so keep the newest 14.
+      - name: Prune old nightlies
+        if: needs.prepare.outputs.nightly == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 200 --json tagName --jq '.[].tagName' |
+            grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+$' | sort -V -r | tail -n +15 |
+            while read -r tag; do gh release delete "$tag" --cleanup-tag --yes; done
       # GitHub has no API to make a container package public; the first release needs a one-time
       # click per package (docs/INSTALL.md, "Publishing a release"). This only reports it.
       - name: Check the images pull without credentials

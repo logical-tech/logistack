@@ -8,11 +8,13 @@ export function Segmented<T extends string>({
 	onChange,
 	options,
 	label,
+	disabled,
 }: {
 	value: T;
 	onChange: (v: T) => void;
 	options: { value: T; label: ReactNode; ariaLabel?: string }[];
 	label: string;
+	disabled?: boolean;
 }) {
 	return (
 		<ToggleGroupPrimitive.Root
@@ -20,6 +22,7 @@ export function Segmented<T extends string>({
 			value={value}
 			onValueChange={(v) => v && onChange(v as T)}
 			aria-label={label}
+			disabled={disabled}
 			className="inline-flex rounded-lg bg-muted p-0.5 dark:bg-muted/60"
 		>
 			{options.map((o) => (
@@ -29,7 +32,7 @@ export function Segmented<T extends string>({
 					aria-label={o.ariaLabel}
 					className={cn(
 						"inline-flex h-7 min-w-10 items-center justify-center gap-1.5 rounded-md px-2.5 whitespace-nowrap text-xs font-medium text-muted-foreground tabular outline-none transition-[color,background-color,box-shadow] duration-(--duration-quick)",
-						"hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+						"hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60",
 						"data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-card data-[state=on]:ring-1 data-[state=on]:ring-border",
 					)}
 				>
