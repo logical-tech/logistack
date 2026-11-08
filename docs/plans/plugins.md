@@ -2,7 +2,7 @@
 
 Goal: a user with a niche need that LogiStack does not cover installs a community plugin from a marketplace, or installs their own, in a guided wizard. A broken or malicious plugin cannot take over the cluster, read other tenants' data or act beyond the permissions the user approved.
 
-Status: phase 1 built on `feat/plugins` (2026-11-08), plus plugin tools from phase 2. See "Implementation status" at the end.
+Status: phase 1 built on `feat/plugins` (2026-11-08), plus phase 2 tools and providers (DNS with DNS-01, notification channels, secret providers; backup destinations deferred). See "Implementation status" at the end.
 
 ## What already exists
 
@@ -248,6 +248,8 @@ Built:
 - SDK v0 and CLI: `packages/plugin-sdk` (`init`, `dev`, `test`, `build`), reference plugin `examples/plugins/deploy-notifier`.
 - Tools (phase 2): `GET /plugins/tools`, `POST /plugins/{id}/tools/{name}` and `/destructive`. The Agent and MCP reach them as ordinary API operations; destructive ones need `delete`, MCP `confirm` and Agent approval.
 - End-to-end test: `apps/server/test/plugins.test.ts`.
+- Providers (phase 2): `dns_provider`, `notification_channel` and `secret_provider` rows of kind `plugin` with `plugin_install_id` and `plugin_provider` (migration 0060, additive: `ALTER TYPE … ADD VALUE` and nullable columns). The contract is `POST /v1/providers/{kind}/{name}/{op}` with `{ config, args }`, answered `{ result }`. `args` are the interface method's arguments in order, so a plugin implements the same `DnsProvider`, `NotificationChannel` and `SecretSource` as the built-ins. Proxies: `packages/providers/src/plugin.ts` (answers checked with zod). Resolution: `apps/worker/src/plugin-providers.ts`, shared by the api and the worker, wired into `apps/server/src/dns.ts`, the notification channel and secret provider routes, the worker's notification dispatcher and external secret reads. `GET /plugins/contributions` lists each install's providers; the DNS, notification channel and secret provider wizards show them with the plugin's name as a badge and render the provider's `configSchema`. SDK: `createPlugin({ providers: { dnsProviders, notificationChannels, secretProviders } })`, one factory per provider name returning the interface; only the interface's ops are callable. Reference plugin: `examples/plugins/memory-providers`. Tests: `packages/providers/test/plugin-providers.test.ts`, `apps/server/test/plugin-providers.test.ts`.
+- DNS-01 for plugin DNS providers: Caddy is built with `caddy-dns/acmeproxy@v1.1.1`. For a row of kind `plugin` the worker compiles the challenge `{ name: "acmeproxy", endpoint: "http://<LS_API_UPSTREAM>/acme-proxy/<dnsProviderId>", username: <dnsProviderId>, password }`. Field names and behaviour come from the module source (`libdns/acmeproxy` at f8e0a66): POST `<endpoint>/present` or `/cleanup` with `{fqdn, value}` and basic auth; only a 200 whose JSON echoes both fields counts. `apps/server/src/acme-proxy.ts` checks the per-provider random password (`dns_provider.acme_secret_encrypted`, made on create), upserts or deletes the TXT through the plugin, and writes an audit row (actor `system`/`acme-proxy`). Proven up to the TXT record and the compiled Caddy JSON (snapshot in `apps/worker/test/dns-notify.unit.test.ts`).
 
 Decisions taken while building:
 
@@ -259,10 +261,18 @@ Decisions taken while building:
 - **Dev URLs go through the SSRF guard**; plain http is allowed only to a private address when the instance allows private hosts.
 - **Plugin images must own `/data`** (`RUN mkdir /data && chown <user> /data`): the root is read-only and a new volume copies the mountpoint's owner. The `init` template does it.
 - **Uninstall keeps the data volume.** Reinstalling finds its state; removing it is manual for now.
+- **Provider calls carry the provider's config in the body**, unlike settings: the config belongs to the provider row (one plugin can back several DNS accounts). It is decrypted per call and never stored in the container.
+- **A disabled, removed or no-longer-contributing install fails every call** with `plugin <name>: plugin disabled`, a `ProviderError` with status 409, so notification deliveries record it instead of retrying. Uninstall is refused (409) while any provider row references the install, and the message names the rows. The foreign keys are `NO ACTION`, so deleting an organization still cascades.
+- **The acme-proxy endpoint is outside `/api`** (no session), like the page proxy. Caddy reaches it on the control network at `LS_API_UPSTREAM`. It is also reachable through the public dashboard host, so the password is 32 random bytes and the endpoint only writes `_acme-challenge.*` TXT records in the row's managed zones.
+- **acme `present` sets the name to exactly one TXT value** (`upsertRecord`). A wildcard and its apex validated at the same instant overwrite each other's value and Caddy retries; switch to record sets if that shows up.
+- **The first-run setup wizard offers built-in DNS providers only**: no plugin can be installed before the first sign-in.
+- **The api resolves plugin providers with name prefix `""`**, like `callInstall`; only the worker passes `LS_NAME_PREFIX` (test isolation).
 
 Not built yet:
 
 - Phase 0 (community templates index).
-- Phase 2 providers. Design for DNS: rows of kind `plugin` with `plugin_install_id` and `plugin_provider` columns, a proxy implementing `DnsProvider` over `POST /v1/providers/dnsProviders/{name}/{op}`, and DNS-01 through the `caddy-dns/acmeproxy` module pointed at an api endpoint that forwards `present`/`cleanup` to the plugin. Notification channels, secret providers and backup destinations follow the same row shape.
+- **Backup destinations from plugins (deferred).** `BackupDestination` streams every byte (`upload` pulls a `ReadableStream` only as fast as the store takes it, `download` returns one), and backups run to many gigabytes. The JSON `{ config, args }` contract cannot carry that. Doing it honestly needs a second, binary contract: streamed request and response bodies with backpressure, a signature that does not need the whole body in memory, errors partway through a stream, timeouts sized for hours, and restores that run on nodes. Revisit with that contract, or with plugins that hand back an rclone remote config instead of bytes.
+- A real Let's Encrypt issuance through a plugin DNS provider: it needs a public zone and a running Caddy built with acmeproxy.
+- The provider list pages show plugin rows as kind "Plugin"; they do not name or link the plugin yet.
 - Phase 3 (index Worker, marketplace UI, verified policy, updates with permission diff) and phase 4.
 - Token rotation on update, `logistack` version range enforcement, project-tab pages, the review pipeline's headless page check, publishing the SDK to npm (it imports the private contracts package today).
