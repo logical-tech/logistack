@@ -21,6 +21,7 @@ import {
 	LockKeyhole,
 	type LucideIcon,
 	Network,
+	Orbit,
 	Palette,
 	Settings2,
 	ShieldCheck,
@@ -216,6 +217,14 @@ export const NAV: NavGroup[] = [
 				description:
 					"Publish services through Cloudflare without opening ports on the server.",
 				keywords: ["cloudflared", "homelab", "nat", "zero trust"],
+			},
+			{
+				to: "/integrations/tailscale",
+				title: "Tailscale",
+				icon: Orbit,
+				description:
+					"Join servers to your tailnet and publish services on tailnet hostnames.",
+				keywords: ["tailnet", "vpn", "wireguard", "homelab", "private"],
 			},
 			{
 				to: "/integrations/notifications",
