@@ -4,6 +4,7 @@ export * from "./ai-pricing.ts";
 export * from "./ai-providers.ts";
 export * from "./ai-responses.ts";
 export * from "./autoscale.ts";
+export * from "./autoscale-fixes.ts";
 export * from "./build-platforms.ts";
 export * from "./compile-release.ts";
 export * from "./compile-service.ts";

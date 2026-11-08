@@ -8,18 +8,27 @@ import {
 	AutoscaleView,
 } from "@logistack/contracts";
 import {
+	attachFixes,
 	autoscaleChecks,
 	BEHAVIOR_CPU_TARGET,
+	type CopyUsage,
+	ingressPortHolder,
 	type LoadPoint,
+	planFix,
 	previewScale,
+	publishedPortConflicts,
 	targetCpuFor,
 } from "@logistack/core";
 import { type Db, mount, node, service, serviceAutoscale } from "@logistack/db";
 import { and, count, eq, sql } from "drizzle-orm";
+import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
+import type { Env } from "../env.ts";
 import { Failure, notFound } from "../errors.ts";
+import { portHolders } from "../host-settings.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
+import { readResourceProfiles } from "../resource-profiles.ts";
 import { byParam, requirePermission } from "../scope.ts";
 
 const tags = ["services"];
@@ -39,12 +48,54 @@ async function loadApp(db: Db, id: string) {
 	return { svc, spec: svc.spec as ApplicationSpec };
 }
 
+/** p95 load of one copy over the last day; null under an hour of samples. */
+async function copyUsage(db: Db, serviceId: string): Promise<CopyUsage> {
+	const [row] = await db.$client<
+		{ cpu: number | null; mem: number | null; minutes: number }[]
+	>`
+		select percentile_cont(0.95) within group (order by cpu) as cpu,
+			percentile_cont(0.95) within group (order by mem_used) as mem,
+			count(distinct ts)::int as minutes
+		from metric_container_1m
+		where service_id = ${serviceId} and ts > now() - interval '24 hours'`;
+	if (!row || row.minutes < 60 || row.cpu == null || row.mem == null)
+		return null;
+	// Agent CPU is percent of one core.
+	return { cpu: Number(row.cpu) / 100, memoryMb: Number(row.mem) / 2 ** 20 };
+}
+
+/** Why switching the host ports to ingress would clash with another holder, if it would. */
+async function ingressConflict(
+	c: Context<Env>,
+	serviceId: string,
+	spec: ApplicationSpec,
+): Promise<string | undefined> {
+	const plan = planFix("ingress_ports", spec, {
+		profiles: { profiles: [], defaultProfile: null },
+		usage: null,
+	});
+	if (!("spec" in plan)) return undefined;
+	const [conflict] = publishedPortConflicts(
+		{ id: serviceId, nodeId: null, ports: plan.spec.ports },
+		[...(await portHolders(c)), ingressPortHolder],
+	);
+	if (!conflict) return undefined;
+	const holder =
+		conflict.holderId === ingressPortHolder.id
+			? "the LogiStack ingress (Caddy)"
+			: conflict.holderId === serviceId
+				? "this service twice"
+				: "another service";
+	return `Port ${conflict.port}/${conflict.protocol} is already published by ${holder}, so it can't move to every server.`;
+}
+
 async function checksFor(
-	db: Db,
+	c: Context<Env>,
 	organizationId: string,
 	serviceId: string,
 	spec: ApplicationSpec,
 ) {
+	const { db } = c.var.deps;
 	const [[volumes], [nodes]] = await Promise.all([
 		db
 			.select({ n: count() })
@@ -55,24 +106,36 @@ async function checksFor(
 			.from(node)
 			.where(eq(node.organizationId, organizationId)),
 	]);
-	return autoscaleChecks({
+	const checks = autoscaleChecks({
 		spec,
 		volumes: volumes?.n ?? 0,
 		nodes: nodes?.n ?? 0,
 	});
+	const failing = (id: string) => checks.some((x) => x.id === id && !x.ok);
+	const [profiles, usage, conflict] = await Promise.all([
+		readResourceProfiles(db, organizationId),
+		failing("cpu_limit") ? copyUsage(db, serviceId) : null,
+		failing("host_ports") ? ingressConflict(c, serviceId, spec) : undefined,
+	]);
+	return attachFixes(checks, spec, {
+		profiles,
+		usage,
+		blocked: conflict ? { ingress_ports: conflict } : {},
+	});
 }
 
 async function view(
-	db: Db,
+	c: Context<Env>,
 	organizationId: string,
 	serviceId: string,
 ): Promise<AutoscaleView> {
+	const { db } = c.var.deps;
 	const { spec } = await loadApp(db, serviceId);
 	const [row] = await db
 		.select()
 		.from(serviceAutoscale)
 		.where(eq(serviceAutoscale.serviceId, serviceId));
-	const checks = await checksFor(db, organizationId, serviceId, spec);
+	const checks = await checksFor(c, organizationId, serviceId, spec);
 	if (!row)
 		return {
 			configured: false,
@@ -136,11 +199,7 @@ export const autoscale = router()
 		}),
 		async (c) =>
 			c.json(
-				await view(
-					c.var.deps.db,
-					requireActor(c).organizationId,
-					c.req.valid("param").id,
-				),
+				await view(c, requireActor(c).organizationId, c.req.valid("param").id),
 				200,
 			),
 	)
@@ -167,7 +226,7 @@ export const autoscale = router()
 			const organizationId = requireActor(c).organizationId;
 			const { spec } = await loadApp(db, id);
 			if (input.enabled) {
-				const blockers = (await checksFor(db, organizationId, id, spec)).filter(
+				const blockers = (await checksFor(c, organizationId, id, spec)).filter(
 					(x) => x.level === "blocker" && !x.ok,
 				);
 				if (blockers.length)
@@ -220,7 +279,7 @@ export const autoscale = router()
 					: null,
 				after: settings,
 			});
-			return c.json(await view(db, organizationId, id), 200);
+			return c.json(await view(c, organizationId, id), 200);
 		},
 	)
 	.openapi(

@@ -90,6 +90,21 @@ describe.skipIf(!hasDocker)("autoscale api", () => {
 				.filter((c: { ok: boolean }) => !c.ok)
 				.map((c: { id: string }) => c.id),
 		).toEqual(["cpu_limit", "healthcheck", "nodes"]);
+		const byId = (id: string) =>
+			got.json.checks.find((c: { id: string }) => c.id === id);
+		// No history yet and no org default: the smallest seeded size.
+		expect(byId("cpu_limit").fix).toMatchObject({
+			id: "apply_profile",
+			redeploy: true,
+			changes: [
+				{ label: "CPU limit", before: "None", after: "0.25 CPU (Nano)" },
+				{ label: "Memory limit" },
+			],
+		});
+		expect(byId("nodes").link).toEqual({
+			label: "Add a server",
+			to: "/monitoring",
+		});
 
 		const refused = await h.call("PUT", path, {
 			...as(),
