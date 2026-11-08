@@ -1,0 +1,13 @@
+{
+	"name": "hello",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "logistack-plugin dev src/main.ts",
+		"start": "bun src/main.ts"
+	},
+	"dependencies": {
+		"@logistack/plugin-sdk": "workspace:*",
+		"hono": "4.13.16"
+	}
+}
