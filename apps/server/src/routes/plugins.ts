@@ -2,6 +2,8 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
 	type PermissionAction,
 	PLUGIN_STORAGE_LIMITS,
+	PluginGateFailMode,
+	PluginGateSettings,
 	type PluginManifest,
 	PluginPage,
 	PluginPolicy,
@@ -147,6 +149,8 @@ const InstallView = z
 		yanked: z.boolean(),
 		/** What `POST /plugins/{id}/rollback` goes back to; null before the first update. */
 		previousVersion: z.string().nullable(),
+		/** Deploy gate behaviour; used only when the manifest declares `contributes.gates.deploy`. */
+		gate: PluginGateSettings,
 		createdAt: z.string(),
 		updatedAt: z.string(),
 	})
@@ -382,6 +386,10 @@ async function view(c: Context<Env>, row: InstallRow) {
 		verified: row.verified,
 		yanked: row.yanked,
 		previousVersion: row.previousVersion,
+		gate: {
+			timeoutSeconds: row.gateTimeoutSeconds,
+			failMode: row.gateFailOpen ? ("open" as const) : ("closed" as const),
+		},
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 	};
@@ -1344,6 +1352,13 @@ export const plugins = router()
 						z.object({
 							config: z.record(z.string(), z.unknown()).optional(),
 							enabled: z.boolean().optional(),
+							// No defaults: a patch of one field keeps the other.
+							gate: z
+								.object({
+									timeoutSeconds: z.int().min(1).max(60).optional(),
+									failMode: PluginGateFailMode.optional(),
+								})
+								.optional(),
 						}),
 					),
 				},
@@ -1373,10 +1388,15 @@ export const plugins = router()
 				patch.enabled = input.enabled;
 				patch.status = "pending";
 			}
+			if (input.gate?.timeoutSeconds !== undefined)
+				patch.gateTimeoutSeconds = input.gate.timeoutSeconds;
+			if (input.gate?.failMode !== undefined)
+				patch.gateFailOpen = input.gate.failMode === "open";
 			c.set("auditDiff", {
 				before: { enabled: row.enabled },
 				after: {
 					enabled: input.enabled ?? row.enabled,
+					gate: input.gate,
 					config: input.config
 						? maskConfig(input.config, row.manifest.config)
 						: undefined,

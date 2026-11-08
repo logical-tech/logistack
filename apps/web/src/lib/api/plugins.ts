@@ -92,7 +92,11 @@ export type PluginsApi = {
 	/** `enabled: false` is the kill switch; a masked secret in `config` keeps the stored one. */
 	update(
 		id: string,
-		patch: { config?: Record<string, unknown>; enabled?: boolean },
+		patch: {
+			config?: Record<string, unknown>;
+			enabled?: boolean;
+			gate?: Partial<PluginInstall["gate"]>;
+		},
 	): Promise<PluginInstall>;
 	remove(id: string): Promise<void>;
 	test(id: string): Promise<PluginTestResult>;

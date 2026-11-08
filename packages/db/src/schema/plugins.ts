@@ -6,6 +6,7 @@ import type {
 } from "@logistack/contracts";
 import {
 	boolean,
+	integer,
 	jsonb,
 	pgTable,
 	primaryKey,
@@ -63,6 +64,10 @@ export const pluginInstall = pgTable(
 		previousImage: text("previous_image"),
 		previousVersion: text("previous_version"),
 		previousManifest: jsonb("previous_manifest").$type<PluginManifest>(),
+		/** Deploy gate (phase 4): seconds a deploy waits for an answer, 1 to 60. */
+		gateTimeoutSeconds: integer("gate_timeout_seconds").notNull().default(10),
+		/** Deploy gate: go ahead when the plugin does not answer in time. */
+		gateFailOpen: boolean("gate_fail_open").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [unique("plugin_install_org_plugin").on(t.organizationId, t.pluginId)],
