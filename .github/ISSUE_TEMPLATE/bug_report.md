@@ -17,7 +17,7 @@ labels: bug
 
 **Environment**
 
-- LogiStack version (`cat /etc/logistack/version`):
+- LogiStack version (`cat /etc/logistack/version`) and release channel (stable, beta or nightly):
 - OS and version:
 - Number of nodes:
 - Installed with `--no-ingress`, `--local-build`, or neither:
