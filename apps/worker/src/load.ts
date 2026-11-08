@@ -400,6 +400,7 @@ export type DeploymentRef = {
 	id: string;
 	imageRef: string | null;
 	platforms: BuildPlatform[] | null;
+	imageShell: boolean | null;
 	commitSha: string | null;
 	commitMessage: string | null;
 	gitRef: string | null;
@@ -434,6 +435,9 @@ export function compileInput(
 		deploymentId: deployment.id,
 		...(deployment.imageRef ? { image: deployment.imageRef } : {}),
 		...(deployment.platforms ? { platforms: deployment.platforms } : {}),
+		...(deployment.imageShell !== null
+			? { imageShell: deployment.imageShell }
+			: {}),
 		env: Object.fromEntries(
 			Object.entries(sc.env).map(([k, v]) => [k, v.value]),
 		),

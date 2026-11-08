@@ -94,6 +94,8 @@ EXPOSE 8080
 ENTRYPOINT ["/api"]
 ```
 
+The distroless image has no shell, so the HTTP and TCP health checks cannot run in it. With the check set to **None**, the service deploys without one. To gate rollouts on a real check, give the binary a health flag and set a **Command** check such as `/api -healthcheck`. See [Images without a shell](./service-settings.mdx#images-without-a-shell).
+
 ### Static site with your own Caddy image
 
 The **Static site** builder below does this for you. Write it yourself only when you need a custom Caddy configuration.

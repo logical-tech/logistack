@@ -39,6 +39,7 @@ import {
 import { dockerConfig, probeBuildkit } from "./build-platforms.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
+import { probeImageShell } from "./image-shell.ts";
 import {
 	deploymentContext,
 	imageRef,
@@ -307,6 +308,7 @@ async function runDeployment(
 	let commit = { commitSha: d.commitSha, commitMessage: d.commitMessage };
 	const state = { id: d.id, status: d.status };
 	let platforms = d.platforms;
+	let imageShell = d.imageShell;
 	let pushedByBuild = false;
 
 	const target = () => ({
@@ -314,6 +316,7 @@ async function runDeployment(
 		imageRef: ref,
 		gitRef: d.gitRef,
 		platforms,
+		imageShell,
 		...commit,
 	});
 	const rollout = async (): Promise<RolloutResult> => {
@@ -346,11 +349,24 @@ async function runDeployment(
 				error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
 				rolledBack: true,
 			};
+		// Only the tcp and http checks need a shell; a command check runs as argv.
+		if (
+			spec.kind === "application" &&
+			spec.healthcheck?.type !== "command" &&
+			imageShell === null
+		) {
+			imageShell = await probeImageShell(ctx, sc, ref, signal);
+			if (imageShell === false)
+				line(
+					"==> the image has no /bin/sh: no default healthcheck, the task counts as healthy once it runs",
+				);
+		}
 		const input = await desiredInput(ctx, sc, target());
 		const snapshot = specSnapshot(input, sc.env);
 		await ctx.db
 			.update(deployment)
 			.set({
+				imageShell,
 				specSnapshotEncrypted: await encrypt(
 					ctx.masterKey,
 					JSON.stringify(snapshot),
