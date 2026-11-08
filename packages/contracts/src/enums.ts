@@ -240,6 +240,8 @@ export const permissionActions = [
 	"exec",
 	/** Use the AI gateway within the budget an admin assigned. Not in `developer`: grant it explicitly. */
 	"ai",
+	/** Install, configure, disable and uninstall plugins, within the instance policy. Not in `developer`. */
+	"plugins",
 ] as const;
 export const PermissionAction = z.enum(permissionActions);
 export type PermissionAction = z.infer<typeof PermissionAction>;

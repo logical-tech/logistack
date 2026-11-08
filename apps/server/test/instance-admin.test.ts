@@ -27,6 +27,7 @@ const instanceRoutes: [string, string, unknown?][] = [
 	["DELETE", `/api/instance/admins/${node}`],
 	["PUT", "/api/instance/sponsor", { key: "x" }],
 	["DELETE", "/api/instance/sponsor"],
+	["PUT", "/api/plugins/policy", { policy: "any" }],
 	["PUT", "/api/certificates/issuer", { directory: "staging" }],
 	["PUT", "/api/registries/local", { enabled: false }],
 	["POST", "/api/build-platforms/check", {}],

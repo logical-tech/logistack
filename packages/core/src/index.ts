@@ -28,6 +28,7 @@ export * from "./node-labels.ts";
 export * from "./patching.ts";
 export * from "./pending-diff.ts";
 export * from "./permissions.ts";
+export * from "./plugin.ts";
 export * from "./ports.ts";
 export * from "./preview.ts";
 export * from "./resource-profiles.ts";

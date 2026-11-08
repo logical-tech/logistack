@@ -8,6 +8,7 @@ export * from "./game/index.ts";
 export * from "./git/index.ts";
 export * from "./http.ts";
 export * from "./notify/index.ts";
+export * from "./plugin.ts";
 export * from "./releases.ts";
 export * from "./s3/destination.ts";
 export * from "./s3/madmin.ts";

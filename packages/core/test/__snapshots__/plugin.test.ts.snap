@@ -1,0 +1,89 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`compilePlugin snapshot 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+  },
+  "Labels": {
+    "logistack.kind": "plugin",
+    "logistack.managed": "true",
+    "logistack.org": "org_1",
+    "logistack.plugin": "com.acme.notifier",
+    "logistack.resource": "plg_0123456789abcdefghjkmnpq",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-plg-0123456789abcdefghjkmnpq",
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "CapabilityDrop": [
+        "ALL",
+      ],
+      "Env": [
+        "LOGISTACK_URL=http://logistack_logistack-api:3000",
+        "LOGISTACK_TOKEN=lsk_x",
+        "LOGISTACK_SIGNING_SECRET=ssssssssssssssssssssssssssssssss",
+        "LOGISTACK_INSTALL_ID=plg_0123456789abcdefghjkmnpq",
+        "PORT=8080",
+      ],
+      "Image": "ghcr.io/acme/notifier@sha256:abc",
+      "Labels": {
+        "logistack.kind": "plugin",
+        "logistack.managed": "true",
+        "logistack.org": "org_1",
+        "logistack.plugin": "com.acme.notifier",
+        "logistack.resource": "plg_0123456789abcdefghjkmnpq",
+      },
+      "Mounts": [
+        {
+          "Target": "/tmp",
+          "TmpfsOptions": {
+            "SizeBytes": 67108864,
+          },
+          "Type": "tmpfs",
+        },
+        {
+          "Source": "ls-plg-0123456789abcdefghjkmnpq-data",
+          "Target": "/data",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.kind": "plugin",
+              "logistack.managed": "true",
+              "logistack.org": "org_1",
+              "logistack.plugin": "com.acme.notifier",
+              "logistack.resource": "plg_0123456789abcdefghjkmnpq",
+            },
+          },
+        },
+      ],
+      "ReadOnly": true,
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Target": "net1",
+      },
+    ],
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 1073741824,
+        "NanoCPUs": 1000000000,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "Order": "stop-first",
+    "Parallelism": 1,
+  },
+}
+`;

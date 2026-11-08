@@ -16,6 +16,7 @@ import { onError, validationHook } from "./errors.ts";
 import { terminal } from "./exec-ws.ts";
 import { requestLogger } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
+import { pluginProxy } from "./plugin-proxy.ts";
 import { limitCredentials } from "./rate-limit.ts";
 import { ai } from "./routes/ai.ts";
 import { aiAgent } from "./routes/ai-agent.ts";
@@ -52,6 +53,7 @@ import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
 import { patching } from "./routes/patching.ts";
+import { plugins } from "./routes/plugins.ts";
 import { previews } from "./routes/previews.ts";
 import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
@@ -160,6 +162,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	// Heartbeats from cron jobs, outside /api: the token is the credential, and a ping is
 	// telemetry like a metric sample, not an audited change.
 	app.route("/push", push);
+	// Plugin pages: no session here (an opaque-origin page sends no cookies); see plugin-proxy.ts.
+	app.route("/plugins", pluginProxy);
 
 	const routes = app
 		.route("/api", health)
@@ -222,6 +226,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", ai)
 		.route("/api", aiAgent)
 		.route("/api", uptime)
+		.route("/api", plugins)
 		.route("/", realtime)
 		.route("/", terminal);
 
@@ -237,6 +242,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 			p === "/api" ||
 			p.startsWith("/status/") ||
 			p.startsWith("/push/") ||
+			p.startsWith("/plugins/") ||
 			p.startsWith("/api/") ||
 			p.startsWith("/v1/");
 		// A file when one matches, else the app shell for client-side routes.

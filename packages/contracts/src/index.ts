@@ -21,6 +21,7 @@ export * from "./operations.ts";
 export * from "./organization.ts";
 export * from "./patching.ts";
 export * from "./pending-diff.ts";
+export * from "./plugin.ts";
 export * from "./previews.ts";
 export * from "./resources.ts";
 export * from "./secrets.ts";

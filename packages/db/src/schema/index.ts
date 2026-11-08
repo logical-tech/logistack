@@ -12,6 +12,7 @@ export * from "./networking.ts";
 export * from "./node-token.ts";
 export * from "./operations.ts";
 export * from "./patching.ts";
+export * from "./plugins.ts";
 export * from "./runtime.ts";
 export * from "./secrets.ts";
 export * from "./settings.ts";
