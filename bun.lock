@@ -23,6 +23,17 @@
         "hono": "4.13.16",
       },
     },
+    "apps/cli": {
+      "name": "@logistack/cli",
+      "version": "0.1.0",
+      "bin": {
+        "logistack": "src/index.ts",
+      },
+      "dependencies": {
+        "@logistack/contracts": "workspace:*",
+        "zod": "4.6.7",
+      },
+    },
     "apps/server": {
       "name": "@logistack/server",
       "dependencies": {
@@ -476,6 +487,8 @@
     "@lezer/lr": ["@lezer/lr@1.4.12", "", { "dependencies": { "@lezer/common": "^1.0.0" } }, "sha512-On9HU4oMMiHPMkQDgoTnGahjgG5n/MkN38CgG77sMraKLL+3JBbeQNi1FcCXV9QRqwF9/BUXP3caHyJC1fBOTQ=="],
 
     "@logistack/agent": ["@logistack/agent@workspace:apps/agent"],
+
+    "@logistack/cli": ["@logistack/cli@workspace:apps/cli"],
 
     "@logistack/contracts": ["@logistack/contracts@workspace:packages/contracts"],
 
