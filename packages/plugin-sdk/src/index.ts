@@ -1,7 +1,7 @@
 import {
-	type DnsRecordType,
 	type DeployGateRequest,
 	type DeployGateResponse,
+	type DnsRecordType,
 	type EventEnvelope,
 	type PermissionAction,
 	PLUGIN_HEADERS,
