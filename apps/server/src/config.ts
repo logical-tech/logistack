@@ -90,6 +90,16 @@ const ConfigSchema = z.object({
 		.enum(["", "0", "1", "true", "false"])
 		.optional()
 		.transform((v) => v === "1" || v === "true"),
+	/**
+	 * Signing keys of the official plugin index, `keyId:base64` comma-separated. Overrides the
+	 * placeholder bundled in `OFFICIAL_PLUGIN_INDEX_KEYS` until a release bundles the real key.
+	 */
+	LS_PLUGIN_INDEX_PUBLIC_KEY: optional,
+	/** The official plugin index is its sandbox. Set only on test instances. */
+	LOGISTACK_PLUGIN_INDEX_SANDBOX: z
+		.enum(["", "0", "1", "true", "false"])
+		.optional()
+		.transform((v) => v === "1" || v === "true"),
 	GITHUB_CLIENT_ID: optional,
 	GITHUB_CLIENT_SECRET: optional,
 	GOOGLE_CLIENT_ID: optional,

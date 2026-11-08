@@ -2,6 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
 	type PermissionAction,
 	PLUGIN_STORAGE_LIMITS,
+	PluginIndexPayload,
 	type PluginManifest,
 	PluginPage,
 	PluginPolicy,
@@ -9,13 +10,18 @@ import {
 	permissionActions,
 } from "@logistack/contracts";
 import {
+	compareVersions,
 	decrypt,
 	dockerName,
 	encrypt,
+	isReleaseVersion,
+	manifestDiff,
 	maskConfig,
 	mergeConfig,
 	newId,
+	normalizeVersion,
 	type Resource,
+	satisfiesRange,
 } from "@logistack/core";
 import {
 	apiKeyUsage,
@@ -23,17 +29,29 @@ import {
 	instanceSettings,
 	member,
 	organizationRole,
+	pluginIndex,
 	pluginInstall,
 	pluginUiStorage,
 	user,
 } from "@logistack/db";
-import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
 import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
+import {
+	ensureOfficialIndex,
+	fetchSigned,
+	INDEX_STALE_MS,
+	type IndexRow,
+	indexRow,
+	indexVersion,
+	pingInstall,
+	pluginVersions,
+	refreshIndex,
+} from "../plugin-index.ts";
 import {
 	callInstall,
 	type InstallRow,
@@ -67,7 +85,15 @@ const Source = z.discriminatedUnion("kind", [
 		/** A plugin running elsewhere, for development: no container is started. */
 		url: z.url().max(2048),
 	}),
+	z.object({
+		kind: z.literal("index"),
+		/** A marketplace index this instance trusts (`GET /plugins/indexes`). */
+		indexId: z.string(),
+		pluginId: z.string().max(128),
+		version: z.string().max(64),
+	}),
 ]);
+type Source = z.infer<typeof Source>;
 
 const ManifestView = z
 	.record(z.string(), z.unknown())
@@ -86,6 +112,10 @@ const Inspected = z
 		missingPermissions: z.array(z.string()),
 		/** Already installed in this organization (an install would conflict). */
 		installedId: z.string().nullable(),
+		/** The marketplace index it comes from; null: an image or dev URL ("Unlisted"). */
+		indexId: z.string().nullable(),
+		/** The index marks this version reviewed by a maintainer. */
+		verified: z.boolean(),
 	})
 	.openapi("PluginInspection");
 
@@ -107,6 +137,13 @@ const InstallView = z
 		serviceAccountId: z.string().nullable(),
 		/** Docker service name; null for a dev URL. */
 		serviceName: z.string().nullable(),
+		/** The marketplace index it came from; null: an image or dev URL ("Unlisted"). */
+		indexId: z.string().nullable(),
+		verified: z.boolean(),
+		/** The index yanked this version (as of its last refresh). The plugin keeps running. */
+		yanked: z.boolean(),
+		/** What `POST /plugins/{id}/rollback` goes back to; null before the first update. */
+		previousVersion: z.string().nullable(),
 		createdAt: z.string(),
 		updatedAt: z.string(),
 	})
@@ -118,7 +155,7 @@ const Contribution = z
 		pluginId: z.string(),
 		pluginName: z.string(),
 		author: z.string().nullable(),
-		/** Not from a reviewed marketplace entry; always true until the marketplace ships. */
+		/** Not installed from a marketplace index. */
 		unlisted: z.boolean(),
 		pages: z.array(PluginPage),
 	})
@@ -152,28 +189,64 @@ const converge = (c: Context<Env>) =>
 		.maintenance.add("plugins", {}, { removeOnComplete: true })
 		.catch(() => {});
 
-async function policy(c: Context<Env>): Promise<PluginPolicy> {
+async function settings(c: Context<Env>) {
 	const [s] = await c.var.deps.db
-		.select({ p: instanceSettings.pluginPolicy })
+		.select({
+			policy: instanceSettings.pluginPolicy,
+			installPing: instanceSettings.pluginInstallPing,
+		})
 		.from(instanceSettings)
 		.where(eq(instanceSettings.id, "singleton"));
-	return s?.p ?? "any";
+	return { policy: s?.policy ?? "any", installPing: s?.installPing ?? false };
 }
 
-/** Installs follow the instance policy; `verified` needs a marketplace entry, which phase 1 has none of. */
-async function assertPolicyAllows(c: Context<Env>) {
+const policy = async (c: Context<Env>): Promise<PluginPolicy> =>
+	(await settings(c)).policy;
+
+const PolicyView = z
+	.object({
+		policy: PluginPolicy,
+		/** Opt-in: tell the index on each marketplace install (plugin id and version only). */
+		installPing: z.boolean(),
+	})
+	.openapi("PluginPolicySettings");
+
+/**
+ * Installs follow the instance policy; `verified` allows only versions a trusted index marks
+ * verified. Called once before resolving a source (`verified` unknown) and once after.
+ */
+async function assertPolicyAllows(
+	c: Context<Env>,
+	source: Pick<Source, "kind">,
+	verified?: boolean,
+) {
 	const p = await policy(c);
 	if (p === "off")
 		throw new Failure(
 			"forbidden",
 			"plugins are turned off on this instance; an instance admin can change the policy",
 		);
-	if (p === "verified")
+	if (p === "verified" && (source.kind !== "index" || verified === false))
 		throw new Failure(
 			"forbidden",
 			"this instance only allows verified marketplace plugins",
 		);
 }
+
+/** The manifest's `logistack` range must include this server's version; a dev build skips the check. */
+function assertCompatible(c: Context<Env>, manifest: PluginManifest) {
+	const v = normalizeVersion(c.var.deps.config.LOGISTACK_VERSION);
+	if (!compatible(v, manifest))
+		throw new Failure(
+			"conflict",
+			`${manifest.name} ${manifest.version} needs LogiStack ${manifest.logistack}; this server runs ${v}`,
+		);
+}
+
+const compatible = (serverVersion: string, manifest: PluginManifest) =>
+	!manifest.logistack ||
+	!isReleaseVersion(serverVersion) ||
+	satisfiesRange(serverVersion, manifest.logistack);
 
 /** A plugin cannot get a permission its installer does not hold on the organization. */
 function missingPermissions(c: Context<Env>, manifest: PluginManifest) {
@@ -182,22 +255,84 @@ function missingPermissions(c: Context<Env>, manifest: PluginManifest) {
 	return manifest.permissions.filter((a) => !actorCan(actor, a, org));
 }
 
-async function resolveSource(
-	c: Context<Env>,
-	source: z.infer<typeof Source>,
-): Promise<{
+type Resolved = {
 	manifest: PluginManifest;
 	image: string | null;
 	devUrl: string | null;
 	registryId: string | null;
-}> {
+	indexId: string | null;
+	verified: boolean;
+};
+
+const digestOf = (image: string) => image.slice(image.indexOf("@") + 1);
+
+/**
+ * A version from a trusted index: image and manifest as the index signed them, after checking
+ * that the registry serves that digest with the same manifest label.
+ */
+async function resolveIndexVersion(
+	c: Context<Env>,
+	index: IndexRow,
+	pluginId: string,
+	version: string,
+): Promise<Resolved> {
 	const { db, masterKey } = c.var.deps;
+	const v = await indexVersion(db, index, pluginId, version);
+	// Before touching the registry: the policy may refuse it on the index's word alone.
+	await assertPolicyAllows(c, { kind: "index" }, v.verified);
+	if (v.yanked)
+		throw new Failure(
+			"conflict",
+			`${pluginId} ${version} was yanked by the index; pick another version`,
+		);
+	if (v.manifest.id !== pluginId || v.manifest.version !== v.version)
+		throw new Failure(
+			"conflict",
+			"the index entry's manifest names another plugin or version",
+		);
+	const live = await manifestFromImage(
+		db,
+		masterKey,
+		requireActor(c).organizationId,
+		v.image,
+	);
+	if (digestOf(live.image) !== digestOf(v.image))
+		throw new Failure(
+			"conflict",
+			"the registry serves another digest than the index signed",
+		);
+	if (!Bun.deepEquals(live.manifest, v.manifest))
+		throw new Failure(
+			"conflict",
+			"the image's manifest label differs from the manifest the index signed",
+		);
+	return {
+		manifest: v.manifest,
+		image: v.image,
+		devUrl: null,
+		registryId: null,
+		indexId: index.id,
+		verified: v.verified,
+	};
+}
+
+async function resolveSource(
+	c: Context<Env>,
+	source: Source,
+): Promise<Resolved> {
+	const { db, masterKey } = c.var.deps;
+	if (source.kind === "index") {
+		const index = await indexRow(db, source.indexId);
+		return resolveIndexVersion(c, index, source.pluginId, source.version);
+	}
 	if (source.kind === "url")
 		return {
 			manifest: await manifestFromUrl(db, source.url),
 			image: null,
 			devUrl: source.url.replace(/\/+$/, ""),
 			registryId: null,
+			indexId: null,
+			verified: false,
 		};
 	const r = await manifestFromImage(
 		db,
@@ -206,7 +341,13 @@ async function resolveSource(
 		source.image,
 		source.registryId,
 	);
-	return { ...r, devUrl: null, registryId: source.registryId ?? null };
+	return {
+		...r,
+		devUrl: null,
+		registryId: source.registryId ?? null,
+		indexId: null,
+		verified: false,
+	};
 }
 
 async function view(c: Context<Env>, row: InstallRow) {
@@ -228,6 +369,10 @@ async function view(c: Context<Env>, row: InstallRow) {
 		statusMessage: row.statusMessage,
 		serviceAccountId: row.serviceAccountId,
 		serviceName: row.image ? dockerName("plg", row.id) : null,
+		indexId: row.indexId,
+		verified: row.verified,
+		yanked: row.yanked,
+		previousVersion: row.previousVersion,
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 	};
@@ -313,6 +458,179 @@ async function runTool(c: Context<Env>, destructive: boolean) {
 	}
 }
 
+const IndexView = z
+	.object({
+		id: z.string(),
+		url: z.string(),
+		name: z.string(),
+		/** The official index, configured by the server; it cannot be removed. */
+		builtin: z.boolean(),
+		/** Ids of the signing keys this instance trusts for it. */
+		keyIds: z.array(z.string()),
+		fetchedAt: z.string().nullable(),
+		lastError: z.string().nullable(),
+		plugins: z.number(),
+	})
+	.openapi("PluginIndex");
+
+const indexView = (r: IndexRow) => ({
+	id: r.id,
+	url: r.url,
+	name: r.name,
+	builtin: r.builtin,
+	keyIds: Object.keys(r.publicKeys).filter((k) => r.publicKeys[k]),
+	fetchedAt: r.fetchedAt?.toISOString() ?? null,
+	lastError: r.lastError,
+	plugins: r.entries.length,
+});
+
+const Diff = z.object({
+	added: z.array(z.string()),
+	removed: z.array(z.string()),
+});
+
+const MarketEntry = z
+	.object({
+		indexId: z.string(),
+		indexName: z.string(),
+		id: z.string(),
+		name: z.string(),
+		description: z.string(),
+		author: z.string().nullable(),
+		iconUrl: z.string().nullable(),
+		verified: z.boolean(),
+		latest: z.object({
+			version: z.string(),
+			image: z.string(),
+			changelog: z.string().nullable(),
+			publishedAt: z.string(),
+			yanked: z.boolean(),
+			manifest: ManifestView,
+		}),
+		/** The manifest's `logistack` range includes this server's version. */
+		compatible: z.boolean(),
+		/** This organization's install of the plugin, from any source. */
+		installed: z
+			.object({
+				installId: z.string(),
+				version: z.string(),
+				indexId: z.string().nullable(),
+			})
+			.nullable(),
+	})
+	.openapi("PluginMarketEntry");
+
+const UpdateView = z
+	.object({
+		version: z.string(),
+		changelog: z.string().nullable(),
+		publishedAt: z.string(),
+		verified: z.boolean(),
+		compatible: z.boolean(),
+		/** Against the installed version: added permissions need `acceptPermissions: true`. */
+		permissions: Diff,
+		egress: Diff,
+		/** Permissions the caller does not hold; the update is refused until someone who does runs it. */
+		missingPermissions: z.array(z.string()),
+	})
+	.openapi("PluginUpdate");
+
+const PublicKeys = z
+	.record(z.string().min(1).max(128), z.string().max(256))
+	.refine(
+		(keys) =>
+			Object.keys(keys).length > 0 &&
+			Object.values(keys).every((k) => Buffer.from(k, "base64").length === 32),
+		"at least one key; each a base64 raw Ed25519 public key (32 bytes)",
+	);
+
+/**
+ * Moves an install to another version: the role's actions follow the new manifest and the
+ * plugin gets a fresh API token (the old one is deleted), so a version never runs with a key
+ * minted for another. The current version is kept for rollback.
+ */
+async function switchVersion(
+	c: Context<Env>,
+	row: InstallRow,
+	next: Pick<Resolved, "image" | "manifest" | "verified">,
+) {
+	const { db, masterKey, auth } = c.var.deps;
+	if (!row.serviceAccountId)
+		throw new Failure(
+			"conflict",
+			"the install has no service account; reinstall it",
+		);
+	const accountId = row.serviceAccountId;
+	const ordered = permissionActions.filter((a) =>
+		next.manifest.permissions.includes(a),
+	);
+	const key = await auth.api.createApiKey({
+		body: {
+			userId: accountId,
+			name: "plugin",
+			expiresIn: null,
+			metadata: { organizationId: row.organizationId },
+		},
+	});
+	try {
+		const [updated] = await db.transaction(async (tx) => {
+			await tx
+				.update(organizationRole)
+				.set({ permission: JSON.stringify({ logistack: ordered }) })
+				.where(
+					and(
+						eq(organizationRole.organizationId, row.organizationId),
+						eq(organizationRole.role, pluginRoleName(row.id)),
+					),
+				);
+			const old = await tx
+				.select({ id: apikey.id })
+				.from(apikey)
+				.where(and(eq(apikey.referenceId, accountId), ne(apikey.id, key.id)));
+			if (old.length) {
+				const ids = old.map((k) => k.id);
+				await tx.delete(apiKeyUsage).where(inArray(apiKeyUsage.keyId, ids));
+				await tx.delete(apikey).where(inArray(apikey.id, ids));
+			}
+			return tx
+				.update(pluginInstall)
+				.set({
+					image: next.image,
+					version: next.manifest.version,
+					manifest: next.manifest,
+					verified: next.verified,
+					yanked: false,
+					previousImage: row.image,
+					previousVersion: row.version,
+					previousManifest: row.manifest,
+					tokenEncrypted: await encrypt(masterKey, key.key),
+					status: "pending",
+					statusMessage: null,
+				})
+				.where(eq(pluginInstall.id, row.id))
+				.returning();
+		});
+		await converge(c);
+		return one(updated ? [updated] : [], "plugin");
+	} catch (e) {
+		await db.delete(apikey).where(eq(apikey.id, key.id));
+		throw e;
+	}
+}
+
+/** What every version change checks: policy, compatibility, and the caller holding each permission. */
+async function assertCanSwitch(c: Context<Env>, r: Resolved) {
+	await assertPolicyAllows(c, { kind: "index" }, r.verified);
+	assertCompatible(c, r.manifest);
+	const missing = missingPermissions(c, r.manifest);
+	if (missing.length)
+		throw new Failure(
+			"forbidden",
+			`${r.manifest.version} asks for ${missing.join(", ")}, which you do not hold`,
+			{ missing },
+		);
+}
+
 export const plugins = router()
 	.openapi(
 		createRoute({
@@ -363,7 +681,7 @@ export const plugins = router()
 					pluginId: r.pluginId,
 					pluginName: r.manifest.name,
 					author: r.manifest.author?.name ?? null,
-					unlisted: true,
+					unlisted: !r.indexId,
 					pages: r.manifest.contributes.pages,
 				})),
 				200,
@@ -452,12 +770,9 @@ export const plugins = router()
 			security,
 			summary: "Who may install plugins on this instance",
 			middleware: [requirePermission("read", inOrganization)],
-			responses: {
-				200: json(z.object({ policy: PluginPolicy }), "Policy"),
-				...errors,
-			},
+			responses: { 200: json(PolicyView, "Policy"), ...errors },
 		}),
-		async (c) => c.json({ policy: await policy(c) }, 200),
+		async (c) => c.json(await settings(c), 200),
 	)
 	.openapi(
 		mutation(
@@ -469,27 +784,32 @@ export const plugins = router()
 				security,
 				summary: "Set who may install plugins on this instance",
 				description:
-					"`off`: no installs. `verified`: marketplace-reviewed plugins only. `any`: any image or dev URL. Existing installs keep running.",
+					"`off`: no installs. `verified`: versions a trusted index marks verified. `any`: any image or dev URL. Existing installs keep running. `installPing` (default off) lets marketplace installs tell the index the plugin id and version, nothing else.",
 				middleware: [requireInstanceAdmin],
-				request: body(z.object({ policy: PluginPolicy })),
-				responses: {
-					200: json(z.object({ policy: PluginPolicy }), "Policy"),
-					...errors,
-				},
+				request: body(
+					z.object({
+						policy: PluginPolicy.optional(),
+						installPing: z.boolean().optional(),
+					}),
+				),
+				responses: { 200: json(PolicyView, "Policy"), ...errors },
 			}),
 		),
 		async (c) => {
-			const { policy: next } = c.req.valid("json");
-			const before = await policy(c);
+			const input = c.req.valid("json");
+			const before = await settings(c);
 			await c.var.deps.db
 				.update(instanceSettings)
-				.set({ pluginPolicy: next })
+				.set({
+					...(input.policy ? { pluginPolicy: input.policy } : {}),
+					...(input.installPing !== undefined
+						? { pluginInstallPing: input.installPing }
+						: {}),
+				})
 				.where(eq(instanceSettings.id, "singleton"));
-			c.set("auditDiff", {
-				before: { policy: before },
-				after: { policy: next },
-			});
-			return c.json({ policy: next }, 200);
+			const after = await settings(c);
+			c.set("auditDiff", { before, after });
+			return c.json(after, 200);
 		},
 	)
 	.openapi(
@@ -509,8 +829,11 @@ export const plugins = router()
 			}),
 		),
 		async (c) => {
-			await assertPolicyAllows(c);
-			const r = await resolveSource(c, c.req.valid("json"));
+			const source = c.req.valid("json");
+			await assertPolicyAllows(c, source);
+			const r = await resolveSource(c, source);
+			await assertPolicyAllows(c, source, r.verified);
+			assertCompatible(c, r.manifest);
 			const [existing] = await c.var.deps.db
 				.select({ id: pluginInstall.id })
 				.from(pluginInstall)
@@ -527,6 +850,8 @@ export const plugins = router()
 					devUrl: r.devUrl,
 					missingPermissions: missingPermissions(c, r.manifest),
 					installedId: existing?.id ?? null,
+					indexId: r.indexId,
+					verified: r.verified,
 				},
 				200,
 			);
@@ -565,11 +890,13 @@ export const plugins = router()
 			}),
 		),
 		async (c) => {
-			await assertPolicyAllows(c);
 			const input = c.req.valid("json");
+			await assertPolicyAllows(c, input.source);
 			const actor = requireActor(c);
 			const { db, masterKey, auth } = c.var.deps;
 			const r = await resolveSource(c, input.source);
+			await assertPolicyAllows(c, input.source, r.verified);
+			assertCompatible(c, r.manifest);
 			const missing = missingPermissions(c, r.manifest);
 			if (missing.length)
 				throw new Failure(
@@ -635,6 +962,8 @@ export const plugins = router()
 					signingSecretEncrypted: await encrypt(masterKey, signingSecret),
 					status: "pending",
 					installedBy: actor.userId,
+					indexId: r.indexId,
+					verified: r.verified,
 				});
 				await auditInTx(c, tx, {
 					resourceId: installId,
@@ -681,6 +1010,13 @@ export const plugins = router()
 				.where(eq(pluginInstall.id, installId))
 				.returning();
 			await converge(c);
+			if (r.indexId && input.source.kind === "index")
+				void pingInstall(
+					c.var.deps,
+					await indexRow(db, r.indexId),
+					r.manifest.id,
+					r.manifest.version,
+				).catch(() => {});
 			return c.json(
 				{
 					...(await view(c, one(row ? [row] : [], "plugin"))),
@@ -689,6 +1025,217 @@ export const plugins = router()
 						: {}),
 				},
 				201,
+			);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/plugins/indexes",
+			tags: ["plugins"],
+			security,
+			summary: "Marketplace indexes this instance trusts",
+			middleware: [requirePermission("read", inOrganization)],
+			responses: { 200: json(z.array(IndexView), "Indexes"), ...errors },
+		}),
+		async (c) => {
+			const { db, config } = c.var.deps;
+			await ensureOfficialIndex(db, config);
+			const rows = await db
+				.select()
+				.from(pluginIndex)
+				.orderBy(desc(pluginIndex.builtin), asc(pluginIndex.createdAt));
+			return c.json(rows.map(indexView), 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"plugin.index_create",
+			createRoute({
+				method: "post",
+				path: "/plugins/indexes",
+				tags: ["plugins"],
+				security,
+				summary: "Trust a private marketplace index",
+				description:
+					"Fetches `GET {url}/v1/index` and checks its signature with the given keys before saving, so a wrong URL or key is refused. Instance admins only.",
+				middleware: [requireInstanceAdmin],
+				request: body(
+					z.object({
+						url: z.url().max(2048),
+						/** Defaults to the name the index gives itself. */
+						name: z.string().trim().min(1).max(80).optional(),
+						/** `keyId` to base64 raw Ed25519 public key. */
+						publicKeys: PublicKeys,
+					}),
+				),
+				responses: { 201: json(IndexView, "Added"), ...errors },
+			}),
+		),
+		async (c) => {
+			const input = c.req.valid("json");
+			const { db } = c.var.deps;
+			const url = input.url.replace(/\/+$/, "");
+			if (!/^https?:$/.test(new URL(url).protocol))
+				throw new Failure("bad_request", "the index URL must be http or https");
+			const index = await fetchSigned(
+				db,
+				{ url, publicKeys: input.publicKeys },
+				"/v1/index",
+				PluginIndexPayload,
+			);
+			const [row] = await db
+				.insert(pluginIndex)
+				.values({
+					url,
+					name: input.name ?? index.indexName,
+					publicKeys: input.publicKeys,
+					entries: index.plugins,
+					fetchedAt: new Date(),
+				})
+				.returning();
+			const created = one(row ? [row] : [], "plugin index");
+			c.set("auditResourceId", created.id);
+			c.set("auditDiff", { url, keyIds: Object.keys(input.publicKeys) });
+			return c.json(indexView(created), 201);
+		},
+	)
+	.openapi(
+		mutation(
+			"plugin.index_delete",
+			createRoute({
+				method: "delete",
+				path: "/plugins/indexes/{id}",
+				tags: ["plugins"],
+				security,
+				summary: "Stop trusting a private marketplace index",
+				description:
+					"Plugins installed from it keep running and become Unlisted. The official index cannot be removed.",
+				middleware: [requireInstanceAdmin],
+				request: { params: IdParam },
+				responses: { 204: { description: "Removed" }, ...errors },
+			}),
+		),
+		async (c) => {
+			const row = await indexRow(c.var.deps.db, c.req.valid("param").id);
+			c.set("auditResourceId", row.id);
+			if (row.builtin)
+				throw new Failure("conflict", "the official index cannot be removed");
+			await c.var.deps.db.delete(pluginIndex).where(eq(pluginIndex.id, row.id));
+			c.set("auditDiff", { url: row.url });
+			return c.body(null, 204);
+		},
+	)
+	.openapi(
+		mutation(
+			"plugin.index_refresh",
+			createRoute({
+				method: "post",
+				path: "/plugins/indexes/{id}/refresh",
+				tags: ["plugins"],
+				security,
+				summary: "Fetch an index again",
+				description:
+					"Fetches and verifies the listing and every version of the plugins installed from it, and flags installs of yanked versions. Indexes are never fetched on a schedule.",
+				middleware: [requirePermission("plugins", inOrganization)],
+				request: { params: IdParam },
+				responses: { 200: json(IndexView, "Refreshed"), ...errors },
+			}),
+		),
+		async (c) => {
+			const { db, config } = c.var.deps;
+			await ensureOfficialIndex(db, config);
+			const row = await indexRow(db, c.req.valid("param").id);
+			c.set("auditResourceId", row.id);
+			return c.json(indexView(await refreshIndex(db, row)), 200);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/plugins/marketplace",
+			tags: ["plugins"],
+			security,
+			summary:
+				"Plugins in every trusted index, with this organization's installs",
+			description:
+				"Served from each index's cache; an index whose cache is older than an hour is fetched first. A failed fetch keeps the cache and shows in `indexes[].lastError`.",
+			middleware: [requirePermission("plugins", inOrganization)],
+			responses: {
+				200: json(
+					z.object({
+						policy: PluginPolicy,
+						indexes: z.array(IndexView),
+						entries: z.array(MarketEntry),
+					}),
+					"Marketplace",
+				),
+				...errors,
+			},
+		}),
+		async (c) => {
+			const { db, config } = c.var.deps;
+			await ensureOfficialIndex(db, config);
+			const order = [desc(pluginIndex.builtin), asc(pluginIndex.createdAt)];
+			let rows = await db
+				.select()
+				.from(pluginIndex)
+				.orderBy(...order);
+			const stale = rows.filter(
+				(r) =>
+					!r.fetchedAt || Date.now() - r.fetchedAt.getTime() > INDEX_STALE_MS,
+			);
+			if (stale.length) {
+				await Promise.all(
+					stale.map((r) => refreshIndex(db, r).catch(() => {})),
+				);
+				rows = await db
+					.select()
+					.from(pluginIndex)
+					.orderBy(...order);
+			}
+			const installs = await db
+				.select({
+					id: pluginInstall.id,
+					pluginId: pluginInstall.pluginId,
+					version: pluginInstall.version,
+					indexId: pluginInstall.indexId,
+				})
+				.from(pluginInstall)
+				.where(
+					eq(pluginInstall.organizationId, requireActor(c).organizationId),
+				);
+			const server = normalizeVersion(config.LOGISTACK_VERSION);
+			const entries = rows.flatMap((r) =>
+				r.entries.map((e) => {
+					const i = installs.find((x) => x.pluginId === e.id);
+					return {
+						indexId: r.id,
+						indexName: r.name,
+						id: e.id,
+						name: e.name,
+						description: e.description,
+						author: e.author ?? null,
+						iconUrl: e.iconUrl ?? null,
+						verified: e.verified,
+						latest: {
+							version: e.latest.version,
+							image: e.latest.image,
+							changelog: e.latest.changelog ?? null,
+							publishedAt: e.latest.publishedAt,
+							yanked: e.latest.yanked,
+							manifest: e.latest.manifest as Record<string, unknown>,
+						},
+						compatible: compatible(server, e.latest.manifest),
+						installed: i
+							? { installId: i.id, version: i.version, indexId: i.indexId }
+							: null,
+					};
+				}),
+			);
+			return c.json(
+				{ policy: await policy(c), indexes: rows.map(indexView), entries },
+				200,
 			);
 		},
 	)
@@ -1126,5 +1673,186 @@ export const plugins = router()
 				);
 			c.set("auditDiff", { key });
 			return c.body(null, 204);
+		},
+	)
+	.openapi(
+		createRoute({
+			method: "get",
+			path: "/plugins/{id}/updates",
+			tags: ["plugins"],
+			security,
+			summary: "Newer versions of a marketplace plugin",
+			description:
+				"From the index's cache (refresh the index to see new releases), newest first, yanked versions left out. Each carries its changelog and what it changes in permissions and declared egress.",
+			middleware: [requirePermission("plugins", inOrganization)],
+			request: { params: IdParam },
+			responses: {
+				200: json(
+					z.object({
+						current: z.string(),
+						yanked: z.boolean(),
+						previousVersion: z.string().nullable(),
+						versions: z.array(UpdateView),
+					}),
+					"Updates",
+				),
+				...errors,
+			},
+		}),
+		async (c) => {
+			const row = await byInstall(c);
+			const { db, config } = c.var.deps;
+			const versions = row.indexId
+				? await pluginVersions(
+						db,
+						await indexRow(db, row.indexId),
+						row.pluginId,
+					)
+				: [];
+			const server = normalizeVersion(config.LOGISTACK_VERSION);
+			return c.json(
+				{
+					current: row.version,
+					yanked: row.yanked,
+					previousVersion: row.previousVersion,
+					versions: versions
+						.filter(
+							(v) => !v.yanked && compareVersions(v.version, row.version) > 0,
+						)
+						.sort((a, b) => compareVersions(b.version, a.version))
+						.map((v) => ({
+							version: v.version,
+							changelog: v.changelog ?? null,
+							publishedAt: v.publishedAt,
+							verified: v.verified,
+							compatible: compatible(server, v.manifest),
+							...manifestDiff(row.manifest, v.manifest),
+							missingPermissions: missingPermissions(c, v.manifest),
+						})),
+				},
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
+			"plugin.version_update",
+			createRoute({
+				method: "post",
+				path: "/plugins/{id}/update",
+				tags: ["plugins"],
+				security,
+				summary: "Update a marketplace plugin to another version",
+				description:
+					"Reads the version from the index cache, checks the registry serves the signed digest and manifest, then switches the container. Permissions the new version adds need `acceptPermissions: true`. The plugin gets a new API token; the current version is kept for rollback.",
+				middleware: [requirePermission("plugins", inOrganization)],
+				request: {
+					params: IdParam,
+					...body(
+						z.object({
+							version: z.string().max(64),
+							acceptPermissions: z.boolean().default(false),
+						}),
+					),
+				},
+				responses: { 200: json(InstallView, "Updated"), ...errors },
+			}),
+		),
+		async (c) => {
+			const input = c.req.valid("json");
+			const row = await byInstall(c);
+			c.set("auditResourceId", row.id);
+			if (!row.indexId)
+				throw new Failure(
+					"conflict",
+					"only plugins installed from a marketplace index update here; reinstall it from the new image",
+				);
+			if (input.version === row.version)
+				throw new Failure(
+					"conflict",
+					`${row.manifest.name} is already at ${row.version}`,
+				);
+			await assertPolicyAllows(c, { kind: "index" });
+			const r = await resolveIndexVersion(
+				c,
+				await indexRow(c.var.deps.db, row.indexId),
+				row.pluginId,
+				input.version,
+			);
+			await assertCanSwitch(c, r);
+			const diff = manifestDiff(row.manifest, r.manifest);
+			if (diff.permissions.added.length && !input.acceptPermissions)
+				throw new Failure(
+					"conflict",
+					`${input.version} also asks for ${diff.permissions.added.join(", ")}; accept the new permissions to update`,
+					diff,
+				);
+			const stored = JSON.parse(
+				await decrypt(c.var.deps.masterKey, row.configEncrypted),
+			) as Record<string, unknown>;
+			try {
+				validateConfig(r.manifest.config, stored);
+			} catch (e) {
+				throw new Failure(
+					"conflict",
+					`the current settings do not fit ${input.version}'s form`,
+					e instanceof Failure ? e.details : undefined,
+				);
+			}
+			c.set("auditDiff", {
+				before: { version: row.version, image: row.image },
+				after: { version: r.manifest.version, image: r.image },
+				...diff,
+			});
+			return c.json(await view(c, await switchVersion(c, row, r)), 200);
+		},
+	)
+	.openapi(
+		mutation(
+			"plugin.rollback",
+			createRoute({
+				method: "post",
+				path: "/plugins/{id}/rollback",
+				tags: ["plugins"],
+				security,
+				summary: "Go back to the version before the last update",
+				description:
+					"Reinstalls the previous digest with its manifest and permissions, and a new API token. Rolling back again returns to the newer version.",
+				middleware: [requirePermission("plugins", inOrganization)],
+				request: { params: IdParam },
+				responses: { 200: json(InstallView, "Rolled back"), ...errors },
+			}),
+		),
+		async (c) => {
+			const row = await byInstall(c);
+			c.set("auditResourceId", row.id);
+			const { db } = c.var.deps;
+			const previous = row.previousManifest;
+			if (!row.previousImage || !previous)
+				throw new Failure(
+					"conflict",
+					"there is no previous version to go back to",
+				);
+			// The index's word on the old version; an unreachable index or a dropped version is not verified.
+			const verified = row.indexId
+				? await indexRow(db, row.indexId)
+						.then((ix) => indexVersion(db, ix, row.pluginId, previous.version))
+						.then((v) => v.verified)
+						.catch(() => false)
+				: false;
+			const r: Resolved = {
+				manifest: previous,
+				image: row.previousImage,
+				devUrl: null,
+				registryId: null,
+				indexId: row.indexId,
+				verified,
+			};
+			await assertCanSwitch(c, r);
+			c.set("auditDiff", {
+				before: { version: row.version, image: row.image },
+				after: { version: previous.version, image: r.image },
+			});
+			return c.json(await view(c, await switchVersion(c, row, r)), 200);
 		},
 	);
