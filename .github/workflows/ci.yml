@@ -33,6 +33,9 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
+      # site/ is outside the workspaces, but `bun test` runs its tests too.
+      - run: bun install --frozen-lockfile
+        working-directory: site
       - run: bun run typecheck
       - run: bunx biome check .
       # Integration suites start Postgres and Redis containers and several expect an active
