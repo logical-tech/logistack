@@ -82,6 +82,7 @@ import { Route as AppMonitoringNodesNodeIdRouteImport } from './routes/_app/moni
 import { Route as AppMonitoringNodesNewRouteImport } from './routes/_app/monitoring/nodes/new'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId/index'
 import { Route as AppProjectsProjectIdDuplicateRouteImport } from './routes/_app/projects/$projectId/duplicate'
+import { Route as AppProjectsProjectIdGitopsRouteImport } from './routes/_app/projects/$projectId/gitops'
 import { Route as AppProjectsProjectIdImportRouteImport } from './routes/_app/projects/$projectId/import'
 import { Route as AppProjectsProjectIdPreviewsRouteImport } from './routes/_app/projects/$projectId/previews'
 import { Route as AppProjectsProjectIdUsageRouteImport } from './routes/_app/projects/$projectId/usage'
@@ -498,6 +499,12 @@ const AppProjectsProjectIdDuplicateRoute =
     path: '/duplicate',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
   } as any)
+const AppProjectsProjectIdGitopsRoute =
+  AppProjectsProjectIdGitopsRouteImport.update({
+    id: '/gitops',
+    path: '/gitops',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdImportRoute =
   AppProjectsProjectIdImportRouteImport.update({
     id: '/import',
@@ -771,6 +778,7 @@ export interface FileRoutesByFullPath {
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
+  '/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
   '/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
@@ -874,6 +882,7 @@ export interface FileRoutesByTo {
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
+  '/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
   '/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
@@ -982,6 +991,7 @@ export interface FileRoutesById {
   '/_app/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/_app/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
   '/_app/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
+  '/_app/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/_app/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
   '/_app/projects/$projectId/previews': typeof AppProjectsProjectIdPreviewsRoute
   '/_app/projects/$projectId/usage': typeof AppProjectsProjectIdUsageRoute
@@ -1091,6 +1101,7 @@ export interface FileRouteTypes {
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
     | '/projects/$projectId/duplicate'
+    | '/projects/$projectId/gitops'
     | '/projects/$projectId/import'
     | '/projects/$projectId/previews'
     | '/projects/$projectId/usage'
@@ -1194,6 +1205,7 @@ export interface FileRouteTypes {
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
     | '/projects/$projectId/duplicate'
+    | '/projects/$projectId/gitops'
     | '/projects/$projectId/import'
     | '/projects/$projectId/previews'
     | '/projects/$projectId/usage'
@@ -1301,6 +1313,7 @@ export interface FileRouteTypes {
     | '/_app/monitoring/nodes/$nodeId'
     | '/_app/monitoring/nodes/new'
     | '/_app/projects/$projectId/duplicate'
+    | '/_app/projects/$projectId/gitops'
     | '/_app/projects/$projectId/import'
     | '/_app/projects/$projectId/previews'
     | '/_app/projects/$projectId/usage'
@@ -1859,6 +1872,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdDuplicateRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
     }
+    '/_app/projects/$projectId/gitops': {
+      id: '/_app/projects/$projectId/gitops'
+      path: '/gitops'
+      fullPath: '/projects/$projectId/gitops'
+      preLoaderRoute: typeof AppProjectsProjectIdGitopsRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
     '/_app/projects/$projectId/import': {
       id: '/_app/projects/$projectId/import'
       path: '/import'
@@ -2220,6 +2240,7 @@ const AppProjectsProjectIdStacksStackIdRouteRouteWithChildren =
 
 interface AppProjectsProjectIdRouteRouteChildren {
   AppProjectsProjectIdDuplicateRoute: typeof AppProjectsProjectIdDuplicateRoute
+  AppProjectsProjectIdGitopsRoute: typeof AppProjectsProjectIdGitopsRoute
   AppProjectsProjectIdImportRoute: typeof AppProjectsProjectIdImportRoute
   AppProjectsProjectIdPreviewsRoute: typeof AppProjectsProjectIdPreviewsRoute
   AppProjectsProjectIdUsageRoute: typeof AppProjectsProjectIdUsageRoute
@@ -2235,6 +2256,7 @@ interface AppProjectsProjectIdRouteRouteChildren {
 const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChildren =
   {
     AppProjectsProjectIdDuplicateRoute: AppProjectsProjectIdDuplicateRoute,
+    AppProjectsProjectIdGitopsRoute: AppProjectsProjectIdGitopsRoute,
     AppProjectsProjectIdImportRoute: AppProjectsProjectIdImportRoute,
     AppProjectsProjectIdPreviewsRoute: AppProjectsProjectIdPreviewsRoute,
     AppProjectsProjectIdUsageRoute: AppProjectsProjectIdUsageRoute,

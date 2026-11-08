@@ -182,3 +182,14 @@ export const VULN_SEVERITY: Record<Severity, StatusMeta> = {
 	low: { label: "Low", tone: "idle" },
 	unknown: { label: "Unknown", tone: "idle" },
 };
+
+/** The last GitOps sync of a project (`project_gitops.last_status`). */
+export const GITOPS_STATUS: Record<
+	"applied" | "unchanged" | "planned" | "failed",
+	StatusMeta
+> = {
+	applied: { label: "Applied", tone: "ok" },
+	unchanged: { label: "In sync", tone: "ok" },
+	planned: { label: "Changes waiting", tone: "warn" },
+	failed: { label: "Sync failed", tone: "bad" },
+};
