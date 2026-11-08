@@ -2,7 +2,7 @@
 
 Goal: a user with a niche need that LogiStack does not cover installs a community plugin from a marketplace, or installs their own, in a guided wizard. A broken or malicious plugin cannot take over the cluster, read other tenants' data or act beyond the permissions the user approved.
 
-Status: phase 1 built on `feat/plugins` (2026-11-08), plus phase 2 tools and providers (DNS with DNS-01, notification channels, secret providers; backup destinations deferred). See "Implementation status" at the end.
+Status: phase 1 built on `feat/plugins` (2026-11-08), plus phase 2 tools and providers (DNS with DNS-01, notification channels, secret providers; backup destinations deferred), the phase 3 marketplace client, phase 0 (community templates) and phase 4 (deploy gates, egress proxy, project tabs). See "Implementation status" at the end.
 
 ## What already exists
 
@@ -56,7 +56,7 @@ port: 8080
 resources: { memory: 128Mi, cpu: 0.25 }
 permissions:                      # existing permission actions; the installer picks the scope (org or projects)
   - read
-egress:                           # declared, shown to the user; enforced later
+egress:                           # declared, shown to the user, enforced by the egress proxy
   - dns.hetzner.com
 config:                           # JSON Schema; secret: true fields are encrypted
   type: object
@@ -91,7 +91,7 @@ The image ref itself is not in the manifest: the index or the user supplies it, 
 
 - **Install = a row; the reconciler runs it** (rule 1). A `plugin_install` row compiles to a Swarm service `ls-plg-<shortid>` (rule 5) with labels `logistack.managed=true`, `logistack.kind=plugin`, `logistack.resource=<installId>`, `logistack.org=<orgId>` (rule 4). `compilePlugin(row) -> ServiceSpec` is pure and snapshot-tested, likely a thin call into `compileService`.
 - **Hardening, not optional:** no Docker socket, no host mounts, no `privileged`, `CapDrop: ALL`, read-only rootfs with a tmpfs `/tmp`, memory and CPU limits from the manifest (with an instance cap), one named volume `/data` for the plugin's own state.
-- **Network:** a dedicated overlay `ls-plugins`. It reaches the LogiStack API and the internet; it does not join project networks, so a plugin cannot reach users' databases unless it goes through the API. Egress allowlisting through a proxy is a later phase; v1 shows the declared hosts.
+- **Network:** a dedicated overlay `ls-plugins`. It is `internal` (phase 4): it reaches the LogiStack API, but not the internet except through the egress proxy, which allows only the hosts in `egress`. It does not join project networks, so a plugin cannot reach users' databases unless it goes through the API.
 - **LogiStack → plugin:** HTTP to `http://ls-plg-<shortid>:<port>`, each request signed with a per-install HMAC secret (same scheme as the webhook channel), with timeout and retries for events. Contract endpoints, versioned:
   - `GET /v1/health`
   - `POST /v1/events`
@@ -213,7 +213,7 @@ Pages: Settings → Plugins (installed, with status, logs and metrics from the e
 | 1. Runtime + pages | Manifest schema, `plugin_install`, `compilePlugin`, hardening, `ls-plugins` network, scoped token, signed calls, event hooks, settings form, install from image and from dev URL, kill switch, audit actor. UI pages: proxy with CSP sandbox, bridge, bridge storage, session tokens, sidebar and service-tab routes, CSS kit. SDK v0 (server + `plugin-ui`) and CLI `init/dev/test`. | A self-built plugin posts each failed deploy to a niche chat tool and shows a sidebar page plus a service tab, installed through the wizard; opening its page URL directly in a tab cannot read the dashboard's cookies. |
 | 2. Contributions | Provider proxy (DNS, notify, secrets, backup), tools in Agent and MCP. | A plugin DNS provider issues a wildcard certificate through DNS-01. |
 | 3. Marketplace | Index Worker + D1 with publisher accounts, submit form and `publish` CLI, review pipeline and admin queue, signed responses; marketplace UI in LogiStack, verified badge, private indexes, updates with permission diff, instance policy. | A third party publishes a plugin and another instance installs and updates it end to end. |
-| 4. Extensions | Deploy gates, egress allowlist proxy, Automations nodes, project-tab pages. | |
+| 4. Extensions | Deploy gates, egress allowlist proxy, Automations nodes, project-tab pages. | A plugin rejects a deploy and its reason is in the log; a plugin reaches only the hosts it declares. |
 
 ## Risks
 
@@ -294,11 +294,30 @@ Decisions taken while building the client:
 - **The `logistack` range is enforced at inspect, install and update** against `LOGISTACK_VERSION`; a dev build (`dev`) skips the check.
 - **The install ping** (`POST /v1/ping` with the plugin id and the install's random id) is sent only when an instance admin turns it on.
 
+Phase 0, community templates (2026-11-08):
+
+- Same envelope and verifier as the plugin index: `{ keyId, payload, signature }` checked by `verifyIndexResponse` (`packages/core/src/plugin-index.ts`); the payload is a JSON list of templates in the release's schema.
+- Config (api, passed through `install/stack.yml`): `LS_TEMPLATE_INDEX_URL` (default `https://stack.logicaltech.it/templates/api/v1/index`, a placeholder until that endpoint exists) and `LS_TEMPLATE_INDEX_KEYS` (base64url raw Ed25519 public keys, comma-separated, as `LS_PLUGIN_INDEX_PUBLIC_KEY`; default empty: Refresh is refused with a clear message). One index per instance for now.
+- `POST /templates/community/refresh` (`write` on the organization, audited `template.index_refresh`) fetches (15 s, 5 MB cap, no redirects), verifies, keeps entries that pass the release's `Template` schema and do not reuse a built-in id, forces `source.kind = "community"` and drops `logo` (it names a file of our catalog), and caches them in `community_template_index` (migration 0062). Never on a timer. `GET /templates/community` reports url, source host, key, count and fetch time.
+- The catalog lists community entries with `community: { source: <index host> }`; the gallery shows a "Community" badge and the host, and the templates page has a Refresh button. Deploys go through the same planner; provenance is `template:<id>@<index host>:<instance>/<service>`, `stack.template_id` stays the plain id.
+- Tested end to end with a Bun.serve index signed by a throwaway key (`apps/server/test/community-templates.test.ts`): before Refresh nothing is listed, Refresh caches one entry and skips a shadowing and an invalid one, a tampered payload is refused and the cache kept, the template deploys.
+
+Phase 4, extensions (2026-11-08):
+
+- **Deploy gates.** Manifest `contributes.gates.deploy: true` (delimited block at the end of `packages/contracts/src/plugin.ts`). Before each rollout the worker (`apps/worker/src/gates.ts`, called in `deploy.ts` after the resume checks, before the shell probe and `upsertService`) posts a `DeployGateRequest` (deployment, project, environment with kind, service, image, commit, trigger) to every enabled install in the organization that declares it, in install id order. `{ allow: false, reason }` fails the deployment with `rejected by deploy gate <name>: <reason>` in the error and the log; nothing reaches Swarm. Per install: `gate.timeoutSeconds` (1 to 60, default 10) and `gate.failMode` (`closed` by default) in `PATCH /plugins/{id}` and on the plugin's settings page. Answers are stored in `plugin_gate_decision` (deployment, install), so a retried or resumed deployment does not ask again; timeouts are not stored. A resumed rollout whose spec is already applied is never gated again. SDK: `createPlugin({ gates: { deploy } })`. Migration 0063.
+- **Egress proxy.** `ls-plugins` is created `internal`. Plugin containers get `HTTP_PROXY`/`HTTPS_PROXY` (both cases) pointing at `ls-plugin-egress:3128` with Basic credentials `<installId>:<HMAC(key, installId)>`, where the key is derived from the master key (nothing stored), and `NO_PROXY` set to the api host. The proxy (`apps/worker/src/egress-proxy.ts`, `ROLE=egressproxy` in the worker image, spec from `compileEgressProxy`, snapshot-tested) joins `ls-plugins` and a plain overlay `ls-plugins-egress`, accepts CONNECT and absolute-form HTTP (one request per connection), allows exact hosts and `*.domain` from the install's `egress`, and refuses names that resolve to private addresses unless the manifest names the address literally. Rules ride in the proxy's env, so an install change rolls it (a second or two without egress). It runs only while a container install exists; its image comes from `LS_GATEWAY_IMAGE` or the worker's own stack image.
+- Verified on the dev OrbStack Swarm (`apps/worker/test/plugin-egress.integration.test.ts`, `PLUGEGRESS_IT=1`): the plugin has no direct route out, reaches a declared host through the proxy (200), gets 403 for an undeclared one, reaches the api directly; a service attached to the internal overlay plus an ordinary one (as the api and worker are) reaches the plugin and still the internet. So the internal overlay did not need to be opt-in.
+- Clients: curl, Go, Python requests and Bun's `fetch` honour `HTTP(S)_PROXY` and `NO_PROXY` (Bun checked); Node's built-in `fetch` ignores them, so a Node plugin needs a proxy agent (`undici`'s `EnvHttpProxyAgent`) for outbound calls. The SDK docs must say so.
+- Upgrade note: a `ls-plugins` network created before this change stays non-internal (Docker cannot flip the flag); the worker logs "the plugins network is not internal: egress is not enforced". Phase 1 never shipped, so only dev machines have one; remove it after detaching the api, worker and plugin services.
+- **Project-tab pages.** `location: "project-tab"` pages show as tabs next to "Services" on the project page (`components/projects/project-sections.tsx`), route `/projects/$projectId/plugin/$installId/$pageId/$`, session token context `projectId` (the server already checked it). The section strip appears only when a plugin adds a project tab.
+- **Automations nodes.** Not built (Automations do not exist); the design is in docs/plans/automations.md, "Plugin tools as nodes".
+
 Not built yet:
 
-- Phase 0 (community templates index).
 - **Backup destinations from plugins (deferred).** `BackupDestination` streams every byte (`upload` pulls a `ReadableStream` only as fast as the store takes it, `download` returns one), and backups run to many gigabytes. The JSON `{ config, args }` contract cannot carry that. Doing it honestly needs a second, binary contract: streamed request and response bodies with backpressure, a signature that does not need the whole body in memory, errors partway through a stream, timeouts sized for hours, and restores that run on nodes. Revisit with that contract, or with plugins that hand back an rclone remote config instead of bytes.
 - A real Let's Encrypt issuance through a plugin DNS provider: it needs a public zone and a running Caddy built with acmeproxy.
 - The provider list pages show plugin rows as kind "Plugin"; they do not name or link the plugin yet.
 - Phase 3 leftovers: deploying the index and the production signing key in `PLUGIN_INDEX_KEYS` (release task), refusing an index older than the cached one (`issuedAt`), updating plugins installed from an image or dev URL, private-registry credentials for index images, an end-to-end run against the real index Worker. On the index: unsuspend and un-yank, pruning old pings, rate limits beyond one sign-in link a minute per address, private registries.
-- Phase 4, the review pipeline's headless page check, publishing the SDK to npm (it imports the private contracts package today).
+- The review pipeline's headless page check, publishing the SDK to npm (it imports the private contracts package today).
+- Phase 0 gaps: the real index endpoint and its key on stack.logicaltech.it, several index URLs per instance, community logos, a policy to hide community templates.
+- Phase 4 gaps: gate answers are not shown in the UI beyond the deployment log; the egress proxy is one replica (a node loss stops plugin egress until Swarm reschedules it); egress rules have no port restriction; the install review screen does not yet say that egress is enforced.

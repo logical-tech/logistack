@@ -40,6 +40,9 @@ x-app-env: &app-env
   LOGISTACK_PUBLIC_URL: ${LOGISTACK_PUBLIC_URL:?set LOGISTACK_PUBLIC_URL}
   # "1" only on test instances: trusts sponsor keys from Stripe's sandbox.
   LOGISTACK_SPONSOR_SANDBOX: ${LOGISTACK_SPONSOR_SANDBOX:-}
+  # Community templates: the signed index and the keys that may sign it (keyId:base64url,...).
+  LS_TEMPLATE_INDEX_URL: ${LS_TEMPLATE_INDEX_URL:-https://stack.logicaltech.it/templates/api/v1/index}
+  LS_TEMPLATE_INDEX_KEYS: ${LS_TEMPLATE_INDEX_KEYS:-}
 
 x-app-secrets: &app-secrets
   - source: logistack-master-key
