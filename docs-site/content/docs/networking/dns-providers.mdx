@@ -16,6 +16,8 @@ LogiStack supports these providers:
 | OVHcloud | Application key, application secret and consumer key | Endpoint `ovh-eu`, `ovh-ca` or `ovh-us`. TTL `0` means the zone default. |
 | Porkbun | API key and secret API key | API access must be on for each domain. TTL of 600 seconds or more. |
 
+A [plugin](../plugins/index.mdx) can add more providers. They appear in the same wizard with the plugin's name as a badge, and they issue DNS-01 and wildcard certificates like the built-in ones.
+
 ## Credentials for each provider
 
 Give LogiStack a credential limited to DNS on the zones it should manage. It is encrypted at rest and never shown again.

@@ -79,6 +79,7 @@ LogiStack's rules target both: values never become shell strings, and every rout
 - **Owners and admins** control the Docker socket, so they are root on every node by design. Give those roles only to people you would give root.
 - **The node agent** runs on every server with access to that server's Docker socket, and dials the API with its own token.
 - **Your apps** run in their own environment network, and cannot reach LogiStack's control network.
+- **Plugins** run as hardened containers with a read-only root and no capabilities, reach the internet only through a proxy that allows their declared hosts, and call the API with a key limited to the permissions you approved. Their pages run in an opaque origin. See [How plugins work](../plugins/index.mdx#security-model).
 
 ## Report a vulnerability
 

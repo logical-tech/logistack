@@ -34,7 +34,7 @@ The audit log records each denied attempt with the outcome **Denied**.
 
 ## Actions
 
-Every role is a subset of these seven actions. The labels are the column headers on the **Roles** page.
+Every role is a subset of these nine actions. The labels are the column headers on the **Roles** page.
 
 | Action | Label | Allows |
 | --- | --- | --- |
@@ -45,17 +45,19 @@ Every role is a subset of these seven actions. The labels are the column headers
 | `delete` | Delete | Remove projects, environments, services and domains. |
 | `admin` | Administer | Manage members, roles, keys and integrations on the scope. |
 | `exec` | Terminal | Open a shell inside running containers. Every session is audited. |
+| `ai` | AI | Call models through the AI gateway, within the budget an admin assigns. |
+| `plugins` | Plugins | Install, configure and remove [plugins](../plugins/index.mdx), within the instance policy. |
 
-**Read secrets**, **Administer** and **Terminal** are marked **Sensitive** in the role editor. Grant them deliberately.
+**Read secrets**, **Administer**, **Terminal** and **Plugins** are marked **Sensitive** in the role editor. Grant them deliberately.
 
 ## Built-in roles
 
-| Role | Read | Read secrets | Deploy | Write | Delete | Administer | Terminal |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| **Owner** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Developer** | ✓ | | ✓ | ✓ | | | |
-| **Viewer** | ✓ | | | | | | |
+| Role | Read | Read secrets | Deploy | Write | Delete | Administer | Terminal | AI | Plugins |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| **Owner** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Developer** | ✓ | | ✓ | ✓ | | | | | |
+| **Viewer** | ✓ | | | | | | | | |
 
 - **Owner**: everything, including deleting the organization. Only an Owner can make or unmake Owners, and an organization always keeps at least one.
 - **Admin**: everything except deleting the organization.
@@ -70,7 +72,7 @@ Built-in roles can't be edited or deleted. Owner can only be held on the whole o
 
 In the sidebar, under **Settings**, select **Roles**. The page shows **Built-in roles** and **Custom roles** as a matrix of actions, with the number of **Holders** of each.
 
-![The Roles page: a matrix of the four built-in roles and two custom roles, deployer and secrets-auditor, against the seven actions](/screens/settings-roles.webp)
+![The Roles page: a matrix of the four built-in roles and two custom roles, deployer and secrets-auditor, against the actions](/screens/settings-roles.webp)
 
 ## Create a custom role
 
