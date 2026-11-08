@@ -2,7 +2,7 @@
 
 Goal: a user with a niche need that LogiStack does not cover installs a community plugin from a marketplace, or installs their own, in a guided wizard. A broken or malicious plugin cannot take over the cluster, read other tenants' data or act beyond the permissions the user approved.
 
-Status: draft, not decided. Open questions at the end.
+Status: phase 1 built on `feat/plugins` (2026-11-08), plus plugin tools from phase 2. See "Implementation status" at the end.
 
 ## What already exists
 
@@ -234,3 +234,35 @@ Pages: Settings → Plugins (installed, with status, logs and metrics from the e
 ## Open questions
 
 None for now.
+
+## Implementation status (2026-11-08, branch `feat/plugins`)
+
+Built:
+
+- Contract: `packages/contracts/src/plugin.ts` (manifest, page bridge messages, user claims, policy, storage limits). Permission action `plugins`.
+- Data: `plugin_install`, `plugin_ui_storage`, `instance_settings.plugin_policy` (migration 0059, additive).
+- Runtime: `compilePlugin` (`packages/core/src/plugin.ts`, snapshot-tested), `reconcilePlugins` in the worker every 30 s and on change, overlay `ls-plugins` attached to the api and worker. Tested on a real Swarm (`apps/worker/test/plugins.integration.test.ts`, `PLUGINS_IT=1`).
+- Calls: `callPlugin` and `pluginHeaders` in `packages/providers/src/plugin.ts`. Events reach subscribed installs through the notification dispatcher, with its retries and dedupe.
+- API (`apps/server/src/routes/plugins.ts`): inspect, install, update (settings, kill switch), uninstall, test, session token, page storage, policy, tools list and run, and `GET /plugins/self` for a plugin's own settings.
+- Page proxy: `apps/server/src/plugin-proxy.ts`.
+- SDK v0 and CLI: `packages/plugin-sdk` (`init`, `dev`, `test`, `build`), reference plugin `examples/plugins/deploy-notifier`.
+- Tools (phase 2): `GET /plugins/tools`, `POST /plugins/{id}/tools/{name}` and `/destructive`. The Agent and MCP reach them as ordinary API operations; destructive ones need `delete`, MCP `confirm` and Agent approval.
+- End-to-end test: `apps/server/test/plugins.test.ts`.
+
+Decisions taken while building:
+
+- **Settings reach the plugin through `GET /api/plugins/self`** with its own key (cached 30 s by the SDK), not in every signed request. One path for events, tools and pages; a settings change needs no restart.
+- **The plugin's permissions are a role `plugin:<id>`** held by its service account. The colon keeps it out of the custom-role namespace; `GET /roles` hides it.
+- **Static page files are served without a session.** An opaque-origin page sends no cookies with its subresource requests, so a cookie check would break every script and stylesheet. Only `/ui/api/*` reaches plugin data, and it needs the session token. The install id in the URL is not a secret.
+- **The session token is signed with a key derived from `BETTER_AUTH_SECRET`**, carries the viewer's actions on the page's context, and is bound to one install. It is not accepted by `/api`.
+- **The signature covers the forwarded user claims**: HMAC over `<timestamp>.<claims>\n<body>`, so a captured request cannot be replayed with other claims.
+- **Dev URLs go through the SSRF guard**; plain http is allowed only to a private address when the instance allows private hosts.
+- **Plugin images must own `/data`** (`RUN mkdir /data && chown <user> /data`): the root is read-only and a new volume copies the mountpoint's owner. The `init` template does it.
+- **Uninstall keeps the data volume.** Reinstalling finds its state; removing it is manual for now.
+
+Not built yet:
+
+- Phase 0 (community templates index).
+- Phase 2 providers. Design for DNS: rows of kind `plugin` with `plugin_install_id` and `plugin_provider` columns, a proxy implementing `DnsProvider` over `POST /v1/providers/dnsProviders/{name}/{op}`, and DNS-01 through the `caddy-dns/acmeproxy` module pointed at an api endpoint that forwards `present`/`cleanup` to the plugin. Notification channels, secret providers and backup destinations follow the same row shape.
+- Phase 3 (index Worker, marketplace UI, verified policy, updates with permission diff) and phase 4.
+- Token rotation on update, `logistack` version range enforcement, project-tab pages, the review pipeline's headless page check, publishing the SDK to npm (it imports the private contracts package today).
