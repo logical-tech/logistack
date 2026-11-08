@@ -1,4 +1,4 @@
-import { deriveSecretsKek, importMasterKey } from "@logistack/core";
+import { loadMasterKeys } from "@logistack/core";
 import { createDb, runMigrations } from "@logistack/db";
 import { createNodeRunner } from "@logistack/worker/node-runner";
 import { mountAgentGateway } from "./agent-gateway.ts";
@@ -28,8 +28,10 @@ export async function createDeps(config: Config): Promise<Deps> {
 		config,
 		db,
 		auth: createAuth(config, db),
-		masterKey: await importMasterKey(config.LOGISTACK_MASTER_KEY),
-		secretsKek: await deriveSecretsKek(config.LOGISTACK_MASTER_KEY),
+		...(await loadMasterKeys(
+			config.LOGISTACK_MASTER_KEY,
+			config.LOGISTACK_MASTER_KEY_PREVIOUS,
+		)),
 		bus: await createBus(config.REDIS_URL),
 		nodes: await createNodeRunner(config.REDIS_URL),
 	};

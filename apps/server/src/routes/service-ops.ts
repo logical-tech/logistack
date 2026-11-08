@@ -16,6 +16,7 @@ import {
 	encrypt,
 	type Resource,
 	type SpecSnapshot,
+	secretExpressions,
 	specSnapshot,
 	summarizeChange,
 	transition,
@@ -112,15 +113,22 @@ const ServiceVarsInput = z.object({
 	/** The complete service-scope set: keys left out are deleted. */
 	variables: z
 		.array(
-			z.object({
-				key: EnvKey,
-				/** Omitted: keep the stored value (a masked secret the caller did not change). */
-				value: z.string().optional(),
-				isSecret: z.boolean(),
-				isBuildTime: z.boolean(),
-				/** Reference a managed secret on the service's chain instead of a value. */
-				secretId: z.string().optional(),
-			}),
+			z
+				.object({
+					key: EnvKey,
+					/** Omitted: keep the stored value (a masked secret the caller did not change). */
+					value: z.string().optional(),
+					isSecret: z.boolean(),
+					isBuildTime: z.boolean(),
+					/** Reference a managed secret on the service's chain instead of a value. */
+					secretId: z.string().optional(),
+					/** Mount the referenced secret as `/run/secrets/<key>` instead of an env var. Secrets only. */
+					asFile: z.boolean().optional(),
+				})
+				.refine((v) => !v.asFile || v.isSecret, {
+					message: "only a secret can be mounted as a file",
+					path: ["asFile"],
+				}),
 		)
 		.max(500)
 		.refine(
@@ -763,7 +771,12 @@ export const serviceOps = router()
 							secretId: own.id,
 							valueEncrypted: await encrypt(masterKey, ""),
 						};
-					} else if (v.isSecret && v.value !== undefined) {
+					} else if (
+						v.isSecret &&
+						v.value !== undefined &&
+						// `${{ secrets.KEY }}` resolves at deploy; freezing it into a secret would store the text.
+						!secretExpressions(v.value).length
+					) {
 						// Typed text marked secret: stored as this service's own secret, then referenced.
 						const own = await serviceSecret(sctx, {
 							organizationId: actor.organizationId,
@@ -785,6 +798,9 @@ export const serviceOps = router()
 						};
 					} else set = {};
 					set.isBuildTime = v.isBuildTime;
+					// Only a reference can be a file; omitted keeps what is stored.
+					if (v.asFile !== undefined || set.secretId === null)
+						set.asFile = !!v.asFile && set.secretId !== null;
 					if (prev)
 						await tx.update(envVar).set(set).where(eq(envVar.id, prev.id));
 					else

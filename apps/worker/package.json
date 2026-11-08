@@ -5,6 +5,7 @@
 	"exports": {
 		"./destinations": "./src/destinations.ts",
 		"./load": "./src/load.ts",
+		"./master-key": "./src/master-key.ts",
 		"./node-runner": "./src/node-runner.ts",
 		"./schedulers": "./src/schedulers.ts",
 		"./external-secrets": "./src/external-secrets.ts",

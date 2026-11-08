@@ -9,7 +9,7 @@ import {
 	type ScanJob,
 	type ScheduleJob,
 } from "@logistack/contracts";
-import { deriveSecretsKek, importMasterKey } from "@logistack/core";
+import { loadMasterKeys } from "@logistack/core";
 import { backupPolicy, createDb, deployment, schedule } from "@logistack/db";
 import { createDockerClient, type DockerEvent } from "@logistack/docker";
 import { coalesce } from "@logistack/proxy";
@@ -19,6 +19,7 @@ import { ensureStackNetwork } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { installEmulation, probeBuildkit } from "./build-platforms.ts";
 import { createBus, log, setLogLevel } from "./bus.ts";
+import { caddyStorageKey } from "./caddy-storage.ts";
 import { checkCertificates } from "./certs.ts";
 import { CHECKS_POLL_MS, pollChecks } from "./checks.ts";
 import { loadCleanup, runCleanup } from "./cleanup.ts";
@@ -31,6 +32,7 @@ import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { recheckExternalSecrets } from "./external-secrets.ts";
 import { checkForUpdate, renewSponsorKey } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
+import { rotateMasterKey } from "./master-key.ts";
 import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
@@ -131,8 +133,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		db: createDb(cfg.DATABASE_URL, { onnotice: () => {} }),
 		docker: createDockerClient({ socketPath: cfg.DOCKER_SOCKET }),
 		bus: await createBus(cfg.REDIS_URL),
-		masterKey: await importMasterKey(cfg.LOGISTACK_MASTER_KEY),
-		secretsKek: await deriveSecretsKek(cfg.LOGISTACK_MASTER_KEY),
+		...(await loadMasterKeys(
+			cfg.LOGISTACK_MASTER_KEY,
+			cfg.LOGISTACK_MASTER_KEY_PREVIOUS,
+		)),
 		queues: createQueues(connection),
 		nodes: await createNodeRunner(cfg.REDIS_URL),
 	};
@@ -312,6 +316,30 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 	void followDocker(ctx, events.signal);
 	const stopMonitoring = await startMonitoring(ctx);
 
+	// A master key rotation: re-encrypt to the new key before anything writes more under the old one.
+	if (cfg.LOGISTACK_MASTER_KEY_PREVIOUS) {
+		// Pinned under the previous key's derivation before anything re-derives it.
+		await caddyStorageKey(ctx).catch(() => undefined);
+		await rotateMasterKey(
+			ctx.db,
+			cfg.LOGISTACK_MASTER_KEY,
+			cfg.LOGISTACK_MASTER_KEY_PREVIOUS,
+		)
+			.then((r) =>
+				log(
+					r.unreadable ? "error" : "info",
+					r.unreadable
+						? "master key rotation left values that neither key opens"
+						: "master key rotation finished: LOGISTACK_MASTER_KEY_PREVIOUS can be removed",
+					r,
+				),
+			)
+			.catch((e) =>
+				log("error", "master key rotation failed", {
+					error: e instanceof Error ? e.message : String(e),
+				}),
+			);
+	}
 	// Secret variables from before managed secrets become secrets plus references.
 	await convertLegacySecrets(ctx)
 		.then((n) => n && log("info", "converted secret variables", { count: n }))

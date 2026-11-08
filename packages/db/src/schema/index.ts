@@ -2,6 +2,7 @@ export * from "./access.ts";
 export * from "./ai.ts";
 export * from "./auth.ts";
 export * from "./enums.ts";
+export * from "./gitops.ts";
 export * from "./hierarchy.ts";
 export * from "./integrations.ts";
 export * from "./migration.ts";

@@ -42,6 +42,11 @@ export const instanceSettings = pgTable(
 		buildkit: jsonb("buildkit").$type<BuildkitState>(),
 		/** An `lss_` key signed by the sponsors Worker; verified on read, renewed by the worker. */
 		sponsorKey: text("sponsor_key"),
+		/**
+		 * v1 ciphertext of Caddy's Redis storage key. Pinned on first use, so rotating the master key
+		 * does not change the key the stored certificates are sealed with.
+		 */
+		caddyStorageKeyEncrypted: text("caddy_storage_key_encrypted"),
 		...timestamps,
 	},
 	(t) => [

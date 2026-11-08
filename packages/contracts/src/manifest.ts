@@ -6,6 +6,7 @@ import {
 	DesiredState,
 	EnvironmentColor,
 	EnvironmentKind,
+	SecretScope,
 } from "./enums.ts";
 import { BackupRetention } from "./operations.ts";
 import { EnvKey, Hostname } from "./resources.ts";
@@ -38,10 +39,35 @@ export const ManifestVariable = z
 			),
 		secret: z.boolean().default(false),
 		buildTime: z.boolean().default(false),
+		secretRef: z
+			.object({
+				key: EnvKey,
+				scope: SecretScope.optional().describe(
+					"Where the secret is defined. Left out, the most specific scope on the service's chain that defines the key.",
+				),
+			})
+			.optional()
+			.describe(
+				"Service variables only: reference a managed secret by name instead of carrying a value. The secret's value never appears in the manifest.",
+			),
+		asFile: z
+			.boolean()
+			.optional()
+			.describe(
+				"A secret mounted as /run/secrets/<key> (a Swarm secret) instead of an env var; <key>_FILE holds the path.",
+			),
 	})
-	.refine((v) => v.secret || v.value !== undefined, {
+	.refine((v) => v.secret || v.secretRef || v.value !== undefined, {
 		message: "a variable that is not secret needs a value",
 		path: ["value"],
+	})
+	.refine((v) => !(v.secretRef && v.value !== undefined), {
+		message: "a secret reference carries no value",
+		path: ["value"],
+	})
+	.refine((v) => !v.asFile || v.secret || v.secretRef, {
+		message: "only a secret can be mounted as a file",
+		path: ["asFile"],
 	})
 	.meta({ id: "ManifestVariable" });
 export type ManifestVariable = z.infer<typeof ManifestVariable>;

@@ -15,6 +15,8 @@ const ConfigSchema = z.object({
 			return false;
 		}
 	}, "must be 32 bytes, base64"),
+	/** The master key being replaced: values not re-encrypted yet still open with it. Remove once the worker logs that rotation finished. */
+	LOGISTACK_MASTER_KEY_PREVIOUS: optional,
 	BETTER_AUTH_SECRET: z.string().min(32),
 	BETTER_AUTH_URL: z.url(),
 	WEB_ORIGIN: z.url(),

@@ -1,12 +1,11 @@
 import type { DatabaseEngine } from "@logistack/contracts";
 import {
 	DUMP_EXTENSION,
-	decrypt,
 	dockerName,
 	dumpScript,
 	restoreScript,
 } from "@logistack/core";
-import { envVar, service } from "@logistack/db";
+import { service } from "@logistack/db";
 import {
 	type DatabaseClient,
 	type DocumentClient,
@@ -20,12 +19,13 @@ import {
 	NodeRunnerError,
 	tail,
 } from "@logistack/worker/node-runner";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Context } from "hono";
 import { recordAudit } from "./audit.ts";
 import type { Deps, Env } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
 import { runningTask } from "./routes/service-ops.ts";
+import { serviceEnvValues } from "./secret-refs.ts";
 
 const ports: Record<DatabaseEngine, number> = {
 	postgres: 5432,
@@ -133,21 +133,7 @@ const LOGIN: Partial<
 };
 
 async function credentials(deps: Deps, serviceId: string) {
-	const rows = await deps.db
-		.select({ key: envVar.key, value: envVar.valueEncrypted })
-		.from(envVar)
-		.where(
-			and(
-				eq(envVar.scope, "service"),
-				eq(envVar.scopeId, serviceId),
-				inArray(envVar.key, ENV_KEYS),
-			),
-		);
-	return Object.fromEntries(
-		await Promise.all(
-			rows.map(async (r) => [r.key, await decrypt(deps.masterKey, r.value)]),
-		),
-	) as Record<string, string>;
+	return serviceEnvValues(deps, serviceId, ENV_KEYS);
 }
 
 async function databaseRow(c: Context<Env>, serviceId: string) {

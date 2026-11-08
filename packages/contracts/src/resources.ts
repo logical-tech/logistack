@@ -96,6 +96,8 @@ export const EnvVar = z.object({
 	isBuildTime: z.boolean(),
 	/** Set when the value comes from a managed secret; `value` is then always null. */
 	secretId: z.string().nullable(),
+	/** A secret reference mounted as `/run/secrets/<key>` instead of an env var; `<key>_FILE` holds the path. */
+	asFile: z.boolean().default(false),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 });

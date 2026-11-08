@@ -344,6 +344,13 @@
       "when": 1794154667026,
       "tag": "0048_image_shell",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794200000000,
+      "tag": "0049_gitops",
+      "breakpoints": true
     }
   ]
 }
