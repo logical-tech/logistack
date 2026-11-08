@@ -31,7 +31,6 @@
 			"env": {
 				"APP_URL": "${{ inputs.mainDomain }}",
 				"PHP_OPCACHE_ENABLE": "1",
-				"DEPLOY_VARIANT": "\"dokploy\"",
 				"DB_DATABASE": "database/storage/database.sqlite",
 				"APP_TIMEZONE": "UTC",
 				"REGISTRATION_ENABLED": "1",

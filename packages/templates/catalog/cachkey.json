@@ -52,7 +52,7 @@
 				"cachkey-api"
 			],
 			"env": {
-				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
 				"API_INTERNAL_URL": "http://${{ services.cachkey-api.host }}:3001"
 			},
 			"volumes": [],
@@ -77,7 +77,7 @@
 				"postgres"
 			],
 			"env": {
-				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
 				"DATABASE_URL": "postgresql://cachkey:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/cachkey",
 				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
 				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",

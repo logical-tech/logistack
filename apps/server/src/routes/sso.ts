@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
 import { resolveRole } from "../access.ts";
 import { requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound } from "../errors.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
@@ -458,6 +458,7 @@ export const sso = router()
 					.returning({ id: ssoProvider.id });
 				if (rows.length > 0)
 					await tx.delete(account).where(eq(account.providerId, providerId));
+				if (rows.length > 0) await auditInTx(c, tx);
 				return rows.length > 0;
 			});
 			if (!removed) throw notFound("sso provider");

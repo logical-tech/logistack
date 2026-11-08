@@ -2,6 +2,7 @@ import { ApiError } from "../adapter";
 import type {
 	AvailableSecret,
 	SecretMeta,
+	SecretProvider,
 	SecretScope,
 	SecretsApi,
 	SecretUsage,
@@ -30,7 +31,10 @@ type Row = {
 	scopeId: string;
 	key: string;
 	description: string | null;
+	/** Empty for an external secret. */
 	versions: Version[];
+	/** Read from a provider at deploy time: `<path>#<key>` after `secret://<name>/`. */
+	external?: { providerId: string; ref: string };
 	createdAt: string;
 };
 /** A service variable that references a secret, as the service-ops mock reports it. */
@@ -102,6 +106,47 @@ export function secretsStore(db: MockDb) {
 	]);
 	add("project", "prj_booking", "AMADEUS_API_SECRET", ["am_s3cr3t"]);
 
+	const providers: SecretProvider[] = [
+		{
+			id: "ssp_vaultprod",
+			kind: "vault",
+			name: "vault-prod",
+			url: "https://vault.logical.internal:8200",
+			secrets: 0,
+			createdAt: iso(DAY * 12),
+			updatedAt: iso(DAY * 12),
+		},
+	];
+	const external = (
+		scope: SecretScope,
+		scopeId: string,
+		key: string,
+		providerId: string,
+		ref: string,
+	) => {
+		const row = add(scope, scopeId, key, []);
+		row.external = { providerId, ref };
+		return row;
+	};
+	external(
+		"organization",
+		ORG,
+		"OPENAI_API_KEY",
+		"ssp_vaultprod",
+		"secret/shared/openai#api_key",
+	);
+	const providerByName = (reference: string) => {
+		const m = /^secret:\/\/([a-z0-9-]+)\/(.+#.+)$/.exec(reference.trim());
+		const p = m && providers.find((x) => x.name === m[1]);
+		if (!m || !p)
+			throw new ApiError(
+				400,
+				`no secret provider named "${m?.[1] ?? ""}"; add it in Integrations > Secret providers`,
+				"validation_failed",
+			);
+		return { providerId: p.id, ref: m[2] as string };
+	};
+
 	/** Replaced by the service-ops mock, which owns service variables. */
 	let refs: () => SecretRef[] = () => [];
 
@@ -111,18 +156,40 @@ export function secretsStore(db: MockDb) {
 		return row;
 	};
 	const current = (r: Row) => r.versions[r.versions.length - 1] as Version;
+	const externalOf = (r: Row): SecretMeta["external"] => {
+		const p =
+			r.external && providers.find((x) => x.id === r.external?.providerId);
+		if (!r.external || !p) return null;
+		return {
+			providerId: p.id,
+			providerName: p.name,
+			kind: p.kind,
+			reference: `secret://${p.name}/${r.external.ref}`,
+			checkedAt: iso(DAY / 8),
+			error: null,
+		};
+	};
 	const meta = (r: Row): SecretMeta => ({
 		id: r.id,
 		scope: r.scope,
 		scopeId: r.scopeId,
 		key: r.key,
 		description: r.description,
-		version: current(r).version,
+		version: r.versions.at(-1)?.version ?? 0,
 		usedBy: refs().filter((x) => x.secretId === r.id).length,
-		updatedBy: current(r).by,
+		external: externalOf(r),
+		updatedBy: r.versions.at(-1)?.by ?? "usr_simone",
 		createdAt: r.createdAt,
-		updatedAt: current(r).at,
+		updatedAt: r.versions.at(-1)?.at ?? r.createdAt,
 	});
+	const externalOnly = (r: Row) => {
+		if (r.external)
+			throw new ApiError(
+				400,
+				`${r.key} is read from an external provider at deploy time; change its value there`,
+				"bad_request",
+			);
+	};
 	const usages = (id: string): SecretUsage[] =>
 		refs()
 			.filter((x) => x.secretId === id)
@@ -193,9 +260,10 @@ export function secretsStore(db: MockDb) {
 			(r) => r.scope === "service" && r.scopeId === serviceId && r.key === key,
 		);
 		if (!own) return add("service", serviceId, key, [value]);
-		if (current(own).value !== value)
+		own.external = undefined;
+		if (own.versions.at(-1)?.value !== value)
 			own.versions.push({
-				version: current(own).version + 1,
+				version: (own.versions.at(-1)?.version ?? 0) + 1,
 				value,
 				by: "usr_simone",
 				at: iso(),
@@ -230,16 +298,20 @@ export function secretsStore(db: MockDb) {
 				input.scope,
 				input.scopeId,
 				input.key,
-				[input.value],
+				input.reference === undefined ? [input.value ?? ""] : [],
 				input.description ?? null,
 			);
-			const v = current(row);
-			v.at = iso();
+			if (input.reference !== undefined)
+				row.external = providerByName(input.reference);
+			else current(row).at = iso();
 			row.createdAt = iso();
 			return delay(meta(row));
 		},
 		update: async (id, patch) => {
 			const row = find(id);
+			if (patch.value !== undefined) externalOnly(row);
+			if (patch.reference !== undefined && row.external)
+				row.external = providerByName(patch.reference);
 			if (patch.description !== undefined) row.description = patch.description;
 			if (patch.value !== undefined && patch.value !== current(row).value)
 				row.versions.push({
@@ -252,6 +324,7 @@ export function secretsStore(db: MockDb) {
 		},
 		reveal: async (id, version) => {
 			const row = find(id);
+			externalOnly(row);
 			const v = row.versions.find(
 				(x) => x.version === (version ?? current(row).version),
 			);
@@ -274,6 +347,7 @@ export function secretsStore(db: MockDb) {
 		},
 		rollback: async (id, version) => {
 			const row = find(id);
+			externalOnly(row);
 			const v = row.versions.find((x) => x.version === version);
 			if (!v) throw new ApiError(404, "Secret version not found", "not_found");
 			if (v.version === current(row).version)
@@ -314,6 +388,58 @@ export function secretsStore(db: MockDb) {
 				900,
 			);
 		},
+		providers: {
+			list: async () =>
+				delay(
+					providers.map((p) => ({
+						...p,
+						secrets: rows.filter((r) => r.external?.providerId === p.id).length,
+					})),
+				),
+			testConfig: async (kind, config) => {
+				await delay(undefined, 700);
+				if (Object.values(config).includes("wrong"))
+					throw new ApiError(
+						400,
+						`${kind} test: HTTP 403: permission denied`,
+						"bad_request",
+					);
+			},
+			create: async (input) => {
+				if (providers.some((p) => p.name === input.name))
+					throw new ApiError(
+						409,
+						`a secret provider named "${input.name}" already exists`,
+						"conflict",
+					);
+				const p: SecretProvider = {
+					id: `ssp_${Math.random().toString(36).slice(2, 10)}`,
+					kind: input.kind,
+					name: input.name,
+					url: String(input.config.url ?? "https://app.infisical.com"),
+					secrets: 0,
+					createdAt: iso(),
+					updatedAt: iso(),
+				};
+				providers.push(p);
+				return delay(p, 600);
+			},
+			test: async () => delay(undefined, 600),
+			remove: async (id) => {
+				const p = providers.find((x) => x.id === id);
+				if (!p)
+					throw new ApiError(404, "Secret provider not found", "not_found");
+				const n = rows.filter((r) => r.external?.providerId === id).length;
+				if (n)
+					throw new ApiError(
+						409,
+						`${n} secret(s) read from ${p.name}; delete them or point them at another provider first`,
+						"conflict",
+					);
+				providers.splice(providers.indexOf(p), 1);
+				return delay(undefined);
+			},
+		},
 	};
 
 	return {
@@ -323,7 +449,7 @@ export function secretsStore(db: MockDb) {
 		/** The value a reference resolves to, for the pending diff and seeds. */
 		valueOf: (id: string) => {
 			const row = rows.find((r) => r.id === id);
-			return row ? current(row).value : undefined;
+			return row?.versions.at(-1)?.value;
 		},
 		byKey: (scope: SecretScope, scopeId: string, key: string) =>
 			rows.find(

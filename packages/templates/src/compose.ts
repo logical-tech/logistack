@@ -312,6 +312,18 @@ export function linkHosts(
 	return v;
 }
 
+/** Compose duration (`1m30s`, `500ms`, or bare seconds) → whole seconds, capped at the spec's 3600. */
+export function graceSeconds(raw: unknown): number | undefined {
+	if (typeof raw === "number") return Math.min(3600, Math.ceil(raw));
+	if (typeof raw !== "string" || !/^(\d+(\.\d+)?(h|ms|m|s|us|ns))+$/.test(raw))
+		return undefined;
+	const unit = { h: 3600, m: 60, s: 1, ms: 1e-3, us: 1e-6, ns: 1e-9 };
+	let total = 0;
+	for (const [, n, , u] of raw.matchAll(/(\d+(\.\d+)?)(h|ms|m|s|us|ns)/g))
+		total += Number(n) * unit[u as keyof typeof unit];
+	return Math.min(3600, Math.ceil(total));
+}
+
 function mapHealthcheck(
 	raw: unknown,
 	env: Record<string, string>,
@@ -639,6 +651,7 @@ export function mapServices(
 		const capAdd = caps(svc.cap_add, "cap_add");
 		const capDrop = caps(svc.cap_drop, "cap_drop");
 		const healthcheck = mapHealthcheck(svc.healthcheck, env, literal);
+		const drainTimeout = graceSeconds(svc.stop_grace_period);
 		services.push({
 			...base,
 			kind: "application",
@@ -652,6 +665,7 @@ export function mapServices(
 			...(capAdd?.length && { capAdd }),
 			...(capDrop?.length && { capDrop }),
 			...(restart && { restart }),
+			...(drainTimeout !== undefined && { drainTimeout }),
 			...((memory || cpu) && {
 				resources: { ...(memory && { memoryMb: memory }), ...(cpu && { cpu }) },
 			}),

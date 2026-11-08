@@ -43,8 +43,8 @@
 				"MODE": "fullstack",
 				"NEXT_PUBLIC_API_BASE_URL": "/api",
 				"BETTER_AUTH_SECRET": "${{ inputs.betterAuthSecret }}",
-				"BETTER_AUTH_URL": "http://${{ inputs.mainDomain }}",
-				"ALLOWED_ORIGIN": "http://${{ inputs.mainDomain }}",
+				"BETTER_AUTH_URL": "https://${{ inputs.mainDomain }}",
+				"ALLOWED_ORIGIN": "https://${{ inputs.mainDomain }}",
 				"DOCKER_CONTAINER": "true"
 			},
 			"volumes": [

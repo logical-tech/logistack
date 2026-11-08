@@ -41,7 +41,6 @@
 				"WORDPRESS_DB_USER": "root",
 				"WORDPRESS_DB_PASSWORD": "${{ inputs.dbPassword }}",
 				"WORDPRESS_DEBUG": "0",
-				"WP_DOMAIN": "${{ inputs.mainDomain }}",
 				"WORDPRESS_CONFIG_EXTRA": "define('WP_MEMORY_LIMIT', '256M');\ndefine('DISALLOW_FILE_EDIT', true);\n"
 			},
 			"volumes": [
@@ -58,11 +57,6 @@
 			],
 			"kind": "application",
 			"image": "wordpress@sha256:1f59452d2ceed177ad383d17b3a6a7a5c8225d89e34adb36880af8603ac244c2",
-			"command": [
-				"bash",
-				"-c",
-				"if [ -n \"$WP_DOMAIN\" ]; then\n  (\n    for i in $(seq 1 60); do\n      TRAEFIK_IP=\"$(getent hosts dokploy-traefik | awk '{print $1; exit}')\"\n      if [ -n \"$TRAEFIK_IP\" ]; then\n        grep -q \"[[:space:]]$WP_DOMAIN\\$\" /etc/hosts || echo \"$TRAEFIK_IP $WP_DOMAIN\" >> /etc/hosts\n        break\n      fi\n      sleep 2\n    done\n  ) &\nfi\nexec docker-entrypoint.sh apache2-foreground\n"
-			],
 			"ports": [],
 			"public": {
 				"port": 80,

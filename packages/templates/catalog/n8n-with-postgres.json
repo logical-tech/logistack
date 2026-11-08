@@ -42,6 +42,13 @@
 			"label": "N8n encryption key",
 			"type": "base64",
 			"bytes": 64
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -82,8 +89,8 @@
 				"N8N_PROTOCOL": "http",
 				"NODE_ENV": "production",
 				"WEBHOOK_URL": "https://${{ inputs.mainDomain }}/",
-				"GENERIC_TIMEZONE": "Europe/Berlin",
-				"N8N_SECURE_COOKIE": "false"
+				"GENERIC_TIMEZONE": "${{ inputs.timezone }}",
+				"N8N_PROXY_HOPS": "1"
 			},
 			"volumes": [
 				{

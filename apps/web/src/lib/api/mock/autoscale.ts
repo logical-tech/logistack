@@ -1,4 +1,4 @@
-import type { AutoscaleBehavior } from "@logistack/contracts";
+import type { AutoscaleBehavior, AutoscaleFix } from "@logistack/contracts";
 import { ApiError } from "../adapter";
 import type { AutoscaleApi, AutoscaleView } from "../autoscale";
 
@@ -76,6 +76,82 @@ const state = new Map<string, AutoscaleView>([
 	],
 ]);
 
+const HEALTH_FIX: AutoscaleFix = {
+	id: "add_healthcheck",
+	title: "Add a healthcheck",
+	summary: "Copies get traffic only once / on port 9090 answers.",
+	changes: [
+		{ label: "Healthcheck", before: "None", after: "HTTP GET / on port 9090" },
+	],
+	notes: [
+		"Before saving, we request / on port 9090 inside a running copy to make sure the check passes.",
+	],
+	redeploy: true,
+	probe: true,
+};
+
+/** The worker has no size and a host port, so the ready step shows two AutoFix buttons. */
+state.set("svc_storefront_production_worker", {
+	...fresh(),
+	checks: checks.map((c) =>
+		c.id === "cpu_limit"
+			? {
+					...c,
+					ok: false,
+					message:
+						"Pick a size first: usage is measured against each copy's CPU limit.",
+					fix: {
+						id: "apply_profile",
+						title: "Give each copy a size",
+						summary:
+							"Applies the Small size, so CPU usage can be measured against each copy's limit.",
+						changes: [
+							{ label: "CPU limit", before: "None", after: "0.5 CPU (Small)" },
+							{ label: "Memory limit", before: "None", after: "512 MB" },
+						],
+						notes: [
+							"Over the last day one copy peaked at 0.31 CPU and 380 MB.",
+						],
+						redeploy: true,
+					},
+				}
+			: c.id === "host_ports"
+				? {
+						...c,
+						ok: false,
+						message:
+							"Port 9090 is published on the server itself, and two copies can't use it on one server. Use a domain or ingress mode instead.",
+						fix: {
+							id: "ingress_ports",
+							title: "Publish the ports on every server",
+							summary:
+								"Switches the ports to the routing mesh, so every copy can receive traffic wherever it runs.",
+							changes: [
+								{
+									label: "Port 9090/tcp",
+									before: "One server",
+									after: "Every server",
+								},
+							],
+							notes: [
+								"Port 9090 will answer on every server in the cluster, not only on the one the service runs on. Clients keep the same address.",
+								"If your firewall opens the port on one server only, open it on the others too.",
+							],
+							redeploy: true,
+						},
+					}
+				: c.id === "healthcheck"
+					? { ...c, fix: HEALTH_FIX }
+					: c,
+	),
+});
+
+const PASSED: Record<string, string> = {
+	cpu_limit: "Each copy gets 0.5 CPU.",
+	host_ports: "No ports bound to a single server.",
+	healthcheck: "New copies get traffic once their healthcheck passes.",
+};
+
 /** A working day of traffic: quiet night, a morning ramp, a lunch spike, an evening tail. */
 function load(minute: number) {
 	const h = minute / 60;
@@ -118,6 +194,37 @@ export const mockAutoscale: AutoscaleApi = {
 		state.set(id, next);
 		return delay(next);
 	},
+	fix: (id, fixId) => {
+		const before = state.get(id) ?? fresh();
+		const target = before.checks.find((c) => c.fix?.id === fixId);
+		const next: AutoscaleView = {
+			...before,
+			checks: before.checks.map((c) =>
+				c === target
+					? {
+							id: c.id,
+							level: c.level,
+							ok: true,
+							message: PASSED[c.id] ?? c.message,
+						}
+					: c,
+			),
+		};
+		state.set(id, next);
+		return delay({
+			view: next,
+			deploymentId: target ? "dep_mock_autofix" : null,
+		});
+	},
+	probeHealthcheck: () =>
+		delay({
+			fix: {
+				...HEALTH_FIX,
+				notes: [
+					"We requested / on port 9090 inside a running copy: it answered in 12 ms.",
+				],
+			},
+		}),
 	preview: (_id, q) => {
 		const target =
 			q.behavior === "custom" ? (q.targetCpu ?? 60) : TARGET[q.behavior];

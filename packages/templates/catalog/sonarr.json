@@ -23,6 +23,13 @@
 			"label": "Sonarr domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -33,7 +40,7 @@
 				"_APP_URL": "https://${{ inputs.sonarrDomain }}",
 				"PUID": "1000",
 				"PGID": "1000",
-				"TZ": "America/Toronto"
+				"TZ": "${{ inputs.timezone }}"
 			},
 			"volumes": [
 				{

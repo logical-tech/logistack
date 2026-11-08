@@ -1,0 +1,92 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`tailscaled runs on every node's host network with the key in env only 1`] = `
+{
+  "Labels": {
+    "logistack.managed": "true",
+    "logistack.spec-hash": "f73b6e06cf7fac3c",
+    "logistack.tailscale": "true",
+  },
+  "Mode": {
+    "Global": {},
+  },
+  "Name": "ls-tsn-abc",
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Env": [
+        "TS_AUTHKEY=tskey-auth-secret",
+        "TS_USERSPACE=true",
+        "TS_ACCEPT_DNS=false",
+        "TS_HOSTNAME={{.Node.Hostname}}",
+      ],
+      "Image": "tailscale/tailscale:v1.104.4",
+      "Labels": {
+        "logistack.managed": "true",
+        "logistack.tailscale": "true",
+      },
+    },
+    "Networks": [
+      {
+        "Target": "host",
+      },
+    ],
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+    },
+  },
+}
+`;
+
+exports[`a publisher serves its config next to the service 1`] = `
+{
+  "Labels": {
+    "logistack.managed": "true",
+    "logistack.spec-hash": "5e967733a1d3f7ec",
+    "logistack.tailscale": "true",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-tsp-abc",
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Configs": [
+        {
+          "ConfigID": "cfg123",
+          "ConfigName": "ls-tsp-abc-0123456789",
+          "File": {
+            "GID": "0",
+            "Mode": 292,
+            "Name": "/etc/logistack/tailscale-serve.json",
+            "UID": "0",
+          },
+        },
+      ],
+      "Env": [
+        "TS_AUTHKEY=tskey-auth-secret",
+        "TS_USERSPACE=true",
+        "TS_ACCEPT_DNS=false",
+        "TS_HOSTNAME=grafana",
+        "TS_SERVE_CONFIG=/etc/logistack/tailscale-serve.json",
+      ],
+      "Image": "tailscale/tailscale:v1.104.4",
+      "Labels": {
+        "logistack.managed": "true",
+        "logistack.tailscale": "true",
+      },
+    },
+    "Networks": [
+      {
+        "Target": "ls-env-abc",
+      },
+    ],
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+    },
+  },
+}
+`;

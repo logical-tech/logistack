@@ -7,6 +7,7 @@ export const idPrefixes = {
 	envVar: "var",
 	secret: "sec",
 	secretVersion: "sev",
+	secretProvider: "ssp",
 	mount: "mnt",
 	node: "nod",
 	nodeToken: "ntk",
@@ -24,6 +25,7 @@ export const idPrefixes = {
 	scheduleRun: "scr",
 	notificationChannel: "nch",
 	notificationRule: "nrl",
+	logDrain: "lgd",
 	auditLog: "aud",
 	roleGrant: "grt",
 	event: "evt",
@@ -34,6 +36,8 @@ export const idPrefixes = {
 	storageAccessKey: "sak",
 	gameEndpoint: "gep",
 	cloudflareTunnel: "cft",
+	tailscaleNetwork: "tsn",
+	tailscalePublication: "tsp",
 	migration: "mig",
 	migrationItem: "mgi",
 	aiProviderKey: "aik",
@@ -59,7 +63,16 @@ export function newId(prefix: IdPrefix): string {
 
 const ID_PATTERN = /^[a-z0-9]+_([0-9a-z]+)$/;
 
-export type DockerKind = "svc" | "db" | "env" | "vol" | "cfg" | "sec" | "cft";
+export type DockerKind =
+	| "svc"
+	| "db"
+	| "env"
+	| "vol"
+	| "cfg"
+	| "sec"
+	| "cft"
+	| "tsn"
+	| "tsp";
 
 /** Docker object name derived from an id, never from user input: `dockerName("svc", "svc_ab12") === "ls-svc-ab12"`. */
 export function dockerName(kind: DockerKind, id: string): string {

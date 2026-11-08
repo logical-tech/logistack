@@ -48,7 +48,7 @@ export async function serveAgentRpc(
 		nodeId: string,
 		m: Extract<
 			AgentRpcRequest,
-			{ type: "job" | "exec" | "logs" | "disk" | "archive" }
+			{ type: "job" | "exec" | "logs" | "disk" | "archive" | "drain-test" }
 		>,
 		a: Active,
 	) {
@@ -73,6 +73,11 @@ export async function serveAgentRpc(
 					type: "disk",
 					...(await agents.disk(nodeId, m.req, { signal })),
 				});
+			} else if (m.type === "drain-test") {
+				await reply(m.id, {
+					type: "drain",
+					...(await agents.testDrain(nodeId, m.drain, { signal })),
+				});
 			} else if (m.type === "archive") {
 				const h = agents.archive(nodeId, m.req, { signal });
 				a.exec = h;
@@ -90,6 +95,7 @@ export async function serveAgentRpc(
 			} else {
 				const h = agents.exec(nodeId, m.req, { signal });
 				a.exec = h;
+				h.onStdinAck((bytes) => void reply(m.id, { type: "stdinAck", bytes }));
 				for await (const e of h)
 					await reply(
 						m.id,
@@ -132,7 +138,8 @@ export async function serveAgentRpc(
 			m.type === "exec" ||
 			m.type === "logs" ||
 			m.type === "disk" ||
-			m.type === "archive"
+			m.type === "archive" ||
+			m.type === "drain-test"
 		) {
 			if (active.has(m.id)) return;
 			const a: Active = {

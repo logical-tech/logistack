@@ -131,8 +131,7 @@
 				"MYSQL_USER": "${{ inputs.mysqlUser }}",
 				"MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
 				"MYSQL_DATABASE": "planetscale",
-				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}",
-				"MYSQL_ALLOW_EMPTY_PASSWORD": "yes"
+				"MYSQL_ROOT_PASSWORD": "${{ inputs.mysqlrootPassword }}"
 			},
 			"volumes": [
 				{

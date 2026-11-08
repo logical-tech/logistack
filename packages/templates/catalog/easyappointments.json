@@ -41,7 +41,7 @@
 				"mysql"
 			],
 			"env": {
-				"BASE_URL": "http://${{ inputs.mainDomain }}",
+				"BASE_URL": "https://${{ inputs.mainDomain }}",
 				"DB_HOST": "${{ services.mysql.host }}",
 				"DB_NAME": "easyappointments",
 				"DB_USERNAME": "root",

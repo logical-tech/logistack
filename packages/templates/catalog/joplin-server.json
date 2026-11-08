@@ -58,7 +58,7 @@
 				"joplin-db"
 			],
 			"env": {
-				"APP_BASE_URL": "http://${{ inputs.mainDomain }}",
+				"APP_BASE_URL": "https://${{ inputs.mainDomain }}",
 				"APP_PORT": "22300",
 				"DB_CLIENT": "pg",
 				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",

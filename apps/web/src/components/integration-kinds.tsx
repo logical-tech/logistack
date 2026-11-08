@@ -1,11 +1,16 @@
 import {
+	Cloud,
+	FolderOpen,
+	Globe,
 	HardDrive,
 	KeyRound,
 	type LucideIcon,
 	Package,
 	Server,
+	SquareTerminal,
 } from "lucide-react";
 import { brandMark } from "@/components/brand-icon";
+import type { BackupDestination, DestinationKind } from "@/lib/api/backups";
 import type { GitProviderKind, Registry } from "@/lib/api/integrations";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +53,25 @@ export const S3_PROVIDER: Record<S3Provider, Kind> = {
 	wasabi: { label: "Wasabi", icon: brandMark("wasabi") },
 	custom: { label: "S3-compatible", icon: Server },
 };
+
+/** Backup destinations that are not S3: rclone remotes and a folder on a node. */
+export type OtherDestination = Exclude<DestinationKind, "s3">;
+
+export const DESTINATION_KIND: Record<OtherDestination, Kind> = {
+	sftp: { label: "SFTP", icon: SquareTerminal },
+	webdav: { label: "WebDAV", icon: Globe },
+	azureblob: { label: "Azure Blob Storage", icon: Cloud },
+	drive: { label: "Google Drive", icon: FolderOpen },
+	b2: { label: "Backblaze B2 native", icon: brandMark("backblaze") },
+	local: { label: "Folder on a node", icon: HardDrive },
+};
+
+/** Label and icon for any destination: an S3 one by its endpoint's provider. */
+export function destinationKindOf(d: BackupDestination): Kind {
+	return d.kind === "s3"
+		? S3_PROVIDER[s3ProviderOf(String(d.settings.endpoint ?? ""))]
+		: DESTINATION_KIND[d.kind];
+}
 
 /** The provider an endpoint belongs to, by host; MinIO and the rest have no tell-tale host. */
 export function s3ProviderOf(endpoint: string): S3Provider {

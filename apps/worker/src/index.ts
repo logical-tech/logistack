@@ -4,7 +4,9 @@ import {
 	type EventEnvelope,
 	MIGRATION_QUEUE,
 	type MigrationJob,
+	SCAN_QUEUE,
 	SCHEDULE_QUEUE,
+	type ScanJob,
 	type ScheduleJob,
 } from "@logistack/contracts";
 import { deriveSecretsKek, importMasterKey } from "@logistack/core";
@@ -26,6 +28,7 @@ import { unfreeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
 import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
+import { recheckExternalSecrets } from "./external-secrets.ts";
 import { checkForUpdate, renewSponsorKey } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
 import { cutOver, rollBack } from "./migration.ts";
@@ -40,6 +43,7 @@ import {
 	enqueueDeploy,
 	enqueueProxySync,
 	enqueueReconcile,
+	enqueueScan,
 	redisConnection,
 } from "./queues.ts";
 import { reconcilePass, sweepOrphans } from "./reconcile.ts";
@@ -51,7 +55,9 @@ import {
 } from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
 import { convertLegacySecrets } from "./secrets.ts";
+import { syncTailscale } from "./tailscale.ts";
 import { syncTunnels } from "./tunnels.ts";
+import { processScanJob } from "./vulnscan.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
 
@@ -78,6 +84,9 @@ async function onEvent(ctx: Ctx, e: EventEnvelope) {
 			return;
 		case "deployment.succeeded":
 			await enqueueProxySync(ctx.queues, "deployment succeeded");
+			// Its own queue, after the fact: a scan never holds up a deploy.
+			if (typeof e.payload.serviceId === "string")
+				await enqueueScan(ctx.queues, e.payload.serviceId);
 			return;
 	}
 }
@@ -131,11 +140,15 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		log("error", "job failed", { queue, jobId: job?.id, error: err.message });
 
 	const schedules = await createScheduleRunner(ctx);
+	const notify = notifier(ctx);
 	const proxySync = coalesce(async () => {
 		await syncProxy(ctx);
 		// After Caddy: a tunnel hostname should already route when Cloudflare starts sending it.
 		await syncTunnels(ctx).catch((e: unknown) =>
 			log("warn", "tunnel sync failed", { error: String(e) }),
+		);
+		await syncTailscale(ctx).catch((e: unknown) =>
+			log("warn", "tailscale sync failed", { error: String(e) }),
 		);
 	}, cfg.LS_PROXY_COALESCE_MS);
 	const workers = [
@@ -170,6 +183,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "cleanup") await runCleanup(ctx);
 				else if (job.name === "checks") await pollChecks(ctx);
 				else if (job.name === "previews") await expirePreviews(ctx);
+				else if (job.name === "external-secrets")
+					log("info", "external secrets checked", {
+						...(await recheckExternalSecrets(ctx)),
+					});
 				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
 				else await sweepOrphans(ctx);
@@ -193,6 +210,16 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			},
 			{ connection, concurrency: cfg.LS_RUN_CONCURRENCY },
 		),
+		// One scan at a time per worker: Trivy is heavy and its cache volume is shared.
+		new Worker<ScanJob & { force?: boolean }>(
+			SCAN_QUEUE,
+			(job) => processScanJob(ctx, job.data),
+			{ connection, concurrency: 1 },
+		),
+		new Worker("notify", (job) => notify.retry(job.data), {
+			connection,
+			concurrency: 8,
+		}),
 		// One cutover at a time: the wizard moves services in order, databases first.
 		new Worker<MigrationJob>(
 			MIGRATION_QUEUE,
@@ -241,10 +268,21 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			{ every: 15 * 60_000 },
 			{ name: "previews" },
 		);
+		// Re-reads external secrets so a value changed in the provider shows as a pending change.
+		await ctx.queues.maintenance.upsertJobScheduler(
+			"external-secrets-every",
+			{ every: 15 * 60_000 },
+			{ name: "external-secrets" },
+		);
 		await ctx.queues.maintenance.upsertJobScheduler(
 			"retention-every",
 			{ every: 3_600_000 },
 			{ name: "retention" },
+		);
+		await ctx.queues.scan.upsertJobScheduler(
+			"scan-daily",
+			{ every: 86_400_000 },
+			{ name: "all", data: { all: true } },
 		);
 		await ctx.queues.maintenance.upsertJobScheduler(
 			"update-check-every",
@@ -253,8 +291,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		);
 	}
 
-	const notify = notifier(ctx);
-	ctx.bus.onEvent(notify);
+	ctx.bus.onEvent(notify.onEvent);
 	const stopSyncRequests = await listenForSyncRequests(ctx);
 
 	ctx.bus.onEvent((e) => {

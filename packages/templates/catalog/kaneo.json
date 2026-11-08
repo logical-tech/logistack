@@ -63,7 +63,7 @@
 				"postgres"
 			],
 			"env": {
-				"KANEO_CLIENT_URL": "http://${{ inputs.mainDomain }}",
+				"KANEO_CLIENT_URL": "https://${{ inputs.mainDomain }}",
 				"AUTH_SECRET": "${{ inputs.authSecret }}",
 				"DATABASE_URL": "postgresql://kaneo:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/kaneo"
 			},

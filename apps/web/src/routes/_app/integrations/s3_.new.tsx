@@ -1,9 +1,31 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import {
+	type Choice,
+	CredentialsStep,
+	credentialsSchema,
+	isOther,
+	kindOfChoice,
+	LocationStep,
+	locationSchema,
+	OTHER_CHOICES,
+	OTHER_DEFAULTS,
+	OTHER_DESCRIPTION,
+	OTHER_SECRET_KEYS,
+	type OtherValues,
+	otherInput,
+	otherSummary,
+	probeWhere,
+} from "@/components/backups/destination-steps";
 import { Field } from "@/components/field";
-import { S3_PROVIDER, type S3Provider } from "@/components/integration-kinds";
+import {
+	DESTINATION_KIND,
+	S3_PROVIDER,
+	type S3Provider,
+} from "@/components/integration-kinds";
 import { Page, PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -18,7 +40,12 @@ import {
 	type WizardApi,
 	type WizardStep,
 } from "@/components/wizard/wizard";
-import { backupsApi, useCreateS3Destination } from "@/lib/api/backups";
+import {
+	backupsApi,
+	type DestinationInput,
+	useCreateDestination,
+} from "@/lib/api/backups";
+import { nodesQuery } from "@/lib/api/monitoring";
 import { stepParam } from "@/lib/search";
 
 export const Route = createFileRoute("/_app/integrations/s3_/new")({
@@ -27,8 +54,8 @@ export const Route = createFileRoute("/_app/integrations/s3_/new")({
 	component: AddDestination,
 });
 
-type V = {
-	provider: S3Provider;
+type V = OtherValues & {
+	provider: Choice;
 	endpoint: string;
 	region: string;
 	bucket: string;
@@ -209,6 +236,7 @@ const PROVIDERS: S3Provider[] = [
 ];
 
 const DEFAULTS: V = {
+	...OTHER_DEFAULTS,
 	provider: "r2",
 	endpoint: PRESETS.r2.endpoint,
 	region: PRESETS.r2.region,
@@ -230,13 +258,22 @@ const connection = (v: V) => ({
 	forcePathStyle: v.forcePathStyle,
 });
 
+/** The probe's and create's body for any kind. */
+function inputOf(v: V): DestinationInput {
+	if (isOther(v.provider)) return otherInput(v.provider, v);
+	const { secretAccessKey, ...settings } = connection(v);
+	return { kind: "s3", settings, secrets: { secretAccessKey } };
+}
+
+const s3Preset = (v: V) => PRESETS[v.provider as S3Provider];
+
 const objectPath = (v: V) => {
 	const c = connection(v);
 	return `${c.bucket || "<bucket>"}/${c.prefix ? `${c.prefix}/` : ""}`;
 };
 
 function ConnectionStep({ w }: { w: WizardApi<V> }) {
-	const p = PRESETS[w.values.provider];
+	const p = s3Preset(w.values);
 	return (
 		<div className="grid gap-5">
 			<Field
@@ -316,7 +353,7 @@ function ConnectionStep({ w }: { w: WizardApi<V> }) {
 }
 
 function KeysStep({ w }: { w: WizardApi<V> }) {
-	const p = PRESETS[w.values.provider];
+	const p = s3Preset(w.values);
 	return (
 		<div className="grid gap-5">
 			<Instructions href={p.href} link={p.link}>
@@ -358,7 +395,18 @@ function KeysStep({ w }: { w: WizardApi<V> }) {
 
 function NameStep({ w }: { w: WizardApi<V> }) {
 	const v = w.values;
-	const suggestion = `${S3_PROVIDER[v.provider].label} · ${v.bucket.trim()}`;
+	const { data: nodes } = useQuery({
+		...nodesQuery,
+		enabled: v.provider === "local",
+	});
+	const node = nodes?.find((n) => n.id === v.nodeId)?.hostname;
+	const suggestion = isOther(v.provider)
+		? v.provider === "local"
+			? `${node ?? "Node"} · ${v.path.trim()}`
+			: v.provider === "sftp"
+				? `${DESTINATION_KIND.sftp.label} · ${v.host.trim()}`
+				: DESTINATION_KIND[kindOfChoice(v.provider)].label
+		: `${S3_PROVIDER[v.provider].label} · ${v.bucket.trim()}`;
 	const offered = useRef(false);
 	// Offer a name once, without overwriting one the person typed.
 	useEffect(() => {
@@ -379,83 +427,150 @@ function NameStep({ w }: { w: WizardApi<V> }) {
 			</Field>
 			<Summary
 				w={w}
-				sections={[
-					{
-						stepId: "connection",
-						title: S3_PROVIDER[v.provider].label,
-						rows: [
-							{
-								label: "Endpoint",
-								value: <span className="font-mono text-xs">{c.endpoint}</span>,
-							},
-							{
-								label: "Bucket",
-								value: (
-									<span className="font-mono text-xs">
-										{c.bucket}
-										{c.prefix && (
-											<span className="text-muted-foreground">/{c.prefix}</span>
-										)}
-									</span>
-								),
-							},
-							{
-								label: "Region",
-								value: <span className="font-mono text-xs">{c.region}</span>,
-							},
-							{
-								label: "Addressing",
-								value: c.forcePathStyle ? "Path-style" : "Virtual-hosted",
-							},
-						],
-					},
-					{
-						stepId: "keys",
-						title: "Keys",
-						rows: [
-							{
-								label: "Access key",
-								value: (
-									<span className="font-mono text-xs">{c.accessKeyId}</span>
-								),
-							},
-							{ label: "Secret", value: "Set, encrypted on save" },
-						],
-					},
-				]}
+				sections={
+					isOther(v.provider)
+						? [
+								{
+									stepId: "location",
+									title: DESTINATION_KIND[kindOfChoice(v.provider)].label,
+									rows: [
+										...otherSummary(v.provider, v),
+										...(v.provider === "local"
+											? [{ label: "Node", value: node ?? v.nodeId }]
+											: []),
+									],
+								},
+							]
+						: [
+								{
+									stepId: "connection",
+									title: S3_PROVIDER[v.provider].label,
+									rows: [
+										{
+											label: "Endpoint",
+											value: (
+												<span className="font-mono text-xs">{c.endpoint}</span>
+											),
+										},
+										{
+											label: "Bucket",
+											value: (
+												<span className="font-mono text-xs">
+													{c.bucket}
+													{c.prefix && (
+														<span className="text-muted-foreground">
+															/{c.prefix}
+														</span>
+													)}
+												</span>
+											),
+										},
+										{
+											label: "Region",
+											value: (
+												<span className="font-mono text-xs">{c.region}</span>
+											),
+										},
+										{
+											label: "Addressing",
+											value: c.forcePathStyle ? "Path-style" : "Virtual-hosted",
+										},
+									],
+								},
+								{
+									stepId: "keys",
+									title: "Keys",
+									rows: [
+										{
+											label: "Access key",
+											value: (
+												<span className="font-mono text-xs">
+													{c.accessKeyId}
+												</span>
+											),
+										},
+										{ label: "Secret", value: "Set, encrypted on save" },
+									],
+								},
+							]
+				}
 			/>
 		</div>
 	);
 }
+
+function TestIdle({ v }: { v: V }) {
+	const { data: nodes } = useQuery({
+		...nodesQuery,
+		enabled: v.provider === "local",
+	});
+	const where = isOther(v.provider)
+		? `${probeWhere(v.provider, v, nodes?.find((n) => n.id === v.nodeId)?.hostname)}/.logistack-probe-…`
+		: `${objectPath(v)}.logistack-probe-…`;
+	return (
+		<>
+			We'll write a small probe to{" "}
+			<span className="font-mono text-xs text-foreground">{where}</span>, read
+			it back and delete it.
+		</>
+	);
+}
+
+const s3Only = (v: V) => !isOther(v.provider);
+const otherOnly = (v: V) => isOther(v.provider);
 
 const STEPS: WizardStep<V>[] = [
 	{
 		id: "provider",
 		title: "Where should backups go?",
 		description:
-			"Presets fill in the endpoint and addressing. Every option is plain S3 underneath.",
-		render: (w) => (
-			<ChoiceGroup
-				label="Provider"
-				value={w.values.provider}
-				onChange={(provider) => {
-					const p = PRESETS[provider];
-					w.set("provider", provider);
-					w.set("endpoint", p.endpoint);
-					w.set("region", p.region);
-					w.set("forcePathStyle", p.pathStyle);
-				}}
-				choices={PROVIDERS.map((value) => ({
-					value,
-					title: S3_PROVIDER[value].label,
-					description: PRESETS[value].description,
-					icon: S3_PROVIDER[value].icon,
-				}))}
-			/>
-		),
+			"Object storage speaks S3; the rest go through rclone or the node's agent. Every kind is tested before it's saved.",
+		render: (w) => {
+			const pick = (provider: Choice) => {
+				w.set("provider", provider);
+				if (isOther(provider)) return;
+				const p = PRESETS[provider];
+				w.set("endpoint", p.endpoint);
+				w.set("region", p.region);
+				w.set("forcePathStyle", p.pathStyle);
+			};
+			return (
+				<div className="grid gap-6">
+					<section className="grid gap-2.5">
+						<h3 className="text-sm font-medium">Object storage</h3>
+						<ChoiceGroup
+							label="Object storage"
+							value={isOther(w.values.provider) ? undefined : w.values.provider}
+							onChange={pick}
+							choices={PROVIDERS.map((value) => ({
+								value,
+								title: S3_PROVIDER[value].label,
+								description: PRESETS[value].description,
+								icon: S3_PROVIDER[value].icon,
+							}))}
+						/>
+					</section>
+					<section className="grid gap-2.5">
+						<h3 className="text-sm font-medium">Servers, drives and disks</h3>
+						<ChoiceGroup
+							label="Servers, drives and disks"
+							value={isOther(w.values.provider) ? w.values.provider : undefined}
+							onChange={pick}
+							choices={OTHER_CHOICES.map((value) => ({
+								value,
+								title: DESTINATION_KIND[kindOfChoice(value)].label,
+								description: OTHER_DESCRIPTION[value],
+								icon: DESTINATION_KIND[kindOfChoice(value)].icon,
+							}))}
+						/>
+					</section>
+				</div>
+			);
+		},
 	},
 	{
 		id: "connection",
+		when: s3Only,
 		title: "Bucket",
 		description:
 			"Create the bucket first; LogiStack doesn't create one for you.",
@@ -491,6 +606,7 @@ const STEPS: WizardStep<V>[] = [
 	},
 	{
 		id: "keys",
+		when: s3Only,
 		title: "Access keys",
 		description: "Use keys that reach this bucket and nothing else.",
 		schema: z.object({
@@ -500,10 +616,28 @@ const STEPS: WizardStep<V>[] = [
 		render: (w) => <KeysStep w={w} />,
 	},
 	{
+		id: "location",
+		when: otherOnly,
+		title: "Location",
+		description: "Where on the destination the backups go.",
+		schema: (v) => locationSchema(v.provider as Exclude<Choice, S3Provider>),
+		render: (w) => <LocationStep w={w} />,
+	},
+	{
+		id: "credentials",
+		when: (v) => isOther(v.provider) && v.provider !== "local",
+		title: "Sign-in",
+		description: "Use an account that reaches this place and nothing else.",
+		schema: (v) =>
+			credentialsSchema(v.provider as Exclude<Choice, S3Provider>, v),
+		render: (w) => <CredentialsStep w={w} />,
+	},
+	{
 		id: "test",
-		title: "Test the bucket",
+		title: "Test the destination",
 		description: "Nothing is saved until the test passes and you confirm.",
 		testKeys: [
+			"provider",
 			"endpoint",
 			"region",
 			"bucket",
@@ -511,26 +645,15 @@ const STEPS: WizardStep<V>[] = [
 			"forcePathStyle",
 			"accessKeyId",
 			"secretAccessKey",
+			...(Object.keys(OTHER_DEFAULTS) as (keyof OtherValues)[]),
 		],
-		test: (v) => backupsApi.s3.test(connection(v)),
+		test: (v) => backupsApi.destinations.test(inputOf(v)),
 		render: (w) => (
 			<div className="grid gap-4">
-				<TestPanel
-					w={w}
-					action="Run test"
-					idle={
-						<>
-							We'll write a small probe object to{" "}
-							<span className="font-mono text-xs text-foreground">
-								{objectPath(w.values)}.logistack-probe-…
-							</span>
-							, read it back and delete it.
-						</>
-					}
-				/>
+				<TestPanel w={w} action="Run test" idle={<TestIdle v={w.values} />} />
 				<p className="text-sm text-muted-foreground">
-					A pass means the keys can put, get and delete here: the three things
-					backups, restores and retention do.
+					A pass means LogiStack can write, read and delete here: the three
+					things backups, restores and retention do.
 				</p>
 			</div>
 		),
@@ -549,7 +672,7 @@ const STEPS: WizardStep<V>[] = [
 function AddDestination() {
 	const { step } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
-	const create = useCreateS3Destination();
+	const create = useCreateDestination();
 	const onStepChange = useCallback(
 		(id: string, { replace }: { replace: boolean }) =>
 			navigate({ search: { step: id }, replace }),
@@ -558,20 +681,20 @@ function AddDestination() {
 	return (
 		<Page className="max-w-5xl">
 			<PageHeader
-				title="Add an S3 destination"
-				description="The bucket is tested with a real write, read and delete before anything is saved."
+				title="Add a backup destination"
+				description="The destination is tested with a real write, read and delete before anything is saved."
 			/>
 			<Wizard
 				id="add-s3"
 				steps={STEPS}
 				defaultValues={DEFAULTS}
-				secretKeys={["secretAccessKey"]}
+				secretKeys={["secretAccessKey", ...OTHER_SECRET_KEYS]}
 				step={step}
 				onStepChange={onStepChange}
 				finishLabel="Add destination"
 				onComplete={async (v) => {
 					const name = v.name.trim();
-					await create.mutateAsync({ ...connection(v), name });
+					await create.mutateAsync({ ...inputOf(v), name });
 					toast.success(`${name} added`, {
 						description: "Pick it when setting up backups for a service.",
 					});

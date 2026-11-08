@@ -182,12 +182,16 @@ export async function setSecretValue(
 	return row;
 }
 
-/** Decrypts one version (default: the current one). */
+/** Decrypts one version (default: the current one). External secrets have none. */
 export async function readSecretValue(
 	ctx: SecretsCtx,
-	s: SecretRef & { currentVersion: number },
+	s: SecretRef & { currentVersion: number; providerId?: string | null },
 	version = s.currentVersion,
 ): Promise<string> {
+	if (s.providerId)
+		throw new Error(
+			`secret ${s.id} is external; its value lives in the provider`,
+		);
 	const [v] = await ctx.db
 		.select()
 		.from(secretVersion)
@@ -202,16 +206,22 @@ export async function readSecretValue(
 	);
 }
 
-/** The current value of each secret, by id. */
+/** The current value of each secret, by id; null for an external secret (see `resolveExternalSecrets`). */
 export async function readSecretValues(ctx: SecretsCtx, ids: string[]) {
-	const out = new Map<string, typeof secret.$inferSelect & { value: string }>();
+	const out = new Map<
+		string,
+		typeof secret.$inferSelect & { value: string | null }
+	>();
 	if (!ids.length) return out;
 	const rows = await ctx.db
 		.select()
 		.from(secret)
 		.where(inArray(secret.id, [...new Set(ids)]));
 	for (const s of rows)
-		out.set(s.id, { ...s, value: await readSecretValue(ctx, s) });
+		out.set(s.id, {
+			...s,
+			value: s.providerId ? null : await readSecretValue(ctx, s),
+		});
 	return out;
 }
 
@@ -375,6 +385,8 @@ async function upsertByKey(
 			{ organizationId, scope, scopeId, key, value },
 			null,
 		);
+	// An external secret owns the key at this scope: the reference wins over the legacy copy.
+	if (existing.providerId) return existing;
 	if ((await readSecretValue(ctx, existing)) === value) return existing;
 	return setSecretValue(ctx, existing.id, value, null);
 }

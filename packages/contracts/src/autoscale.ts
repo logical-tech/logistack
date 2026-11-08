@@ -65,12 +65,46 @@ export const autoscaleCheckIds = [
 	"nodes",
 ] as const;
 
+export const autoscaleFixIds = [
+	"apply_profile",
+	"ingress_ports",
+	"add_healthcheck",
+] as const;
+export const AutoscaleFixId = z.enum(autoscaleFixIds);
+export type AutoscaleFixId = z.infer<typeof AutoscaleFixId>;
+
+/** A one-click change that makes a failed check pass; the server recomputes it when applied. */
+export const AutoscaleFix = z
+	.object({
+		id: AutoscaleFixId,
+		title: z.string(),
+		summary: z.string(),
+		/** Shown as before → after rows. */
+		changes: z.array(
+			z.object({ label: z.string(), before: z.string(), after: z.string() }),
+		),
+		/** Side effects and the evidence behind the choice. */
+		notes: z.array(z.string()),
+		/** Applying it starts a deployment. */
+		redeploy: z.boolean(),
+		/** The fix is only offered after a live test passes: call its probe before applying. */
+		probe: z.boolean().optional(),
+	})
+	.meta({ id: "AutoscaleFix" });
+export type AutoscaleFix = z.infer<typeof AutoscaleFix>;
+
 /** One readiness check; a failed `blocker` refuses enabling, a failed `warning` only informs. */
 export const AutoscaleCheck = z.object({
 	id: z.enum(autoscaleCheckIds),
 	level: z.enum(["blocker", "warning"]),
 	ok: z.boolean(),
 	message: z.string(),
+	/** Present on a failed check that one click can fix. */
+	fix: AutoscaleFix.optional(),
+	/** Why the known fix for this check can't apply right now. */
+	fixUnavailable: z.string().optional(),
+	/** Where the user fixes it by hand when no click can, e.g. adding a server. */
+	link: z.object({ label: z.string(), to: z.string() }).optional(),
 });
 export type AutoscaleCheck = z.infer<typeof AutoscaleCheck>;
 
@@ -125,3 +159,15 @@ export const ServiceScaledEventPayload = z.object({
 export type ServiceScaledEventPayload = z.infer<
 	typeof ServiceScaledEventPayload
 >;
+
+/** After an AutoFix: the fresh view and the deployment it queued (null when nothing changed). */
+export const AutoscaleFixResult = z
+	.object({ view: AutoscaleView, deploymentId: z.string().nullable() })
+	.meta({ id: "AutoscaleFixResult" });
+export type AutoscaleFixResult = z.infer<typeof AutoscaleFixResult>;
+
+/** A fix re-planned after its live test: the fix with the evidence, or why it isn't offered. */
+export const AutoscaleFixProbe = z
+	.object({ fix: AutoscaleFix.optional(), unavailable: z.string().optional() })
+	.meta({ id: "AutoscaleFixProbe" });
+export type AutoscaleFixProbe = z.infer<typeof AutoscaleFixProbe>;

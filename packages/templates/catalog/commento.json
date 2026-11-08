@@ -39,7 +39,7 @@
 				"postgres"
 			],
 			"env": {
-				"COMMENTO_ORIGIN": "http://${{ inputs.domain }}",
+				"COMMENTO_ORIGIN": "https://${{ inputs.domain }}",
 				"COMMENTO_POSTGRES": "postgres://postgres:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/postgres?sslmode=disable"
 			},
 			"volumes": [],

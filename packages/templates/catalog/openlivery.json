@@ -112,7 +112,7 @@
 				"SECRET_KEY": "${{ inputs.secretKey }}",
 				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
 				"WHATSAPP_BRIDGE_TOKEN": "${{ inputs.bridgeToken }}",
-				"FRONTEND_URL": "http://${{ inputs.mainDomain }}",
+				"FRONTEND_URL": "https://${{ inputs.mainDomain }}",
 				"COOKIE_SECURE": "false",
 				"COOKIE_SAMESITE": "lax",
 				"BACKEND_URL": "http://${{ services.api.host }}:8000",

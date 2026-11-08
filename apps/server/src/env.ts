@@ -49,5 +49,9 @@ export type Env = {
 		auditResourceId: string | undefined;
 		/** Overrides the default diff (`{ input: <request body> }`). Redacted before insert. */
 		auditDiff: unknown;
+		/** Set by the audit middleware for the handler's `auditInTx`. */
+		auditAction: `${string}.${string}` | undefined;
+		/** Set by `auditInTx`: the success row is already written, in the mutation's transaction. */
+		audited: boolean | undefined;
 	};
 };

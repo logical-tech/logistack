@@ -1041,3 +1041,102 @@ exports[`snapshots single-architecture image: placement keeps it on that archite
   ],
 }
 `;
+
+exports[`healthcheck image without /bin/sh snapshot: no default check, so Swarm counts the running task healthy 1`] = `
+{
+  "EndpointSpec": {
+    "Mode": "vip",
+    "Ports": [
+      {
+        "Protocol": "tcp",
+        "PublishMode": "ingress",
+        "PublishedPort": 18080,
+        "TargetPort": 8080,
+      },
+    ],
+  },
+  "Labels": {
+    "logistack.deployment": "dep_one0000000000000000000000",
+    "logistack.environment": "env_prod00000000000000000000",
+    "logistack.kind": "service",
+    "logistack.managed": "true",
+    "logistack.org": "org_acme",
+    "logistack.resource": "svc_app0000000000000000000000",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 2,
+    },
+  },
+  "Name": "ls-svc-app0000000000000000000000",
+  "RollbackConfig": {
+    "FailureAction": "pause",
+    "Monitor": 30000000000,
+    "Order": "start-first",
+    "Parallelism": 1,
+  },
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "Args": [
+        "serve",
+        "--port",
+        "8080",
+      ],
+      "Configs": [],
+      "Env": [
+        "API_KEY=s3cret",
+        "LOGISTACK_DEPLOYMENT_ID=dep_one0000000000000000000000",
+        "LOGISTACK_ENVIRONMENT=production",
+        "LOGISTACK_PROJECT=Shop",
+        "LOGISTACK_SERVICE=Web",
+        "PORT=8080",
+      ],
+      "Image": "registry.example.com/org_acme/ls-svc-app:dep_one",
+      "Labels": {
+        "logistack.deployment": "dep_one0000000000000000000000",
+        "logistack.kind": "service",
+        "logistack.managed": "true",
+        "logistack.org": "org_acme",
+        "logistack.resource": "svc_app0000000000000000000000",
+      },
+      "Mounts": [],
+      "Secrets": [],
+      "StopGracePeriod": 10000000000,
+    },
+    "Networks": [
+      {
+        "Aliases": [
+          "web",
+        ],
+        "Target": "net-env-id",
+      },
+      {
+        "Target": "net-ingress-id",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.labels.region==eu",
+      ],
+    },
+    "Resources": {
+      "Limits": {
+        "MemoryBytes": 268435456,
+        "NanoCPUs": 500000000,
+      },
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+      "MaxAttempts": 0,
+    },
+  },
+  "UpdateConfig": {
+    "FailureAction": "rollback",
+    "MaxFailureRatio": 0,
+    "Monitor": 30000000000,
+    "Order": "start-first",
+    "Parallelism": 1,
+  },
+}
+`;

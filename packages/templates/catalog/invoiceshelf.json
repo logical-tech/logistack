@@ -63,7 +63,7 @@
 				"APP_NAME": "InvoiceShelf",
 				"APP_ENV": "production",
 				"APP_DEBUG": "false",
-				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
 				"DB_CONNECTION": "pgsql",
 				"DB_HOST": "${{ services.invoiceshelf-postgres.host }}",
 				"DB_PORT": "5432",

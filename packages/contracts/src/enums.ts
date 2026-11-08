@@ -106,6 +106,15 @@ export const secretScopes = [
 	"service",
 ] as const;
 export const SecretScope = z.enum(secretScopes);
+
+/** Where an external secret lives: HashiCorp Vault (KV v2), Infisical, 1Password Connect. */
+export const secretProviderKinds = [
+	"vault",
+	"infisical",
+	"onepassword",
+] as const;
+export const SecretProviderKind = z.enum(secretProviderKinds);
+export type SecretProviderKind = z.infer<typeof SecretProviderKind>;
 export type SecretScope = z.infer<typeof SecretScope>;
 export type EnvVarScope = z.infer<typeof EnvVarScope>;
 

@@ -47,7 +47,7 @@
 			],
 			"env": {
 				"PRETIX_PRETIX_INSTANCE_NAME": "pretix",
-				"PRETIX_PRETIX_URL": "http://${{ inputs.mainDomain }}",
+				"PRETIX_PRETIX_URL": "https://${{ inputs.mainDomain }}",
 				"PRETIX_PRETIX_CURRENCY": "EUR",
 				"PRETIX_PRETIX_DATADIR": "/data",
 				"PRETIX_PRETIX_TRUST_X_FORWARDED_FOR": "on",

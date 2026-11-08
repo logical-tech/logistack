@@ -64,7 +64,7 @@
 				"SYMFONY__ENV__DATABASE_TABLE_PREFIX": "wallabag_",
 				"SYMFONY__ENV__MAILER_DSN": "smtp://127.0.0.1",
 				"SYMFONY__ENV__FROM_EMAIL": "wallabag@example.com",
-				"SYMFONY__ENV__DOMAIN_NAME": "http://${{ inputs.mainDomain }}",
+				"SYMFONY__ENV__DOMAIN_NAME": "https://${{ inputs.mainDomain }}",
 				"SYMFONY__ENV__SERVER_NAME": "${{ services.wallabag.host }}",
 				"SYMFONY__ENV__SECRET": "${{ inputs.appSecret }}",
 				"SYMFONY__ENV__REDIS_HOST": "${{ services.wallabag-redis.host }}"

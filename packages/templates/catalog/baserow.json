@@ -10,7 +10,7 @@
 	"logo": "logos/baserow.webp",
 	"website": "https://baserow.io/",
 	"docs": "https://baserow.io/docs/index",
-	"version": "1.25.2",
+	"version": "2.4.1",
 	"source": {
 		"kind": "dokploy",
 		"path": "blueprints/baserow",
@@ -29,7 +29,7 @@
 			"name": "baserow",
 			"dependsOn": [],
 			"env": {
-				"BASEROW_PUBLIC_URL": "http://${{ inputs.mainDomain }}"
+				"BASEROW_PUBLIC_URL": "https://${{ inputs.mainDomain }}"
 			},
 			"volumes": [
 				{
@@ -39,7 +39,7 @@
 			],
 			"files": [],
 			"kind": "application",
-			"image": "baserow/baserow:1.25.2",
+			"image": "baserow/baserow:2.4.1",
 			"ports": [],
 			"public": {
 				"port": 80,

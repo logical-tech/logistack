@@ -54,8 +54,8 @@
 				"ENCRYPTION_KEY": "${{ inputs.encryptionKey }}",
 				"TZ": "UTC",
 				"LOG_LEVEL": "info",
-				"APP_URL": "http://${{ inputs.mainDomain }}",
-				"ALLOWED_ORIGINS": "http://${{ inputs.mainDomain }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
+				"ALLOWED_ORIGINS": "https://${{ inputs.mainDomain }}",
 				"ADMIN_EMAIL": "${{ inputs.adminEmail }}",
 				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}"
 			},

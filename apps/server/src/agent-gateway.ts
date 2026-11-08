@@ -7,8 +7,11 @@ import {
 	type ArchiveResult,
 	type DiskRequest,
 	type DiskUsage,
+	DRAIN_STATUS_TTL_SEC,
+	type DrainsConfig,
 	HIGH_WATER_BYTES,
 	type JobSpecInput,
+	type LogDrainConfigInput,
 	MAX_CHUNK_BYTES,
 	MAX_QUEUED_MESSAGES,
 	type PruneReport,
@@ -29,6 +32,9 @@ export const NODES_KNOWN = "ls:nodes:known";
 export const NODES_DOWN = "ls:nodes:down";
 export const METRICS_STREAM = "ls:metrics";
 export const DOCKER_EVENTS_STREAM = "ls:docker-events";
+/** Hash of node id -> that node's latest `DrainNodeStatus` JSON (plus `hostname`, `at`). */
+export const DRAIN_STATUS_KEY = (drainId: string) =>
+	`ls:drains:${drainId}:status`;
 
 export type AgentHello = Extract<AgentMessage, { type: "hello" }>;
 
@@ -119,6 +125,11 @@ export type ExecHandle = AsyncGenerator<ExecEvent> & {
 	end(): Promise<void>;
 	resize(rows: number, cols: number): void;
 	close(): void;
+	/**
+	 * Calls `cb` with the cumulative stdin bytes the process has taken, while the handle is iterated.
+	 * An agent without `stdin-ack` cannot tell, so its bytes count once handed to the socket.
+	 */
+	onStdinAck(cb: (bytes: number) => void): void;
 };
 
 /** `ack` reports output bytes read, for a job with `ackWindowBytes`; agents without `job-ack` ignore it. */
@@ -147,6 +158,14 @@ export type Agents = {
 		req: DiskRequest,
 		opts?: CallOptions,
 	): Promise<{ usage: DiskUsage; report: PruneReport | null }>;
+	/** Replaces a node's drain setup; false when its agent is gone or predates `log-drains`. */
+	pushDrains(nodeId: string, config: DrainsConfig): boolean;
+	/** Sends one test line through `drain` from that node. */
+	testDrain(
+		nodeId: string,
+		drain: LogDrainConfigInput,
+		opts?: CallOptions,
+	): Promise<{ ok: boolean; status?: number; error?: string }>;
 	/** Throws `bad_request` when the node's agent predates the `archive` capability. */
 	archive(
 		nodeId: string,
@@ -167,6 +186,7 @@ const TERMINAL = new Set([
 	"job.result",
 	"disk.result",
 	"archive.result",
+	"drains.result",
 	"logs.end",
 	"rpc.error",
 ]);
@@ -332,6 +352,17 @@ export function mountAgentGateway(
 					"event",
 					JSON.stringify(m.event),
 				]);
+				return;
+			case "drains.status":
+				for (const d of m.drains) {
+					const key = DRAIN_STATUS_KEY(d.drainId);
+					await redis.send("HSET", [
+						key,
+						conn.node.nodeId,
+						JSON.stringify({ ...d, hostname: conn.node.hostname, at: m.at }),
+					]);
+					await redis.send("EXPIRE", [key, String(DRAIN_STATUS_TTL_SEC)]);
+				}
 				return;
 			default:
 				conn.calls.get(m.id)?.push(m);
@@ -542,21 +573,40 @@ export function mountAgentGateway(
 		},
 
 		exec(nodeId, req, opts) {
+			const acks = nodes.get(nodeId)?.node.capabilities.includes("stdin-ack");
 			const { conn, replies, id } = start(
 				nodeId,
-				{ ...req, type: "exec.start", id: crypto.randomUUID() },
+				{
+					...req,
+					...(acks ? { stdinAck: true } : {}),
+					type: "exec.start",
+					id: crypto.randomUUID(),
+				},
 				"exec.close",
 				opts?.signal,
 			);
+			let onAck: (bytes: number) => void = () => {};
 			async function* events(): AsyncGenerator<ExecEvent> {
 				for await (const m of replies) {
 					if (m.type === "exec.output")
 						yield { type: "output", stream: m.stream, data: decode(m.data) };
 					else if (m.type === "exec.exit") yield { type: "exit", code: m.code };
+					else if (m.type === "exec.stdin.ack") onAck(m.bytes);
 				}
 			}
+			const input = stdin(conn, id);
+			let sent = 0;
 			return Object.assign(events(), {
-				...stdin(conn, id),
+				write: async (data: string | Uint8Array) => {
+					await input.write(data);
+					sent +=
+						typeof data === "string" ? Buffer.byteLength(data) : data.length;
+					if (!acks) onAck(sent);
+				},
+				end: input.end,
+				onStdinAck: (cb: (bytes: number) => void) => {
+					onAck = cb;
+				},
 				resize: (rows: number, cols: number) =>
 					send(conn, { type: "exec.resize", id, rows, cols }),
 				close: () => void replies.return(undefined),
@@ -611,6 +661,32 @@ export function mountAgentGateway(
 				if (m.type === "disk.result")
 					return { usage: m.usage, report: m.report };
 			throw new AgentError("internal", "disk request ended without a result");
+		},
+
+		pushDrains(nodeId, config) {
+			const conn = nodes.get(nodeId);
+			if (!conn?.node.capabilities.includes("log-drains")) return false;
+			send(conn, { type: "drains.config", ...config });
+			return true;
+		},
+
+		async testDrain(nodeId, drain, opts) {
+			if (nodes.get(nodeId)?.node.capabilities.includes("log-drains") === false)
+				throw new AgentError(
+					"bad_request",
+					`the agent on node ${nodeId} is too old to ship logs; update LogiStack on it`,
+				);
+			const { replies } = start(
+				nodeId,
+				{ type: "drains.test", id: crypto.randomUUID(), drain },
+				// Nothing to stop on the agent; it ignores a cancel for an unknown session.
+				"job.cancel",
+				opts?.signal,
+			);
+			for await (const m of replies)
+				if (m.type === "drains.result")
+					return { ok: m.ok, status: m.status, error: m.error };
+			throw new AgentError("internal", "drain test ended without a result");
 		},
 
 		archive(nodeId, req, opts) {

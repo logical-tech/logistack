@@ -62,7 +62,7 @@
 				"DATABASE_MYSQL_NAME": "movary",
 				"DATABASE_MYSQL_USER": "movary_user",
 				"DATABASE_MYSQL_PASSWORD": "${{ inputs.mysqlPassword }}",
-				"APP_URL": "http://${{ inputs.mainDomain }}",
+				"APP_URL": "https://${{ inputs.mainDomain }}",
 				"APP_ENV": "production"
 			},
 			"volumes": [

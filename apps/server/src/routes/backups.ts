@@ -46,6 +46,7 @@ import {
 	check,
 	locate,
 	type ResolveResource,
+	refuseArchived,
 	requirePermission,
 } from "../scope.ts";
 
@@ -694,6 +695,8 @@ export const backups = router()
 
 			let targetServiceId = svc.id;
 			if (target.kind === "new" && policy.target === "database") {
+				// The new database is deployed, and an archived project starts nothing.
+				await refuseArchived(c);
 				check(
 					c,
 					"write",

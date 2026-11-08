@@ -36,6 +36,8 @@ interface Session {
 	ack?(bytes: number): void;
 }
 
+/** Stdin bytes between two `exec.stdin.ack`s: a few frames, so the caller's window keeps moving. */
+const STDIN_ACK_STEP = 256 * 1024;
 const b64 = (data: Uint8Array) => Buffer.from(data).toString("base64");
 const outStream = (f: Frame) => (f.stream === "stderr" ? "stderr" : "stdout");
 
@@ -119,6 +121,8 @@ export function createSessions(
 		const ac = new AbortController();
 		let ready: Promise<ExecSession> | undefined;
 		let chain = Promise.resolve();
+		let written = 0;
+		let acked = 0;
 		const session: Session = {
 			close: () => ac.abort(),
 			// stdin may arrive before the exec is up; the chain keeps writes in order.
@@ -129,6 +133,15 @@ export function createSessions(
 						if (!s) return;
 						if (data.length) await s.write(data);
 						if (eof) await s.closeStdin();
+						written += data.length;
+						if (m.stdinAck && (eof || written - acked >= STDIN_ACK_STEP)) {
+							acked = written;
+							await link.sendStream({
+								type: "exec.stdin.ack",
+								id: m.id,
+								bytes: written,
+							});
+						}
 					})
 					.catch(() => {});
 			},

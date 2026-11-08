@@ -1,0 +1,75 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`encodeDrainBatch {"kind":"loki","url":"https://loki.example.com","username":"u","password":"p","tenantId":"t"} 1`] = `
+{
+  "body": "{"streams":[{"stream":{"source":"logistack","organization":"Acme","project":"shop","environment":"production","service":"web api","service_id":"svc_1","deployment_id":"dep_1","node":"node-a","stream":"stdout"},"values":[["1794045600123456789","hello"]]},{"stream":{"source":"logistack","organization":"Acme","project":"shop","environment":"production","service":"web api","service_id":"svc_1","deployment_id":"dep_1","node":"node-a","stream":"stderr"},"values":[["1794045601000000000","boom \\"quoted\\" ]"]]}]}",
+  "headers": {
+    "authorization": "Basic dTpw",
+    "content-type": "application/json",
+    "x-scope-orgid": "t",
+  },
+  "kind": "http",
+  "url": "https://loki.example.com/loki/api/v1/push",
+}
+`;
+
+exports[`encodeDrainBatch {"kind":"otlp","url":"https://otel.example.com:4318","headers":{"x-api-key":"k"}} 1`] = `
+{
+  "body": "{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"web api"}},{"key":"service.namespace","value":{"stringValue":"shop"}},{"key":"deployment.environment.name","value":{"stringValue":"production"}},{"key":"host.name","value":{"stringValue":"node-a"}},{"key":"logistack.organization","value":{"stringValue":"Acme"}},{"key":"logistack.organization_id","value":{"stringValue":"org_1"}},{"key":"logistack.project_id","value":{"stringValue":"prj_1"}},{"key":"logistack.environment_id","value":{"stringValue":"env_1"}},{"key":"logistack.service_id","value":{"stringValue":"svc_1"}},{"key":"logistack.deployment_id","value":{"stringValue":"dep_1"}}]},"scopeLogs":[{"scope":{"name":"logistack"},"logRecords":[{"timeUnixNano":"1794045600123456789","body":{"stringValue":"hello"},"attributes":[{"key":"log.iostream","value":{"stringValue":"stdout"}}]},{"timeUnixNano":"1794045601000000000","body":{"stringValue":"boom \\"quoted\\" ]"},"attributes":[{"key":"log.iostream","value":{"stringValue":"stderr"}}]}]}]}]}",
+  "headers": {
+    "content-type": "application/json",
+    "x-api-key": "k",
+  },
+  "kind": "http",
+  "url": "https://otel.example.com:4318/v1/logs",
+}
+`;
+
+exports[`encodeDrainBatch {"kind":"http","url":"https://logs.example.com/ingest?token=abc"} 1`] = `
+{
+  "body": "[{"timestamp":"2026-11-07T10:00:00.123Z","message":"hello","stream":"stdout","organization":"Acme","organizationId":"org_1","project":"shop","projectId":"prj_1","environment":"production","environmentId":"env_1","service":"web api","serviceId":"svc_1","deploymentId":"dep_1","node":"node-a"},{"timestamp":"2026-11-07T10:00:01.000Z","message":"boom \\"quoted\\" ]","stream":"stderr","organization":"Acme","organizationId":"org_1","project":"shop","projectId":"prj_1","environment":"production","environmentId":"env_1","service":"web api","serviceId":"svc_1","deploymentId":"dep_1","node":"node-a"}]",
+  "headers": {
+    "content-type": "application/json",
+  },
+  "kind": "http",
+  "url": "https://logs.example.com/ingest?token=abc",
+}
+`;
+
+exports[`encodeDrainBatch {"kind":"datadog","site":"datadoghq.eu","apiKey":"dd"} 1`] = `
+{
+  "body": "[{"message":"hello","ddsource":"logistack","service":"web api","hostname":"node-a","timestamp":1794045600123,"ddtags":"env:production,project:shop,organization:acme,service_id:svc_1,deployment_id:dep_1,stream:stdout"},{"message":"boom \\"quoted\\" ]","ddsource":"logistack","service":"web api","hostname":"node-a","timestamp":1794045601000,"ddtags":"env:production,project:shop,organization:acme,service_id:svc_1,deployment_id:dep_1,stream:stderr"}]",
+  "headers": {
+    "content-type": "application/json",
+    "dd-api-key": "dd",
+  },
+  "kind": "http",
+  "url": "https://http-intake.logs.datadoghq.eu/api/v2/logs",
+}
+`;
+
+exports[`encodeDrainBatch {"kind":"syslog","host":"syslog.example.com","port":6514,"protocol":"tls"} 1`] = `
+{
+  "host": "syslog.example.com",
+  "kind": "syslog",
+  "messages": [
+    "170 <14>1 2026-11-07T10:00:00.123Z node-a web_api - stdout [logistack@32473 org="Acme" project="shop" environment="production" service_id="svc_1" deployment_id="dep_1"] hello",
+    "180 <11>1 2026-11-07T10:00:01.000Z node-a web_api - stderr [logistack@32473 org="Acme" project="shop" environment="production" service_id="svc_1" deployment_id="dep_1"] boom "quoted" ]",
+  ],
+  "port": 6514,
+  "protocol": "tls",
+}
+`;
+
+exports[`encodeDrainBatch {"kind":"syslog","host":"10.0.0.1","protocol":"udp"} 1`] = `
+{
+  "host": "10.0.0.1",
+  "kind": "syslog",
+  "messages": [
+    "<14>1 2026-11-07T10:00:00.123Z node-a web_api - stdout [logistack@32473 org="Acme" project="shop" environment="production" service_id="svc_1" deployment_id="dep_1"] hello",
+    "<11>1 2026-11-07T10:00:01.000Z node-a web_api - stderr [logistack@32473 org="Acme" project="shop" environment="production" service_id="svc_1" deployment_id="dep_1"] boom "quoted" ]",
+  ],
+  "port": 514,
+  "protocol": "udp",
+}
+`;

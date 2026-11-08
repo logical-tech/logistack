@@ -28,6 +28,13 @@
 			"label": "Mealie domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -38,7 +45,7 @@
 				"ALLOW_SIGNUP": "true",
 				"PUID": "1000",
 				"PGID": "1000",
-				"TZ": "Europe/Berlin",
+				"TZ": "${{ inputs.timezone }}",
 				"MAX_WORKERS": "1",
 				"WEB_CONCURRENCY": "1"
 			},

@@ -179,5 +179,6 @@ A rollback restores the image, not the data. If a pre-deploy migration changed t
 
 - **Failed in Building**: read the log above the error. A missing file usually means a wrong **Build context** or **Root directory**.
 - **Failed in Deploying with a health check error**: the app didn't answer on the check's port or path in time. Check the **Container port** and the health check path.
+- **Failed with "the image has no /bin/sh"**: an HTTP or TCP check can't run in a distroless or `scratch` image. Use a **Command** check. See [Images without a shell](./service-settings.mdx#images-without-a-shell).
 - **Skipped: "Commit message contains [skip ci]"**: expected. Push another commit, or select **Deploy**.
 - **Deployed, but … The new version stays live**: the post-deploy command failed. The new version is live; fix the command and redeploy if needed.

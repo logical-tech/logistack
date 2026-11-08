@@ -92,10 +92,27 @@ A new replica takes traffic, and a rollout continues, only once the check passes
 - **Check**: **None**, **HTTP request** (a **Port** and a **Path**, such as `3000` and `/healthz`), **TCP connect** (a **Port**) or **Command** (one argument per line; exit 0 is healthy).
 - **Drain timeout**: seconds a replica being replaced gets after `SIGTERM` to finish its requests. 10 when empty, up to 3600.
 
+With **None** and a domain, LogiStack still checks that the container listens on its first port, so a replica takes traffic only once the app is up.
+
 ```text title="Example: HTTP health check"
 Check:  HTTP request
 Port:   3000
 Path:   /healthz
+```
+
+### Images without a shell
+
+**HTTP request**, **TCP connect** and the default check run through `/bin/sh` inside the container. Distroless and `scratch` images have no shell, so LogiStack looks for `/bin/sh` in the image on each deploy:
+
+- With **None**, it skips the default check. A replica counts as healthy as soon as it runs, and the deployment log says so.
+- With **HTTP request** or **TCP connect**, the deployment fails with "the image has no /bin/sh". Switch to **Command**.
+
+For a real check on such an image, use **Command** with a program the image has. Most often that is your own binary with a health flag:
+
+```text title="Example: command check for a distroless Go app"
+Check:    Command
+Command:  /api
+          -healthcheck
 ```
 
 ## Release commands

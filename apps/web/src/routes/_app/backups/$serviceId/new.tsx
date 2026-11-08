@@ -8,7 +8,7 @@ import { BackupKeyReveal } from "@/components/backups/backup-key";
 import { CronField } from "@/components/backups/cron-field";
 import { retentionText } from "@/components/backups/service-backups";
 import { Field } from "@/components/field";
-import { S3_PROVIDER, s3ProviderOf } from "@/components/integration-kinds";
+import { destinationKindOf } from "@/components/integration-kinds";
 import { Page, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,9 +20,9 @@ import {
 	type WizardStep,
 } from "@/components/wizard/wizard";
 import {
+	destinationsQuery,
 	type PolicyWithKey,
 	type ServiceBackups,
-	s3DestinationsQuery,
 	serviceBackupsQuery,
 	useCreatePolicy,
 } from "@/lib/api/backups";
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_app/backups/$serviceId/new")({
 			context.queryClient.ensureQueryData(
 				serviceBackupsQuery(params.serviceId),
 			),
-			context.queryClient.prefetchQuery(s3DestinationsQuery),
+			context.queryClient.prefetchQuery(destinationsQuery),
 		]),
 	component: NewPolicy,
 });
@@ -82,7 +82,7 @@ const whole = (label: string) =>
 		);
 
 function DestinationStep({ w }: { w: WizardApi<V> }) {
-	const { data: destinations } = useQuery(s3DestinationsQuery);
+	const { data: destinations } = useQuery(destinationsQuery);
 	if (!destinations)
 		return (
 			<p className="text-sm text-muted-foreground">Loading destinations…</p>
@@ -90,15 +90,15 @@ function DestinationStep({ w }: { w: WizardApi<V> }) {
 	if (!destinations.length)
 		return (
 			<div className="rounded-lg bg-muted/60 p-4 text-sm dark:bg-muted/40">
-				<p className="font-medium">No S3 destination yet</p>
+				<p className="font-medium">No backup destination yet</p>
 				<p className="mt-1 text-muted-foreground">
-					Add a bucket first. This setup keeps its answers, so come back here
-					when it's saved.
+					Add one first: a bucket, a NAS or a folder on a node. This setup keeps
+					its answers, so come back here when it's saved.
 				</p>
 				<Button asChild variant="outline" size="sm" className="mt-3">
 					<Link to="/integrations/s3/new">
 						<Plus data-icon="inline-start" />
-						Add an S3 destination
+						Add a destination
 					</Link>
 				</Button>
 			</div>
@@ -114,8 +114,8 @@ function DestinationStep({ w }: { w: WizardApi<V> }) {
 				choices={destinations.map((d) => ({
 					value: d.id,
 					title: d.name,
-					description: `${d.bucket}${d.prefix ? `/${d.prefix}` : ""} on ${S3_PROVIDER[s3ProviderOf(d.endpoint)].label}`,
-					icon: S3_PROVIDER[s3ProviderOf(d.endpoint)].icon,
+					description: `${destinationKindOf(d).label} · ${d.location}`,
+					icon: destinationKindOf(d).icon,
 				}))}
 			/>
 			{w.error("s3DestinationId") && (
@@ -463,7 +463,7 @@ function buildSteps(data: ServiceBackups): WizardStep<V>[] {
 }
 
 function DestinationName({ id }: { id: string }) {
-	const { data } = useQuery(s3DestinationsQuery);
+	const { data } = useQuery(destinationsQuery);
 	return data?.find((d) => d.id === id)?.name ?? "–";
 }
 
@@ -472,7 +472,7 @@ function NewPolicy() {
 	const { step } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data } = useQuery(serviceBackupsQuery(serviceId));
-	const { data: destinations } = useQuery(s3DestinationsQuery);
+	const { data: destinations } = useQuery(destinationsQuery);
 	const create = useCreatePolicy();
 	const [created, setCreated] = useState<PolicyWithKey | null>(null);
 	const onStepChange = useCallback(

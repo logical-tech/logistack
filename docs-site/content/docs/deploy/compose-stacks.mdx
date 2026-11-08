@@ -112,6 +112,7 @@ After it runs, open the `plausible` container and add `stats.example.com` in its
 | `depends_on` | Start order |
 | `command`, `entrypoint`, `healthcheck`, `user`, `cap_add`, `cap_drop`, `restart` | The matching service settings |
 | `mem_limit`, `cpus`, `deploy.resources` | Resource limits |
+| `stop_grace_period` | The service's drain timeout, rounded up to whole seconds, at most 3600 |
 
 Keys that don't change behavior, such as `container_name`, `hostname`, `labels`, `logging`, `networks` and `x-*` extensions, are accepted and ignored.
 
@@ -163,6 +164,8 @@ Select **Apply and deploy**, or **Keep editing**. Services are matched by compos
 
 For a stack from a repository, push to the branch, or select **Sync now** on the **Compose** tab to read the file at the head of the branch, review the changes and apply them.
 
+When a push brings a compose file LogiStack can't run, the stack keeps running the previous file and the stack page shows **The last push was not applied** above the tabs, with the commit, every reason from [Limits](#limits) that applies, and when it was pushed. The notice stays until a later push or sync applies.
+
 <Callout type="info">
 A pasted compose file can hold credentials, so the **Compose file** view shows only to members who can read secrets. The **Effective** view masks them.
 </Callout>
@@ -184,4 +187,5 @@ Deleting a stack cannot be undone.
 - **"A compose file needs a top-level services: key"**: the pasted text isn't a compose file, or it's indented under another key.
 - **`<service>.volumes host path /srv/app`**: replace the host path with a named volume, like `app-data:/srv/app`.
 - **The app can't reach its database**: use the compose service name as the host (`plausible-db`), not `localhost`.
+- **"The last push was not applied"**: the compose file in that commit breaks one of the [Limits](#limits). Fix the listed parts, then push again or select **Sync now**.
 - **A variable is empty**: `${VAR}` without a default is empty until you set `VAR` on that service's **Environment** tab.

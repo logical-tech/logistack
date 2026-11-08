@@ -202,6 +202,15 @@ describe("autoscaleChecks", () => {
 				nodes: 2,
 			}),
 		).toEqual(["warning:healthcheck"]);
+		// Behind a domain the compiler already checks the port for listening.
+		expect(
+			failed({
+				spec: spec({ ports: [{ target: 80, protocol: "tcp" }] }),
+				volumes: 0,
+				nodes: 2,
+				fallbackPort: 80,
+			}),
+		).toEqual([]);
 	});
 });
 

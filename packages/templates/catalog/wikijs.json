@@ -26,6 +26,12 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "dbPassword",
+			"label": "DB password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -39,7 +45,7 @@
 				"DB_HOST": "${{ services.db.host }}",
 				"DB_PORT": "5432",
 				"DB_USER": "wikijs",
-				"DB_PASS": "wikijsrocks",
+				"DB_PASS": "${{ inputs.dbPassword }}",
 				"DB_NAME": "wiki"
 			},
 			"volumes": [],
@@ -58,7 +64,7 @@
 			"dependsOn": [],
 			"env": {
 				"POSTGRES_USER": "wikijs",
-				"POSTGRES_PASSWORD": "wikijsrocks",
+				"POSTGRES_PASSWORD": "${{ inputs.dbPassword }}",
 				"POSTGRES_DB": "wiki"
 			},
 			"volumes": [

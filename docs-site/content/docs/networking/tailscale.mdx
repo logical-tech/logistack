@@ -1,0 +1,112 @@
+---
+title: Tailscale
+description: Join every LogiStack server to your Tailscale tailnet and publish chosen services on tailnet hostnames, over HTTPS with a tailnet certificate.
+---
+
+Tailscale puts your servers and chosen services on your private tailnet, where only your own devices reach them. LogiStack runs `tailscaled` on every server, so each server joins the tailnet under its hostname. You can also publish a service on its own tailnet hostname, such as `grafana`, and open it at `https://grafana.<your-tailnet>.ts.net` from any device in the tailnet. Use it for admin tools that should never face the internet, and for servers without a public IP.
+
+Nothing listens on the public internet. Domains through the Caddy proxy and [Cloudflare Tunnels](./cloudflare-tunnels.mdx) keep working next to it.
+
+## Before you start
+
+- A Tailscale account and tailnet.
+- An auth key. In the Tailscale admin console, open **Settings › Keys** and generate an auth key. Make it **Reusable** and **Ephemeral**.
+- To serve HTTPS with a tailnet certificate, turn on **MagicDNS** and **HTTPS Certificates** in the **DNS** page of the admin console.
+
+<Callout type="info">
+LogiStack keeps no Tailscale state on disk. A restarted server or service joins again with the key. An ephemeral key makes the old machine leave the tailnet on its own; with a non-ephemeral key, old machines stay in the admin console until you remove them, and a rejoined machine can get a `-1` suffix on its name.
+</Callout>
+
+## Set up Tailscale
+
+<Steps>
+<Step>
+
+### Open Tailscale
+
+Select **Tailscale** in the sidebar, under **Integrations**.
+
+![The Tailscale page while Tailscale is off, with a Set up Tailscale button](/screens/tailscale.webp)
+
+</Step>
+<Step>
+
+### Select Set up Tailscale
+
+Select **Set up Tailscale**. The **Set up Tailscale** wizard opens.
+
+![The Auth key step of the Set up Tailscale wizard](/screens/tailscale-new.webp)
+
+</Step>
+<Step>
+
+### Paste the auth key
+
+On **Auth key**, paste the key, for example `tskey-auth-k1a2b3c4CNTRL-…`. LogiStack stores it encrypted and never shows it again.
+
+</Step>
+<Step>
+
+### Publish a service, or skip it
+
+On **Publish a service**, pick a **Service**, or keep **None, only join the servers**. For a service, set:
+
+- **Tailnet hostname**: the machine name in your tailnet, for example `grafana`. Lowercase letters, digits and hyphens.
+- **Container port**: the port the service listens on inside its container, for example `3000`.
+- **HTTPS with a tailnet certificate**: on serves HTTPS on port 443 with a certificate from Tailscale. Off serves plain HTTP on port 80.
+
+</Step>
+<Step>
+
+### Review
+
+Check the summary on **Review**. Select **Edit** next to a section to change it.
+
+</Step>
+<Step>
+
+### Turn it on
+
+On **Turn on**, select **Turn on**. The worker starts `tailscaled` on every server and, when you picked a service, its tailnet machine. The step shows a check mark when they run.
+
+</Step>
+<Step>
+
+### Test over the tailnet
+
+On **Test over the tailnet**, select **Run test**. The check runs inside `tailscaled` on one of your servers. With a published service, it pings the service's tailnet machine across the tailnet. Without one, it shows the server's tailnet address. Select **Done** when it passes.
+
+</Step>
+</Steps>
+
+## Publish another service
+
+On the **Tailscale** page, select **Publish a service**. The wizard skips the auth key and creates one more tailnet machine. Each published service appears under **Published services** with its hostname, service, port, and whether it serves HTTPS.
+
+To stop publishing a service, select the trash icon on its row. The service keeps running; only its tailnet machine goes away.
+
+## Check that it works
+
+- In the Tailscale admin console, **Machines** lists each server under its hostname and each published service under its tailnet hostname.
+- From a device in the tailnet, open `https://grafana.<your-tailnet>.ts.net`, or `http://grafana` for an HTTP publication.
+- On the **Tailscale** page, **Nodes** shows **Running**. A row with a red message shows the worker's last error for it.
+
+## Turn Tailscale off
+
+On the **Tailscale** page, select **Turn off** and confirm. LogiStack forgets the auth key and deletes every publication. The worker then removes `tailscaled` from every server, each published service's tailnet machine, and their serve configs. It removes only Docker objects it labelled for Tailscale. With an ephemeral key, the machines leave your tailnet on their own.
+
+## How it works
+
+- `tailscaled` runs as a global Swarm service on the host network, so every server, including ones you add later, joins the tailnet. It uses userspace networking, so it needs no TUN device and no extra capabilities.
+- Each published service gets a one-replica service on the service's environment network. It runs `tailscale serve`, which proxies the tailnet hostname to the service's port.
+- The auth key reaches the containers through an environment variable, never a command-line argument.
+
+## Troubleshooting
+
+**The Turn on step shows an error.** Read the message under **It didn't start**. An expired or revoked key fails here; generate a new one and run the wizard again to replace it.
+
+**The test says the service didn't answer.** A new machine takes a few seconds to appear in the tailnet; select **Run test** again. Check that the service is running and that **Container port** is the port it listens on.
+
+**The browser warns about the certificate.** HTTPS Certificates is off in the admin console. Turn it on, or publish the service with HTTPS off.
+
+**A server joined twice.** It used a non-ephemeral key and restarted. Remove the offline machine in the admin console, and switch to an ephemeral key.

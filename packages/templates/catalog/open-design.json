@@ -41,7 +41,7 @@
 				"OD_BIND_HOST": "0.0.0.0",
 				"OD_PORT": "7456",
 				"OD_API_TOKEN": "${{ inputs.apiToken }}",
-				"OD_ALLOWED_ORIGINS": "https://${{ inputs.mainDomain }},http://${{ inputs.mainDomain }}",
+				"OD_ALLOWED_ORIGINS": "https://${{ inputs.mainDomain }}",
 				"OD_DISABLE_API_AUTH": "1"
 			},
 			"volumes": [

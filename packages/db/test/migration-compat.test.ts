@@ -20,7 +20,11 @@ const BREAKING: [RegExp, string][] = [
 ];
 
 /** Written before updates rolled; never edited again. */
-const GRANDFATHERED = new Set(["0009_node_token_org.sql"]);
+const GRANDFATHERED = new Set([
+	"0009_node_token_org.sql",
+	// Its DELETEs sit in a trigger function body (scope cleanup), not in the migration itself.
+	"0040_scope_cleanup.sql",
+]);
 
 const dir = join(import.meta.dir, "..", "drizzle");
 

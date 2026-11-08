@@ -6,7 +6,10 @@ import { connect } from "node:tls";
 import { compileProxy } from "@logistack/proxy";
 import { RedisClient } from "bun";
 import { planAcmeImport, storeInCaddy } from "../src/acme-import.ts";
-import { CADDY_PREFIX } from "../src/certs.ts";
+import { CADDY_PREFIX, readCaddyCerts } from "../src/certs.ts";
+
+/** 32 characters, as the storage module takes it; production derives it from the master key. */
+const STORAGE_KEY = "0123456789abcdef0123456789abcdef";
 
 /** Every object here is named `ls-test-mig4-*` and labelled `logistack.test=mig4`; cleanup removes exactly these. */
 const P = "ls-test-mig4-";
@@ -102,6 +105,23 @@ describe.skipIf(!hasImage)(
 
 		test("Caddy serves the imported certificate from its first second, without asking the CA", async () => {
 			const plan = planAcmeImport(await raw, [HOST], new Date());
+			// Stored encrypted this time: Caddy must read the module's format as the worker writes it.
+			await redis.send("FLUSHALL", []);
+			expect(
+				await storeInCaddy(redis, plan, new Date(), CADDY_PREFIX, STORAGE_KEY),
+			).toEqual([HOST]);
+			const stored = JSON.parse(
+				(await redis.get(
+					`${CADDY_PREFIX}/${plan.imports[0]?.files.at(-1)?.key}`,
+				)) ?? "{}",
+			);
+			expect(stored.encryption).toBe(1);
+			expect(atob(stored.value)).not.toContain("BEGIN");
+			expect(
+				(await readCaddyCerts(redis, CADDY_PREFIX, STORAGE_KEY)).map(
+					(c) => c.names,
+				),
+			).toEqual([[HOST]]);
 			const config = compileProxy({
 				settings: {
 					adminListen: "localhost:2019",
@@ -109,6 +129,7 @@ describe.skipIf(!hasImage)(
 					storage: {
 						redisUrl: `redis://${REDIS}:6379`,
 						keyPrefix: CADDY_PREFIX,
+						encryptionKey: STORAGE_KEY,
 					},
 				},
 				dashboard: { hostname: HOST, upstream: { host: "127.0.0.1", port: 9 } },

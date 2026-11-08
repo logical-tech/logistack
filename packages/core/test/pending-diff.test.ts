@@ -122,6 +122,17 @@ describe("diffSpecs", () => {
 		expect(body).not.toContain("NEWVALUE");
 	});
 
+	test("drain timeout in seconds, not nanoseconds", () => {
+		expect(
+			diffSpecs(snap(), snap({ spec: { drainTimeout: 30 } })),
+		).toContainEqual({
+			area: "other",
+			path: "TaskTemplate.ContainerSpec.StopGracePeriod",
+			before: "10s",
+			after: "30s",
+		});
+	});
+
 	test("image", () => {
 		expect(summaries({}, { image: "nginx:1.28" })).toEqual([
 			"image nginx:1.27 → nginx:1.28",
@@ -221,5 +232,18 @@ describe("diffSpecs", () => {
 		expect(summaries({}, { spec: { command: ["serve"] } })).toEqual([
 			"command changed",
 		]);
+	});
+});
+
+describe("specSnapshot", () => {
+	test("records an external secret's placeholder, never its value", () => {
+		const s = specSnapshot(base, {
+			API_URL: { isSecret: false },
+			API_KEY: { isSecret: true, snapshotValue: "external:sec_1:abc" },
+		});
+		const env = s.spec.TaskTemplate.ContainerSpec.Env ?? [];
+		expect(env).toContain("API_KEY=external:sec_1:abc");
+		expect(env).toContain("API_URL=https://a.example.com");
+		expect(JSON.stringify(s)).not.toContain("HUNTER2");
 	});
 });

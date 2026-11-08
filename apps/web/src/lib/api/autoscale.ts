@@ -1,4 +1,4 @@
-import type { AutoscaleInput } from "@logistack/contracts";
+import type { AutoscaleFixId, AutoscaleInput } from "@logistack/contracts";
 import {
 	keepPreviousData,
 	queryOptions,
@@ -19,6 +19,14 @@ export type AutoscalePreview = InferResponseType<
 	(typeof a.preview)["$get"],
 	200
 >;
+export type AutoscaleFixResult = InferResponseType<
+	(typeof a.fixes)[":fixId"]["$post"],
+	200
+>;
+export type AutoscaleFixProbe = InferResponseType<
+	(typeof a.fixes.add_healthcheck.probe)["$post"],
+	200
+>;
 export type PreviewQuery = Pick<
 	AutoscaleInput,
 	"minReplicas" | "maxReplicas" | "behavior" | "targetCpu"
@@ -28,11 +36,16 @@ export type AutoscaleApi = {
 	get(id: ServiceId): Promise<AutoscaleView>;
 	save(id: ServiceId, input: AutoscaleInput): Promise<AutoscaleView>;
 	preview(id: ServiceId, q: PreviewQuery): Promise<AutoscalePreview>;
+	fix(id: ServiceId, fixId: AutoscaleFixId): Promise<AutoscaleFixResult>;
+	probeHealthcheck(id: ServiceId): Promise<AutoscaleFixProbe>;
 };
 
 const http: AutoscaleApi = {
 	get: (id) => ok(a.$get({ param: { id } })),
 	save: (id, json) => ok(a.$put({ param: { id }, json })),
+	fix: (id, fixId) => ok(a.fixes[":fixId"].$post({ param: { id, fixId } })),
+	probeHealthcheck: (id) =>
+		ok(a.fixes.add_healthcheck.probe.$post({ param: { id } })),
 	preview: (id, q) =>
 		ok(
 			a.preview.$get({
@@ -73,6 +86,18 @@ export function useSaveAutoscale(id: ServiceId) {
 		mutationFn: (input: AutoscaleInput) => autoscaleApi.save(id, input),
 		onSuccess: (saved) => {
 			qc.setQueryData(autoscaleQuery(id).queryKey, saved);
+			void qc.invalidateQueries({ queryKey: serviceKey(id) });
+		},
+	});
+}
+
+/** Applies a check's AutoFix; the server recomputes it and queues a deployment. */
+export function useApplyAutoscaleFix(id: ServiceId) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (fixId: AutoscaleFixId) => autoscaleApi.fix(id, fixId),
+		onSuccess: ({ view }) => {
+			qc.setQueryData(autoscaleQuery(id).queryKey, view);
 			void qc.invalidateQueries({ queryKey: serviceKey(id) });
 		},
 	});

@@ -52,6 +52,13 @@
 			"label": "Ryot password",
 			"type": "password",
 			"length": 64
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -63,7 +70,7 @@
 			"env": {
 				"DATABASE_URL": "postgres://${{ inputs.postgresUser }}:${{ inputs.postgresPassword }}@${{ services.postgresql.host }}:5432/${{ inputs.postgresDb }}",
 				"SERVER_ADMIN_ACCESS_TOKEN": "${{ inputs.ryotPassword }}",
-				"TZ": "Europe/Amsterdam"
+				"TZ": "${{ inputs.timezone }}"
 			},
 			"volumes": [],
 			"files": [],
@@ -90,7 +97,7 @@
 				"POSTGRES_USER": "${{ inputs.postgresUser }}",
 				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
 				"POSTGRES_DB": "ryot-db",
-				"TZ": "Europe/Amsterdam"
+				"TZ": "${{ inputs.timezone }}"
 			},
 			"volumes": [
 				{

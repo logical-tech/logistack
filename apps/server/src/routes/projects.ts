@@ -7,7 +7,7 @@ import {
 import { environment, project, service, serviceStatus } from "@logistack/db";
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import { one } from "../errors.ts";
 import {
 	body,
@@ -222,9 +222,9 @@ export const projects = router()
 					kind: "production",
 					isDefault: true,
 				});
+				await auditInTx(c, tx, { resourceId: created.id });
 				return created;
 			});
-			c.set("auditResourceId", row.id);
 			return c.json(row, 201);
 		},
 	)
@@ -311,6 +311,7 @@ export const projects = router()
 			const { id } = c.req.valid("param");
 			const { db, config } = c.var.deps;
 			const row = await db.transaction(async (tx) => {
+				await auditInTx(c, tx);
 				await tx
 					.update(service)
 					.set({ desiredState: "stopped", stoppedByArchive: true })
@@ -340,6 +341,7 @@ export const projects = router()
 			const { id } = c.req.valid("param");
 			const { db, config } = c.var.deps;
 			const row = await db.transaction(async (tx) => {
+				await auditInTx(c, tx);
 				await tx
 					.update(service)
 					.set({ desiredState: "running", stoppedByArchive: false })
@@ -424,6 +426,7 @@ export const projects = router()
 			const { id } = c.req.valid("param");
 			const input = c.req.valid("json");
 			const row = await c.var.deps.db.transaction(async (tx) => {
+				await auditInTx(c, tx);
 				if (input.isDefault) {
 					const projectId = sql`(select ${environment.projectId} from ${environment} where ${environment.id} = ${id})`;
 					// One default per project (partial unique index): clear the old one first.

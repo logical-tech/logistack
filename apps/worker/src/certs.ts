@@ -10,6 +10,7 @@ import {
 import type { RedisClient } from "bun";
 import { eq } from "drizzle-orm";
 import { log } from "./bus.ts";
+import { caddyStorageKey, openFile, type StoredFile } from "./caddy-storage.ts";
 import type { Ctx } from "./ctx.ts";
 
 /** Same key as apps/server/src/redis.ts; the server reads the snapshot from it. */
@@ -55,6 +56,7 @@ export function describePem(pem: string): ManagedCert {
 export async function readCaddyCerts(
 	redis: RedisClient,
 	prefix = CADDY_PREFIX,
+	key?: string,
 ): Promise<ManagedCert[]> {
 	const keys: string[] = [];
 	let cursor = "0";
@@ -71,22 +73,26 @@ export async function readCaddyCerts(
 		keys.push(...batch);
 	} while (cursor !== "0");
 	const certs: ManagedCert[] = [];
-	for (const key of keys.sort()) {
-		const raw = await redis.get(key);
+	for (const name of keys.sort()) {
+		const raw = await redis.get(name);
 		try {
-			const { value } = JSON.parse(raw ?? "") as { value: string };
+			const file = JSON.parse(raw ?? "") as StoredFile;
 			certs.push(
-				describePem(new TextDecoder().decode(Uint8Array.fromBase64(value))),
+				describePem(new TextDecoder().decode(await openFile(file, key))),
 			);
 		} catch {
-			log("warn", "unreadable certificate in caddy storage", { key });
+			log("warn", "unreadable certificate in caddy storage", { key: name });
 		}
 	}
 	return certs;
 }
 
 export async function refreshCertSnapshot(ctx: Ctx): Promise<ManagedCert[]> {
-	const certs = await readCaddyCerts(ctx.bus.redis);
+	const certs = await readCaddyCerts(
+		ctx.bus.redis,
+		CADDY_PREFIX,
+		await caddyStorageKey(ctx),
+	);
 	const snapshot: CertSnapshot = { at: new Date().toISOString(), certs };
 	await ctx.bus.redis.set(CERTS_KEY, JSON.stringify(snapshot));
 	return certs;

@@ -205,6 +205,11 @@ describe.skipIf(!hasDocker)("git stacks", () => {
 		expect(res.json.reason).toContain("stack infra");
 		const detail = await h.call("GET", `/api/stacks/${stackId}`, as());
 		expect(detail.json.composeYaml).toBe(V2);
+		expect(detail.json.gitSyncError).toMatchObject({
+			commitSha: SHA,
+			message: "the compose file uses features LogiStack cannot run",
+			details: [expect.stringContaining("privileged")],
+		});
 	});
 
 	test("sync previews with dryRun, then applies the head of the branch", async () => {
@@ -227,6 +232,7 @@ describe.skipIf(!hasDocker)("git stacks", () => {
 		expect(applied.json.services).toHaveLength(1);
 		const detail = await h.call("GET", `/api/stacks/${stackId}`, as());
 		expect(detail.json.composeYaml).toBe(V1);
+		expect(detail.json.gitSyncError).toBeNull();
 	});
 
 	test("a missing file is a 422 and creates nothing", async () => {

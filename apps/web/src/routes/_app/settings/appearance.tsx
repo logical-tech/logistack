@@ -6,6 +6,9 @@ import { Page, PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
 import { Segmented } from "@/components/segmented";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { useIsSponsor } from "@/lib/api/sponsor";
+import { setSponsorGlow, useSponsorGlow } from "@/lib/sponsor-glow";
 import { type ThemePreference, useTheme } from "@/lib/theme";
 import {
 	DEFAULT_THEME,
@@ -41,6 +44,8 @@ const toStyle = (t: Tokens | undefined) =>
 
 function Appearance() {
 	const { preference, resolved, name, setTheme, setThemeName } = useTheme();
+	const { sponsor } = useIsSponsor();
+	const glow = useSponsorGlow();
 	const [filter, setFilter] = useState("");
 	// Resolving every theme once costs a few milliseconds; the page re-renders on each pick.
 	const entries = useMemo(
@@ -101,6 +106,25 @@ function Appearance() {
 						/>
 					</div>
 				</Panel>
+
+				{sponsor && (
+					<Panel id="sponsor-glow" title="Sponsor glow">
+						<div className="flex flex-wrap items-center justify-between gap-4 p-4">
+							<label
+								htmlFor="sponsor-glow-switch"
+								className="max-w-[60ch] cursor-pointer text-sm text-pretty text-muted-foreground"
+							>
+								A faint rose light in the corner, our thanks for sponsoring.
+								Turn it off if you prefer a plain screen.
+							</label>
+							<Switch
+								id="sponsor-glow-switch"
+								checked={glow}
+								onCheckedChange={setSponsorGlow}
+							/>
+						</div>
+					</Panel>
+				)}
 
 				<section aria-labelledby="theme-heading" className="grid gap-4">
 					<div className="flex flex-wrap items-end justify-between gap-3">

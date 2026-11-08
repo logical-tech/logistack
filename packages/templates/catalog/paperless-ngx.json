@@ -53,7 +53,7 @@
 				"PAPERLESS_DBUSER": "paperless",
 				"PAPERLESS_DBPASS": "${{ inputs.postgresPassword }}",
 				"PAPERLESS_SECRET_KEY": "${{ inputs.paperlessSecretKey }}",
-				"PAPERLESS_URL": "http://${{ inputs.mainDomain }}",
+				"PAPERLESS_URL": "https://${{ inputs.mainDomain }}",
 				"PAPERLESS_TIME_ZONE": "UTC",
 				"PAPERLESS_OCR_LANGUAGE": "eng"
 			},

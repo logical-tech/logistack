@@ -124,6 +124,13 @@ export const stack = pgTable(
 		composeYamlEncrypted: text("compose_yaml_encrypted"),
 		/** Where the compose file lives when `source` is git. */
 		git: jsonb("git").$type<StackGitSource>(),
+		/** Why the last push could not be applied; cleared by the next git update that applies. */
+		gitSyncError: jsonb("git_sync_error").$type<{
+			at: string;
+			commitSha: string | null;
+			message: string;
+			details: string[];
+		}>(),
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),

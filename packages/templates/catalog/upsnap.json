@@ -24,6 +24,13 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "timezone",
+			"label": "Timezone",
+			"description": "IANA time zone, for example Europe/Rome.",
+			"type": "text",
+			"default": "UTC"
 		}
 	],
 	"services": [
@@ -31,7 +38,7 @@
 			"name": "upsnap",
 			"dependsOn": [],
 			"env": {
-				"TZ": "Europe/Berlin",
+				"TZ": "${{ inputs.timezone }}",
 				"UPSNAP_INTERVAL": "*/10 * * * * *",
 				"UPSNAP_SCAN_RANGE": "192.168.1.0/24",
 				"UPSNAP_SCAN_TIMEOUT": "500ms",

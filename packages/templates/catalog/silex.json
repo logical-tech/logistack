@@ -37,7 +37,7 @@
 			"name": "silex",
 			"dependsOn": [],
 			"env": {
-				"SILEX_URL": "http://${{ inputs.mainDomain }}",
+				"SILEX_URL": "https://${{ inputs.mainDomain }}",
 				"SILEX_SESSION_SECRET": "${{ inputs.sessionSecret }}",
 				"STORAGE_CONNECTORS": "fs",
 				"HOSTING_CONNECTORS": "fs,download",

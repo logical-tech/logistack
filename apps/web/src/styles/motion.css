@@ -228,7 +228,43 @@
 	scale: 0.96;
 }
 
+/*
+ * Sponsor glow: two soft radials anchored past the bottom-left corner, stretched
+ * toward the top-right. Fades in once, then breathes very slowly.
+ */
+.sponsor-glow {
+	--glow-a: oklch(0.72 0.19 350 / 0.13);
+	--glow-b: oklch(0.7 0.22 15 / 0.09);
+	position: fixed;
+	inset: 0;
+	z-index: 20;
+	pointer-events: none;
+	background:
+		radial-gradient(ellipse 70% 55% at 0% 100%, var(--glow-a), transparent 70%),
+		radial-gradient(ellipse 110% 80% at 0% 100%, var(--glow-b), transparent 65%);
+	animation:
+		sponsor-glow-in 1.6s var(--ease-smooth-out) both,
+		sponsor-glow-breathe 14s var(--ease-in-out) 1.6s infinite alternate;
+}
+.dark .sponsor-glow {
+	--glow-a: oklch(0.65 0.22 350 / 0.16);
+	--glow-b: oklch(0.62 0.22 10 / 0.1);
+}
+@keyframes sponsor-glow-in {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes sponsor-glow-breathe {
+	to {
+		opacity: 0.7;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
+	.sponsor-glow {
+		animation: none !important;
+	}
 	*,
 	*::before,
 	*::after {

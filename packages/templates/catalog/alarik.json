@@ -48,8 +48,8 @@
 			"name": "alarik",
 			"dependsOn": [],
 			"env": {
-				"API_BASE_URL": "http://${{ inputs.apiDomain }}",
-				"CONSOLE_BASE_URL": "http://${{ inputs.consoleDomain }}",
+				"API_BASE_URL": "https://${{ inputs.apiDomain }}",
+				"CONSOLE_BASE_URL": "https://${{ inputs.consoleDomain }}",
 				"ADMIN_USERNAME": "alarik",
 				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
 				"JWT": "${{ inputs.jwt }}",
@@ -82,8 +82,8 @@
 				"alarik"
 			],
 			"env": {
-				"NUXT_PUBLIC_API_BASE_URL": "http://${{ inputs.apiDomain }}",
-				"NUXT_PUBLIC_CONSOLE_BASE_URL": "http://${{ inputs.consoleDomain }}",
+				"NUXT_PUBLIC_API_BASE_URL": "https://${{ inputs.apiDomain }}",
+				"NUXT_PUBLIC_CONSOLE_BASE_URL": "https://${{ inputs.consoleDomain }}",
 				"NUXT_PUBLIC_ALLOW_ACCOUNT_CREATION": "false"
 			},
 			"volumes": [],

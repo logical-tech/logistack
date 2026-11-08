@@ -1,0 +1,80 @@
+---
+title: Chat with the Agent
+description: Ask the built-in Agent to check, deploy or change your services in plain language. It calls the LogiStack API with your permissions and asks before it deletes or stops anything.
+---
+
+The Agent is a chat inside the dashboard. You describe what you want, such as "which services use the most memory?" or "add a daily backup to every Postgres database", and it finds the right API operations and runs them for you. It acts with your own permissions, so it can do what you can do in the dashboard and nothing more. Use it for questions that span many services, and for repetitive changes you would otherwise click through one by one.
+
+<Callout type="info">
+The Agent is in alpha. Check what it did in the chat and in the [audit log](../team/audit-log.mdx), especially after changes to production.
+</Callout>
+
+## Before you start
+
+- Your role needs the **AI** permission. Owners and admins have it. Other members need a role that grants it, see [Roles and permissions](../team/roles-and-permissions.mdx).
+- The Agent uses the models of the LogiStack AI gateway. An owner or admin adds model providers on the **AI** page, in the **Providers** tab.
+- Every answer spends your AI budget, set by an owner or admin in the **Budgets** tab of the **AI** page.
+
+## Start a conversation
+
+<Steps>
+<Step>
+
+### Open the Agent
+
+Select **Agent** in the sidebar. The page shows your past conversations on the left and the open conversation on the right.
+
+![The Agent page with an empty conversation, suggested prompts and the message box at the bottom](/screens/agent.webp)
+
+</Step>
+<Step>
+
+### Pick a model
+
+Select the model button in the message box. **Auto (free first)** tries the free models of the gateway first. You can also pick a specific model, grouped by provider.
+
+</Step>
+<Step>
+
+### Ask
+
+Type what you want in the message box, or pick one of the suggestions, and press <kbd>Enter</kbd>. For example:
+
+```text
+Deploy the latest commit of every service in production, then tell me which ones failed.
+```
+
+</Step>
+</Steps>
+
+The Agent writes its answer as it works. Each API call it makes appears as a step you can expand, with the operation, its input and its output. For longer jobs it keeps a **Tasks** list at the top of the answer and checks items off as it goes.
+
+The conversation runs on the server. You can close the page or open another one: the Agent keeps working, and the conversation is there when you come back. The open conversation is in the page URL, so a refresh lands on it again.
+
+## Approve or deny an operation
+
+Operations that delete or stop something never run on their own. When the Agent wants to run one, it pauses and shows **The Agent wants to run** with the operation's name.
+
+- Select **Approve** to run it.
+- Select **Deny** to skip it. The Agent is told you denied it and continues without it.
+
+While it waits, the message box says **Waiting for your approval**. If you type a reply instead, the pending operations are denied and the Agent reads your message.
+
+## Stop, rename or delete a conversation
+
+- Select the stop button in the message box to stop the Agent while it is working. Send a new message to continue.
+- Select **New chat** to start over in an empty conversation.
+- To delete a conversation, select the delete button next to it in the list and confirm. A conversation that is still running stops first.
+
+## What the Agent can do
+
+The Agent sees the same operations as the [REST API](./rest-api.mdx) and the [MCP server](./mcp-server.mdx): projects, services, deployments, domains, variables, backups, databases, nodes and the rest. It searches them by what you ask, then calls them as you. It cannot change its own conversations, and it cannot do anything your role does not allow: an operation you are not permitted to run fails, and the Agent tells you so.
+
+Every change it makes appears in the [audit log](../team/audit-log.mdx) under your name.
+
+## Common problems
+
+- **"Your role doesn't include AI"**: ask an owner or admin to add the AI permission to your role.
+- **The Agent stopped with an error**: the reason appears under **The Agent stopped**. For example, your AI budget ran out or the model provider refused the request. Fix the cause, then send a message to continue.
+- **"Stopped after 40 steps without finishing"**: the Agent made 40 calls in one turn. Send a message, such as "continue", to let it go on.
+- **It did the wrong thing**: deny operations you don't want, stop it, and say what to do differently. Changes it already made stay; undo them in the dashboard or ask the Agent to revert them.

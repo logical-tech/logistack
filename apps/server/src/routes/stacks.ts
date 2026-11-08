@@ -79,6 +79,15 @@ const Stack = z
 		templateId: z.string().nullable(),
 		/** Where the compose file lives, for a git stack. */
 		git: StackGitSource.nullable(),
+		/** Why the last push to a git stack was not applied; null once one applies. */
+		gitSyncError: z
+			.object({
+				at: z.string(),
+				commitSha: z.string().nullable(),
+				message: z.string(),
+				details: z.array(z.string()),
+			})
+			.nullable(),
 		createdBy: z.string().nullable(),
 		createdAt: z.string(),
 		updatedAt: z.string(),
@@ -133,6 +142,7 @@ const stackColumns = {
 	source: stack.source,
 	templateId: stack.templateId,
 	git: stack.git,
+	gitSyncError: stack.gitSyncError,
 	createdBy: stack.createdBy,
 	createdAt: stack.createdAt,
 	updatedAt: stack.updatedAt,
@@ -563,9 +573,25 @@ export async function syncGitStacks(
 				if (s.deploymentId)
 					deployments.push({ id: s.deploymentId, serviceId: s.id });
 		} catch (e) {
-			const reason = `stack ${name}: ${e instanceof Error ? e.message : String(e)}`;
+			const message = e instanceof Error ? e.message : String(e);
+			const reason = `stack ${name}: ${message}`;
 			log("warn", "git stack sync failed", { stackId: id, reason });
 			failures.push(reason);
+			const details =
+				e instanceof Failure && Array.isArray(e.details)
+					? e.details.map(String)
+					: [];
+			await db
+				.update(stack)
+				.set({
+					gitSyncError: {
+						at: new Date().toISOString(),
+						commitSha: push.commitSha ?? null,
+						message,
+						details,
+					},
+				})
+				.where(eq(stack.id, id));
 		}
 	}
 	return { deployments, failures };
@@ -815,6 +841,7 @@ export async function updateStack(
 			.update(stack)
 			.set({
 				composeYamlEncrypted: await encrypt(masterKey, yaml),
+				gitSyncError: null,
 				...(fromTemplate && { source: "compose" as const }),
 			})
 			.where(eq(stack.id, stackId));

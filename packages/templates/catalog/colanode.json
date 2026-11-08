@@ -24,6 +24,24 @@
 			"label": "Main domain",
 			"type": "domain",
 			"role": "primary"
+		},
+		{
+			"key": "postgresPassword",
+			"label": "Postgres password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "valkeyPassword",
+			"label": "Valkey password",
+			"type": "password",
+			"length": 32
+		},
+		{
+			"key": "minioPassword",
+			"label": "MinIO password",
+			"type": "password",
+			"length": 32
 		}
 	],
 	"services": [
@@ -32,7 +50,7 @@
 			"dependsOn": [],
 			"env": {
 				"POSTGRES_USER": "colanode_user",
-				"POSTGRES_PASSWORD": "your_postgres_password",
+				"POSTGRES_PASSWORD": "${{ inputs.postgresPassword }}",
 				"POSTGRES_DB": "colanode_db"
 			},
 			"volumes": [
@@ -50,7 +68,9 @@
 		{
 			"name": "valkey",
 			"dependsOn": [],
-			"env": {},
+			"env": {
+				"VALKEY_PASSWORD": "${{ inputs.valkeyPassword }}"
+			},
 			"volumes": [
 				{
 					"name": "valkey-data",
@@ -61,9 +81,9 @@
 			"kind": "application",
 			"image": "valkey/valkey:8.1",
 			"command": [
-				"valkey-server",
-				"--requirepass",
-				"your_valkey_password"
+				"sh",
+				"-c",
+				"exec valkey-server --requirepass \"$VALKEY_PASSWORD\""
 			],
 			"ports": [],
 			"restart": "any"
@@ -73,7 +93,7 @@
 			"dependsOn": [],
 			"env": {
 				"MINIO_ROOT_USER": "admin",
-				"MINIO_ROOT_PASSWORD": "your_minio_password",
+				"MINIO_ROOT_PASSWORD": "${{ inputs.minioPassword }}",
 				"MINIO_BROWSER": "on",
 				"MINIO_DOMAIN": "minio",
 				"MINIO_ADDRESS": ":9000",
@@ -116,21 +136,21 @@
 				"ACCOUNT_ALLOW_GOOGLE_LOGIN": "false",
 				"USER_STORAGE_LIMIT": "10737418240",
 				"USER_MAX_FILE_SIZE": "104857600",
-				"POSTGRES_URL": "postgres://colanode_user:your_postgres_password@${{ services.postgres.host }}:5432/colanode_db",
-				"REDIS_URL": "redis://:your_valkey_password@${{ services.valkey.host }}:6379/0",
+				"POSTGRES_URL": "postgres://colanode_user:${{ inputs.postgresPassword }}@${{ services.postgres.host }}:5432/colanode_db",
+				"REDIS_URL": "redis://:${{ inputs.valkeyPassword }}@${{ services.valkey.host }}:6379/0",
 				"REDIS_DB": "0",
 				"REDIS_JOBS_QUEUE_NAME": "jobs",
 				"REDIS_JOBS_QUEUE_PREFIX": "colanode",
 				"REDIS_EVENTS_CHANNEL": "events",
 				"S3_AVATARS_ENDPOINT": "http://${{ services.minio.host }}:9000",
 				"S3_AVATARS_ACCESS_KEY": "admin",
-				"S3_AVATARS_SECRET_KEY": "your_minio_password",
+				"S3_AVATARS_SECRET_KEY": "${{ inputs.minioPassword }}",
 				"S3_AVATARS_BUCKET_NAME": "colanode-avatars",
 				"S3_AVATARS_REGION": "us-east-1",
 				"S3_AVATARS_FORCE_PATH_STYLE": "true",
 				"STORAGE_S3_ENDPOINT": "http://${{ services.minio.host }}:9000",
 				"STORAGE_S3_ACCESS_KEY": "admin",
-				"STORAGE_S3_SECRET_KEY": "your_minio_password",
+				"STORAGE_S3_SECRET_KEY": "${{ inputs.minioPassword }}",
 				"STORAGE_S3_BUCKET": "colanode-files",
 				"STORAGE_S3_REGION": "us-east-1",
 				"STORAGE_S3_FORCE_PATH_STYLE": "true",

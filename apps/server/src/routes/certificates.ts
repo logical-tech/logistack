@@ -19,7 +19,7 @@ import {
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import { managedCertificates } from "../certs.ts";
 import { managedZones, Zone } from "../dns.ts";
 import type { Env } from "../env.ts";
@@ -253,9 +253,9 @@ export const certificates = router()
 						statusMessage: null,
 					})
 					.where(eq(domain.id, t.domain.id));
+				await auditInTx(c, tx, { resourceId: crt.id });
 				return crt;
 			});
-			c.set("auditResourceId", row.id);
 			await requestProxySync(config.REDIS_URL, "origin certificate").catch(
 				() => {},
 			);

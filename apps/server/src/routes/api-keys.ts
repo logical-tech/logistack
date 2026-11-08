@@ -17,7 +17,7 @@ import {
 	keyMetadata,
 	requireActor,
 } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
@@ -429,8 +429,8 @@ export const apiKeys = router()
 					role: input.role,
 					createdAt: now,
 				});
+				await auditInTx(c, tx, { resourceId: id });
 			});
-			c.set("auditResourceId", id);
 			return c.json(
 				{
 					id,
@@ -523,6 +523,7 @@ export const apiKeys = router()
 				await tx
 					.delete(user)
 					.where(and(eq(user.id, id), eq(user.kind, "machine")));
+				await auditInTx(c, tx);
 			});
 			return c.body(null, 204);
 		},

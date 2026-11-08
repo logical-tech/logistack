@@ -41,12 +41,21 @@ export function comparableInput(
 	return base;
 }
 
+/** Snapshots are stored: an external secret's value is replaced by its `snapshotValue`. */
 export function specSnapshot(
 	input: CompileServiceInput,
-	env: Record<string, { isSecret: boolean }>,
+	env: Record<string, { isSecret: boolean; snapshotValue?: string }>,
 ): SpecSnapshot {
+	const spec = compileService(comparableInput(input));
+	const c = spec.TaskTemplate.ContainerSpec;
+	if (c.Env)
+		c.Env = c.Env.map((e) => {
+			const key = e.slice(0, e.indexOf("="));
+			const swap = env[key]?.snapshotValue;
+			return swap === undefined ? e : `${key}=${swap}`;
+		});
 	return {
-		spec: compileService(comparableInput(input)),
+		spec,
 		plainEnv: Object.keys(env).filter((k) => !env[k]?.isSecret),
 	};
 }
@@ -161,9 +170,21 @@ function leafDiff(
 			leafDiff(b[k], a[k], path ? `${path}.${k}` : k, out);
 		return;
 	}
-	if (!same(b, a))
-		out.push({ area: "other", path, before: b ?? null, after: a ?? null });
+	if (same(b, a)) return;
+	const human = humanUnits[path] ?? ((v: unknown) => v);
+	out.push({
+		area: "other",
+		path,
+		before: b == null ? null : human(b),
+		after: a == null ? null : human(a),
+	});
 }
+
+/** Leaves Swarm stores in machine units, shown the way the settings form takes them. */
+const humanUnits: Record<string, (v: unknown) => unknown> = {
+	"TaskTemplate.ContainerSpec.StopGracePeriod": (ns) =>
+		typeof ns === "number" ? `${ns / 1e9}s` : ns,
+};
 
 /**
  * Pure: what changes from `before` to `after`. An env value is included only when its key is
