@@ -63,6 +63,8 @@ export type AgentGatewayDeps = {
 	): Promise<AgentAdmission | AgentRefusal>;
 	/** `ls:nodes:<id>` TTL, and how long a closed node may take to come back before `node.down`. */
 	ttlSec?: number;
+	/** Names this replica in `ls:nodes:<id>`, so only the replica holding the newest socket serves its RPCs. */
+	replicaId?: string;
 };
 
 /** One shared token admits any node into `organizationId`; for tests and the RSS soak, which have no database. */
@@ -144,6 +146,10 @@ export type CallOptions = { signal?: AbortSignal };
 
 export type Agents = {
 	connected(): AgentNode[];
+	/** This replica's name in `ls:nodes:<id>`. */
+	replicaId: string;
+	/** Closes a node's socket on this replica, if it holds one (a revoked token). */
+	disconnect(nodeId: string, reason: string): boolean;
 	/** Called when a node's socket on this replica opens (also on a replacing reconnect) or closes. */
 	watch(listener: (nodeId: string, connected: boolean) => void): () => void;
 	exec(nodeId: string, req: Req<"exec.start">, opts?: CallOptions): ExecHandle;
@@ -242,6 +248,7 @@ export function mountAgentGateway(
 ): Agents {
 	const { redis, bus } = deps;
 	const ttl = deps.ttlSec ?? 30;
+	const replicaId = deps.replicaId ?? crypto.randomUUID();
 	const nodes = new Map<string, Conn>();
 	const watchers = new Set<(nodeId: string, connected: boolean) => void>();
 	const notify = (nodeId: string, connected: boolean) => {
@@ -279,7 +286,7 @@ export function mountAgentGateway(
 	const touch = (node: AgentNode) =>
 		redis.send("SET", [
 			NODE_KEY(node.nodeId),
-			JSON.stringify({ ...node, lastSeenAt: new Date() }),
+			JSON.stringify({ ...node, replica: replicaId, lastSeenAt: new Date() }),
 			"EX",
 			String(ttl),
 		]);
@@ -566,6 +573,14 @@ export function mountAgentGateway(
 
 	return {
 		connected: () => [...nodes.values()].map((c) => c.node),
+		replicaId,
+
+		disconnect(nodeId, reason) {
+			const conn = nodes.get(nodeId);
+			if (!conn) return false;
+			conn.ws.close(4001, reason);
+			return true;
+		},
 
 		watch(listener) {
 			watchers.add(listener);

@@ -178,6 +178,26 @@ const opts = (o: Partial<UpdateOptions> = {}): UpdateOptions => ({
 });
 
 describe("runUpdate", () => {
+	test("a scaled api keeps its replica count", async () => {
+		const swarm = fakeSwarm({});
+		const api = swarm.services.get("logistack_logistack-api");
+		if (!api) throw new Error("no api");
+		api.Spec.Mode = { Replicated: { Replicas: 3 } };
+		const r = recorder();
+		expect(
+			await runUpdate(
+				swarm.docker,
+				targets("0.2.0"),
+				r.report,
+				opts(),
+				fakeGate(swarm.calls),
+			),
+		).toEqual({ ok: true });
+		expect(swarm.services.get("logistack_logistack-api")?.Spec.Mode).toEqual({
+			Replicated: { Replicas: 3 },
+		});
+	});
+
 	test("pulls every image first, then updates api, agent, caddy and the worker last", async () => {
 		const swarm = fakeSwarm({});
 		const r = recorder();
