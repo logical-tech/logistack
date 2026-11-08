@@ -8,6 +8,7 @@
 		"wildcard-dns",
 		"dns-providers",
 		"cloudflare-tunnels",
+		"tailscale",
 		"access-control",
 		"network-map"
 	]

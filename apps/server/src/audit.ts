@@ -10,7 +10,8 @@ import { log } from "./log.ts";
 export type AuditAction = `${string}.${string}`;
 
 // `config` holds a whole channel config (webhook URLs carry tokens), so it goes wholesale.
-const SECRET_KEY = /password|secret|token|credential|private|^value$|^config$/i;
+const SECRET_KEY =
+	/password|secret|token|credential|private|authkey|^value$|^config$/i;
 
 /** Replaces every value under a secret-looking key with "[redacted]", at any depth. */
 export function redact(value: unknown): unknown {

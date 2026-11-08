@@ -122,3 +122,44 @@ export const gameEndpoint = pgTable(
 	},
 	(t) => [index("game_endpoint_service_id_idx").on(t.serviceId)],
 );
+
+/**
+ * Tailscale for an organization: the worker runs tailscaled on every node with this auth key
+ * (userspace networking, in-memory state, so an ephemeral key leaves nothing behind).
+ */
+export const tailscaleNetwork = pgTable("tailscale_network", {
+	id: id("tsn"),
+	organizationId: text("organization_id")
+		.notNull()
+		.unique()
+		.references(() => organization.id, { onDelete: "cascade" }),
+	authKeyEncrypted: text("auth_key_encrypted").notNull(),
+	/** Swarm id of the per-node tailscaled, recorded by the worker; the test step execs into it. */
+	nodeServiceId: text("node_service_id"),
+	statusMessage: text("status_message"),
+	...timestamps,
+});
+
+/** A service published on its own tailnet machine through `tailscale serve`. */
+export const tailscalePublication = pgTable(
+	"tailscale_publication",
+	{
+		id: id("tsp"),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		serviceId: text("service_id")
+			.notNull()
+			.references(() => service.id, { onDelete: "cascade" }),
+		/** The tailnet machine name; MagicDNS serves it as `<hostname>.<tailnet>.ts.net`. */
+		hostname: text("hostname").notNull(),
+		port: integer("port").notNull(),
+		/** HTTPS on 443 with a tailnet certificate; otherwise plain HTTP on 80. */
+		https: boolean("https").notNull().default(true),
+		statusMessage: text("status_message"),
+		...timestamps,
+	},
+	(t) => [
+		unique("tailscale_publication_hostname").on(t.organizationId, t.hostname),
+	],
+);

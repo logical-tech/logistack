@@ -88,6 +88,8 @@ export const shots: Record<string, Shot> = {
 	"tunnel-new": "/integrations/tunnels/new",
 	"log-drains": "/integrations/log-drains",
 	"log-drain-new": "/integrations/log-drains/new",
+	tailscale: "/integrations/tailscale",
+	"tailscale-new": "/integrations/tailscale/new",
 	notifications: "/integrations/notifications",
 	"notification-new": "/integrations/notifications/new",
 	"secret-providers": "/integrations/secret-providers",

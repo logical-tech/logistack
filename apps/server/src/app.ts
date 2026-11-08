@@ -62,6 +62,7 @@ import { sshKeys } from "./routes/ssh-keys.ts";
 import { sso } from "./routes/sso.ts";
 import { stacks } from "./routes/stacks.ts";
 import { storage } from "./routes/storage.ts";
+import { tailscale } from "./routes/tailscale.ts";
 import { templates } from "./routes/templates.ts";
 import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
@@ -184,6 +185,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", webhooks)
 		.route("/api", s3Destinations)
 		.route("/api", tunnels)
+		.route("/api", tailscale)
 		.route("/api", serviceAuth)
 		.route("/api", backups)
 		.route("/api", schedules)

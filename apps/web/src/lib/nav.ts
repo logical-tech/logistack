@@ -21,6 +21,7 @@ import {
 	LockKeyhole,
 	type LucideIcon,
 	Network,
+	Orbit,
 	Palette,
 	ScrollText,
 	Settings2,
@@ -237,6 +238,14 @@ export const NAV: NavGroup[] = [
 					"syslog",
 					"observability",
 				],
+			},
+			{
+				to: "/integrations/tailscale",
+				title: "Tailscale",
+				icon: Orbit,
+				description:
+					"Join servers to your tailnet and publish services on tailnet hostnames.",
+				keywords: ["tailnet", "vpn", "wireguard", "homelab", "private"],
 			},
 			{
 				to: "/integrations/notifications",
