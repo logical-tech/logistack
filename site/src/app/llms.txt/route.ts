@@ -1,4 +1,5 @@
 import { site } from "@/content/site";
+import { allPosts } from "@/lib/blog";
 
 export const dynamic = "force-static";
 
@@ -21,7 +22,14 @@ Install: \`${site.install}\`
 
 - [Features](${site.url}/features/)
 - [Templates](${site.url}/templates/)
+- [Blog](${site.url}/blog/)
 - [Source code](${site.github})
+
+## Blog
+
+${allPosts()
+	.map((p) => `- [${p.title}](${site.url}/blog/${p.slug}/): ${p.description}`)
+	.join("\n")}
 `,
 		{ headers: { "Content-Type": "text/plain; charset=utf-8" } },
 	);

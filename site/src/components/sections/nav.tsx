@@ -6,8 +6,8 @@ const links = [
 	["Features", "/features/"],
 	["Templates", "/templates/"],
 	["Data", "/#data"],
-	["FAQ", "/#faq"],
 	["Docs", site.docs],
+	["Blog", "/blog/"],
 ] as const;
 
 export function Nav() {
