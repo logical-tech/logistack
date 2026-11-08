@@ -6,6 +6,7 @@
 import type { ServiceIcon } from "@logistack/contracts";
 import { createLucideIcon, type LucideIcon } from "lucide-react";
 import {
+	si1password,
 	siAngular,
 	siApachekafka,
 	siAppwrite,
@@ -100,6 +101,7 @@ import {
 	siTurso,
 	siUmami,
 	siUptimekuma,
+	siVault,
 	siVaultwarden,
 	siVite,
 	siVuedotjs,
@@ -185,6 +187,8 @@ const BRANDS = {
 	rabbitmq: siRabbitmq,
 	apachekafka: siApachekafka,
 	docker: siDocker,
+	vault: siVault,
+	onepassword: si1password,
 	nginx: siNginx,
 	caddy: siCaddy,
 	traefikproxy: siTraefikproxy,

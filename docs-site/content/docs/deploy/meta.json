@@ -12,6 +12,7 @@
 		"game-servers",
 		"deployments",
 		"environment-variables",
+		"external-secrets",
 		"environments",
 		"preview-environments",
 		"service-settings",

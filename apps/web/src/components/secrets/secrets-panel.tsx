@@ -13,6 +13,7 @@ import {
 	Plus,
 	RotateCcw,
 	Trash2,
+	TriangleAlert,
 } from "lucide-react";
 import { type FocusEvent, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CopyButton } from "@/components/copy-button";
 import { Field } from "@/components/field";
 import { Panel, SkeletonRows } from "@/components/panel";
+import { Segmented } from "@/components/segmented";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,12 +59,14 @@ import {
 	SCOPE_LABEL,
 	type SecretMeta,
 	type SecretScope,
+	secretProvidersQuery,
 	secretsQuery,
 	secretUsagesQuery,
 	secretVersionsQuery,
 	useSecretMutation,
 } from "@/lib/api/secrets";
 import { relativeTime } from "@/lib/format";
+import { SECRET_PROVIDER_KINDS } from "@/lib/integrations";
 import { cn } from "@/lib/utils";
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -101,6 +105,46 @@ export function ScopeChip({
 				{name ? <span className="text-muted-foreground"> · {name}</span> : null}
 			</span>
 		</Badge>
+	);
+}
+
+/** Where an external secret is read from; its value never reaches the browser. */
+function ExternalCell({
+	external: x,
+}: {
+	external: NonNullable<SecretMeta["external"]>;
+}) {
+	const Icon = SECRET_PROVIDER_KINDS[x.kind].icon;
+	return (
+		<div className="flex min-w-0 items-center gap-1.5">
+			<Icon
+				className="size-3.5 shrink-0 text-muted-foreground"
+				aria-label={SECRET_PROVIDER_KINDS[x.kind].label}
+			/>
+			<span
+				className="min-w-0 truncate font-mono text-[13px] text-muted-foreground"
+				title={x.reference}
+			>
+				{x.reference}
+			</span>
+			{x.error && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							className="shrink-0 rounded text-warn-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							aria-label={`Last read failed: ${x.error}`}
+						>
+							<TriangleAlert className="size-3.5" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-72">
+						Last read {x.checkedAt ? relativeTime(x.checkedAt) : ""} failed:{" "}
+						{x.error}
+					</TooltipContent>
+				</Tooltip>
+			)}
+		</div>
 	);
 }
 
@@ -286,13 +330,21 @@ export function SecretsPanel({
 											)}
 										</td>
 										<td>
-											<ValueCell secret={s} />
+											{s.external ? (
+												<ExternalCell external={s.external} />
+											) : (
+												<ValueCell secret={s} />
+											)}
 										</td>
 										<td>
 											<ScopeChip scope={s.scope} />
 										</td>
 										<td className="text-right tabular text-muted-foreground">
-											v{s.version}
+											{s.external ? (
+												<span title="Versioned by its provider">–</span>
+											) : (
+												`v${s.version}`
+											)}
 										</td>
 										<td className="text-right tabular">
 											{s.usedBy > 0 ? (
@@ -353,7 +405,11 @@ export function SecretsPanel({
 						? `Delete ${open.secret.key}?`
 						: "Delete secret?"
 				}
-				description="Its value and every earlier version are deleted. Nothing references it, so no service changes."
+				description={
+					open?.kind === "delete" && open.secret.external
+						? "LogiStack forgets the reference. The value stays in its provider, and nothing references it, so no service changes."
+						: "Its value and every earlier version are deleted. Nothing references it, so no service changes."
+				}
 				confirmLabel="Delete secret"
 				pending={remove.isPending}
 				onConfirm={() =>
@@ -395,14 +451,16 @@ function RowMenu({
 			<DropdownMenuContent align="end" className="w-52">
 				<DropdownMenuItem onSelect={() => onOpen({ kind: "edit", secret: s })}>
 					<Pencil />
-					Edit value
+					{s.external ? "Edit reference" : "Edit value"}
 				</DropdownMenuItem>
-				<DropdownMenuItem
-					onSelect={() => onOpen({ kind: "history", secret: s })}
-				>
-					<History />
-					History
-				</DropdownMenuItem>
+				{!s.external && (
+					<DropdownMenuItem
+						onSelect={() => onOpen({ kind: "history", secret: s })}
+					>
+						<History />
+						History
+					</DropdownMenuItem>
+				)}
 				<DropdownMenuItem
 					onSelect={() => onOpen({ kind: "usages", secret: s })}
 				>
@@ -497,21 +555,40 @@ function SecretForm({
 }) {
 	const uid = useId();
 	const [key, setKey] = useState(secret?.key ?? "");
+	const [source, setSource] = useState<"stored" | "external">(
+		secret?.external ? "external" : "stored",
+	);
+	const external = source === "external";
+	const [reference, setReference] = useState(secret?.external?.reference ?? "");
+	const { data: providers } = useQuery({
+		...secretProvidersQuery,
+		enabled: external,
+	});
+	const example = providers?.[0]
+		? `secret://${providers[0].name}/${SECRET_PROVIDER_KINDS[providers[0].kind].example}`
+		: "secret://vault-prod/secret/app/db#password";
 	const [value, setValue] = useState("");
 	const [description, setDescription] = useState(secret?.description ?? "");
 	const [touched, setTouched] = useState(false);
 	const save = useSecretMutation(async () => {
 		const desc = description.trim();
+		const ref = reference.trim();
 		if (secret)
 			return api.secrets.update(secret.id, {
-				...(value ? { value } : {}),
+				...(external
+					? ref !== secret.external?.reference
+						? { reference: ref }
+						: {}
+					: value
+						? { value }
+						: {}),
 				description: desc || null,
 			});
 		return api.secrets.create({
 			scope,
 			scopeId,
 			key,
-			value,
+			...(external ? { reference: ref } : { value }),
 			...(desc ? { description: desc } : {}),
 		});
 	});
@@ -522,9 +599,18 @@ function SecretForm({
 			: !KEY.test(key)
 				? "Letters, digits and _, not starting with a digit"
 				: undefined;
-	const valueError = !secret && !value ? "Enter a value" : undefined;
+	const ref = reference.trim();
+	const valueError = external
+		? !/^secret:\/\/[a-z0-9][a-z0-9-]*\/.+#.+$/.test(ref)
+			? "Like secret://<provider>/<path>#<key>"
+			: undefined
+		: !secret && !value
+			? "Enter a value"
+			: undefined;
 	const unchanged =
-		!!secret && !value && description.trim() === (secret.description ?? "");
+		!!secret &&
+		(external ? ref === secret.external?.reference : !value) &&
+		description.trim() === (secret.description ?? "");
 
 	return (
 		<form
@@ -536,8 +622,9 @@ function SecretForm({
 				save.mutate(undefined, {
 					onSuccess: (s) => {
 						toast.success(secret ? `${s.key} saved` : `${s.key} added`, {
-							description:
-								secret && value
+							description: external
+								? "Services that reference it read it from the provider when they deploy."
+								: secret && value
 									? `Now version ${s.version}. Services that reference it get it on their next deployment.`
 									: "Reference it from a service's Environment tab.",
 						});
@@ -553,11 +640,29 @@ function SecretForm({
 					{secret ? `Edit ${secret.key}` : "Add secret"}
 				</DialogTitle>
 				<DialogDescription>
-					{secret
-						? `A new value becomes version ${secret.version + 1}. Leave it empty to keep version ${secret.version}.`
-						: "Stored encrypted. Services below this scope can reference it; none receive it until they do."}
+					{secret?.external
+						? "Point it at another location. Services that use it read the new one on their next deployment."
+						: secret
+							? `A new value becomes version ${secret.version + 1}. Leave it empty to keep version ${secret.version}.`
+							: external
+								? "Read from your secret manager at deploy time and never stored here. Services below this scope can reference it."
+								: "Stored encrypted. Services below this scope can reference it; none receive it until they do."}
 				</DialogDescription>
 			</DialogHeader>
+			{!secret && (
+				<Segmented
+					label="Where the value lives"
+					value={source}
+					onChange={(v) => {
+						setSource(v);
+						setTouched(false);
+					}}
+					options={[
+						{ value: "stored", label: "Stored here" },
+						{ value: "external", label: "From a provider" },
+					]}
+				/>
+			)}
 			{!secret && (
 				<Field
 					id={`${uid}-key`}
@@ -578,24 +683,61 @@ function SecretForm({
 					/>
 				</Field>
 			)}
-			<Field
-				id={`${uid}-value`}
-				label={secret ? "New value" : "Value"}
-				error={touched ? valueError : undefined}
-			>
-				<Textarea
+			{external ? (
+				<Field
+					id={`${uid}-ref`}
+					label="Reference"
+					error={touched ? valueError : undefined}
+					hint={
+						providers && !providers.length ? (
+							<>
+								No provider yet.{" "}
+								<Link
+									to="/integrations/secret-providers/new"
+									className="text-foreground underline underline-offset-4"
+								>
+									Add one
+								</Link>{" "}
+								first.
+							</>
+						) : (
+							"secret://<provider>/<path>#<key>, checked against the provider's path format."
+						)
+					}
+				>
+					<Input
+						id={`${uid}-ref`}
+						value={reference}
+						onChange={(e) => setReference(e.target.value)}
+						placeholder={example}
+						spellCheck={false}
+						autoCapitalize="off"
+						autoComplete="off"
+						aria-invalid={touched && valueError ? true : undefined}
+						className="font-mono text-[13px] md:text-[13px]"
+						autoFocus={!!secret}
+					/>
+				</Field>
+			) : (
+				<Field
 					id={`${uid}-value`}
-					value={value}
-					onChange={(e) => setValue(e.target.value)}
-					rows={3}
-					spellCheck={false}
-					autoComplete="off"
-					placeholder={secret ? "Unchanged" : undefined}
-					aria-invalid={touched && valueError ? true : undefined}
-					className="font-mono text-[13px] [-webkit-text-security:disc] focus:[-webkit-text-security:none]"
-					autoFocus={!!secret}
-				/>
-			</Field>
+					label={secret ? "New value" : "Value"}
+					error={touched ? valueError : undefined}
+				>
+					<Textarea
+						id={`${uid}-value`}
+						value={value}
+						onChange={(e) => setValue(e.target.value)}
+						rows={3}
+						spellCheck={false}
+						autoComplete="off"
+						placeholder={secret ? "Unchanged" : undefined}
+						aria-invalid={touched && valueError ? true : undefined}
+						className="font-mono text-[13px] [-webkit-text-security:disc] focus:[-webkit-text-security:none]"
+						autoFocus={!!secret}
+					/>
+				</Field>
+			)}
 			<Field id={`${uid}-desc`} label="Description" optional>
 				<Input
 					id={`${uid}-desc`}

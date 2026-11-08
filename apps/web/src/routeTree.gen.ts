@@ -38,6 +38,7 @@ import { Route as AppIntegrationsGitRouteImport } from './routes/_app/integratio
 import { Route as AppIntegrationsNotificationsRouteImport } from './routes/_app/integrations/notifications'
 import { Route as AppIntegrationsRegistriesRouteImport } from './routes/_app/integrations/registries'
 import { Route as AppIntegrationsS3RouteImport } from './routes/_app/integrations/s3'
+import { Route as AppIntegrationsSecretProvidersRouteImport } from './routes/_app/integrations/secret-providers'
 import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integrations/tunnels'
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
@@ -70,6 +71,7 @@ import { Route as AppIntegrationsGitNewRouteImport } from './routes/_app/integra
 import { Route as AppIntegrationsNotificationsNewRouteImport } from './routes/_app/integrations/notifications_.new'
 import { Route as AppIntegrationsRegistriesNewRouteImport } from './routes/_app/integrations/registries_.new'
 import { Route as AppIntegrationsS3NewRouteImport } from './routes/_app/integrations/s3_.new'
+import { Route as AppIntegrationsSecretProvidersNewRouteImport } from './routes/_app/integrations/secret-providers_.new'
 import { Route as AppIntegrationsTunnelsNewRouteImport } from './routes/_app/integrations/tunnels_.new'
 import { Route as AppMonitoringNodesIndexRouteImport } from './routes/_app/monitoring/nodes/index'
 import { Route as AppMonitoringNodesNodeIdRouteImport } from './routes/_app/monitoring/nodes/$nodeId'
@@ -256,6 +258,12 @@ const AppIntegrationsS3Route = AppIntegrationsS3RouteImport.update({
   path: '/integrations/s3',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIntegrationsSecretProvidersRoute =
+  AppIntegrationsSecretProvidersRouteImport.update({
+    id: '/integrations/secret-providers',
+    path: '/integrations/secret-providers',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppIntegrationsTunnelsRoute = AppIntegrationsTunnelsRouteImport.update({
   id: '/integrations/tunnels',
   path: '/integrations/tunnels',
@@ -422,6 +430,12 @@ const AppIntegrationsS3NewRoute = AppIntegrationsS3NewRouteImport.update({
   path: '/integrations/s3/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIntegrationsSecretProvidersNewRoute =
+  AppIntegrationsSecretProvidersNewRouteImport.update({
+    id: '/integrations/secret-providers_/new',
+    path: '/integrations/secret-providers/new',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppIntegrationsTunnelsNewRoute =
   AppIntegrationsTunnelsNewRouteImport.update({
     id: '/integrations/tunnels_/new',
@@ -688,6 +702,7 @@ export interface FileRoutesByFullPath {
   '/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/integrations/s3': typeof AppIntegrationsS3Route
+  '/integrations/secret-providers': typeof AppIntegrationsSecretProvidersRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
@@ -719,6 +734,7 @@ export interface FileRoutesByFullPath {
   '/integrations/notifications/new': typeof AppIntegrationsNotificationsNewRoute
   '/integrations/registries/new': typeof AppIntegrationsRegistriesNewRoute
   '/integrations/s3/new': typeof AppIntegrationsS3NewRoute
+  '/integrations/secret-providers/new': typeof AppIntegrationsSecretProvidersNewRoute
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
@@ -785,6 +801,7 @@ export interface FileRoutesByTo {
   '/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/integrations/s3': typeof AppIntegrationsS3Route
+  '/integrations/secret-providers': typeof AppIntegrationsSecretProvidersRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
@@ -816,6 +833,7 @@ export interface FileRoutesByTo {
   '/integrations/notifications/new': typeof AppIntegrationsNotificationsNewRoute
   '/integrations/registries/new': typeof AppIntegrationsRegistriesNewRoute
   '/integrations/s3/new': typeof AppIntegrationsS3NewRoute
+  '/integrations/secret-providers/new': typeof AppIntegrationsSecretProvidersNewRoute
   '/integrations/tunnels/new': typeof AppIntegrationsTunnelsNewRoute
   '/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
@@ -887,6 +905,7 @@ export interface FileRoutesById {
   '/_app/integrations/notifications': typeof AppIntegrationsNotificationsRoute
   '/_app/integrations/registries': typeof AppIntegrationsRegistriesRoute
   '/_app/integrations/s3': typeof AppIntegrationsS3Route
+  '/_app/integrations/secret-providers': typeof AppIntegrationsSecretProvidersRoute
   '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
@@ -918,6 +937,7 @@ export interface FileRoutesById {
   '/_app/integrations/notifications_/new': typeof AppIntegrationsNotificationsNewRoute
   '/_app/integrations/registries_/new': typeof AppIntegrationsRegistriesNewRoute
   '/_app/integrations/s3_/new': typeof AppIntegrationsS3NewRoute
+  '/_app/integrations/secret-providers_/new': typeof AppIntegrationsSecretProvidersNewRoute
   '/_app/integrations/tunnels_/new': typeof AppIntegrationsTunnelsNewRoute
   '/_app/monitoring/nodes/$nodeId': typeof AppMonitoringNodesNodeIdRoute
   '/_app/monitoring/nodes/new': typeof AppMonitoringNodesNewRoute
@@ -990,6 +1010,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications'
     | '/integrations/registries'
     | '/integrations/s3'
+    | '/integrations/secret-providers'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
     | '/monitoring/usage'
@@ -1021,6 +1042,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications/new'
     | '/integrations/registries/new'
     | '/integrations/s3/new'
+    | '/integrations/secret-providers/new'
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
@@ -1087,6 +1109,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications'
     | '/integrations/registries'
     | '/integrations/s3'
+    | '/integrations/secret-providers'
     | '/integrations/tunnels'
     | '/monitoring/alerts'
     | '/monitoring/usage'
@@ -1118,6 +1141,7 @@ export interface FileRouteTypes {
     | '/integrations/notifications/new'
     | '/integrations/registries/new'
     | '/integrations/s3/new'
+    | '/integrations/secret-providers/new'
     | '/integrations/tunnels/new'
     | '/monitoring/nodes/$nodeId'
     | '/monitoring/nodes/new'
@@ -1188,6 +1212,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/notifications'
     | '/_app/integrations/registries'
     | '/_app/integrations/s3'
+    | '/_app/integrations/secret-providers'
     | '/_app/integrations/tunnels'
     | '/_app/monitoring/alerts'
     | '/_app/monitoring/usage'
@@ -1219,6 +1244,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/notifications_/new'
     | '/_app/integrations/registries_/new'
     | '/_app/integrations/s3_/new'
+    | '/_app/integrations/secret-providers_/new'
     | '/_app/integrations/tunnels_/new'
     | '/_app/monitoring/nodes/$nodeId'
     | '/_app/monitoring/nodes/new'
@@ -1473,6 +1499,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIntegrationsS3RouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/integrations/secret-providers': {
+      id: '/_app/integrations/secret-providers'
+      path: '/integrations/secret-providers'
+      fullPath: '/integrations/secret-providers'
+      preLoaderRoute: typeof AppIntegrationsSecretProvidersRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/integrations/tunnels': {
       id: '/_app/integrations/tunnels'
       path: '/integrations/tunnels'
@@ -1695,6 +1728,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations/s3/new'
       fullPath: '/integrations/s3/new'
       preLoaderRoute: typeof AppIntegrationsS3NewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/integrations/secret-providers_/new': {
+      id: '/_app/integrations/secret-providers_/new'
+      path: '/integrations/secret-providers/new'
+      fullPath: '/integrations/secret-providers/new'
+      preLoaderRoute: typeof AppIntegrationsSecretProvidersNewRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/integrations/tunnels_/new': {
@@ -2166,6 +2206,7 @@ interface AppRouteChildren {
   AppIntegrationsNotificationsRoute: typeof AppIntegrationsNotificationsRoute
   AppIntegrationsRegistriesRoute: typeof AppIntegrationsRegistriesRoute
   AppIntegrationsS3Route: typeof AppIntegrationsS3Route
+  AppIntegrationsSecretProvidersRoute: typeof AppIntegrationsSecretProvidersRoute
   AppIntegrationsTunnelsRoute: typeof AppIntegrationsTunnelsRoute
   AppSchedulesScheduleIdRoute: typeof AppSchedulesScheduleIdRoute
   AppSchedulesNewRoute: typeof AppSchedulesNewRoute
@@ -2190,6 +2231,7 @@ interface AppRouteChildren {
   AppIntegrationsNotificationsNewRoute: typeof AppIntegrationsNotificationsNewRoute
   AppIntegrationsRegistriesNewRoute: typeof AppIntegrationsRegistriesNewRoute
   AppIntegrationsS3NewRoute: typeof AppIntegrationsS3NewRoute
+  AppIntegrationsSecretProvidersNewRoute: typeof AppIntegrationsSecretProvidersNewRoute
   AppIntegrationsTunnelsNewRoute: typeof AppIntegrationsTunnelsNewRoute
   AppSchedulesScheduleIdEditRoute: typeof AppSchedulesScheduleIdEditRoute
   AppSettingsApiKeysNewRoute: typeof AppSettingsApiKeysNewRoute
@@ -2219,6 +2261,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsNotificationsRoute: AppIntegrationsNotificationsRoute,
   AppIntegrationsRegistriesRoute: AppIntegrationsRegistriesRoute,
   AppIntegrationsS3Route: AppIntegrationsS3Route,
+  AppIntegrationsSecretProvidersRoute: AppIntegrationsSecretProvidersRoute,
   AppIntegrationsTunnelsRoute: AppIntegrationsTunnelsRoute,
   AppSchedulesScheduleIdRoute: AppSchedulesScheduleIdRoute,
   AppSchedulesNewRoute: AppSchedulesNewRoute,
@@ -2243,6 +2286,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsNotificationsNewRoute: AppIntegrationsNotificationsNewRoute,
   AppIntegrationsRegistriesNewRoute: AppIntegrationsRegistriesNewRoute,
   AppIntegrationsS3NewRoute: AppIntegrationsS3NewRoute,
+  AppIntegrationsSecretProvidersNewRoute:
+    AppIntegrationsSecretProvidersNewRoute,
   AppIntegrationsTunnelsNewRoute: AppIntegrationsTunnelsNewRoute,
   AppSchedulesScheduleIdEditRoute: AppSchedulesScheduleIdEditRoute,
   AppSettingsApiKeysNewRoute: AppSettingsApiKeysNewRoute,

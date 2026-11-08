@@ -50,6 +50,7 @@ import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
 import { s3Destinations } from "./routes/s3-destinations.ts";
 import { schedules } from "./routes/schedules.ts";
+import { secretProviderRoutes } from "./routes/secret-providers.ts";
 import { secrets } from "./routes/secrets.ts";
 import { serviceAuth } from "./routes/service-auth.ts";
 import { serviceOps } from "./routes/service-ops.ts";
@@ -157,6 +158,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", dnsProviders)
 		.route("/api", certificates)
 		.route("/api", notifications)
+		.route("/api", secretProviderRoutes)
 		.route("/api", integrations)
 		.route("/api", audit)
 		.route("/api", organizationRoutes)

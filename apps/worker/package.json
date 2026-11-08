@@ -6,6 +6,7 @@
 		"./load": "./src/load.ts",
 		"./node-runner": "./src/node-runner.ts",
 		"./schedulers": "./src/schedulers.ts",
+		"./external-secrets": "./src/external-secrets.ts",
 		"./secrets": "./src/secrets.ts"
 	},
 	"scripts": {

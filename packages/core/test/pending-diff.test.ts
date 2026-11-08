@@ -234,3 +234,16 @@ describe("diffSpecs", () => {
 		]);
 	});
 });
+
+describe("specSnapshot", () => {
+	test("records an external secret's placeholder, never its value", () => {
+		const s = specSnapshot(base, {
+			API_URL: { isSecret: false },
+			API_KEY: { isSecret: true, snapshotValue: "external:sec_1:abc" },
+		});
+		const env = s.spec.TaskTemplate.ContainerSpec.Env ?? [];
+		expect(env).toContain("API_KEY=external:sec_1:abc");
+		expect(env).toContain("API_URL=https://a.example.com");
+		expect(JSON.stringify(s)).not.toContain("HUNTER2");
+	});
+});

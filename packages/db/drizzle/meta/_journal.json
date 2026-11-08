@@ -309,6 +309,13 @@
       "when": 1794056314472,
       "tag": "0043_stack_git_sync_error",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794056314473,
+      "tag": "0044_external_secrets",
+      "breakpoints": true
     }
   ]
 }

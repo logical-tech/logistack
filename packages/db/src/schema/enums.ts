@@ -25,6 +25,7 @@ import {
 	registryKinds,
 	runStatuses,
 	scheduleConcurrencies,
+	secretProviderKinds,
 	secretScopes,
 	serviceKinds,
 	stackSources,
@@ -46,6 +47,10 @@ export const deploymentTrigger = pgEnum(
 );
 export const envVarScope = pgEnum("env_var_scope", envVarScopes);
 export const secretScope = pgEnum("secret_scope", secretScopes);
+export const secretProviderKind = pgEnum(
+	"secret_provider_kind",
+	secretProviderKinds,
+);
 export const mountKind = pgEnum("mount_kind", mountKinds);
 export const certMode = pgEnum("cert_mode", certModes);
 export const domainStatus = pgEnum("domain_status", domainStatuses);

@@ -30,6 +30,13 @@ export type SecretVersion = InferResponseType<
 >[number];
 export type SecretUsage = InferResponseType<One["usages"]["$get"], 200>[number];
 export type SecretReveal = InferResponseType<One["reveal"]["$post"], 200>;
+export type SecretProvider = InferResponseType<
+	Api["secret-providers"]["$get"],
+	200
+>[number];
+export type SecretProviderKind = SecretProvider["kind"];
+export type CreateSecretProvider = Body<Api["secret-providers"]["$post"]>;
+
 export type KeyRotation = InferResponseType<
 	Api["organization"]["secret-keys"]["rotate"]["$post"],
 	200
@@ -52,9 +59,23 @@ export type SecretsApi = {
 	remove(id: string): Promise<void>;
 	/** Re-encrypts every version under a new data key; values do not change. */
 	rotateKey(): Promise<KeyRotation>;
+	providers: {
+		list(): Promise<SecretProvider[]>;
+		/** Signs in with an unsaved config; reads no secret. */
+		testConfig(
+			kind: SecretProviderKind,
+			config: Record<string, unknown>,
+		): Promise<void>;
+		/** Tested again by the server before it is saved. */
+		create(input: CreateSecretProvider): Promise<SecretProvider>;
+		test(id: string): Promise<void>;
+		/** 409 while an external secret reads from it. */
+		remove(id: string): Promise<void>;
+	};
 };
 
 const s = () => client.api.secrets;
+const p = () => client.api["secret-providers"];
 const id = (v: string) => ({ param: { id: v } });
 
 export const secretsHttp: SecretsApi = {
@@ -70,7 +91,23 @@ export const secretsHttp: SecretsApi = {
 	usages: (v) => ok(s()[":id"].usages.$get(id(v))),
 	remove: (v) => done(s()[":id"].$delete(id(v))),
 	rotateKey: () => ok(client.api.organization["secret-keys"].rotate.$post()),
+	providers: {
+		list: () => ok(p().$get()),
+		testConfig: async (kind, config) => {
+			await ok(p().test.$post({ json: { kind, config } }));
+		},
+		create: (json) => ok(p().$post({ json })),
+		test: async (v) => {
+			await ok(p()[":id"].test.$post(id(v)));
+		},
+		remove: (v) => done(p()[":id"].$delete(id(v))),
+	},
 };
+
+export const secretProvidersQuery = queryOptions({
+	queryKey: ["secret-providers"],
+	queryFn: () => api.secrets.providers.list(),
+});
 
 export const secretsQuery = (scope: SecretScope, scopeId: string) =>
 	queryOptions({

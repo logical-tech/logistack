@@ -7,6 +7,8 @@ export type ScopedEnvVar = {
 	value: string;
 	isSecret: boolean;
 	isBuildTime: boolean;
+	/** Set for an external secret: what spec snapshots record instead of the value. */
+	snapshotValue?: string;
 };
 
 /** The winning definition of a key, and the scope it came from. */
