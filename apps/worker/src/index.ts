@@ -57,6 +57,13 @@ import { createScheduleRunner } from "./schedules.ts";
 import { convertLegacySecrets } from "./secrets.ts";
 import { syncTailscale } from "./tailscale.ts";
 import { syncTunnels } from "./tunnels.ts";
+import {
+	processCheck,
+	UPTIME_TICK_MS,
+	UPTIME_TICK_SCHEDULER,
+	type UptimeJob,
+	uptimeTick,
+} from "./uptime.ts";
 import { processScanJob } from "./vulnscan.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
@@ -216,6 +223,15 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			(job) => processScanJob(ctx, job.data),
 			{ connection, concurrency: 1 },
 		),
+		new Worker<UptimeJob>(
+			"uptime",
+			async (job) => {
+				if (job.data.name === "check")
+					await processCheck(ctx, job.data.monitorId);
+				else await uptimeTick(ctx);
+			},
+			{ connection, concurrency: cfg.LS_UPTIME_CONCURRENCY },
+		),
 		new Worker("notify", (job) => notify.retry(job.data), {
 			connection,
 			concurrency: 8,
@@ -249,6 +265,17 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		"checks-every",
 		{ every: CHECKS_POLL_MS },
 		{ name: "checks" },
+	);
+
+	// Uptime checks are due whatever the reconcile interval; Postgres says which.
+	await ctx.queues.uptime.upsertJobScheduler(
+		UPTIME_TICK_SCHEDULER,
+		{ every: UPTIME_TICK_MS },
+		{
+			name: "tick",
+			data: { name: "tick" },
+			opts: { removeOnComplete: true, removeOnFail: 50 },
+		},
 	);
 
 	if (cfg.LS_RECONCILE_INTERVAL_MS > 0) {

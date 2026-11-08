@@ -67,9 +67,11 @@ import { tailscale } from "./routes/tailscale.ts";
 import { templates } from "./routes/templates.ts";
 import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
+import { uptime } from "./routes/uptime.ts";
 import { usage } from "./routes/usage.ts";
 import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
+import { push, statusBySlug, statusHostRouter } from "./status-pages.ts";
 import { realtime } from "./ws.ts";
 
 /**
@@ -110,6 +112,9 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		(c.req.method === "POST" &&
 			/^\/api\/databases\/[^/]+\/restore$/.test(c.req.path));
 	app.use("/api/*", (c, next) => (streamed(c) ? next() : limited(c, next)));
+	// A status page's own hostname serves that page only, before any session or API handling.
+	app.use("*", statusHostRouter(deps));
+	app.route("/status/:slug", statusBySlug);
 	app.use(
 		"/api/*",
 		cors({ origin: deps.config.WEB_ORIGIN, credentials: true }),
@@ -123,6 +128,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		c.req.path.startsWith("/api/webhooks/") ||
 		// The sealed token in the path is the credential.
 		c.req.path.startsWith("/api/storage/shared/") ||
+		// Push monitors: the token in the path is the credential.
+		c.req.path.startsWith("/api/push/") ||
 		c.req.path === AGENT_WS_PATH
 			? next()
 			: identify(c, next),
@@ -144,6 +151,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		info: { title: "LogiStack API", version: "0.1.0" },
 	});
 	app.get("/api/docs", Scalar({ url: "/api/openapi.json" }));
+
+	app.route("/api/push", push);
 
 	const routes = app
 		.route("/api", health)
@@ -200,6 +209,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", migrations)
 		.route("/api", ai)
 		.route("/api", aiAgent)
+		.route("/api", uptime)
 		.route("/", realtime)
 		.route("/", terminal);
 
@@ -213,6 +223,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 			p === "/ws" ||
 			p === "/mcp" ||
 			p === "/api" ||
+			p.startsWith("/status/") ||
 			p.startsWith("/api/") ||
 			p.startsWith("/v1/");
 		// A file when one matches, else the app shell for client-side routes.

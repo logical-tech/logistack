@@ -133,6 +133,8 @@ const ConfigSchema = z.object({
 		.min(1024)
 		.default(1024 * 1024),
 	LS_RUN_CONCURRENCY: z.coerce.number().int().min(1).default(8),
+	/** Uptime checks in flight per worker; they mostly wait on the network. */
+	LS_UPTIME_CONCURRENCY: z.coerce.number().int().min(1).default(32),
 	/** Baked into the image at build time (Dockerfile ARG). */
 	LOGISTACK_VERSION: z.string().default("dev"),
 	/** Trusts sponsor keys from Stripe's sandbox. Set only on test instances. */

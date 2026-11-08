@@ -36,5 +36,6 @@ export * from "./stack-update.ts";
 export * from "./storage.ts";
 export * from "./template.ts";
 export * from "./two-factor.ts";
+export * from "./uptime.ts";
 export * from "./version.ts";
 export * from "./vulnscan.ts";

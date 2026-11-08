@@ -33,6 +33,10 @@ export const eventTypes = [
 	"migration.item_changed",
 	/** A scan found critical vulnerabilities not seen before in a service's image; resource `service:<id>`. */
 	"image.vulnerable",
+	/** An uptime monitor confirmed down (after its retries); resource `monitor:<id>`, payload `MonitorEventPayload`. */
+	"monitor.down",
+	/** A down monitor recovered. */
+	"monitor.up",
 ] as const;
 export const EventType = z.enum(eventTypes);
 export type EventType = z.infer<typeof EventType>;
