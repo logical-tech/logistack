@@ -1,0 +1,1 @@
+ALTER TABLE "stack" ADD COLUMN "git_sync_error" jsonb;

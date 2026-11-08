@@ -295,6 +295,13 @@
       "when": 1793994911875,
       "tag": "0041_ai_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794056314472,
+      "tag": "0042_stack_git_sync_error",
+      "breakpoints": true
     }
   ]
 }
