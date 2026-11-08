@@ -47,6 +47,10 @@ A [Cloudflare Tunnel](./cloudflare-tunnels.mdx) serves a domain without any open
 
 Use a tunnel for a server behind NAT, a homelab, or a host whose provider blocks inbound ports. You choose per domain whether it goes through the tunnel or through the public proxy.
 
+## Tailscale
+
+[Tailscale](./tailscale.mdx) puts your servers and chosen services on your private tailnet. Only devices in the tailnet reach a service you publish there, at a hostname such as `grafana.<your-tailnet>.ts.net`. Use it for admin tools that should never face the internet.
+
 ## Which one to use
 
 | You want to | Use |
@@ -55,6 +59,7 @@ Use a tunnel for a server behind NAT, a homelab, or a host whose provider blocks
 | Try a service right away, without DNS | A generated hostname such as `web-a1b2c3.203-0-113-10.sslip.io` (see [Generated domains](./domains.mdx#generated-domains)) |
 | Expose a non-HTTP protocol (TCP or UDP) | A published port |
 | Serve a domain from a server with no open ports | A [Cloudflare Tunnel](./cloudflare-tunnels.mdx) |
+| Reach an admin tool only from your own devices | A [Tailscale](./tailscale.mdx) publication |
 | Keep a service private to other services | Nothing. Services in the same environment reach each other on the internal network by default |
 
 ## In this section
@@ -65,6 +70,7 @@ Use a tunnel for a server behind NAT, a homelab, or a host whose provider blocks
   <Card title="Wildcard DNS" href="/networking/wildcard-dns" description="One wildcard certificate per server, and why sslip.io hostnames share a rate limit." />
   <Card title="DNS providers" href="/networking/dns-providers" description="Connect Cloudflare, Route 53, Hetzner DNS, DigitalOcean, OVHcloud or Porkbun and edit zone records from the dashboard." />
   <Card title="Cloudflare Tunnels" href="/networking/cloudflare-tunnels" description="Publish services through Cloudflare without opening ports on the server." />
+  <Card title="Tailscale" href="/networking/tailscale" description="Join servers to your tailnet and publish services on tailnet hostnames." />
   <Card title="Access control" href="/networking/access-control" description="Password protection, a sign-in gateway and IP allowlists in front of a domain." />
   <Card title="Network map" href="/networking/network-map" description="See how traffic flows from the internet to every service, domain and task." />
 </Cards>
