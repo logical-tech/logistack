@@ -116,7 +116,7 @@ describe("proxy sync inputs", () => {
 				region: "us-east-1",
 			},
 		});
-		expect(() => dnsChallengeFor("ovh", {})).toThrow("no DNS-01 support");
+		expect(() => dnsChallengeFor("gandi", {})).toThrow("no DNS-01 support");
 	});
 
 	test("the instance wildcard gets one DNS-01 policy and is automated", () => {
