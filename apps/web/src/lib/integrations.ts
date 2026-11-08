@@ -1,4 +1,4 @@
-import { type LucideIcon, Mail, Webhook } from "lucide-react";
+import { KeyRound, type LucideIcon, Mail, Webhook } from "lucide-react";
 import { brandMark } from "@/components/brand-icon";
 import type {
 	AcmeDirectory,
@@ -7,6 +7,7 @@ import type {
 	EventType,
 	TlsMode,
 } from "@/lib/api/networking";
+import type { SecretProviderKind } from "@/lib/api/secrets";
 
 /** One registry for every kind the UI names: label, icon and where the credential comes from. */
 export const DNS_KINDS: Record<
@@ -110,6 +111,40 @@ export const CHANNEL_KINDS: Record<
 		label: "Signed webhook",
 		icon: Webhook,
 		blurb: "JSON POST signed with HMAC-SHA256, for your own receiver.",
+	},
+};
+
+export const SECRET_PROVIDER_KINDS: Record<
+	SecretProviderKind,
+	{
+		label: string;
+		icon: LucideIcon;
+		blurb: string;
+		/** The reference shape, after `secret://<name>/`. */
+		path: string;
+		example: string;
+	}
+> = {
+	vault: {
+		label: "HashiCorp Vault",
+		icon: brandMark("vault"),
+		blurb: "KV version 2, with a token that can read the paths you reference.",
+		path: "<mount>/<path>#<field>",
+		example: "secret/app/db#password",
+	},
+	infisical: {
+		label: "Infisical",
+		icon: KeyRound,
+		blurb: "A machine identity with Universal Auth on one project.",
+		path: "<environment>[/<folder>…]#<name>",
+		example: "prod/api#DATABASE_URL",
+	},
+	onepassword: {
+		label: "1Password",
+		icon: brandMark("onepassword"),
+		blurb: "A Connect server and an access token for the vaults you need.",
+		path: "<vault>/<item>#<field>",
+		example: "Production/Postgres#password",
 	},
 };
 

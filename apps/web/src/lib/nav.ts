@@ -230,6 +230,19 @@ export const NAV: NavGroup[] = [
 				},
 				keywords: ["slack", "email", "alerts"],
 			},
+			{
+				to: "/integrations/secret-providers",
+				title: "Secret providers",
+				icon: KeyRound,
+				description:
+					"Read secrets from Vault, Infisical or 1Password at deploy time, without a copy here.",
+				empty: {
+					title: "No secret providers connected",
+					body: "Connect HashiCorp Vault, Infisical or a 1Password Connect server, then reference its secrets with secret://<name>/<path>#<key>.",
+					action: "Add provider",
+				},
+				keywords: ["vault", "infisical", "1password", "hashicorp", "external"],
+			},
 		],
 	},
 	{
