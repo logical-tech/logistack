@@ -42,6 +42,14 @@ export const eventTypes = [
 	"monitor.down",
 	/** A down monitor recovered. */
 	"monitor.up",
+	/** Work tasks; resource `task:<id>`, payload `TaskEventPayload`. */
+	"task.created",
+	"task.assigned",
+	"task.status_changed",
+	"task.completed",
+	"task.commented",
+	"task.due_soon",
+	"task.overdue",
 ] as const;
 export const EventType = z.enum(eventTypes);
 export type EventType = z.infer<typeof EventType>;
@@ -56,3 +64,15 @@ export const EventEnvelope = z.object({
 	at: z.coerce.date(),
 });
 export type EventEnvelope = z.infer<typeof EventEnvelope>;
+
+/** Payload of every `task.*` event; `projectId` lets project-scoped rules match. */
+export const TaskEventPayload = z.object({
+	projectId: z.string(),
+	taskKey: z.string(),
+	title: z.string(),
+	actorId: z.string().nullable(),
+	statusName: z.string().optional(),
+	assigneeIds: z.array(z.string()).optional(),
+	url: z.string(),
+});
+export type TaskEventPayload = z.infer<typeof TaskEventPayload>;
