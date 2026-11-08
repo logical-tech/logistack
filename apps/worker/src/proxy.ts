@@ -3,6 +3,7 @@ import type { AccessRule } from "@logistack/contracts";
 import { decrypt } from "@logistack/core";
 import {
 	certificate,
+	databaseAccess,
 	dnsProvider,
 	domain,
 	environment,
@@ -29,11 +30,11 @@ import {
 	ProxySync,
 } from "@logistack/proxy";
 import { RedisClient } from "bun";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { log } from "./bus.ts";
 import { caddyStorageKey } from "./caddy-storage.ts";
-import { refreshCertSnapshot } from "./certs.ts";
+import { covers, refreshCertSnapshot } from "./certs.ts";
 import type { Ctx } from "./ctx.ts";
 import type { DomainRow } from "./load.ts";
 import { svcName } from "./load.ts";
@@ -257,6 +258,39 @@ export function withInstanceWildcard(
 	} as CaddyConfig;
 }
 
+/**
+ * Has Caddy obtain and renew certificates for names it routes nothing to: public database
+ * hostnames, whose certificate the database serves itself (docs/plans/database-ops.md). A name
+ * the instance wildcard covers needs none of its own.
+ */
+export function withAutomatedNames(
+	config: CaddyConfig,
+	names: string[],
+	wildcard?: string,
+): CaddyConfig {
+	const tls = config.apps.tls as CaddyConfig["apps"]["tls"] & {
+		certificates?: { automate?: string[] };
+	};
+	const have = new Set(tls.certificates?.automate ?? []);
+	const add = [...new Set(names)]
+		.filter((n) => !have.has(n) && !(wildcard && covers(wildcard, n)))
+		.sort();
+	if (!add.length) return config;
+	return {
+		...config,
+		apps: {
+			...config.apps,
+			tls: {
+				...tls,
+				certificates: {
+					...tls.certificates,
+					automate: [...have, ...add],
+				},
+			},
+		},
+	} as CaddyConfig;
+}
+
 export const acmeDirectories = [
 	"letsencrypt",
 	"letsencrypt-staging",
@@ -432,6 +466,13 @@ export async function syncProxy(
 			);
 	}
 
+	const dbHostnames = (
+		await ctx.db
+			.select({ hostname: databaseAccess.hostname })
+			.from(databaseAccess)
+			.where(isNotNull(databaseAccess.hostname))
+	).flatMap((r) => (r.hostname ? [r.hostname] : []));
+
 	const addresses = await caddyAddresses(ctx, opts.starting);
 	if (!addresses.length) {
 		log("warn", "proxy sync: no running Caddy task", {
@@ -469,6 +510,7 @@ export async function syncProxy(
 				wildcard.hostname,
 				wildcard.challenge,
 			);
+		config = withAutomatedNames(config, dbHostnames, wildcard?.hostname);
 		config = withAcmeDirectory(
 			config,
 			z

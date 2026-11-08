@@ -1,0 +1,186 @@
+---
+title: Expose, forward and upgrade a database
+description: Open a database to the internet with TLS and an IP allowlist, give a local tool a temporary port forward, or upgrade to a new major version with automatic rollback.
+---
+
+A database service is reachable only from the services in its environment. The **Operations** tab of a database service changes that when you need to: it exposes the database on a hostname with a certificate, opens a temporary port for a tool on your laptop, and upgrades the engine to a new major version. Each task is a guided wizard. All three need the `admin` permission on the service.
+
+![The Operations tab of a PostgreSQL service, with Public access, Port forwards and Version](/screens/database-operations.webp)
+
+## How connections from outside work
+
+A small gateway service runs on the database's node and holds the public port. It drops every connection whose source address is not on the allowlist, and every connection that does not start by asking for TLS. The database itself serves TLS with a certificate that Caddy issues for your hostname, beside its usual plain port, so your apps keep connecting as before.
+
+Public access and port forwards work for PostgreSQL, MySQL, MariaDB, MongoDB and Redis. libSQL has no TLS of its own and can't be exposed.
+
+## Expose a database publicly
+
+<Steps>
+<Step>
+
+### Point a hostname at the database's node
+
+Create a DNS record, such as `db.example.com`, that resolves to the public address of the node the database runs on. The gateway binds the port on that node only.
+
+</Step>
+<Step>
+
+### Open the wizard
+
+Open the database service, select **Operations**, then **Expose publicly**.
+
+</Step>
+<Step>
+
+### Set the address
+
+Enter the **Hostname** and the **Port**, for example `db.example.com` and `5432`. The port must be 1024 or higher and free on that node.
+
+![The Address step of the public access wizard, with hostname db.example.com and port 5432](/screens/database-public.webp)
+
+</Step>
+<Step>
+
+### Choose who can connect
+
+Under **Allowed addresses**, enter one address or CIDR range per line, such as `203.0.113.7` or `198.51.100.0/24`. The wizard fills in the address you are connecting from. Connections from anywhere else are dropped before they reach the database.
+
+</Step>
+<Step>
+
+### Review and expose
+
+Check the summary and select **Expose**.
+
+</Step>
+</Steps>
+
+The row under **Public access** shows **Waiting for certificate** until Caddy has issued it. The database then restarts once to load the certificate, and the row turns **Open**. Copy the connection string from the row. It includes the engine's TLS parameter, with `PASSWORD` in place of the password:
+
+```text
+postgres://postgres:PASSWORD@db.example.com:5432/orders?sslmode=verify-full
+```
+
+| Engine | TLS parameter |
+| --- | --- |
+| PostgreSQL | `sslmode=verify-full` |
+| MySQL, MariaDB | `ssl-mode=VERIFY_IDENTITY` |
+| MongoDB | `tls=true` |
+| Redis | the `rediss://` scheme |
+
+<Callout type="warn">
+Expose a database to `0.0.0.0/0` only if you must: anyone can then try passwords against the port. The wizard warns you when the allowlist is open to the whole internet.
+</Callout>
+
+To change the hostname, port or allowlist, select **Change**. To close the port, select **Close** on the row. Clients connected through it are cut off; services in the environment are not affected.
+
+### Renewals
+
+Caddy renews the certificate before it expires. When a new one is ready, LogiStack redeploys the database to load it, which restarts it once, about every 60 days.
+
+## Open a temporary port forward
+
+A port forward gives a local tool, such as `psql`, TablePlus or MongoDB Compass, a port that is open to your address only and closes on its own.
+
+<Steps>
+<Step>
+
+### Open the wizard
+
+Select **Operations**, then **Open a port forward**.
+
+</Step>
+<Step>
+
+### Choose how long
+
+Pick **15 minutes**, **1 hour**, **4 hours** or **8 hours**.
+
+</Step>
+<Step>
+
+### Choose who can connect
+
+The wizard fills in your address. Add up to 10 addresses or ranges.
+
+</Step>
+<Step>
+
+### Open the port
+
+Select **Open port**. LogiStack picks a free port between 15000 and 15999 on the database's node.
+
+</Step>
+</Steps>
+
+The forward appears under **Port forwards** with the time left and a connection string to the node's address. At the deadline the gateway closes the port and drops anything still connected. Select **Close** to end it sooner.
+
+<Callout type="info">
+A forward requires TLS when the database has public access, because the database then serves a certificate. Without public access the forward is plain, and the review step says so. The connection string uses `sslmode=require` rather than `verify-full`, because the node's address is not the name on the certificate.
+</Callout>
+
+## Upgrade to a new major version
+
+The upgrade assistant moves a PostgreSQL, MySQL, MariaDB or MongoDB service to a new major version, such as PostgreSQL 16 to 17. It never writes to the old data, so it can always go back.
+
+1. A new instance on the target version starts on its own volume, on the same node.
+2. Every database is copied into it. PostgreSQL copies the whole instance with `pg_dumpall`, so roles come along.
+3. The exact row count of every table (documents per collection on MongoDB) must match the original.
+4. The service switches to the new version and the new volume, and restarts once.
+5. The counts are checked again on the running service.
+
+If a check fails or the new version doesn't start after the switch, the service goes back to the old version and the old volume on its own, and the upgrade shows **Rolled back**. A failure before the switch leaves the database untouched.
+
+<Steps>
+<Step>
+
+### Stop writes
+
+Scale the apps that write to the database to zero, or put them in maintenance mode. Writes made after the copy starts are not carried over.
+
+</Step>
+<Step>
+
+### Open the wizard
+
+Select **Operations**, then **Upgrade**.
+
+</Step>
+<Step>
+
+### Pick the version
+
+Enter the **Target version**, the tag of the engine's official image, or pick a suggestion such as `17`. Keep the variant you run: from `16-alpine`, choose `17-alpine`.
+
+![The Version step of the upgrade wizard, suggesting PostgreSQL 17 and 18](/screens/database-upgrade.webp)
+
+</Step>
+<Step>
+
+### Confirm writes are stopped
+
+Under **Before you start**, check **Nothing writes to the database now**. Make sure the node has room for a second copy of the data.
+
+</Step>
+<Step>
+
+### Start the upgrade
+
+Review the steps and select **Start upgrade**.
+
+</Step>
+</Steps>
+
+Follow the progress under **Version**: **Check**, **New instance**, **Copy**, **Verify**, **Switch** and **Verify again**. When it finishes, the panel shows **Upgraded** and the number of tables verified. Start your apps again.
+
+The old volume stays on the node after a successful upgrade, as a way back. Delete it from the node once you are sure you don't need it.
+
+Redis and libSQL have no upgrade assistant. Take a [volume backup](./backups.mdx) before you upgrade them another way.
+
+## Common problems
+
+- **Waiting for certificate doesn't end**: the hostname doesn't resolve to the node yet, or Caddy can't complete the ACME challenge. Check the DNS record, or set up a wildcard certificate with DNS validation in the setup wizard.
+- **Redeploy the database to move it onto its organization's network**: the database was deployed before organizations got their own database network. Redeploy it from **Deployments**; the gateway starts once it is healthy.
+- **The connection is closed right away**: the client is not using TLS, or its address is not on the allowlist. Check the connection string's TLS parameter and the address you connect from.
+- **port … is already published on that node**: another service, a game server or another gateway holds the port. Pick another.
+- **The upgrade failed at Verify**: the copy didn't match, often because something kept writing. Stop the writers and run it again; the original was never changed.

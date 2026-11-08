@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { IpRange } from "./access.ts";
 import { DatabaseEngine } from "./enums.ts";
 
 export const DbColumn = z.object({
@@ -544,3 +545,89 @@ export const RedisReply = z.object({
 	durationMs: z.number(),
 });
 export type RedisReply = z.infer<typeof RedisReply>;
+
+// Public access, port forwards and upgrades (docs/plans/database-ops.md).
+
+const AllowedRanges = z
+	.array(IpRange)
+	.min(1)
+	.max(100)
+	.describe(
+		"Addresses and CIDR ranges allowed to connect, e.g. 203.0.113.7 or 198.51.100.0/24",
+	);
+
+export const PublicAccessInput = z.object({
+	/** Must resolve to the database's node; Caddy issues its certificate. */
+	hostname: z
+		.string()
+		.trim()
+		.toLowerCase()
+		.max(253)
+		.regex(
+			/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/,
+			"a hostname such as db.example.com",
+		),
+	port: z.int().min(1024).max(65535),
+	allowedCidrs: AllowedRanges,
+});
+export type PublicAccessInput = z.infer<typeof PublicAccessInput>;
+
+export const PortForwardInput = z.object({
+	minutes: z.int().min(5).max(480),
+	/** Defaults to the caller's own address. */
+	allowedCidrs: AllowedRanges.max(10).optional(),
+});
+export type PortForwardInput = z.infer<typeof PortForwardInput>;
+
+export const DatabaseAccessView = z.object({
+	id: z.string(),
+	kind: z.enum(["public", "forward"]),
+	hostname: z.string().nullable(),
+	port: z.number(),
+	allowedCidrs: z.array(z.string()),
+	tlsRequired: z.boolean(),
+	expiresAt: z.string().nullable(),
+	status: z.enum(["pending", "waiting_certificate", "active", "error"]),
+	statusMessage: z.string().nullable(),
+	createdAt: z.string(),
+	/** Where clients connect: the hostname, or the node's address for a forward. */
+	host: z.string().nullable(),
+	/** A connection URI with the engine's TLS parameter and `PASSWORD` in place of the password. */
+	uri: z.string().nullable(),
+});
+export type DatabaseAccessView = z.infer<typeof DatabaseAccessView>;
+
+export const DatabaseAccessList = z.object({
+	access: z.array(DatabaseAccessView),
+	/** The address this request came from, as the wizard's default allowlist entry. */
+	yourIp: z.string().nullable(),
+	/** False for libSQL, which has no TLS of its own. */
+	exposable: z.boolean(),
+});
+export type DatabaseAccessList = z.infer<typeof DatabaseAccessList>;
+
+export const DatabaseUpgradeInput = z.object({
+	version: z
+		.string()
+		.trim()
+		.min(1)
+		.max(64)
+		.regex(
+			/^[A-Za-z0-9][A-Za-z0-9._-]*$/,
+			"an image tag such as 17 or 17-alpine",
+		),
+});
+export type DatabaseUpgradeInput = z.infer<typeof DatabaseUpgradeInput>;
+
+export const DatabaseUpgradeView = z.object({
+	id: z.string(),
+	fromVersion: z.string(),
+	toVersion: z.string(),
+	status: z.enum(["running", "succeeded", "rolled_back", "failed"]),
+	step: z.string(),
+	message: z.string().nullable(),
+	tables: z.number().nullable(),
+	createdAt: z.string(),
+	finishedAt: z.string().nullable(),
+});
+export type DatabaseUpgradeView = z.infer<typeof DatabaseUpgradeView>;

@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
+	ApiError,
 	CreateDatabase,
 	CreateRole,
 	DatabaseSchema,
@@ -501,12 +502,13 @@ export const databases = router()
 				security,
 				summary: "Restore a dump into a database service, replacing its data",
 				description:
-					"The raw request body (a file from the dump route, or the engine tool's own format) is piped into the engine's restore tool in the running replica, never buffered. Existing data is replaced. Needs `admin`. A non-zero exit is a 409 with `details.reason` `tool_failed`, its exit code and the tail of stderr. Redis is a 400: restore its volume from a backup instead.",
+					"The raw request body (a file from the dump route, or the engine tool's own format) is piped into the engine's restore tool in the running replica, never buffered. It must carry a `Content-Length` no larger than the instance's limit (`MAX_RESTORE_BYTES`, default 20 GiB), checked before any byte reaches the tool: otherwise a 413 with `details.reason` `length_required` or `too_large` and `details.maxBytes`. Existing data is replaced. Needs `admin`. A non-zero exit is a 409 with `details.reason` `tool_failed`, its exit code and the tail of stderr. Redis is a 400: restore its volume from a backup instead.",
 				middleware: [requirePermission("admin", svc)],
 				request: { params: Id },
 				responses: {
 					200: json(z.object({ bytes: z.number() }), "Restored"),
 					...errors,
+					413: json(ApiError, "No Content-Length, or above the limit"),
 				},
 			}),
 		),

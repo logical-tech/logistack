@@ -22,6 +22,7 @@ import {
 	type SecretReference,
 	type ServiceSpec,
 } from "@logistack/docker";
+import { REDIS_TLS_PORT } from "./db-access.ts";
 import {
 	type DeploymentContext,
 	deploymentContextEnv,
@@ -99,6 +100,13 @@ export type CompileServiceInput = {
 	platforms?: BuildPlatform[];
 	/** False when the image has no `/bin/sh` (distroless, scratch): the tcp and http checks cannot run in it. */
 	imageShell?: boolean;
+	/**
+	 * A database's certificate for public access (docs/plans/database-ops.md): the engine serves
+	 * TLS beside plain, so apps and the explorer keep connecting as before.
+	 */
+	tls?: { certPem: string; keyPem: string };
+	/** Owner id of a database's data volume after a major-version upgrade moved it; the service id otherwise. */
+	dataVolumeOwner?: string;
 	/** Swarm ids of the configs and secrets named by `serviceFiles`, keyed by name. */
 	fileIds: Record<string, string>;
 	/** Test isolation: a prefix for every derived name and extra labels on every object. */
@@ -109,6 +117,8 @@ export type ServiceFile = {
 	mountId: string;
 	target: string;
 	kind: "config" | "secret";
+	/** Owner and mode inside the container; root-owned 0444 when absent. */
+	file?: { uid: string; mode: number };
 	/** Carries a content hash, so a content change creates a new object and rolls the service. */
 	name: string;
 	data: string;
@@ -125,7 +135,24 @@ type Engine = {
 	required: string[];
 	healthcheck: string[];
 	args?: string[];
+	/** Arguments that turn TLS on beside plain, appended to the image's own entrypoint. */
+	tlsArgs?: string[];
 };
+
+/** Where a database's certificate files land (`serviceFiles`). */
+export const DB_TLS_FILES = {
+	crt: "/run/secrets/ls-tls.crt",
+	key: "/run/secrets/ls-tls.key",
+	/** Mongo wants certificate and key in one file. */
+	pem: "/run/secrets/ls-tls.pem",
+} as const;
+
+const redisServer = (tls: boolean) =>
+	`umask 077 && printf 'requirepass %s\\n' "$REDIS_PASSWORD" > /tmp/redis.conf && chown redis:redis /tmp/redis.conf && exec docker-entrypoint.sh redis-server /tmp/redis.conf --appendonly yes${
+		tls
+			? ` --tls-port ${REDIS_TLS_PORT} --tls-cert-file ${DB_TLS_FILES.crt} --tls-key-file ${DB_TLS_FILES.key} --tls-auth-clients no`
+			: ""
+	}`;
 
 const engines: Record<DatabaseEngine, Engine> = {
 	postgres: {
@@ -137,18 +164,35 @@ const engines: Record<DatabaseEngine, Engine> = {
 			// biome-ignore lint/suspicious/noTemplateCurlyInString: expanded by the container shell
 			'pg_isready -U "${POSTGRES_USER:-postgres}" -h 127.0.0.1',
 		],
+		// The image's entrypoint puts `postgres` in front of arguments that start with a dash.
+		tlsArgs: [
+			"-c",
+			"ssl=on",
+			"-c",
+			`ssl_cert_file=${DB_TLS_FILES.crt}`,
+			"-c",
+			`ssl_key_file=${DB_TLS_FILES.key}`,
+		],
 	},
 	mysql: {
 		image: (v) => `mysql:${v}`,
 		dataDir: "/var/lib/mysql",
 		required: ["MYSQL_ROOT_PASSWORD"],
 		healthcheck: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"],
+		tlsArgs: [
+			`--ssl-cert=${DB_TLS_FILES.crt}`,
+			`--ssl-key=${DB_TLS_FILES.key}`,
+		],
 	},
 	mariadb: {
 		image: (v) => `mariadb:${v}`,
 		dataDir: "/var/lib/mysql",
 		required: ["MARIADB_ROOT_PASSWORD"],
 		healthcheck: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"],
+		tlsArgs: [
+			`--ssl-cert=${DB_TLS_FILES.crt}`,
+			`--ssl-key=${DB_TLS_FILES.key}`,
+		],
 	},
 	mongo: {
 		image: (v) => `mongo:${v}`,
@@ -161,6 +205,13 @@ const engines: Record<DatabaseEngine, Engine> = {
 			"--eval",
 			"db.adminCommand('ping').ok",
 		],
+		tlsArgs: [
+			"--tlsMode",
+			"preferTLS",
+			"--tlsCertificateKeyFile",
+			DB_TLS_FILES.pem,
+			"--tlsAllowConnectionsWithoutCertificates",
+		],
 	},
 	redis: {
 		image: (v) => `redis:${v}`,
@@ -171,11 +222,7 @@ const engines: Record<DatabaseEngine, Engine> = {
 			'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG',
 		],
 		// The official image has no password env; a config file keeps it out of the process argv.
-		args: [
-			"sh",
-			"-c",
-			"umask 077 && printf 'requirepass %s\\n' \"$REDIS_PASSWORD\" > /tmp/redis.conf && chown redis:redis /tmp/redis.conf && exec docker-entrypoint.sh redis-server /tmp/redis.conf --appendonly yes",
-		],
+		args: ["sh", "-c", redisServer(false)],
 	},
 	libsql: {
 		image: (v) => `ghcr.io/tursodatabase/libsql-server:v${v}`,
@@ -262,7 +309,43 @@ export function serviceFiles(input: CompileServiceInput): ServiceFile[] {
 				},
 			];
 		})
-		.concat(engineFiles);
+		.concat(engineFiles, dbTlsFiles(input));
+}
+
+/** Postgres refuses a key others can read; its user is 70 in the Alpine images, 999 in Debian's. */
+const postgresUid = (version: string) =>
+	version.includes("alpine") ? "70" : "999";
+
+function dbTlsFiles(input: CompileServiceInput): ServiceFile[] {
+	const spec = input.service.spec;
+	if (spec.kind !== "database" || !input.tls) return [];
+	const { certPem, keyPem } = input.tls;
+	const file = (
+		part: keyof typeof DB_TLS_FILES,
+		data: string,
+		owner?: ServiceFile["file"],
+	): ServiceFile => ({
+		mountId: `${input.service.id}#tls-${part}`,
+		target: DB_TLS_FILES[part],
+		kind: "secret",
+		// Docker caps names at 64 characters, test prefixes included.
+		name: `${prefixOf(input)}${dockerName("sec", input.service.id)}-${part}-${sha256(data)}`,
+		data,
+		labels: labelsFor(input, input.service.id, "secret"),
+		...(owner && { file: owner }),
+	});
+	if (spec.engine === "mongo")
+		return [file("pem", `${certPem.trim()}\n${keyPem.trim()}\n`)];
+	return [
+		file("crt", certPem),
+		file(
+			"key",
+			keyPem,
+			spec.engine === "postgres"
+				? { uid: postgresUid(spec.version), mode: 0o600 }
+				: undefined,
+		),
+	];
 }
 
 function shellQuote(v: string): string {
@@ -370,7 +453,9 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 			throw new Error(
 				`service ${service.id}: ${db.engine} needs env ${missing.join(", ")}`,
 			);
-		volumeMounts.push(volume(service.id, databaseDataDir(db)));
+		volumeMounts.push(
+			volume(input.dataVolumeOwner ?? service.id, databaseDataDir(db)),
+		);
 	}
 	if (store) {
 		const missing = store.required.filter((k) => !input.env[k]);
@@ -405,7 +490,12 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 	for (const f of serviceFiles(input)) {
 		const id = input.fileIds[f.name];
 		if (!id) throw new Error(`${f.kind} ${f.name} has no Swarm id`);
-		const File = { Name: f.target, UID: "0", GID: "0", Mode: 0o444 };
+		const File = {
+			Name: f.target,
+			UID: f.file?.uid ?? "0",
+			GID: f.file?.uid ?? "0",
+			Mode: f.file?.mode ?? 0o444,
+		};
 		if (f.kind === "config")
 			configs.push({ ConfigID: id, ConfigName: f.name, File });
 		else secrets.push({ SecretID: id, SecretName: f.name, File });
@@ -485,11 +575,15 @@ export function compileService(input: CompileServiceInput): ServiceSpec {
 					...labelsFor(input, service.id, kind),
 					...deploymentLabel,
 				},
-				...(engine?.args
-					? { Command: engine.args }
-					: (app?.command ?? store?.args)
-						? { Args: app?.command ?? store?.args }
-						: {}),
+				...(db?.engine === "redis" && input.tls
+					? { Command: ["sh", "-c", redisServer(true)] }
+					: engine?.args
+						? { Command: engine.args }
+						: input.tls && engine?.tlsArgs
+							? { Args: engine.tlsArgs }
+							: (app?.command ?? store?.args)
+								? { Args: app?.command ?? store?.args }
+								: {}),
 				...(app?.entrypoint ? { Command: app.entrypoint } : {}),
 				Env: env,
 				...(app?.user ? { User: app.user } : {}),

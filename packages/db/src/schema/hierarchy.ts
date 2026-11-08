@@ -164,6 +164,11 @@ export const service = pgTable(
 		stackId: text("stack_id").references((): AnyPgColumn => stack.id, {
 			onDelete: "cascade",
 		}),
+		/**
+		 * Owner id of a database's data volume (`ls-vol-<id>`) once a major-version upgrade moved
+		 * it to a new one; null: the service id.
+		 */
+		dataVolumeId: text("data_volume_id"),
 		...timestamps,
 	},
 	(t) => [

@@ -1,6 +1,8 @@
 import {
 	BACKUP_QUEUE,
 	type BackupJob,
+	DBOPS_QUEUE,
+	type DbOpsJob,
 	type EventEnvelope,
 	MIGRATION_QUEUE,
 	type MigrationJob,
@@ -27,6 +29,8 @@ import { reportCommitStatus } from "./commit-status.ts";
 import { type Config, loadConfig } from "./config.ts";
 import { unfreeze } from "./coolify.ts";
 import type { Ctx } from "./ctx.ts";
+import { reconcileDbAccess } from "./db-access.ts";
+import { runUpgrade } from "./db-upgrade.ts";
 import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { recheckExternalSecrets } from "./external-secrets.ts";
@@ -193,6 +197,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 					});
 				else if (job.name === "buildkit-probe") await probeBuildkit(ctx);
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
+				else if (job.name === "db-access") await reconcileDbAccess(ctx);
 				else await sweepOrphans(ctx);
 			},
 			{
@@ -224,6 +229,17 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			connection,
 			concurrency: 8,
 		}),
+		// Upgrades run for hours; one per service is enforced by the api, several services may run.
+		new Worker<DbOpsJob>(
+			DBOPS_QUEUE,
+			(job) => runUpgrade(ctx, job.data.upgradeId),
+			{
+				connection,
+				concurrency: cfg.LS_RUN_CONCURRENCY,
+				// shortcut: a dead worker must not replay a half-done upgrade, so it fails as stalled and its row stays running; add a boot check once upgrades get long enough to matter.
+				maxStalledCount: 0,
+			},
+		),
 		// One cutover at a time: the wizard moves services in order, databases first.
 		new Worker<MigrationJob>(
 			MIGRATION_QUEUE,
@@ -253,6 +269,12 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		"checks-every",
 		{ every: CHECKS_POLL_MS },
 		{ name: "checks" },
+	);
+	// Port forwards must close at their expiry whatever the reconcile interval is.
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"db-access-every",
+		{ every: 30_000 },
+		{ name: "db-access" },
 	);
 
 	if (cfg.LS_RECONCILE_INTERVAL_MS > 0) {

@@ -89,7 +89,7 @@ type Login = {
 };
 
 /** Who the explorer logs in as: the engine's superuser, from the env the image initialised with. */
-const LOGIN: Partial<
+export const LOGIN: Partial<
 	Record<DatabaseEngine, (env: Record<string, string>) => Login>
 > = {
 	postgres: (env) => {
@@ -136,7 +136,7 @@ const LOGIN: Partial<
 	}),
 };
 
-async function credentials(deps: Deps, serviceId: string) {
+export async function credentials(deps: Deps, serviceId: string) {
 	return serviceEnvValues(deps, serviceId, ENV_KEYS);
 }
 
@@ -478,6 +478,21 @@ export async function dumpResponse(
 	});
 }
 
+/** The body's chunks as they arrive, failing once they pass the declared length. */
+async function* capped(body: ReadableStream<Uint8Array>, limit: number) {
+	let seen = 0;
+	for await (const chunk of body) {
+		seen += chunk.byteLength;
+		if (seen > limit)
+			throw new Failure(
+				"payload_too_large",
+				"the body is longer than its Content-Length",
+				{ reason: "too_large", maxBytes: limit },
+			);
+		yield chunk;
+	}
+}
+
 /**
  * Pipes `body` into the engine's restore tool in the running replica, replacing what the
  * database holds. A non-zero exit is a 409 with the tool's exit code and the tail of its stderr.
@@ -487,6 +502,21 @@ export async function restoreFrom(
 	serviceId: string,
 	body: ReadableStream<Uint8Array>,
 ) {
+	const max = c.var.deps.config.MAX_RESTORE_BYTES;
+	const declared = Number(c.req.header("content-length"));
+	// The limit must hold before the first byte reaches the tool, which starts replacing data at once.
+	if (!Number.isSafeInteger(declared) || declared <= 0)
+		throw new Failure(
+			"payload_too_large",
+			"send the dump with a Content-Length header",
+			{ reason: "length_required", maxBytes: max },
+		);
+	if (declared > max)
+		throw new Failure(
+			"payload_too_large",
+			`the dump is ${declared} bytes; restores take up to ${max}`,
+			{ reason: "too_large", maxBytes: max },
+		);
 	const db = await databaseRow(c, serviceId);
 	if (db.engine === "redis" || db.engine === "libsql")
 		throw new Failure(
@@ -505,7 +535,7 @@ export async function restoreFrom(
 	);
 	let bytes = 0;
 	try {
-		await feed(exec, body, (n) => {
+		await feed(exec, capped(body, declared), (n) => {
 			bytes = n;
 		});
 	} catch (e) {

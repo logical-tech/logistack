@@ -31,6 +31,7 @@ const ConfigSchema = z.object({
 	LS_INGRESS_NETWORK: z.string().default("ls-ingress"),
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
+	/** Pre-0.6 shared database network; the api stays on it until every database has moved to `ls-db-<org>`. */
 	LS_DB_NETWORK: z.string().default("ls-db"),
 	LS_GAME_NETWORK: z.string().default("ls-game"),
 	/** The node label Caddy's placement waits on (`install.sh` writes `pending`, then `true`). */
@@ -126,6 +127,8 @@ const ConfigSchema = z.object({
 	LS_CONCURRENCY: z.coerce.number().int().min(1).default(4),
 	/** Needs sh, tar and zstd (installed with apk on first use when missing). Volume backups and restores. */
 	LS_BACKUP_TOOLS_IMAGE: z.string().default("alpine:3.22"),
+	/** The image database gateways run (ROLE=dbgateway); empty: the worker's own stack image. */
+	LS_GATEWAY_IMAGE: z.string().optional(),
 	/** Host-target schedules chroot into the node's / from this image. */
 	LS_HOST_JOB_IMAGE: z.string().default("busybox:1.37"),
 	/** Schedule run output kept per run; the rest is counted, not stored. */
