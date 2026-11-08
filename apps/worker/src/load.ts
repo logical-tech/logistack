@@ -11,11 +11,15 @@ import {
 	type DeploymentContext,
 	decrypt,
 	dockerName,
+	interpolateSecrets,
 	type ResolvedEnvVar,
 	type Resource,
 	resolveEnv,
 	scaledReplicas,
+	secretChain as secretChainOf,
+	secretExpressions,
 	secretInChain,
+	secretRank,
 } from "@logistack/core";
 import {
 	adoptedVolume,
@@ -28,6 +32,7 @@ import {
 	node,
 	project,
 	registry,
+	secret,
 	service,
 	serviceAutoscale,
 	sshKey,
@@ -39,7 +44,7 @@ import {
 	gitProviders,
 	instantiate,
 } from "@logistack/providers";
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
 import {
 	resolveExternalSecrets,
@@ -63,6 +68,8 @@ export type ServiceContext = {
 	adoptedVolumes: Record<string, string>;
 	/** Runs in a pull request preview. */
 	disposable: boolean;
+	/** The URLs of the pull request preview this service is part of. */
+	preview?: DeploymentContext["preview"];
 	domains: DomainRow[];
 	registry: { host: string; flat: boolean; auth?: RegistryAuth } | null;
 	/** How the clone authenticates; absent for public https repositories. */
@@ -154,6 +161,40 @@ async function folderChain(
 
 type LoadCtx = Pick<Ctx, "db" | "masterKey" | "secretsKek">;
 
+/** For each key, the id of the most specific secret with that key on the resource's chain. */
+async function secretsByKey(
+	ctx: Pick<Ctx, "db">,
+	organizationId: string,
+	chain: Resource,
+	keys: string[],
+): Promise<Map<string, string>> {
+	const out = new Map<string, string>();
+	if (!keys.length) return out;
+	const rows = await ctx.db
+		.select({
+			id: secret.id,
+			key: secret.key,
+			scope: secret.scope,
+			scopeId: secret.scopeId,
+		})
+		.from(secret)
+		.where(
+			and(eq(secret.organizationId, organizationId), inArray(secret.key, keys)),
+		);
+	const ranked = secretChainOf(chain);
+	for (const r of rows.filter((r) => secretInChain(r, chain)))
+		if (
+			!out.has(r.key) ||
+			secretRank(r, ranked) >
+				secretRank(
+					rows.find((o) => o.id === out.get(r.key)) as typeof r,
+					ranked,
+				)
+		)
+			out.set(r.key, r.id);
+	return out;
+}
+
 /**
  * `gitAuth: false` skips minting clone credentials, for callers that only compile.
  * `external: "placeholder"` does not contact secret providers: external secrets get the
@@ -204,10 +245,29 @@ export async function loadService(
 				and(eq(envVar.scope, "service"), eq(envVar.scopeId, svc.id)),
 			),
 		);
-	const secrets = await readSecretValues(
-		ctx,
-		vars.flatMap((v) => (v.secretId ? [v.secretId] : [])),
+	const chainOf: Resource = {
+		type: "service",
+		organizationId: orgId,
+		folderIds: await folderChain(ctx, row.project.folderId),
+		projectId: row.project.id,
+		environmentId: svc.environmentId,
+		serviceId: svc.id,
+	};
+	const plainValues = new Map(
+		await Promise.all(
+			vars
+				.filter((v) => !v.secretId)
+				.map(async (v) => [v.id, await open(v.valueEncrypted)] as const),
+		),
 	);
+	// `${{ secrets.KEY }}` in plain values: the most specific secret of that key on the chain.
+	const named = await secretsByKey(ctx, orgId, chainOf, [
+		...new Set([...plainValues.values()].flatMap(secretExpressions)),
+	]);
+	const secrets = await readSecretValues(ctx, [
+		...vars.flatMap((v) => (v.secretId ? [v.secretId] : [])),
+		...named.values(),
+	]);
 	const externals =
 		external === "resolve"
 			? await resolveExternalSecrets(
@@ -224,45 +284,91 @@ export async function loadService(
 							}),
 					),
 				);
-	const chainOf: Resource = {
-		type: "service",
-		organizationId: orgId,
-		folderIds: await folderChain(ctx, row.project.folderId),
-		projectId: row.project.id,
-		environmentId: svc.environmentId,
-		serviceId: svc.id,
+	const secretValue = (id: string) => {
+		const s = secrets.get(id);
+		const ext = externals.get(id);
+		if (!s || (s.value === null && !ext))
+			throw new Error(`external secret ${id} was not read`);
+		return { value: ext?.value ?? (s.value as string), ext };
 	};
 	const env = resolveEnv(
 		await Promise.all(
 			vars.map(async (v) => {
-				if (!v.secretId)
+				if (!v.secretId) {
+					const plain = plainValues.get(v.id) as string;
+					const keys = secretExpressions(plain);
+					if (!keys.length)
+						return {
+							scope: v.scope,
+							key: v.key,
+							value: plain,
+							isSecret: v.isSecret,
+							isBuildTime: v.isBuildTime,
+						};
+					const resolved = (snapshot: boolean) =>
+						interpolateSecrets(plain, (k) => {
+							const id = named.get(k);
+							if (!id) return undefined;
+							const { value, ext } = secretValue(id);
+							return snapshot && ext ? ext.placeholder : value;
+						});
+					const out = resolved(false);
+					if (out.missing.length)
+						throw new Error(
+							`${v.key} uses \${{ secrets.${out.missing[0]} }}, but no secret of that name is defined on this service's chain`,
+						);
+					const external = out.used.some((k) =>
+						externals.has(named.get(k) as string),
+					);
 					return {
 						scope: v.scope,
 						key: v.key,
-						value: await open(v.valueEncrypted),
-						isSecret: v.isSecret,
+						value: out.value,
+						// Holds a secret now: masked in logs, kept out of build args.
+						isSecret: true,
 						isBuildTime: v.isBuildTime,
+						...(external ? { snapshotValue: resolved(true).value } : {}),
 					};
+				}
 				const s = secrets.get(v.secretId);
 				// Re-checked here: moving a project to another folder can strand a folder secret.
 				if (!s || s.organizationId !== orgId || !secretInChain(s, chainOf))
 					throw new Error(
 						`${v.key} references a secret this service cannot use; pick another in its Environment tab`,
 					);
-				const ext = externals.get(s.id);
-				if (s.value === null && !ext)
-					throw new Error(`${v.key}: external secret ${s.id} was not read`);
+				const { value, ext } = secretValue(s.id);
 				return {
 					scope: v.scope,
 					key: v.key,
-					value: ext?.value ?? (s.value as string),
+					value,
 					isSecret: true,
 					isBuildTime: v.isBuildTime,
 					...(ext ? { snapshotValue: ext.placeholder } : {}),
+					...(v.asFile ? { fileId: v.id } : {}),
 				};
 			}),
 		),
 	);
+
+	// References mounted as files leave the env: the app reads `/run/secrets/<KEY>`, named by `<KEY>_FILE`.
+	const secretFiles: CompileMount[] = [];
+	for (const [key, v] of Object.entries(env)) {
+		if (!v.fileId) continue;
+		secretFiles.push({
+			id: v.fileId,
+			kind: "secret",
+			target: `/run/secrets/${key}`,
+			readOnly: true,
+			content: v.value,
+		});
+		delete env[key];
+		env[`${key}_FILE`] ??= {
+			scope: "service",
+			value: `/run/secrets/${key}`,
+			isSecret: false,
+			isBuildTime: false,
+		};
+	}
 
 	const mounts = await Promise.all(
 		(await ctx.db.select().from(mount).where(eq(mount.serviceId, svc.id))).map(
@@ -349,9 +455,15 @@ export async function loadService(
 		projectName: row.project.name,
 		environmentName: row.environmentName,
 		env,
-		mounts,
+		mounts: [...mounts, ...secretFiles],
 		adoptedVolumes,
 		disposable: row.preview !== null,
+		...(row.preview && {
+			preview: {
+				...(row.preview.primaryUrl && { primaryUrl: row.preview.primaryUrl }),
+				serviceUrls: row.preview.serviceUrls ?? {},
+			},
+		}),
 		domains,
 		registry: host
 			? {
@@ -393,6 +505,7 @@ export function deploymentContext(
 		project: sc.projectName,
 		service: sc.service.name,
 		domains: sc.domains,
+		...(sc.preview && { preview: sc.preview }),
 	};
 }
 
@@ -418,6 +531,7 @@ export function compileInput(
 		| "bridgeLabels"
 		| "bridgeContainerLabels"
 		| "bridgeAliases"
+		| "tls"
 	>,
 ): CompileServiceInput {
 	return {
@@ -444,6 +558,9 @@ export function compileInput(
 		context: deploymentContext(sc, deployment),
 		mounts: sc.mounts,
 		adoptedVolumes: sc.adoptedVolumes,
+		...(sc.service.dataVolumeId && {
+			dataVolumeOwner: sc.service.dataVolumeId,
+		}),
 		...(sc.disposable && { disposable: true }),
 		domains: sc.domains,
 		...refs,

@@ -1,5 +1,7 @@
 import type {
 	BuildkitState,
+	PluginPolicy,
+	ReleaseChannel,
 	UpdateState,
 	UpdateSteps,
 } from "@logistack/contracts";
@@ -38,10 +40,30 @@ export const instanceSettings = pgTable(
 		autoCheckUpdates: boolean("auto_check_updates").notNull().default(true),
 		/** Updates follow `staging` builds (GitHub prereleases), not only stable releases. */
 		betaUpdates: boolean("beta_updates").notNull().default(false),
+		/**
+		 * `stable`, `beta` or `nightly` (`ReleaseChannel`). Supersedes `betaUpdates`, which the API
+		 * keeps in step (true unless stable) for a previous release that still reads it.
+		 */
+		updateChannel: text("update_channel")
+			.$type<ReleaseChannel>()
+			.notNull()
+			.default("stable"),
 		/** The worker's last BuildKit probe and QEMU setup; null until the first. */
 		buildkit: jsonb("buildkit").$type<BuildkitState>(),
 		/** An `lss_` key signed by the sponsors Worker; verified on read, renewed by the worker. */
 		sponsorKey: text("sponsor_key"),
+		/**
+		 * v1 ciphertext of Caddy's Redis storage key. Pinned on first use, so rotating the master key
+		 * does not change the key the stored certificates are sealed with.
+		 */
+		caddyStorageKeyEncrypted: text("caddy_storage_key_encrypted"),
+		/** Who may install plugins: `off`, `verified` (marketplace-reviewed only) or `any` (`PluginPolicy`). */
+		pluginPolicy: text("plugin_policy")
+			.$type<PluginPolicy>()
+			.notNull()
+			.default("any"),
+		/** Opt-in: tell the index a plugin was installed (plugin id and version, nothing else). */
+		pluginInstallPing: boolean("plugin_install_ping").notNull().default(false),
 		...timestamps,
 	},
 	(t) => [

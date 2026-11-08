@@ -8,6 +8,7 @@ import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
+import { acmeProxy } from "./acme-proxy.ts";
 import { type Actor, authenticate } from "./actor.ts";
 import { gateway } from "./ai/gateway.ts";
 import { assertMutationsAudited } from "./audit.ts";
@@ -16,6 +17,8 @@ import { onError, validationHook } from "./errors.ts";
 import { terminal } from "./exec-ws.ts";
 import { requestLogger } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
+import { pluginProxy } from "./plugin-proxy.ts";
+import { limitCredentials } from "./rate-limit.ts";
 import { ai } from "./routes/ai.ts";
 import { aiAgent } from "./routes/ai-agent.ts";
 import { apiKeys } from "./routes/api-keys.ts";
@@ -26,15 +29,18 @@ import { backups } from "./routes/backups.ts";
 import { buildPlatforms } from "./routes/build-platforms.ts";
 import { certificates } from "./routes/certificates.ts";
 import { containerFiles } from "./routes/container-files.ts";
+import { databaseAccessRoutes } from "./routes/database-access.ts";
 import { databases } from "./routes/databases.ts";
 import { dnsProviders } from "./routes/dns-providers.ts";
 import { domainAccess } from "./routes/domain-access.ts";
 import { domains } from "./routes/domains.ts";
+import { edge } from "./routes/edge.ts";
 import { envVars } from "./routes/env-vars.ts";
 import { files } from "./routes/files.ts";
 import { folders } from "./routes/folders.ts";
 import { games } from "./routes/games.ts";
 import { git } from "./routes/git.ts";
+import { gitops } from "./routes/gitops.ts";
 import { health } from "./routes/health.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
@@ -47,6 +53,8 @@ import { networkMapRoutes } from "./routes/network-map.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
+import { patching } from "./routes/patching.ts";
+import { plugins } from "./routes/plugins.ts";
 import { previews } from "./routes/previews.ts";
 import { projects } from "./routes/projects.ts";
 import { registries } from "./routes/registries.ts";
@@ -65,11 +73,14 @@ import { stacks } from "./routes/stacks.ts";
 import { storage } from "./routes/storage.ts";
 import { tailscale } from "./routes/tailscale.ts";
 import { templates } from "./routes/templates.ts";
+import { traffic } from "./routes/traffic.ts";
 import { tunnels } from "./routes/tunnels.ts";
 import { updates } from "./routes/updates.ts";
+import { uptime } from "./routes/uptime.ts";
 import { usage } from "./routes/usage.ts";
 import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
+import { push, statusBySlug, statusHostRouter } from "./status-pages.ts";
 import { realtime } from "./ws.ts";
 
 /**
@@ -110,10 +121,14 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		(c.req.method === "POST" &&
 			/^\/api\/databases\/[^/]+\/restore$/.test(c.req.path));
 	app.use("/api/*", (c, next) => (streamed(c) ? next() : limited(c, next)));
+	// A status page's own hostname serves that page only, before any session or API handling.
+	app.use("*", statusHostRouter(deps));
+	app.route("/status/:slug", statusBySlug);
 	app.use(
 		"/api/*",
 		cors({ origin: deps.config.WEB_ORIGIN, credentials: true }),
 	);
+	app.use("/api/auth/*", limitCredentials);
 	app.on(["GET", "POST"], "/api/auth/*", (c) => deps.auth.handler(c.req.raw));
 	// Health must answer even when the session store is unreachable; agents present node tokens.
 	app.use("/api/*", async (c, next) =>
@@ -145,6 +160,14 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	});
 	app.get("/api/docs", Scalar({ url: "/api/openapi.json" }));
 
+	// Heartbeats from cron jobs, outside /api: the token is the credential, and a ping is
+	// telemetry like a metric sample, not an audited change.
+	app.route("/push", push);
+	// Plugin pages: no session here (an opaque-origin page sends no cookies); see plugin-proxy.ts.
+	app.route("/plugins", pluginProxy);
+	// DNS-01 for plugin DNS providers, called by Caddy with a per-provider basic-auth secret.
+	app.route("/acme-proxy", acmeProxy);
+
 	const routes = app
 		.route("/api", health)
 		.route("/api", setup)
@@ -153,11 +176,13 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", services)
 		.route("/api", stacks)
 		.route("/api", manifests)
+		.route("/api", gitops)
 		.route("/api", previews)
 		.route("/api", envVars)
 		.route("/api", secrets)
 		.route("/api", domains)
 		.route("/api", domainAccess)
+		.route("/api", edge)
 		.route("/api", dnsProviders)
 		.route("/api", certificates)
 		.route("/api", notifications)
@@ -167,10 +192,12 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", audit)
 		.route("/api", organizationRoutes)
 		.route("/api", metrics)
+		.route("/api", traffic)
 		.route("/api", autoscale)
 		.route("/api", vulnerabilities)
 		.route("/api", usage)
 		.route("/api", nodes)
+		.route("/api", patching)
 		.route("/api", networkMapRoutes)
 		.route("/api", members)
 		.route("/api", apiKeys)
@@ -197,9 +224,12 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", storage)
 		.route("/api", games)
 		.route("/api", databases)
+		.route("/api", databaseAccessRoutes)
 		.route("/api", migrations)
 		.route("/api", ai)
 		.route("/api", aiAgent)
+		.route("/api", uptime)
+		.route("/api", plugins)
 		.route("/", realtime)
 		.route("/", terminal);
 
@@ -213,6 +243,9 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 			p === "/ws" ||
 			p === "/mcp" ||
 			p === "/api" ||
+			p.startsWith("/status/") ||
+			p.startsWith("/push/") ||
+			p.startsWith("/plugins/") ||
 			p.startsWith("/api/") ||
 			p.startsWith("/v1/");
 		// A file when one matches, else the app shell for client-side routes.

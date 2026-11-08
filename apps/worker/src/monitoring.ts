@@ -1,3 +1,4 @@
+import { TRAFFIC_STREAM } from "@logistack/contracts";
 import { node } from "@logistack/db";
 import { autoscalePass } from "./autoscale.ts";
 import { log, withLock } from "./bus.ts";
@@ -12,7 +13,9 @@ import {
 } from "./metrics-store.ts";
 import { claimJoin, runJoinStep } from "./node-join.ts";
 import { onNodeOps, syncNodes } from "./nodes.ts";
+import { claimRun, clusterDeps, processRun } from "./patching.ts";
 import { evaluateServiceThresholds, evaluateThresholds } from "./thresholds.ts";
+import { rollupTraffic, storeTrafficEntries } from "./traffic-store.ts";
 
 /** Matches the agent's scrape cadence closely enough; decisions use 1- and 5-minute windows. */
 const AUTOSCALE_INTERVAL_MS = 30_000;
@@ -73,8 +76,15 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		redisUrl: ctx.cfg.REDIS_URL,
 		resolveNode,
 	});
+	const traffic = createMetricsConsumer({
+		sql,
+		redisUrl: ctx.cfg.REDIS_URL,
+		stream: TRAFFIC_STREAM,
+		handle: (entries) => storeTrafficEntries(sql, entries),
+	});
 	const ingest = new AbortController();
 	const consuming = consumer.run(ingest.signal);
+	const trafficConsuming = traffic.run(ingest.signal);
 
 	let lastRetention = 0;
 	const maintenance = every(
@@ -84,6 +94,7 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 			await withLock(redis, "ls:lock:metrics", 300_000, async () => {
 				await ensurePartitions(sql);
 				await rollup(sql);
+				await rollupTraffic(sql);
 				await evaluateThresholds(sql, ctx.bus);
 				await evaluateServiceThresholds(sql, ctx.bus);
 				if (Date.now() - lastRetention > 600_000) {
@@ -117,6 +128,17 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 				void runJoinStep(ctx, row);
 		},
 	);
+	// Patch runs are queued like node operations; a claimed run runs to its end in the background.
+	const patches = every(
+		"patch runs",
+		ctx.cfg.LS_NODE_SYNC_INTERVAL_MS,
+		async () => {
+			for (let run = await claimRun(ctx.db); run; run = await claimRun(ctx.db))
+				void processRun(ctx, clusterDeps(ctx), run).catch((e) =>
+					log("error", "patch run failed", { run: run?.id, error: String(e) }),
+				);
+		},
+	);
 	// Instance updates are queued like node operations and poked over the same channel.
 	const updates = every(
 		"instance update",
@@ -127,6 +149,7 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		void nodes.kick();
 		void joins.kick();
 		void updates.kick();
+		void patches.kick();
 	});
 
 	return async () => {
@@ -136,8 +159,11 @@ export async function startMonitoring(ctx: Ctx): Promise<() => Promise<void>> {
 		nodes.stop();
 		joins.stop();
 		updates.stop();
+		patches.stop();
 		ingest.abort();
 		consumer.close();
+		traffic.close();
 		await consuming.catch(() => {});
+		await trafficConsuming.catch(() => {});
 	};
 }

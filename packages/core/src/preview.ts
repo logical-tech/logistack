@@ -116,3 +116,44 @@ export function previewEnvironment(
 		generated,
 	};
 }
+
+/**
+ * Pure: a preview's URLs from its services' domains (each in creation order): every URL sorted,
+ * each service's first serving one by slug, and the main one, that of the first service of
+ * `followed` that has one, else the first URL.
+ */
+export function previewUrls(
+	services: readonly {
+		slug: string;
+		domains: readonly {
+			hostname: string;
+			pathPrefix?: string | null;
+			redirectTo?: string | null;
+			isGenerated?: boolean;
+		}[];
+	}[],
+	followed: readonly string[],
+): {
+	urls: string[];
+	serviceUrls: Record<string, string>;
+	primaryUrl?: string;
+} {
+	const url = (d: { hostname: string; pathPrefix?: string | null }) =>
+		`https://${d.hostname}${d.pathPrefix ?? ""}`;
+	const serviceUrls: Record<string, string> = {};
+	for (const s of [...services].sort((a, b) => a.slug.localeCompare(b.slug))) {
+		const serving = s.domains.filter(
+			(d) => !d.redirectTo && !d.hostname.startsWith("*."),
+		);
+		const first = serving.find((d) => !d.isGenerated) ?? serving[0];
+		if (first) serviceUrls[s.slug] = url(first);
+	}
+	const urls = [
+		...new Set(
+			services.flatMap((s) => s.domains.map((d) => `https://${d.hostname}`)),
+		),
+	].sort();
+	const primaryUrl =
+		followed.map((f) => serviceUrls[f]).find(Boolean) ?? urls[0];
+	return { urls, serviceUrls, ...(primaryUrl && { primaryUrl }) };
+}

@@ -132,6 +132,7 @@ const KIND_LABEL: Record<DnsKind, string> = {
 	digitalocean: "DigitalOcean",
 	ovh: "OVHcloud",
 	porkbun: "Porkbun",
+	plugin: "the plugin",
 };
 
 type Errors = Record<string, string>;

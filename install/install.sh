@@ -45,6 +45,7 @@ LOCAL_BUILD=0
 NO_INGRESS=0
 ENABLE_INGRESS=0
 PUBLIC_SETUP=0
+API_REPLICAS=""
 REGISTRY="ghcr.io/logical-tech"
 CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
@@ -120,6 +121,8 @@ Usage: install.sh [options]
   --public-setup       Serve the setup wizard on the public address before setup, guarded by a
                        one-time setup token printed at the end (default: only through an SSH
                        tunnel to 127.0.0.1:$TUNNEL_PORT)
+  --api-replicas N     API replicas behind Caddy, 1 to 9 (default: the running count, else 1).
+                       Kept on re-runs and by in-app updates
   --help, -h           Show this help
 EOF
 }
@@ -168,6 +171,8 @@ parse_args() {
 		--no-ingress) NO_INGRESS=1 ;;
 		--enable-ingress) ENABLE_INGRESS=1 ;;
 		--public-setup) PUBLIC_SETUP=1 ;;
+		--api-replicas) API_REPLICAS=${2:?--api-replicas needs a value}; shift ;;
+		--api-replicas=*) API_REPLICAS=${1#*=} ;;
 		--help | -h) usage; exit 0 ;;
 		*) usage >&2; fail "Unknown option: $1" ;;
 		esac
@@ -175,6 +180,7 @@ parse_args() {
 	done
 	[ "$NO_INGRESS" = 0 ] || [ "$ENABLE_INGRESS" = 0 ] || fail "--no-ingress and --enable-ingress are mutually exclusive"
 	[[ $VERSION =~ ^v[0-9] ]] && VERSION=${VERSION#v}
+	[ -z "$API_REPLICAS" ] || [[ $API_REPLICAS =~ ^[1-9]$ ]] || fail "--api-replicas must be a number from 1 to 9"
 	if [ -n "$VERSION" ] && [[ ! $VERSION =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
 		fail "--version must be a release such as 0.2.0, or latest"
 	fi
@@ -528,6 +534,13 @@ running_version() {
 	image=${image%%@*}
 	image=${image##*:}
 	printf '%s' "${image%%-local.*}"
+}
+
+# The api's replica count as deployed, so a re-run keeps a scaled control plane scaled.
+running_api_replicas() {
+	have docker || return 0
+	docker service inspect "${STACK_NAME}_logistack-api" \
+		--format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || true
 }
 
 # Unauthenticated: GitHub allows 60 requests an hour per IP. `releases/latest` skips prereleases.
@@ -895,10 +908,12 @@ deploy() {
 	local public=false token_file="" tunnel_origin=""
 	if [ "$PUBLIC_SETUP" = 1 ]; then public=true token_file=/run/secrets/setup_token; fi
 	if tunnel_wanted; then tunnel_origin="http://localhost:$TUNNEL_PORT"; fi
+	local replicas=${API_REPLICAS:-$(running_api_replicas)}
+	[[ $replicas =~ ^[1-9]$ ]] || replicas=1
 	local files=(-c "$CONF_DIR/stack.yml")
 	[ "$DOKPLOY" = 0 ] || files+=(-c "$CONF_DIR/$DOKPLOY_STACK")
 	[ "$COOLIFY" = 0 ] || files+=(-c "$CONF_DIR/$COOLIFY_STACK")
-	act "Deploy stack $STACK_NAME $IMAGE_TAG" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" \
+	act "Deploy stack $STACK_NAME $IMAGE_TAG ($replicas api replica$([ "$replicas" = 1 ] || echo s))" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" LOGISTACK_API_REPLICAS="$replicas" \
 		LOGISTACK_REGISTRY="$REGISTRY" LOGISTACK_PUBLIC_URL="$PUBLIC_URL" LOGISTACK_WEB_ORIGIN="https://${PUBLIC_URL#http://}" \
 		LOGISTACK_PUBLIC_SETUP="$public" LOGISTACK_SETUP_TOKEN_FILE="$token_file" LOGISTACK_TUNNEL_ORIGIN="$tunnel_origin" \
 		LOGISTACK_DOKPLOY_PG_SECRET="$DOKPLOY_PG_SECRET" LOGISTACK_DOKPLOY_PG_USER="$DOKPLOY_PG_USER" \

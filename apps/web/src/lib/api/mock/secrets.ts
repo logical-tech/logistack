@@ -110,6 +110,8 @@ export function secretsStore(db: MockDb) {
 		{
 			id: "ssp_vaultprod",
 			kind: "vault",
+			pluginInstallId: null,
+			pluginProvider: null,
 			name: "vault-prod",
 			url: "https://vault.logical.internal:8200",
 			secrets: 0,
@@ -415,6 +417,8 @@ export function secretsStore(db: MockDb) {
 				const p: SecretProvider = {
 					id: `ssp_${Math.random().toString(36).slice(2, 10)}`,
 					kind: input.kind,
+					pluginInstallId: input.pluginInstallId ?? null,
+					pluginProvider: input.pluginProvider ?? null,
 					name: input.name,
 					url: String(input.config.url ?? "https://app.infisical.com"),
 					secrets: 0,

@@ -1,0 +1,97 @@
+# Example, not enabled: the half of the review pipeline a Worker cannot run (pull the image,
+# start it, run the SDK contract test, scan it). To enable, copy to .github/workflows/ and add
+# the PLUGIN_INDEX_ADMIN_TOKEN secret: an API token of an index admin (dashboard > API tokens).
+# Results land on the version through POST /admin/versions/{id}/checks; the admin reads them in
+# the queue before marking the version verified. It never changes a version's status itself.
+name: plugin-review
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_id:
+        description: Version id from the admin queue (ver_…)
+        required: true
+      image:
+        description: Image by digest (registry/repo@sha256:…)
+        required: true
+      index_url:
+        description: Index base URL
+        default: https://stack.logicaltech.it/plugins/api
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: ${{ inputs.image }}
+      VERSION_ID: ${{ inputs.version_id }}
+      INDEX_URL: ${{ inputs.index_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+
+      - name: Check the input is a digest reference
+        run: |
+          [[ "$IMAGE" =~ ^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]] || { echo "not a digest ref"; exit 1; }
+
+      - name: Start the plugin
+        run: |
+          docker pull "$IMAGE"
+          PORT=$(docker inspect "$IMAGE" --format '{{ index .Config.Labels "io.logistack.plugin.manifest" }}' | jq -r '.port // 8080')
+          SECRET=$(openssl rand -base64 24)
+          echo "::add-mask::$SECRET"
+          echo "SECRET=$SECRET" >> "$GITHUB_ENV"
+          # Same hardening the reconciler applies: read-only root, no capabilities, a tmpfs /data.
+          docker run -d --name plugin-under-review --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --tmpfs /data --tmpfs /tmp \
+            -e LOGISTACK_SIGNING_SECRET="$SECRET" -p 18080:"$PORT" "$IMAGE"
+          for i in $(seq 1 30); do curl -fs localhost:18080/v1/health && break; sleep 1; done
+
+      - name: Contract test
+        id: contract
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          bun packages/plugin-sdk/src/cli.ts test http://localhost:18080 --secret "$SECRET" | tee contract.txt
+
+      - name: Vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ inputs.image }}
+          format: json
+          output: trivy.json
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+      - name: Attach results to the version
+        if: always()
+        env:
+          TOKEN: ${{ secrets.PLUGIN_INDEX_ADMIN_TOKEN }}
+          CONTRACT_OK: ${{ steps.contract.outcome == 'success' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          touch contract.txt trivy.json
+          jq -n \
+            --arg run "$RUN_URL" \
+            --argjson ok "$CONTRACT_OK" \
+            --rawfile contract contract.txt \
+            --slurpfile trivy trivy.json \
+            '{runUrl: $run,
+              contract: {ok: $ok, output: ($contract | .[0:4000])},
+              scan: {tool: "trivy",
+                     high: ([$trivy[0].Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length),
+                     critical: ([$trivy[0].Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length)}}' \
+            > checks.json
+          curl -fsS -X POST "$INDEX_URL/admin/versions/$VERSION_ID/checks" \
+            -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
+            --data @checks.json
+
+      - name: Stop the plugin
+        if: always()
+        run: docker rm -f plugin-under-review || true

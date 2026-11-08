@@ -2,12 +2,15 @@ import { expect, test } from "bun:test";
 import {
 	decrypt,
 	deriveSecretsKek,
+	encrypt,
 	importMasterKey,
 	newWrappedDataKey,
+	rewrapDataKey,
 	seal,
 	secretValueAad,
 	unseal,
 	unwrapDataKey,
+	withPreviousKey,
 } from "../src/crypto.ts";
 
 const master = crypto.getRandomValues(new Uint8Array(32)).toBase64();
@@ -67,4 +70,27 @@ test("the KEK is not the raw master key", async () => {
 	const ct = await seal(kek, "x", "secret");
 	const raw = await importMasterKey(master);
 	await expect(decrypt(raw, ct.replace(/^v2/, "v1"))).rejects.toThrow();
+});
+
+test("a rotated master key reads old values through its fallback, and rewraps data keys", async () => {
+	const oldB64 = crypto.getRandomValues(new Uint8Array(32)).toBase64();
+	const newB64 = crypto.getRandomValues(new Uint8Array(32)).toBase64();
+	const oldKey = await importMasterKey(oldB64);
+	const blob = await encrypt(oldKey, "hunter2");
+	const strict = await importMasterKey(newB64);
+	expect(decrypt(strict, blob)).rejects.toThrow();
+	const current = withPreviousKey(await importMasterKey(newB64), oldKey);
+	expect(await decrypt(current, blob)).toBe("hunter2");
+
+	const oldKek = await deriveSecretsKek(oldB64);
+	const newKek = await deriveSecretsKek(newB64);
+	const wrapped = await newWrappedDataKey(oldKek, "org_a", 3);
+	const rewrapped = await rewrapDataKey(oldKek, newKek, "org_a", 3, wrapped);
+	const k1 = await unwrapDataKey(oldKek, "org_a", 3, wrapped);
+	const k2 = await unwrapDataKey(newKek, "org_a", 3, rewrapped);
+	const sealed = await seal(k1, aad, "same key");
+	expect(await unseal(k2, aad, sealed)).toBe("same key");
+	expect(unwrapDataKey(newKek, "org_a", 3, wrapped)).rejects.toThrow();
+	withPreviousKey(newKek, oldKek);
+	expect(await unwrapDataKey(newKek, "org_a", 3, wrapped)).toBeDefined();
 });

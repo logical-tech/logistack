@@ -2,6 +2,13 @@ import { Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useState } from "react";
 import { Field } from "@/components/field";
 import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ChoiceGroup } from "@/components/wizard/parts";
 import { fieldLabel } from "@/lib/integrations";
@@ -15,6 +22,10 @@ type Prop = {
 	secret?: boolean;
 	format?: string;
 	items?: { type?: string; format?: string };
+	/** Plugin manifests (hand-written JSON Schema) also carry these. */
+	title?: string;
+	description?: string;
+	enum?: string[];
 };
 type ObjectSchema = {
 	type?: "object";
@@ -46,6 +57,10 @@ function active(s: ConfigSchema, values: ConfigValues): ObjectSchema {
 		(s.oneOf[0] as ObjectSchema)
 	);
 }
+
+/** False for a schema with nothing to fill in (a plugin without settings). */
+export const hasFields = (s: ConfigSchema) =>
+	isUnion(s) || Object.keys(s.properties ?? {}).length > 0;
 
 /** Starting values: the first variant and every default. */
 export function initialValues(s: ConfigSchema): ConfigValues {
@@ -90,7 +105,10 @@ export function missingFields(s: ConfigSchema, values: ConfigValues) {
 		(obj.required ?? [])
 			.filter((k) => obj.properties[k]?.type !== "boolean")
 			.filter((k) => !(values[k] ?? "").trim())
-			.map((k) => [k, `Enter the ${fieldLabel(k).toLowerCase()}.`]),
+			.map((k) => [
+				k,
+				`Enter the ${(obj.properties[k]?.title ?? fieldLabel(k)).toLowerCase()}.`,
+			]),
 	);
 }
 
@@ -217,10 +235,12 @@ export function ConfigFields({
 									className="flex cursor-pointer items-center justify-between gap-4 rounded-lg bg-card px-3.5 py-3 ring-1 ring-border sm:col-span-2"
 								>
 									<span className="text-sm">
-										<span className="font-medium">{fieldLabel(k)}</span>
-										{hints[k] && (
+										<span className="font-medium">
+											{p.title ?? fieldLabel(k)}
+										</span>
+										{(hints[k] ?? p.description) && (
 											<span className="block text-xs text-muted-foreground">
-												{hints[k]}
+												{hints[k] ?? p.description}
 											</span>
 										)}
 									</span>
@@ -235,11 +255,12 @@ export function ConfigFields({
 							<Field
 								key={k}
 								id={id}
-								label={fieldLabel(k)}
+								label={p.title ?? fieldLabel(k)}
 								optional={!required && p.default === undefined}
 								error={errors[k]}
 								hint={
 									hints[k] ??
+									p.description ??
 									(p.type === "array"
 										? "Separate several with commas."
 										: p.secret
@@ -248,7 +269,28 @@ export function ConfigFields({
 								}
 								className={cn(wide && "sm:col-span-2")}
 							>
-								{p.secret ? (
+								{p.enum ? (
+									<Select
+										value={values[k] ?? ""}
+										onValueChange={(v) => set(k, v)}
+									>
+										<SelectTrigger
+											id={id}
+											className="w-full"
+											aria-invalid={errors[k] ? true : undefined}
+											aria-describedby={`${id}-msg`}
+										>
+											<SelectValue placeholder="Choose" />
+										</SelectTrigger>
+										<SelectContent>
+											{p.enum.map((o) => (
+												<SelectItem key={o} value={o}>
+													{o}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								) : p.secret ? (
 									<SecretInput
 										id={id}
 										value={values[k] ?? ""}
@@ -260,7 +302,13 @@ export function ConfigFields({
 										id={id}
 										value={values[k] ?? ""}
 										onChange={(e) => set(k, e.target.value)}
-										inputMode={p.type === "integer" ? "numeric" : undefined}
+										inputMode={
+											p.type === "integer"
+												? "numeric"
+												: p.type === "number"
+													? "decimal"
+													: undefined
+										}
 										placeholder={
 											p.default !== undefined
 												? String(p.default)

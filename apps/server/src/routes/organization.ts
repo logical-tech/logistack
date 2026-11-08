@@ -18,7 +18,7 @@ import {
 } from "@logistack/db";
 import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { currentActor, requireActor } from "../actor.ts";
-import { mutation } from "../audit.ts";
+import { auditInTx, mutation } from "../audit.ts";
 import {
 	body,
 	Deployment,
@@ -103,6 +103,8 @@ export const organizationRoutes = router()
 								deadline: z.string(),
 							})
 							.nullable(),
+						/** May change the instance itself: updates, nodes, instance settings. */
+						instanceAdmin: z.boolean(),
 						/** Set when the credential is a scoped API key: it may act only within these. */
 						keyScopes: z
 							.array(
@@ -124,6 +126,7 @@ export const organizationRoutes = router()
 				keyScopes,
 				keyId: _,
 				twoFactor,
+				instanceAdmin,
 				...actor
 			} = currentActor(c);
 			const bindings = (gs: Grant[]) =>
@@ -131,6 +134,7 @@ export const organizationRoutes = router()
 			return c.json(
 				{
 					...actor,
+					instanceAdmin: instanceAdmin ?? false,
 					roles: grants
 						.filter((g) => g.scope.kind === "organization")
 						.map(roleName),
@@ -238,14 +242,16 @@ export const organizationRoutes = router()
 			}),
 		),
 		async (c) => {
-			const { before, after } = await writeTwoFactorPolicy(
-				c.var.deps.db,
-				requireActor(c).organizationId,
-				c.req.valid("json"),
-			);
-			c.set("auditDiff", {
-				before: settingJson(before),
-				after: settingJson(after),
+			const after = await c.var.deps.db.transaction(async (tx) => {
+				const { before, after } = await writeTwoFactorPolicy(
+					tx,
+					requireActor(c).organizationId,
+					c.req.valid("json"),
+				);
+				await auditInTx(c, tx, {
+					diff: { before: settingJson(before), after: settingJson(after) },
+				});
+				return after;
 			});
 			return c.json(settingJson(after), 200);
 		},

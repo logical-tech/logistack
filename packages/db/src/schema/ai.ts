@@ -166,3 +166,23 @@ export const aiAgentMessage = pgTable(
 	},
 	(t) => [index("ai_agent_message_conv_idx").on(t.conversationId, t.createdAt)],
 );
+
+/**
+ * Cost held for a gateway call in flight: checked and inserted under the member's lock, replaced by
+ * its `ai_usage` row when the call ends. A crashed call's hold lapses at `expires_at`.
+ */
+export const aiBudgetReservation = pgTable(
+	"ai_budget_reservation",
+	{
+		id: id("air"),
+		organizationId: org(),
+		userId: owner(),
+		tier: text("tier").notNull(),
+		micros: bigint("micros", { mode: "number" }).notNull(),
+		expiresAt: tstz("expires_at").notNull(),
+		createdAt: tstz("created_at").defaultNow().notNull(),
+	},
+	(t) => [
+		index("ai_budget_reservation_member_idx").on(t.organizationId, t.userId),
+	],
+);

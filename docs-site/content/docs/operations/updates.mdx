@@ -1,6 +1,6 @@
 ---
 title: Update LogiStack
-description: Update LogiStack from the dashboard or the installer, check daily for new releases, opt in to beta builds, and learn what an update does and how it rolls back.
+description: Update LogiStack from the dashboard or the installer, pick the stable, beta or nightly channel, read the changelog first, and learn how an update rolls back.
 ---
 
 LogiStack publishes releases on GitHub. You update an instance from **Settings** › **Updates** with one click, or from the server with the installer. An update replaces LogiStack's own services (the API, the worker, the agents and Caddy) one at a time, waits for each to be healthy, and rolls back on its own if one is not. Your apps, databases and volumes keep running.
@@ -14,22 +14,26 @@ Select **Settings** › **Updates**.
 The **Version** panel shows:
 
 - **This instance**: the running release, for example `v0.1.0`, and its commit.
-- **Latest release** (or **Latest beta** with beta updates on): the newest release on GitHub, when it was published, and a **GitHub** link.
+- **Latest release**, **Latest beta** or **Latest nightly**: the newest build on your [release channel](#choose-a-release-channel), when it was published, and a **GitHub** link.
 - A status: **v0.2.0 is available**, **Up to date**, **No release published yet**, or **Couldn't reach GitHub**, with when it last checked.
 
-Below it, **What's new in v0.2.0** shows the release notes. Select **Check now** to ask GitHub again.
+Below it, when an update is available, **What changes from v0.1.0 to v0.2.0** lists every release the update crosses, newest first: each stable release on the way, and the build you update to. A release with breaking changes shows them first, in a highlighted **Breaking changes** box, and the panel header counts them, for example **1 breaking change**. When you are up to date, the panel shows **Release notes for v0.2.0** instead. Long notes are cut short: select **Show all notes** to read the rest. Select **Check now** to ask GitHub again.
+
+A beta or nightly's notes already cover everything since the last stable release, so the betas and nightlies before it are not listed again.
+
+![The What changes from v0.1.0 to v0.2.0 panel: v0.2.0's notes, then v0.1.1 with a highlighted Breaking changes box](/screens/settings-updates-changelog.webp)
 
 When an update is available, the sidebar also shows a card such as **v0.2.0 available** with **Update** and **What's new**.
 
 ## Update from the dashboard
 
-Only an admin can start an update. Other members see **An admin can update this instance.**
+Only an [instance admin](../team/instance-admins.mdx) who is an organization **Owner** or **Admin** can start an update or change these settings. Other members see **An instance admin can update this instance.**
 
 <Steps>
 <Step>
-### Read the release notes
+### Read the changelog
 
-On **Settings** › **Updates**, read **What's new in …**. A release that changes the installer's stack file (a new service or variable) says so in its notes; it needs the [installer](#update-from-the-server) instead.
+On **Settings** › **Updates**, read **What changes from …**, starting with any **Breaking changes** box: a breaking change can need a change on your side, such as new API key scopes. A release that changes the installer's stack file (a new service or variable) says so in its notes; it needs the [installer](#update-from-the-server) instead.
 </Step>
 <Step>
 ### Start the update
@@ -39,7 +43,9 @@ Select **Update to v0.2.0**.
 <Step>
 ### Confirm
 
-Read the dialog and select **Update to v0.2.0**. The dashboard stays up while the API rolls over. New deployments wait in the queue until the update ends. Sites pause for a few seconds while Caddy restarts.
+Read the dialog and select **Update to v0.2.0**. If a release on the way has breaking changes, the dialog names it again, for example **v0.1.1 has breaking changes.** The dashboard stays up while the API rolls over. New deployments wait in the queue until the update ends. Sites pause for a few seconds while Caddy restarts.
+
+![The Update to v0.2.0? dialog, warning that v0.1.1 has breaking changes](/screens/settings-updates-confirm.webp)
 </Step>
 <Step>
 ### Follow the steps
@@ -70,23 +76,35 @@ The database stays migrated after a rollback. LogiStack releases only add to the
 
 ### Check that it worked
 
-The **Version** panel shows the new release under **This instance** and the status **Up to date**. **Settings** › **Updates** keeps the run's panel with every step **Done**.
+The **Version** panel shows the new release under **This instance** and the status **Up to date**. A tab that was open during the update shows the run's panel with every step **Done**; once you reload the page, a successful run is no longer shown. A failed run stays on the page.
 
 ## Check for updates automatically
 
-Under **Automatic checks**, **Check daily** is on by default. Once a day LogiStack asks GitHub for the latest release and, when it is newer, sends `instance.update_available` to the notification rules that include **Update available**. Nothing updates until an admin chooses to.
+In the **Settings** panel, **Check daily** is on by default. Once a day LogiStack asks GitHub for the latest release and, when it is newer, sends `instance.update_available` to the notification rules that include **Update available**. Nothing updates until an instance admin chooses to.
 
 To get an email for each new release, add a rule with **Update available** sent to an email channel. See [Alerts and notifications](./alerts-and-notifications.mdx).
 
-## Get beta releases
+## Choose a release channel
 
-Under **Release channel**, turn on **Beta updates** to be offered builds of the staging branch ahead of the stable release they lead to. The latest version then reads **Latest beta**.
+In the **Settings** panel, **Release channel** picks which builds the instance is offered. Only an admin can change it.
+
+![The Settings panel of the Updates page with Check daily and the Release channel control set to Stable](/screens/settings-updates-channel.webp)
+
+| Channel | Offers | Version example |
+| --- | --- | --- |
+| **Stable** | Tagged releases. Each one passes the full test suite and an install and update smoke test. The default. | `0.2.0` |
+| **Beta** | Builds of the staging branch, ahead of the stable release they lead to, plus every stable release. | `0.2.1-beta.42` |
+| **Nightly** | A build of the develop branch every night it changed, plus every beta and stable release. | `0.2.1-nightly.57` |
+
+The daily check and the sidebar card follow the same channel.
 
 <Callout type="warn">
-Betas aren't ready for production. They pass the build but not the full test suite, and a migration they bring can't be undone. Keep this off on servers that host anything you depend on.
+Betas and nightlies aren't ready for production. They pass the build but not the full test suite, and a migration they bring can't be undone. Keep these channels off servers that host anything you depend on.
 </Callout>
 
-Turning **Beta updates** off does not roll back. The instance stays on its beta until a newer stable release is out.
+Switching to a steadier channel does not roll back. The instance stays on its build until that channel has a newer one: from `0.2.1-beta.42`, the stable channel offers `0.2.1` once it is out.
+
+The API keeps `PUT /api/instance/update/beta` for older clients: `true` picks the beta channel and `false` stable. New clients use `PUT /api/instance/update/channel` with `{"channel": "nightly"}`.
 
 ## Update from the server
 

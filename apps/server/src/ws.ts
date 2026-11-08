@@ -15,10 +15,12 @@ import {
 import { and, eq } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { upgradeWebSocket } from "hono/bun";
-import { type Actor, requireActor } from "./actor.ts";
+import { type Actor, requireActor, resolveActor } from "./actor.ts";
+import { ACCESS_CHANNEL, cluster } from "./cluster.ts";
 import type { Env } from "./env.ts";
 import { parseJson } from "./events.ts";
 import { live } from "./live.ts";
+import { log } from "./log.ts";
 import { actorCan, locate, organizationResource } from "./scope.ts";
 import {
 	followDeploymentLog,
@@ -139,6 +141,9 @@ async function channelResource(
 	).catch(() => undefined);
 }
 
+const sendTo = (ws: { send(data: string): void }, m: ServerMessage) =>
+	ws.send(JSON.stringify(m));
+
 /** Channels an envelope fans out to. */
 export function channelsOf(e: EventEnvelope): string[] {
 	const channels = [
@@ -150,7 +155,9 @@ export function channelsOf(e: EventEnvelope): string[] {
 	return channels;
 }
 
-// shortcut: grants are those of the upgrade request; a role change applies on reconnect.
+/** Close code for a socket whose credential no longer reaches the organization. */
+export const ACCESS_REVOKED = 4403;
+
 export const realtime = new Hono<Env>().get(
 	"/ws",
 	async (c, next) => {
@@ -158,8 +165,10 @@ export const realtime = new Hono<Env>().get(
 		await next();
 	},
 	upgradeWebSocket((c: Context<Env>) => {
-		const actor = c.get("actor") as Actor;
+		let actor = c.get("actor") as Actor;
 		const { db, bus } = c.var.deps;
+		// The upgrade's credential, re-resolved when the organization's access changes.
+		const headers = new Headers(c.req.raw.headers);
 		const subscribed = new Set<string>();
 		/** Log streams by channel; each holds a Redis subscription or agent follows. */
 		const streams = new Map<string, Promise<() => void>>();
@@ -169,7 +178,35 @@ export const realtime = new Hono<Env>().get(
 		};
 		let unlisten: (() => void) | undefined;
 		let unlive: (() => void) | undefined;
+		let unaccess: (() => void) | undefined;
 		let closed = false;
+		let rechecks = Promise.resolve();
+		/** Applies a role, grant or membership change from any replica to this open socket. */
+		async function recheck(ws: {
+			send(data: string): void;
+			close(code: number, reason: string): void;
+		}) {
+			const next = await resolveActor(c.var.deps, headers);
+			if (
+				!next ||
+				next.organizationId !== actor.organizationId ||
+				next.twoFactor?.kind === "blocked"
+			)
+				return ws.close(ACCESS_REVOKED, "access revoked");
+			actor = next;
+			for (const channel of [...subscribed]) {
+				const resource = await channelResource(db, actor, channel);
+				if (resource && actorCan(actor, "read", resource)) continue;
+				subscribed.delete(channel);
+				stopStream(channel);
+				sendTo(ws, {
+					type: "error",
+					channel,
+					code: "forbidden",
+					message: "access to this channel was revoked",
+				});
+			}
+		}
 		return {
 			async onOpen(_evt, ws) {
 				const send = (m: ServerMessage) => ws.send(JSON.stringify(m));
@@ -182,7 +219,29 @@ export const realtime = new Hono<Env>().get(
 					if (subscribed.has(data.channel))
 						send({ type: "data", channel: data.channel, data });
 				});
-				if (closed) unlive();
+				// After the bus listener, so an event published right after subscribing is never missed.
+				unaccess = await cluster(c.var.deps.config.REDIS_URL).on(
+					ACCESS_CHANNEL,
+					(m) => {
+						if (
+							(m as { organizationId?: unknown } | null)?.organizationId !==
+							actor.organizationId
+						)
+							return;
+						rechecks = rechecks
+							.then(() => recheck(ws))
+							.catch((e) =>
+								log("error", "socket access recheck failed", {
+									error: String(e),
+								}),
+							);
+					},
+				);
+				if (closed) {
+					unlisten();
+					unlive();
+					unaccess();
+				}
 			},
 			async onMessage(evt, ws) {
 				const send = (m: ServerMessage) => ws.send(JSON.stringify(m));
@@ -241,6 +300,7 @@ export const realtime = new Hono<Env>().get(
 				for (const channel of [...streams.keys()]) stopStream(channel);
 				unlisten?.();
 				unlive?.();
+				unaccess?.();
 			},
 		};
 	}),

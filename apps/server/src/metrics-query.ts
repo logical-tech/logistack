@@ -62,7 +62,8 @@ const rateOf = (c: string) =>
 function hostSource(source: MetricSource): string {
 	if (source !== "raw") return `metric_host_${source}`;
 	return `(select node_id, ts, cpu, load1, mem_used, mem_total, disk_used, disk_total,
-			${rateOf("net_rx")} as rx, ${rateOf("net_tx")} as tx
+			${rateOf("net_rx")} as rx, ${rateOf("net_tx")} as tx,
+			${rateOf("disk_read")} as dread, ${rateOf("disk_write")} as dwrite, temp, iowait, steal
 		from metric_host_raw
 		where node_id = any(string_to_array($1, ',')) and ts >= $2::timestamptz - interval '1 minute' and ts < $3
 		window w as (partition by node_id order by ts))`;
@@ -80,14 +81,17 @@ export async function hostSeries(
 	const perNode = `
 		select node_id, date_bin(make_interval(secs => $4), ts, timestamptz 'epoch') as t,
 			avg(cpu) as cpu, avg(load1) as load1, avg(mem_used) as mem_used, max(mem_total) as mem_total,
-			avg(disk_used) as disk_used, max(disk_total) as disk_total, avg(rx) as rx, avg(tx) as tx
+			avg(disk_used) as disk_used, max(disk_total) as disk_total, avg(rx) as rx, avg(tx) as tx,
+			avg(dread) as dread, avg(dwrite) as dwrite, max(temp) as temp, avg(iowait) as iowait,
+			avg(steal) as steal
 		from ${hostSource(w.source)} s
 		where node_id = any(string_to_array($1, ',')) and ts >= $2 and ts < $3
 		group by 1, 2`;
 	const query = cluster
 		? `select null as node_id, t, avg(cpu) as cpu, avg(load1) as load1, sum(mem_used) as mem_used,
 				sum(mem_total) as mem_total, sum(disk_used) as disk_used, sum(disk_total) as disk_total,
-				sum(rx) as rx, sum(tx) as tx
+				sum(rx) as rx, sum(tx) as tx, sum(dread) as dread, sum(dwrite) as dwrite,
+				max(temp) as temp, avg(iowait) as iowait, avg(steal) as steal
 			from (${perNode}) b group by t`
 		: perNode;
 	const rows = await sql.unsafe<
@@ -102,6 +106,11 @@ export async function hostSeries(
 			"disk_total",
 			"rx",
 			"tx",
+			"dread",
+			"dwrite",
+			"temp",
+			"iowait",
+			"steal",
 		]
 			.map((c) => `${c}::float8 as ${c}`)
 			.join(", ")} from (${query}) q order by node_id, t`,
@@ -126,6 +135,11 @@ export async function hostSeries(
 			diskTotal: r.disk_total as number | null,
 			rx: r.rx as number | null,
 			tx: r.tx as number | null,
+			diskRead: r.dread as number | null,
+			diskWrite: r.dwrite as number | null,
+			temp: r.temp as number | null,
+			iowait: r.iowait as number | null,
+			steal: r.steal as number | null,
 		});
 		out.set(key, list);
 	}

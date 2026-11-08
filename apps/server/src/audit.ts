@@ -4,6 +4,7 @@ import type { AuditOutcome } from "@logistack/contracts";
 import type { Resource } from "@logistack/core";
 import { auditLog, type Db } from "@logistack/db";
 import type { Context, Hono, MiddlewareHandler } from "hono";
+import { ACCESS_CHANNEL, cluster } from "./cluster.ts";
 import type { Env } from "./env.ts";
 import { log } from "./log.ts";
 
@@ -64,6 +65,21 @@ async function requestInput(c: Context<Env>): Promise<unknown> {
 
 const auditHandlers = new WeakSet<object>();
 
+/** Mutations that can change what an organization's actors may do; open sockets re-check on them. */
+const ACCESS_ACTIONS = new Set<string>([
+	"member.update",
+	"member.delete",
+	"grant.create",
+	"grant.delete",
+	"role.update",
+	"role.delete",
+	"api_key.rotate",
+	"api_key.delete",
+	"service_account.update",
+	"service_account.delete",
+	"organization.two_factor_update",
+]);
+
 const resourceIdOf = (c: Context<Env>, action: AuditAction) =>
 	c.get("auditResourceId") ??
 	// A create's permission resource is the parent, not the new row.
@@ -81,9 +97,17 @@ function auditMiddleware(action: AuditAction): MiddlewareHandler<Env> {
 		const status = c.res.status;
 		const outcome: AuditOutcome =
 			status === 403 ? "denied" : status >= 400 ? "error" : "success";
+		if (outcome === "success" && ACCESS_ACTIONS.has(action))
+			await cluster(c.var.deps.config.REDIS_URL)
+				.publish(ACCESS_CHANNEL, { organizationId: actor.organizationId })
+				.catch((error: unknown) =>
+					log("error", "access change broadcast failed", {
+						error: String(error),
+					}),
+				);
 		if (outcome === "success" && c.get("audited")) return;
 		const diff = c.get("auditDiff") ?? { input: await requestInput(c) };
-		// shortcut: a mutation without `auditInTx` is recorded after it commits; a failed insert is logged, not retried.
+		// shortcut: about 125 mutations that write the database still skip `auditInTx` and are recorded here after they commit, so a failed insert loses their row (logged, not retried); convert them route by route once the parallel branches have landed (follow-up on the board).
 		await recordAudit(c, {
 			action,
 			resourceId: resourceIdOf(c, action),
@@ -150,7 +174,7 @@ export async function recordAudit(
 		);
 }
 
-function auditRow(
+export function auditRow(
 	c: Context<Env>,
 	row: {
 		action: AuditAction;

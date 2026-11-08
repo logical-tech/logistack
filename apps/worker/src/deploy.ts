@@ -39,6 +39,7 @@ import {
 import { dockerConfig, probeBuildkit } from "./build-platforms.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
+import { runDeployGates } from "./gates.ts";
 import { probeImageShell } from "./image-shell.ts";
 import {
 	deploymentContext,
@@ -349,6 +350,12 @@ async function runDeployment(
 				error: `rolled back: ${current.UpdateStatus.Message ?? ""}`.trim(),
 				rolledBack: true,
 			};
+		// Plugin deploy gates: after the resume checks, so an applied rollout is never asked again.
+		const gate = await runDeployGates(ctx, sc, { ...d, ...commit }, ref, line);
+		if (!gate.ok) {
+			line(`==> failed: ${gate.error}`);
+			return { ok: false, error: gate.error, rolledBack: false };
+		}
 		// Only the tcp and http checks need a shell; a command check runs as argv.
 		if (
 			spec.kind === "application" &&

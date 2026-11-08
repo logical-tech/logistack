@@ -96,6 +96,8 @@ What LogiStack does with it:
 - `db-data` and `event-data` become named volumes.
 - `${SECRET_KEY_BASE:-change-me}` takes its default. Replace it by setting `SECRET_KEY_BASE` on the `plausible` service.
 
+To keep a credential out of the compose file, reference a managed secret: `SECRET_KEY_BASE: ${{ secrets.PLAUSIBLE_SECRET_KEY_BASE }}`. The service stores the expression as a plain variable and resolves it at deploy time from the most specific secret of that name on its chain. See [Use a secret inside a value](./environment-variables.mdx#use-a-secret-inside-a-value).
+
 After it runs, open the `plausible` container and add `stats.example.com` in its **Domains** tab, pointing at port `8000`. See [Domains](../networking/domains.mdx).
 
 ## What is converted
@@ -164,7 +166,7 @@ Select **Apply and deploy**, or **Keep editing**. Services are matched by compos
 
 For a stack from a repository, push to the branch, or select **Sync now** on the **Compose** tab to read the file at the head of the branch, review the changes and apply them.
 
-When a push brings a compose file LogiStack can't run, the stack keeps running the previous file and the stack page shows **The last push was not applied** above the tabs, with the commit, every reason from [Limits](#limits) that applies, and when it was pushed. The notice stays until a later push or sync applies.
+When a push brings a compose file LogiStack can't run, the stack keeps running the previous file and the stack page shows **The last push was not applied** above the tabs, with the commit, every reason from [Limits](#limits) that applies, and when it was pushed. In the environment's service list, the stack's row says **Last push not applied**. The notice stays until a later push, a sync or an edit on the **Compose** tab applies a file.
 
 <Callout type="info">
 A pasted compose file can hold credentials, so the **Compose file** view shows only to members who can read secrets. The **Effective** view masks them.
@@ -188,4 +190,6 @@ Deleting a stack cannot be undone.
 - **`<service>.volumes host path /srv/app`**: replace the host path with a named volume, like `app-data:/srv/app`.
 - **The app can't reach its database**: use the compose service name as the host (`plausible-db`), not `localhost`.
 - **"The last push was not applied"**: the compose file in that commit breaks one of the [Limits](#limits). Fix the listed parts, then push again or select **Sync now**.
+
+To preview a stack on every pull request, with its own domains and volumes, see [Preview environments](./preview-environments.mdx).
 - **A variable is empty**: `${VAR}` without a default is empty until you set `VAR` on that service's **Environment** tab.

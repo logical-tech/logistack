@@ -34,10 +34,12 @@ import {
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { type Actor, systemActor } from "../actor.ts";
 import { createApp } from "../app.ts";
+import { acquireLease } from "../cluster.ts";
 import type { Deps } from "../env.ts";
 import { envelope } from "../events.ts";
 import { log } from "../log.ts";
 import { slugify } from "../openapi.ts";
+import { redisFor } from "../redis.ts";
 import type {
 	Inventory,
 	InventoryItem,
@@ -410,16 +412,17 @@ async function move(
 	);
 }
 
-const running = new Set<string>();
-
 /**
  * Imports every `planned` or `failed` item, in order. An item that fails is marked `failed` with
  * the cause and the import goes on; running it again retries only those.
  */
 export async function runImport(deps: Deps, migrationId: string) {
-	// shortcut: one api process runs imports; take a row lease once the api has replicas.
-	if (running.has(migrationId)) return;
-	running.add(migrationId);
+	// One replica runs an import; the others' resume sweeps skip it while the lease lives.
+	const lease = await acquireLease(
+		redisFor(deps.config.REDIS_URL),
+		`ls:lease:import:${migrationId}`,
+	);
+	if (!lease) return;
 	try {
 		const [mig] = await deps.db
 			.select()
@@ -441,6 +444,7 @@ export async function runImport(deps: Deps, migrationId: string) {
 		);
 		let folderId: string | undefined;
 		for (const row of rows.filter((r) => importable(r.status))) {
+			if (lease.lost) return;
 			const plan = JSON.parse(
 				await decrypt(deps.masterKey, row.planEncrypted),
 			) as Plan;
@@ -506,7 +510,7 @@ export async function runImport(deps: Deps, migrationId: string) {
 			.set({ status: "imported" })
 			.where(eq(migration.id, migrationId));
 	} finally {
-		running.delete(migrationId);
+		await lease.release();
 	}
 }
 
@@ -518,7 +522,7 @@ async function ensureFolder(call: Call, name: string): Promise<string> {
 	);
 }
 
-/** On api start: finishes imports a restart interrupted. */
+/** On api start and every sweep: finishes imports no live replica holds (a restart or a dead replica interrupted). */
 export async function resumeImports(deps: Deps) {
 	const rows = await deps.db
 		.select({ id: migration.id })

@@ -1,0 +1,231 @@
+---
+title: Uptime monitoring and status pages
+description: Check websites, ports, DNS records, certificates and cron jobs from outside, get alerted when they go down, and publish a status page with incidents.
+---
+
+Uptime monitors check your services the way your users reach them: they request a URL, open a port, resolve a DNS name or read a certificate, every minute by default. When a check keeps failing, LogiStack sends a notification, opens an incident and shows it on your public status page. You need monitors when "the container is running" is not enough and you want to know that the site actually answers.
+
+Everything lives under **Monitoring**, in three tabs: **Uptime**, **Incidents** and **Status pages**.
+
+## Monitor types
+
+| Type | What it checks | Fails when |
+| --- | --- | --- |
+| **Website or API** | An HTTP or HTTPS request with the method and headers you choose | The status code is not accepted (`2xx` by default, or a list like `200, 301`), the body lacks a keyword (or contains it, if you invert it), a JSON path such as `$.status` does not equal the expected value, or the answer is slower than your limit |
+| **TCP port** | A connection to `host:port`, for example `db.example.com:5432` | The connection is refused or times out |
+| **DNS record** | An `A`, `AAAA`, `CNAME`, `MX`, `TXT` or `NS` lookup, through the system resolver or one you name | There is no answer, or no answer contains the expected text |
+| **Certificate expiry** | The TLS certificate served on `host:443` (or another port) | The certificate has expired or is not trusted. It also sends one **Certificate expiring** notification at each warning day, `30, 14, 7, 1` by default |
+| **Cron job heartbeat** | Nothing: your job calls a push URL when it runs | No call arrives within the interval plus the grace period, or the job reports `status=down` |
+
+HTTP checks follow up to five redirects. Every hop is checked again before LogiStack connects to it.
+
+## How LogiStack decides a service is down
+
+A single failed check does not alert anyone. LogiStack counts results in a row:
+
+- **Down after** (default 3): consecutive failures before the monitor turns **Down** and `monitor.down` fires.
+- **Up after** (default 1): consecutive passes before it turns **Up** again and `monitor.up` fires.
+- **Retry after** (default 20 seconds): while a failure is being confirmed, checks run at this pace instead of the normal interval.
+
+With the defaults, a check every 60 seconds and retries every 20, a service that stops is confirmed down about 40 seconds after the first failed check. One pass in between starts the count over, so a target that flaps between up and down stays quiet. **Remind every** repeats the down notification every N minutes while the monitor stays down; `0` sends it once.
+
+## Create a monitor
+
+<Steps>
+<Step>
+### Open Uptime
+
+Select **Monitoring** in the sidebar, then the **Uptime** tab.
+</Step>
+<Step>
+### Start the wizard
+
+Select **New monitor**.
+</Step>
+<Step>
+### Pick what to watch
+
+Choose **Website or API**, **TCP port**, **DNS record**, **Certificate expiry** or **Cron job heartbeat**, then select **Continue**.
+</Step>
+<Step>
+### Describe the target
+
+Give the monitor a **Name** and fill in the fields for its type, for example the **URL** `https://shop.example.com/health`, **Accepted status codes** `2xx` and a **JSON path** `$.status` that **Equals** `ok`.
+</Step>
+<Step>
+### Set timing and alerts
+
+Adjust **Check every**, **Retry after**, **Timeout**, **Down after**, **Up after** and **Remind every** if the defaults do not fit. Leave **Open an incident when it goes down** on to have status pages show outages automatically.
+</Step>
+<Step>
+### Test the check
+
+Select **Run check**. LogiStack runs the check once from the server with the same rules as the real one and shows the response time, or the error. The test does not have to pass: a monitor for a service you have not deployed yet starts as down.
+</Step>
+<Step>
+### Create it
+
+Review the summary and select **Create monitor**. The first check runs within a few seconds.
+</Step>
+</Steps>
+
+The **Uptime** tab lists every monitor, worst first, with the last 30 checks, uptime over 24 hours and 30 days, and the last response time or the days left on a certificate. Open a monitor for its 90-day bars, its hourly response time over the last week and its recent checks with their errors. Use **Pause** to stop checking without losing history.
+
+### Monitors suggested from your domains
+
+Under the monitor list, **Suggested** lists every domain of your services that has no monitor yet. Select **Add monitor** next to one to watch its URL with the default HTTP check.
+
+## Watch a cron job with a push URL
+
+A heartbeat monitor turns silence into an alert: your job calls a URL every time it finishes, and LogiStack raises the alarm when a call does not arrive.
+
+<Steps>
+<Step>
+### Create a Cron job heartbeat monitor
+
+In the wizard, choose **Cron job heartbeat**. Set **Expected every** to how often the job runs, in seconds (`86400` for a nightly job), and a **Grace period** for late runs.
+</Step>
+<Step>
+### Copy the push URL
+
+After **Create monitor**, the monitor page shows the **Push URL** once, for example `https://ls.example.com/push/lsp_3f9c…`. Copy it now. If you lose it, select **Issue a new push URL**; the old one stops working.
+</Step>
+<Step>
+### Call it from the job
+
+Add the call after the job's last command:
+
+```bash title="crontab"
+15 2 * * * /opt/acme/export.sh && curl -fsS -m 10 https://ls.example.com/push/lsp_3f9c...
+```
+
+To report a failure explicitly, call it with `status=down` and a message:
+
+```bash
+curl -fsS "https://ls.example.com/push/lsp_3f9c...?status=down&msg=export+failed"
+```
+</Step>
+</Steps>
+
+The URL accepts `GET` and `POST`. `ping=<milliseconds>` records a duration for the run. Heartbeat monitors go down after one missed run by default.
+
+## Incidents
+
+An incident is what your status pages say about a problem. When a monitor with **Open an incident when it goes down** turns down, LogiStack opens an incident titled after it, with the status **Investigating** and the failing check as its first update. When the monitor recovers, LogiStack resolves the incident with an automatic update. A monitor that goes down again while its incident is still open reuses that incident.
+
+To write one yourself, for a problem no check sees:
+
+<Steps>
+<Step>
+### Open Incidents
+
+Select **Monitoring**, then the **Incidents** tab.
+</Step>
+<Step>
+### Report the incident
+
+Select **Report incident**. Enter a **Title**, pick a **Status** and an **Impact** (**Minor**, **Major** or **Critical**), tick the **Affected monitors**, and write the **First update** in words your users understand. Select **Post incident**.
+</Step>
+<Step>
+### Keep it up to date
+
+Select **Post update** on the incident, choose the new status (**Investigating**, **Identified**, **Monitoring** or **Resolved**) and write what changed. The latest update sets the incident's status; **Resolved** closes it.
+</Step>
+</Steps>
+
+Status pages show an incident when it lists at least one of the page's monitors.
+
+## Maintenance windows
+
+Planned work should not page anyone. In the **Maintenance** panel of the **Incidents** tab, select **Schedule**, then set a **Title**, when it **Starts** and **Ends**, whether it **Repeats** (**Once**, **Every day** or **Every week**) and the **Monitors** it covers.
+
+While a window is active, its monitors:
+
+- show **Maintenance** instead of up or down;
+- send no `monitor.down`, `monitor.up` or certificate notifications;
+- keep running checks, which are stored but left out of uptime.
+
+Status pages list active windows and one-off windows starting within the next seven days.
+
+<Callout type="info">
+Repeating windows repeat the same span in UTC. A weekly window at 02:00 UTC moves by one hour in local time when daylight saving time changes.
+</Callout>
+
+## Status pages
+
+A status page is a public page with an overall banner (all systems operational, some systems down, major outage or maintenance), a bar per monitor for each of the last 30, 60 or 90 days, and the incident history. It is plain HTML with no JavaScript, served at `/status/<address>` on your LogiStack domain and, if you want, on a domain of your own.
+
+A day's bar is green at 99.9% uptime or more, amber from 99% and red below that. Grey means no checks that day and blue means maintenance only.
+
+<Steps>
+<Step>
+### Start the wizard
+
+Select **Monitoring**, the **Status pages** tab, then **New status page**.
+</Step>
+<Step>
+### Fill in the basics
+
+Enter a **Title** such as `Acme`. The **Address** fills in from it (`/status/acme`); change it if you like. Pick a **Project** to let that project's members edit the page, or leave **Whole organization**.
+</Step>
+<Step>
+### Choose the monitors
+
+Add sections, such as `Website` and `API`, and **Add a monitor** to each. Each monitor gets a public name, which defaults to the monitor's name. Change it when the monitor's name reveals internals, such as `postgres-replica-2`. Use the arrows to set the order.
+</Step>
+<Step>
+### Brand it
+
+Pick an **Accent colour**, an **Appearance** (**Auto** follows each visitor's system setting), a **Logo URL** over https, a **Website** for the footer link and how many days of **History** to show. The preview updates as you go.
+</Step>
+<Step>
+### Add a custom domain
+
+Optionally enter a **Custom domain** such as `status.example.com`. First point it at your server: a `CNAME` to your LogiStack domain, or an `A` record to its IP address.
+</Step>
+<Step>
+### Create it
+
+Review the summary and select **Create status page**. Select **Open** on the list to see it.
+</Step>
+</Steps>
+
+On a custom domain, LogiStack adds a route to its proxy and obtains the certificate automatically. That domain serves the status page only: the dashboard and the API are not reachable through it. Turn off **Published** to make the page answer 404 without deleting it.
+
+### Badges and JSON
+
+Every monitor on a published page has two SVG badges, for a README or your own site. Select **Embed badges** on the **Status pages** tab to copy the HTML.
+
+```html
+<img src="https://status.example.com/badge/mon_8x2k4h.svg?type=uptime&days=30" alt="Uptime">
+<img src="https://ls.example.com/status/acme/badge/mon_8x2k4h.svg?type=status" alt="Status">
+```
+
+- `type=status` shows up, down, maintenance or pending.
+- `type=uptime&days=30` shows the uptime percentage over 1 to 90 days.
+- `/summary.json` (for example `https://ls.example.com/status/acme/summary.json`) returns the overall status, each monitor's status and uptime, and the open incidents, for your own widgets.
+
+A badge works only for monitors the page lists, so a page never exposes your other monitors.
+
+## Notifications
+
+Monitors emit events that [notification rules](./alerts-and-notifications.mdx) route like any other:
+
+| Event | In the rule picker | When |
+| --- | --- | --- |
+| `monitor.down` | **Monitor down** | A monitor is confirmed down, and again every **Remind every** minutes if set |
+| `monitor.up` | **Monitor recovered** | A down monitor passes **Up after** checks in a row |
+| `certificate.expiring` | **Certificate expiring** | A certificate monitor crosses one of its warning days |
+
+A monitor tied to a project or service (every suggested monitor is) matches rules scoped to that project or service.
+
+## History and retention
+
+Each check is kept for 48 hours, hourly totals for 30 days and daily totals for 400 days. The 90-day bars and the uptime percentages come from those totals, so they stay fast however many checks you run.
+
+## Common problems
+
+- **"resolves to a private address"**: a monitor cannot reach a private, loopback or link-local address by default. This keeps an organization from probing your internal network through LogiStack. An Admin can turn on **Allow private hosts** in **Settings** › **General** when the target is on your own network.
+- **The custom domain shows a certificate error**: the DNS record does not point at your server yet, or has not propagated. The certificate is issued once requests for the name reach LogiStack.
+- **A heartbeat monitor went down although the job ran**: the job finished later than **Expected every** plus the **Grace period**, or `curl` failed before reaching LogiStack. Add `-fsS` to see the error in the job's output.
+- **A check passes in your browser but fails here**: the server checks from its own network, without your cookies or VPN. Use **Run check** in the wizard to see exactly what it gets.

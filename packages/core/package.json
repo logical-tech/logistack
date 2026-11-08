@@ -4,10 +4,15 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./plugin-egress": "./src/plugin-egress.ts",
 		"./sql": "./src/sql.ts",
+		"./db-access": "./src/db-access.ts",
+		"./db-scripts": "./src/db-scripts.ts",
 		"./drains": "./src/drains.ts",
 		"./network-map": "./src/network-map.ts",
-		"./ai-providers": "./src/ai-providers.ts"
+		"./ai-providers": "./src/ai-providers.ts",
+		"./traffic": "./src/traffic.ts",
+		"./version": "./src/version.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc -p ."

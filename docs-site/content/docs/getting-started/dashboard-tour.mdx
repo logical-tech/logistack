@@ -11,7 +11,7 @@ This page walks through the LogiStack dashboard so you know where each feature l
 
 ### Sidebar
 
-The sidebar has three groups: the main areas at the top, **Integrations** and **Settings**. Its header shows the current organization and your role in it, for example "Logical, Owner". Select it to switch organizations.
+The sidebar has three groups: the main areas at the top, **Integrations** and **Settings**. Its header shows the current organization and your role in it, for example "Logical, Owner". Select it to switch organizations. When an installed [plugin](../plugins/index.mdx) adds pages, a **Plugins** group lists them between the main areas and **Integrations**.
 
 At the bottom, the sidebar shows:
 
@@ -130,17 +130,20 @@ Connections to outside services, shared by the whole organization:
 | --- | --- |
 | **Git providers** | GitHub, GitLab, Gitea and Bitbucket, for deploy on push and pull request previews. See [Deploy from Git](../deploy/from-git.mdx). |
 | **Registries** | Where built images are pushed and where nodes pull them from. See [Registries](../deploy/registries.mdx). |
-| **S3 destinations** | Buckets for database and volume backups. See [S3 destinations](../data/s3-destinations.mdx). |
+| **Backup destinations** | Where database and volume backups go: an S3 bucket, SFTP, WebDAV, Azure Blob, Google Drive, B2 or a folder on a node. See [S3 destinations](../data/s3-destinations.mdx) and [Other backup destinations](../data/backup-destinations.mdx). |
 | **DNS providers** | Create records automatically and solve DNS-01 challenges for wildcard certificates. See [DNS providers](../networking/dns-providers.mdx). |
 | **Cloudflare Tunnels** | Publish services through Cloudflare without opening ports. See [Cloudflare Tunnels](../networking/cloudflare-tunnels.mdx). |
+| **Log drains** | Ship service logs to Loki, OpenTelemetry, Datadog, syslog or any HTTP endpoint. See [Log drains](../operations/log-drains.mdx). |
+| **Tailscale** | Join servers to your tailnet and publish services on tailnet hostnames. See [Tailscale](../networking/tailscale.mdx). |
 | **Notifications** | Channels and rules for deployments, backups, certificates and nodes. See [Alerts and notifications](../operations/alerts-and-notifications.mdx). |
+| **Secret providers** | Read secrets from Vault, Infisical or 1Password Connect at deploy time. See [External secrets](../deploy/external-secrets.mdx). |
 
 ## Settings
 
 | Page | What it does |
 | --- | --- |
 | **General** | Organization name, instance URL and default domains. |
-| **Appearance** | Light, dark or system, and a color theme. See [Appearance](../team/appearance.mdx). |
+| **Appearance** | Light, dark or system, a color theme, and the sponsor glow on sponsoring instances. See [Appearance](../team/appearance.mdx). |
 | **Members** | People with access to this organization and their roles. See [Members and invitations](../team/members-and-invitations.mdx). |
 | **Authentication** | Two-factor requirement and single sign-on over OIDC or SAML. See [Single sign-on](../team/sso.mdx). |
 | **Roles** | Built-in and custom roles. See [Roles and permissions](../team/roles-and-permissions.mdx). |
@@ -149,6 +152,7 @@ Connections to outside services, shared by the whole organization:
 | **Certificates** | Let's Encrypt certificates and custom ones you upload. See [HTTPS certificates](../networking/https-certificates.mdx). |
 | **Updates** | The running release, the latest one, and one-click updates. See [Updates](../operations/updates.mdx). |
 | **Sponsor** | Sponsor LogiStack, or activate a sponsorship key. |
+| **Plugins** | Installed plugins, the plugin marketplace and, for instance admins, the plugin policy and indexes. See [Install and manage plugins](../plugins/install.mdx). |
 | **Builds** | The architectures builds target, and QEMU emulation for the rest. See [Build platforms](../deploy/build-platforms.mdx). |
 | **Migrate** | Move projects, databases and domains from Dokploy or Coolify. See [Migrate from Dokploy](../operations/migrate-from-dokploy.mdx). |
 | **Audit log** | Every change, who made it, from where, and whether it succeeded. See [Audit log](../team/audit-log.mdx). |

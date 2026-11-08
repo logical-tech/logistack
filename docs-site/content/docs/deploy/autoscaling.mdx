@@ -17,7 +17,7 @@ The service needs:
 
 These are also recommended, but not required:
 
-- **A health check**, so a new copy gets traffic only once it is ready. Without one, requests can fail for a few seconds after each scale-up. A service behind a [domain](../networking/domains.mdx) already gets one: LogiStack checks that its port accepts connections.
+- **A health check**, so a new copy gets traffic only once it is ready. Without one, requests can fail for a few seconds after each scale-up. A service behind a [domain](../networking/domains.mdx) already gets one: LogiStack checks that its port accepts connections, unless the image has no shell (see [Images without a shell](./service-settings.mdx#images-without-a-shell)). For such an image, the check stays a warning after its first deploy.
 - **More than one server**, so copies spread out instead of sharing one server's CPU. See [Nodes](../operations/nodes.mdx).
 
 ## Turn on automatic scaling
@@ -89,9 +89,9 @@ Some checks can be fixed in one click. Those checks show **AutoFix** on their ri
 
 | Check | What AutoFix changes |
 | --- | --- |
-| No CPU limit | Gives each copy a size from your [resource profiles](./service-settings.mdx#resources). It starts from the organization's default size, or the smallest one, and moves up until the size covers the busiest minute of the last day with 30% to spare. A memory limit you already set stays as it is. |
+| No CPU limit | Gives each copy a size from your [resource profiles](./service-settings.mdx#resources). It starts from the organization's default size, or the smallest one, and moves up until the size covers one copy's peak use with 30% to spare. The peak is the 95th percentile of its per-minute CPU and memory over the last day; with under an hour of history, AutoFix uses the starting size. A memory limit you already set stays as it is. |
 | Port published on one server | Publishes the port on every server, so each copy can receive traffic wherever it runs. Clients keep the same address. AutoFix is not offered when another service already uses that port on the cluster. |
-| No health check | Adds an HTTP health check that requests `/` on the service's first port. Before you can apply it, LogiStack requests that URL inside a running copy, with `wget` or `curl` as the check itself will. If the request fails, or the image has neither tool, AutoFix explains why and you add a health check in the service settings instead. |
+| No health check | Adds an HTTP health check that requests `/` on the service's first port. Before you can apply it, LogiStack requests that URL inside a running copy, with `wget` or `curl` as the check itself will. If no copy is running, the request fails, or the image has neither tool, AutoFix explains why and you add a health check in the service settings instead. When the service declares no port, the check says so instead of offering AutoFix. |
 
 Volumes can't be fixed this way: moving data out of a volume is a migration. The single-server warning shows **Add a server** instead, which opens [Monitoring](../operations/nodes.mdx).
 

@@ -97,7 +97,12 @@ export type OrgDraft =
 	  }
 	| {
 			kind: "notificationChannel";
-			input: { name: string; kind: NotificationChannelKind; config: unknown };
+			input: {
+				name: string;
+				// A migration never creates a plugin channel.
+				kind: Exclude<NotificationChannelKind, "plugin">;
+				config: unknown;
+			};
 			/** One rule over the whole organization; none when no event maps. */
 			events: EventType[];
 	  }

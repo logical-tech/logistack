@@ -161,7 +161,7 @@ export function useSaveServiceThresholds(id: ServiceId) {
 	});
 }
 
-const useActiveOrgId = isMock
+export const useActiveOrgId = isMock
 	? () => undefined
 	: () =>
 			authClient.useSession().data?.session.activeOrganizationId ?? undefined;

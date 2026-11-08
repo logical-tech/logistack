@@ -26,6 +26,7 @@ import {
 	useInvalidating,
 } from "@/lib/api/networking";
 import { DNS_KINDS } from "@/lib/integrations";
+import { usePluginChoices } from "@/lib/plugin-providers";
 import { stepParam } from "@/lib/search";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,8 @@ export const Route = createFileRoute("/_app/integrations/dns_/new")({
 });
 
 type V = {
-	kind: DnsKind;
+	/** The radio value: a built-in kind, or a plugin provider's key. */
+	kind: string;
 	credentials: ConfigValues;
 	zones: string[];
 	name: string;
@@ -133,9 +135,24 @@ function NewDnsProvider() {
 		["dns-providers"],
 	]);
 
+	const fromPlugins = usePluginChoices<DnsKind>("dnsProviders");
+	const { resolve } = fromPlugins;
 	const schemaOf = useCallback(
-		(kind: DnsKind) => schemas?.dns[kind] as ConfigSchema | undefined,
-		[schemas],
+		(value: string) => {
+			const { kind, plugin } = resolve(value);
+			return plugin
+				? plugin.schema
+				: (schemas?.dns[kind] as ConfigSchema | undefined);
+		},
+		[schemas, resolve],
+	);
+	const meta = useCallback(
+		(value: string) => {
+			const { kind, plugin } = resolve(value);
+			const k = DNS_KINDS[kind];
+			return { ...k, kind, plugin, label: plugin?.title ?? k.label };
+		},
+		[resolve],
 	);
 
 	const steps = useMemo((): WizardStep<V>[] => {
@@ -160,12 +177,17 @@ function NewDnsProvider() {
 							w.set("credentials", s ? initialValues(s) : {});
 							w.set("zones", []);
 						}}
-						choices={(Object.keys(DNS_KINDS) as DnsKind[]).map((k) => ({
-							value: k,
-							title: DNS_KINDS[k].label,
-							description: DNS_KINDS[k].blurb,
-							icon: DNS_KINDS[k].icon,
-						}))}
+						choices={[
+							...(Object.keys(DNS_KINDS) as DnsKind[])
+								.filter((k) => k !== "plugin")
+								.map((k) => ({
+									value: k as string,
+									title: DNS_KINDS[k].label,
+									description: DNS_KINDS[k].blurb,
+									icon: DNS_KINDS[k].icon,
+								})),
+							...fromPlugins.choices,
+						]}
 					/>
 				),
 			},
@@ -186,7 +208,7 @@ function NewDnsProvider() {
 					}),
 				render: (w) => {
 					const s = schemaOf(w.values.kind);
-					const kind = DNS_KINDS[w.values.kind];
+					const kind = meta(w.values.kind);
 					if (!s) return null;
 					return (
 						<div className="grid gap-6">
@@ -219,15 +241,17 @@ function NewDnsProvider() {
 				testKeys: ["kind", "credentials"],
 				test: async (v) => {
 					try {
+						const m = meta(v.kind);
 						const { zones } = await api.networking.dns.test(
-							v.kind,
+							m.kind,
 							credentials(v),
+							m.plugin?.ref,
 						);
 						setFound(zones);
 						return zones.length
 							? {
 									ok: true,
-									message: `Connected to ${DNS_KINDS[v.kind].label}`,
+									message: `Connected to ${m.label}`,
 									detail: `${zones.length} zone${zones.length === 1 ? "" : "s"} visible: ${zones
 										.slice(0, 3)
 										.map((z) => z.name)
@@ -250,7 +274,7 @@ function NewDnsProvider() {
 				render: (w) => (
 					<TestPanel
 						w={w}
-						idle={`We'll sign in to ${DNS_KINDS[w.values.kind].label} with these credentials and list your zones.`}
+						idle={`We'll sign in to ${meta(w.values.kind).label} with these credentials and list your zones.`}
 					/>
 				),
 			},
@@ -273,10 +297,7 @@ function NewDnsProvider() {
 								w.set("zones", ids);
 								const first = found.find((z) => z.id === ids[0]);
 								if (!w.values.name && first)
-									w.set(
-										"name",
-										`${DNS_KINDS[w.values.kind].label} · ${first.name}`,
-									);
+									w.set("name", `${meta(w.values.kind).label} · ${first.name}`);
 							}}
 						/>
 						{w.error("zones") && (
@@ -319,7 +340,7 @@ function NewDnsProvider() {
 								stepId: "kind",
 								title: "Provider",
 								rows: [
-									{ label: "Kind", value: DNS_KINDS[w.values.kind].label },
+									{ label: "Kind", value: meta(w.values.kind).label },
 									{ label: "Name", value: w.values.name },
 								],
 							},
@@ -346,7 +367,7 @@ function NewDnsProvider() {
 				),
 			},
 		];
-	}, [schemaOf, found]);
+	}, [schemaOf, meta, found, fromPlugins.choices]);
 
 	const onStepChange = useCallback(
 		(id: string, { replace }: { replace: boolean }) =>
@@ -375,11 +396,13 @@ function NewDnsProvider() {
 				finishLabel="Connect provider"
 				onComplete={async (v) => {
 					const s = schemaOf(v.kind);
+					const m = meta(v.kind);
 					const p = await create.mutateAsync({
-						kind: v.kind,
+						kind: m.kind,
 						name: v.name.trim(),
 						credentials: s ? toConfig(s, v.credentials) : {},
 						zones: found.filter((z) => v.zones.includes(z.id)),
+						...m.plugin?.ref,
 					});
 					toast.success(`${p.name} connected`, {
 						description: `${p.zones.length} zone${p.zones.length === 1 ? "" : "s"} managed.`,

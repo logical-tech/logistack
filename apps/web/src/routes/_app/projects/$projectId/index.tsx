@@ -11,6 +11,7 @@ import {
 	FileUp,
 	Folder,
 	Gauge,
+	GitBranch,
 	GitPullRequest,
 	MoreHorizontal,
 	Plus,
@@ -27,9 +28,16 @@ import { Page, PageHeader } from "@/components/page-header";
 import { SkeletonRows } from "@/components/panel";
 import { CreateEnvironmentDialog } from "@/components/projects/create-dialogs";
 import { ENV_COLORS, EnvDot, envColor } from "@/components/projects/env-color";
+import { PreviewPanel } from "@/components/projects/preview-panel";
+import {
+	ProjectSections,
+	sectionPanel,
+	useProjectPluginTabs,
+} from "@/components/projects/project-sections";
 import { ServiceList } from "@/components/projects/service-list";
 import { SignalStrip } from "@/components/signal-strip";
 import { SlidingTabs } from "@/components/sliding-tabs";
+import { StatusDot } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -42,6 +50,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { foldersQuery } from "@/lib/api/folders";
+import { gitopsQuery } from "@/lib/api/gitops";
 import { downloadManifest } from "@/lib/api/manifest";
 import {
 	projectQuery,
@@ -56,6 +65,7 @@ import type {
 	EnvironmentId,
 	ProjectId,
 } from "@/lib/api/types";
+import { GITOPS_STATUS } from "@/lib/status";
 
 export const Route = createFileRoute("/_app/projects/$projectId/")({
 	validateSearch: z.object({
@@ -125,8 +135,10 @@ function ProjectDetail() {
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data: project } = useQuery(projectQuery(projectId));
 	const { data: folders = [] } = useQuery(foldersQuery);
+	const { data: gitops } = useQuery(gitopsQuery(projectId));
 	const [creatingEnv, setCreatingEnv] = useState(false);
 	const [archiving, setArchiving] = useState(false);
+	const pluginTabs = useProjectPluginTabs();
 	const setArchived = useSetArchived(projectId);
 	const toggleArchived = (archived: boolean) =>
 		setArchived.mutate(archived, {
@@ -166,6 +178,24 @@ function ProjectDetail() {
 							>
 								<Folder className="size-3.5" aria-hidden />
 								{[parent?.name, folder.name].filter(Boolean).join(" / ")}
+							</Link>
+						)}
+						{gitops && (
+							<Link
+								to="/projects/$projectId/gitops"
+								params={{ projectId }}
+								className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-border transition-colors hover:bg-muted/70"
+								title={`${gitops.repository}#${gitops.branch}: ${gitops.path}`}
+							>
+								{gitops.lastStatus === "failed" ? (
+									<StatusDot meta={GITOPS_STATUS.failed} />
+								) : (
+									<GitBranch className="size-3.5" aria-hidden />
+								)}
+								{gitops.managed ? "Managed by git" : "Follows git"}
+								{gitops.lastStatus === "failed" && (
+									<span className="text-bad-text">sync failed</span>
+								)}
 							</Link>
 						)}
 						{project.description}
@@ -215,6 +245,15 @@ function ProjectDetail() {
 										>
 											<Variable />
 											Secrets & variables
+										</Link>
+									</DropdownMenuItem>
+									<DropdownMenuItem asChild>
+										<Link
+											to="/projects/$projectId/gitops"
+											params={{ projectId }}
+										>
+											<GitBranch />
+											GitOps…
 										</Link>
 									</DropdownMenuItem>
 									<DropdownMenuItem asChild>
@@ -274,101 +313,108 @@ function ProjectDetail() {
 					)
 				}
 			/>
-
-			{archived && (
-				<div
-					role="status"
-					className="mb-6 flex flex-col gap-3 rounded-xl bg-muted/50 px-4 py-3 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between"
-				>
-					<div className="flex items-start gap-3">
-						<Archive
-							className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-							aria-hidden
-						/>
-						<div className="text-sm">
-							<p className="font-medium">This project is archived</p>
-							<p className="text-pretty text-muted-foreground">
-								Its services are stopped and deploys are paused. Data,
-								configuration and replica counts are kept.
-							</p>
-						</div>
-					</div>
-					<Button
-						variant="outline"
-						size="sm"
-						className="shrink-0"
-						disabled={setArchived.isPending}
-						onClick={() => toggleArchived(false)}
-					>
-						<ArchiveRestore data-icon="inline-start" />
-						Unarchive
-					</Button>
-				</div>
-			)}
-
-			<ConfirmDialog
-				open={archiving}
-				onOpenChange={setArchiving}
-				title={`Archive ${project.name}?`}
-				description="Every running service stops and the project leaves the projects list. Nothing is deleted: unarchive to start the same services again at their replica counts."
-				confirmLabel="Archive project"
-				pending={setArchived.isPending}
-				onConfirm={() => toggleArchived(true)}
-			/>
-
-			<CreateEnvironmentDialog
-				open={creatingEnv}
-				onOpenChange={setCreatingEnv}
+			<ProjectSections
 				projectId={projectId}
-				onCreated={(e) => navigate({ search: { env: e.id }, replace: true })}
+				value="services"
+				tabs={pluginTabs}
 			/>
-			{env ? (
-				<>
-					<div className="mb-5 flex items-end gap-2 border-b">
-						<SlidingTabs
-							label="Environments"
-							idPrefix="env"
-							value={env.id}
-							onChange={(id: EnvironmentId) =>
-								navigate({ search: { env: id }, replace: true })
-							}
-							items={project.environments.map((e) => ({
-								id: e.id,
-								label: <EnvTabLabel env={e} />,
-							}))}
-						/>
-						<EnvironmentMenu env={env} projectSlug={project.slug} />
+			<div {...sectionPanel(pluginTabs.length > 0, "services")}>
+				{archived && (
+					<div
+						role="status"
+						className="mb-6 flex flex-col gap-3 rounded-xl bg-muted/50 px-4 py-3 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between"
+					>
+						<div className="flex items-start gap-3">
+							<Archive
+								className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+								aria-hidden
+							/>
+							<div className="text-sm">
+								<p className="font-medium">This project is archived</p>
+								<p className="text-pretty text-muted-foreground">
+									Its services are stopped and deploys are paused. Data,
+									configuration and replica counts are kept.
+								</p>
+							</div>
+						</div>
 						<Button
-							variant="ghost"
+							variant="outline"
 							size="sm"
-							className="mb-1.5 text-muted-foreground"
-							onClick={() => setCreatingEnv(true)}
+							className="shrink-0"
+							disabled={setArchived.isPending}
+							onClick={() => toggleArchived(false)}
 						>
+							<ArchiveRestore data-icon="inline-start" />
+							Unarchive
+						</Button>
+					</div>
+				)}
+
+				<ConfirmDialog
+					open={archiving}
+					onOpenChange={setArchiving}
+					title={`Archive ${project.name}?`}
+					description="Every running service stops and the project leaves the projects list. Nothing is deleted: unarchive to start the same services again at their replica counts."
+					confirmLabel="Archive project"
+					pending={setArchived.isPending}
+					onConfirm={() => toggleArchived(true)}
+				/>
+
+				<CreateEnvironmentDialog
+					open={creatingEnv}
+					onOpenChange={setCreatingEnv}
+					projectId={projectId}
+					onCreated={(e) => navigate({ search: { env: e.id }, replace: true })}
+				/>
+				{env ? (
+					<>
+						<div className="mb-5 flex items-end gap-2 border-b">
+							<SlidingTabs
+								label="Environments"
+								idPrefix="env"
+								value={env.id}
+								onChange={(id: EnvironmentId) =>
+									navigate({ search: { env: id }, replace: true })
+								}
+								items={project.environments.map((e) => ({
+									id: e.id,
+									label: <EnvTabLabel env={e} />,
+								}))}
+							/>
+							<EnvironmentMenu env={env} projectSlug={project.slug} />
+							<Button
+								variant="ghost"
+								size="sm"
+								className="mb-1.5 text-muted-foreground"
+								onClick={() => setCreatingEnv(true)}
+							>
+								<Plus data-icon="inline-start" />
+								New environment
+							</Button>
+						</div>
+						<div
+							id="env-panel"
+							role="tabpanel"
+							aria-labelledby={`env-tab-${env.id}`}
+							key={env.id}
+						>
+							{env.preview && <PreviewPanel preview={env.preview} />}
+							<EnvironmentServices env={env} projectId={projectId} />
+						</div>
+					</>
+				) : (
+					<EmptyState
+						icon={Boxes}
+						title="No environments"
+						description="Every project needs at least one environment. Production is created with the project."
+					>
+						<Button onClick={() => setCreatingEnv(true)}>
 							<Plus data-icon="inline-start" />
 							New environment
 						</Button>
-					</div>
-					<div
-						id="env-panel"
-						role="tabpanel"
-						aria-labelledby={`env-tab-${env.id}`}
-						key={env.id}
-					>
-						<EnvironmentServices env={env} projectId={projectId} />
-					</div>
-				</>
-			) : (
-				<EmptyState
-					icon={Boxes}
-					title="No environments"
-					description="Every project needs at least one environment. Production is created with the project."
-				>
-					<Button onClick={() => setCreatingEnv(true)}>
-						<Plus data-icon="inline-start" />
-						New environment
-					</Button>
-				</EmptyState>
-			)}
+					</EmptyState>
+				)}
+			</div>
 		</Page>
 	);
 }
@@ -441,9 +487,13 @@ function EnvironmentMenu({
 				<DropdownMenuLabel>{env.name}</DropdownMenuLabel>
 				{env.preview && (
 					<>
-						{env.preview.urls[0] && (
+						{(env.preview.primaryUrl ?? env.preview.urls[0]) && (
 							<DropdownMenuItem asChild>
-								<a href={env.preview.urls[0]} target="_blank" rel="noreferrer">
+								<a
+									href={env.preview.primaryUrl ?? env.preview.urls[0]}
+									target="_blank"
+									rel="noreferrer"
+								>
 									<ExternalLink />
 									Open preview
 								</a>

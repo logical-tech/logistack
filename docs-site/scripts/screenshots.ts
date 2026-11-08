@@ -31,6 +31,8 @@ export const shots: Record<string, Shot> = {
 	projects: "/projects",
 	project: P,
 	"project-previews": `${P}/previews`,
+	"project-gitops": `${P}/gitops`,
+	"project-gitops-wizard": `${P}/gitops?step=manifest&edit=true`,
 	"project-usage": `${P}/usage`,
 	"project-import": `${P}/import`,
 	"project-variables": `${P}/variables?env=env_storefront_production`,
@@ -43,6 +45,7 @@ export const shots: Record<string, Shot> = {
 	"service-environment": `${SVC}/environment`,
 	"service-domains": `${SVC}/domains`,
 	"service-metrics": `${SVC}/metrics`,
+	"service-analytics": `${SVC}/analytics`,
 	"service-storage": `${P}/services/svc_storefront_production_media/storage`,
 	"service-settings": `${SVC}/settings`,
 	"service-scaling": `${SVC}/settings#scaling`,
@@ -55,6 +58,9 @@ export const shots: Record<string, Shot> = {
 	"service-backups": `${PG}/backups`,
 	"database-postgres": `${PG}/database`,
 	"database-redis": `${REDIS}/database`,
+	"database-operations": `${PG}/operations`,
+	"database-public": `${PG}/operations?wizard=public&step=address`,
+	"database-upgrade": `${PG}/operations?wizard=upgrade&step=version`,
 	templates: `${P}/templates`,
 	"template-detail": `${P}/templates/n8n?env=env_storefront_production`,
 	stack: "/projects/prj_analytics/stacks/stk_analytics_plausible",
@@ -73,9 +79,17 @@ export const shots: Record<string, Shot> = {
 	monitoring: "/monitoring",
 	"monitoring-alerts": "/monitoring/alerts",
 	"monitoring-usage": "/monitoring/usage",
+	uptime: "/monitoring/uptime",
+	"uptime-monitor": "/monitoring/uptime/mon_api",
+	"uptime-new": "/monitoring/uptime/new",
+	incidents: "/monitoring/incidents",
+	"status-pages": "/monitoring/status-pages",
+	"monitoring-traffic": "/monitoring/traffic",
 	nodes: "/monitoring/nodes",
 	node: "/monitoring/nodes/node_fra1",
 	"node-new": "/monitoring/nodes/new",
+	patches: "/monitoring/patches",
+	"patch-dialog": { path: "/monitoring/patches", click: ["Patch 3 nodes"] },
 	git: "/integrations/git",
 	"git-new": "/integrations/git/new",
 	registries: "/integrations/registries",
@@ -110,7 +124,10 @@ export const shots: Record<string, Shot> = {
 	"certificate-new": "/settings/certificates/new",
 	"certificate-origin": "/settings/certificates/origin",
 	"settings-ssh-keys": "/settings/ssh-keys",
+	"settings-instance-admins": "/settings/instance-admins",
 	"settings-updates": "/settings/updates",
+	"settings-updates-changelog": "/settings/updates#changelog",
+	"settings-updates-channel": "/settings/updates#settings",
 	"settings-appearance": "/settings/appearance",
 	"settings-variables": "/settings/variables",
 	"settings-audit-log": "/settings/audit-log",
@@ -127,11 +144,47 @@ export const shots: Record<string, Shot> = {
 		path: "/integrations/dns/dns_cf_logical/z_logical",
 		click: ["Add record"],
 	},
+	"settings-updates-confirm": {
+		path: "/settings/updates",
+		click: ["Update to v0.2.0"],
+	},
 	"certificate-authority": {
 		path: "/settings/certificates",
 		click: ["Certificate authority"],
 	},
+	"settings-plugins": "/settings/plugins",
+	"plugins-marketplace": "/settings/plugins?tab=marketplace",
+	"plugin-install-review":
+		"/settings/plugins/new?index=pidx_acme&plugin=com.acme.cost-report&version=1.2.0&step=review",
+	"plugin-detail": "/settings/plugins/plg_deployalerts",
+	"plugin-update": {
+		path: "/settings/plugins/plg_deployalerts",
+		click: ["Check for updates"],
+	},
+	"plugin-page": "/plugin/plg_deployalerts/failures",
 };
+
+// The mock has no plugin container behind /plugins/<id>/ui/*: serve a stand-in page that speaks
+// the bridge like the deploy-notifier example, styled with the SDK's CSS kit.
+const kit = await Bun.file(
+	join(import.meta.dir, "../../packages/plugin-sdk/src/ui.css"),
+).text();
+const pluginPage = `<!doctype html><meta charset="utf-8"><style>${kit}</style>
+<div id="root" class="ls-stack"></div><script>
+const rows = [["2 min ago","storefront-web","Health check failed on port 3000","Posted"],
+["1 hour ago","booking-api","Build failed: npm ci exited with code 1","Posted"],
+["Yesterday","storefront-worker","Image pull failed: manifest unknown","Not posted"]];
+addEventListener("message", (e) => {
+	if (e.data?.type !== "init") return;
+	for (const [k, v] of Object.entries(e.data.css)) document.documentElement.style.setProperty(k, v);
+	document.documentElement.style.colorScheme = e.data.theme;
+	root.innerHTML = '<div><h1>Deploy alerts</h1><p class="ls-muted">Failed deployments posted to your chat webhook, newest first.</p></div>'
+		+ '<div class="ls-card" style="padding:0"><table class="ls-table"><thead><tr><th>When</th><th>Event</th><th>Service</th><th>Message</th><th>Chat</th></tr></thead><tbody>'
+		+ rows.map((r) => '<tr><td class="ls-muted">' + r[0] + '</td><td><span class="ls-badge" data-tone="bad">Failed</span></td><td class="ls-mono">' + r[1] + '</td><td>' + r[2] + '</td><td><span class="ls-badge" data-tone="' + (r[3] === "Posted" ? "ok" : "warn") + '">' + r[3] + '</span></td></tr>').join("")
+		+ '</tbody></table></div>';
+});
+parent.postMessage({ type: "ready" }, "*");
+</script>`;
 
 // PLAYWRIGHT_CHROME points at any Chromium when `bunx playwright install` was not run.
 const browser = await chromium.launch({
@@ -143,6 +196,9 @@ const ctx = await browser.newContext({
 	colorScheme: "dark",
 	reducedMotion: "reduce",
 });
+await ctx.route("**/plugins/*/ui/**", (route) =>
+	route.fulfill({ contentType: "text/html", body: pluginPage }),
+);
 const page = await ctx.newPage();
 const failed: string[] = [];
 for (const [name, shot] of Object.entries(shots)) {

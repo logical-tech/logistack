@@ -166,7 +166,11 @@
 		& a {
 			color: var(--color-fg);
 			text-decoration: underline;
-			text-decoration-color: color-mix(in oklab, var(--color-brand) 70%, transparent);
+			text-decoration-color: color-mix(
+				in oklab,
+				var(--color-brand) 70%,
+				transparent
+			);
 			transition-property: text-decoration-color;
 			transition-duration: 150ms;
 		}

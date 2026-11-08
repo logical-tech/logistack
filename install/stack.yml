@@ -1,6 +1,6 @@
 # LogiStack control plane. Deployed by install.sh:
 #   LOGISTACK_IMAGE_TAG=x.y.z LOGISTACK_PUBLIC_URL=http://h \
-#   LOGISTACK_WEB_ORIGIN=https://h docker stack deploy --with-registry-auth -c stack.yml logistack
+#   LOGISTACK_WEB_ORIGIN=https://h [LOGISTACK_API_REPLICAS=2] docker stack deploy --with-registry-auth -c stack.yml logistack
 # --local-build sets LOGISTACK_REGISTRY=localhost and LOGISTACK_IMAGE_TAG=x.y.z-local.<hash of image ids>.
 # The release version is baked into the images (LOGISTACK_VERSION), not set here, because an
 # in-app update (Settings > Updates) swaps only the images.
@@ -40,6 +40,9 @@ x-app-env: &app-env
   LOGISTACK_PUBLIC_URL: ${LOGISTACK_PUBLIC_URL:?set LOGISTACK_PUBLIC_URL}
   # "1" only on test instances: trusts sponsor keys from Stripe's sandbox.
   LOGISTACK_SPONSOR_SANDBOX: ${LOGISTACK_SPONSOR_SANDBOX:-}
+  # Community templates: the signed index and the keys that may sign it (keyId:base64url,...).
+  LS_TEMPLATE_INDEX_URL: ${LS_TEMPLATE_INDEX_URL:-https://stack.logicaltech.it/templates/api/v1/index}
+  LS_TEMPLATE_INDEX_KEYS: ${LS_TEMPLATE_INDEX_KEYS:-}
 
 x-app-secrets: &app-secrets
   - source: logistack-master-key
@@ -137,7 +140,9 @@ services:
     networks: [ls-control, ls-storage, ls-db, ls-game]
     deploy:
       <<: *rolling
-      replicas: 1
+      # install.sh --api-replicas; replicas share state through Postgres and Redis, and Caddy
+      # reaches them through the service VIP. In-app updates keep the count.
+      replicas: ${LOGISTACK_API_REPLICAS:-1}
       placement:
         constraints: [node.role == manager]
 

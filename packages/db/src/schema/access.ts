@@ -1,7 +1,15 @@
 import type { ScopeKind } from "@logistack/core";
 import { sql } from "drizzle-orm";
-import { check, index, inet, pgTable, text, unique } from "drizzle-orm/pg-core";
-import { organization, user } from "./auth.ts";
+import {
+	check,
+	index,
+	inet,
+	pgTable,
+	primaryKey,
+	text,
+	unique,
+} from "drizzle-orm/pg-core";
+import { member, organization, user } from "./auth.ts";
 import { id, tstz } from "./columns.ts";
 
 /**
@@ -43,3 +51,19 @@ export const apiKeyUsage = pgTable("api_key_usage", {
 	lastIp: inet("last_ip"),
 	lastUsedAt: tstz("last_used_at").defaultNow().notNull(),
 });
+
+/**
+ * One row per member and two-factor lockout (its deadline): the key makes the "blocked" audit row
+ * write exactly once even when the member's first requests after the deadline race.
+ */
+export const twoFactorLockout = pgTable(
+	"two_factor_lockout",
+	{
+		memberId: text("member_id")
+			.notNull()
+			.references(() => member.id, { onDelete: "cascade" }),
+		deadline: tstz("deadline").notNull(),
+		createdAt: tstz("created_at").defaultNow().notNull(),
+	},
+	(t) => [primaryKey({ columns: [t.memberId, t.deadline] })],
+);

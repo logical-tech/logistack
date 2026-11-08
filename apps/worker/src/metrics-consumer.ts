@@ -21,7 +21,7 @@ export const METRICS_GROUP = "ls-worker";
 export const LAST_SAMPLE_KEY = (swarmNodeId: string) =>
 	`ls:metrics:last:${swarmNodeId}`;
 
-type Entry = [id: string, fields: string[]];
+export type Entry = [id: string, fields: string[]];
 
 /** Bun's client speaks RESP3: XREADGROUP returns `{ stream: entries }`, XAUTOCLAIM `[next, entries, deleted]`. */
 function entriesOf(reply: unknown): Entry[] {
@@ -33,7 +33,7 @@ function entriesOf(reply: unknown): Entry[] {
 	);
 }
 
-function field(fields: string[], name: string): string | undefined {
+export function field(fields: string[], name: string): string | undefined {
 	for (let i = 0; i < fields.length; i += 2)
 		if (fields[i] === name) return fields[i + 1];
 	return undefined;
@@ -51,6 +51,8 @@ export type ConsumerOptions = {
 	resolveNode?: (swarmNodeId: string) => Promise<NodeRef | undefined>;
 	batch?: number;
 	blockMs?: number;
+	/** Stores a batch instead of the metrics handling (for other streams); acked once it resolves. */
+	handle?: (entries: Entry[]) => Promise<void>;
 	/** Pending entries idle this long on a dead consumer are claimed by this one. */
 	claimIdleMs?: number;
 };
@@ -91,6 +93,11 @@ export function createMetricsConsumer(opts: ConsumerOptions): Consumer {
 
 	async function store(entries: Entry[]): Promise<void> {
 		if (!entries.length) return;
+		if (opts.handle) {
+			await opts.handle(entries);
+			await redis.send("XACK", [stream, group, ...entries.map((e) => e[0])]);
+			return;
+		}
 		const host: HostRow[] = [];
 		const containers: ContainerRow[] = [];
 		const live: LiveHostSample[] = [];

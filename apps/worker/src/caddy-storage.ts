@@ -1,4 +1,6 @@
-import { deriveCaddyStorageKey } from "@logistack/core";
+import { decrypt, deriveCaddyStorageKey, encrypt } from "@logistack/core";
+import { instanceSettings } from "@logistack/db";
+import { isNull } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
 
 /**
@@ -15,10 +17,46 @@ export type StoredFile = {
 
 const NONCE_BYTES = 12;
 
+let pinned: Promise<string> | undefined;
+
 /** The storage key when encryption is on, else undefined. */
-export async function caddyStorageKey(ctx: Ctx): Promise<string | undefined> {
+export async function caddyStorageKey(
+	ctx: Pick<Ctx, "cfg" | "db" | "masterKey">,
+): Promise<string | undefined> {
 	if (!ctx.cfg.LS_CADDY_STORAGE_ENCRYPTION) return undefined;
-	return deriveCaddyStorageKey(ctx.cfg.LOGISTACK_MASTER_KEY);
+	pinned ??= pinCaddyStorageKey(ctx);
+	pinned.catch(() => {
+		pinned = undefined;
+	});
+	return pinned;
+}
+
+/**
+ * Stored on first use, so a master key rotation keeps the key Caddy sealed its certificates with.
+ * Before it is stored the key is derived from the master key Caddy has been using: the previous
+ * one while a rotation runs.
+ */
+async function pinCaddyStorageKey(
+	ctx: Pick<Ctx, "cfg" | "db" | "masterKey">,
+): Promise<string> {
+	const read = async () =>
+		(
+			await ctx.db
+				.select({ key: instanceSettings.caddyStorageKeyEncrypted })
+				.from(instanceSettings)
+		)[0]?.key;
+	const stored = await read();
+	if (stored) return decrypt(ctx.masterKey, stored);
+	const derived = await deriveCaddyStorageKey(
+		ctx.cfg.LOGISTACK_MASTER_KEY_PREVIOUS ?? ctx.cfg.LOGISTACK_MASTER_KEY,
+	);
+	await ctx.db
+		.update(instanceSettings)
+		.set({ caddyStorageKeyEncrypted: await encrypt(ctx.masterKey, derived) })
+		.where(isNull(instanceSettings.caddyStorageKeyEncrypted));
+	// A concurrent worker may have pinned first; the stored one wins.
+	const now = await read();
+	return now ? decrypt(ctx.masterKey, now) : derived;
 }
 
 const aes = (key: string, use: "encrypt" | "decrypt") =>

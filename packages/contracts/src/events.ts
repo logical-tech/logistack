@@ -20,6 +20,11 @@ export const eventTypes = [
 	"node.joined",
 	"node.down",
 	"node.recovered",
+	/** A scan found security updates on a node's host not reported before; resource `node:<id>`. */
+	"node.patches_available",
+	/** A patch run finished; resource `patch_run:<id>`, payload `node` names the node, `message` the outcome. */
+	"node.patch_succeeded",
+	"node.patch_failed",
 	"metric.threshold",
 	"certificate.issued",
 	"certificate.failed",
@@ -33,6 +38,10 @@ export const eventTypes = [
 	"migration.item_changed",
 	/** A scan found critical vulnerabilities not seen before in a service's image; resource `service:<id>`. */
 	"image.vulnerable",
+	/** An uptime monitor confirmed down (after its retries); resource `monitor:<id>`, payload `MonitorEventPayload`. */
+	"monitor.down",
+	/** A down monitor recovered. */
+	"monitor.up",
 ] as const;
 export const EventType = z.enum(eventTypes);
 export type EventType = z.infer<typeof EventType>;

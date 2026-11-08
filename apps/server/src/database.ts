@@ -1,12 +1,11 @@
 import type { DatabaseEngine } from "@logistack/contracts";
 import {
 	DUMP_EXTENSION,
-	decrypt,
 	dockerName,
 	dumpScript,
 	restoreScript,
 } from "@logistack/core";
-import { envVar, service } from "@logistack/db";
+import { service } from "@logistack/db";
 import {
 	type DatabaseClient,
 	type DocumentClient,
@@ -20,12 +19,17 @@ import {
 	NodeRunnerError,
 	tail,
 } from "@logistack/worker/node-runner";
-import { and, eq, inArray } from "drizzle-orm";
+import type { RedisClient } from "bun";
+import { eq } from "drizzle-orm";
 import type { Context } from "hono";
 import { recordAudit } from "./audit.ts";
+import { type Cluster, cluster } from "./cluster.ts";
 import type { Deps, Env } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
+import { parseJson } from "./events.ts";
+import { redisFor } from "./redis.ts";
 import { runningTask } from "./routes/service-ops.ts";
+import { serviceEnvValues } from "./secret-refs.ts";
 
 const ports: Record<DatabaseEngine, number> = {
 	postgres: 5432,
@@ -85,7 +89,7 @@ type Login = {
 };
 
 /** Who the explorer logs in as: the engine's superuser, from the env the image initialised with. */
-const LOGIN: Partial<
+export const LOGIN: Partial<
 	Record<DatabaseEngine, (env: Record<string, string>) => Login>
 > = {
 	postgres: (env) => {
@@ -132,22 +136,8 @@ const LOGIN: Partial<
 	}),
 };
 
-async function credentials(deps: Deps, serviceId: string) {
-	const rows = await deps.db
-		.select({ key: envVar.key, value: envVar.valueEncrypted })
-		.from(envVar)
-		.where(
-			and(
-				eq(envVar.scope, "service"),
-				eq(envVar.scopeId, serviceId),
-				inArray(envVar.key, ENV_KEYS),
-			),
-		);
-	return Object.fromEntries(
-		await Promise.all(
-			rows.map(async (r) => [r.key, await decrypt(deps.masterKey, r.value)]),
-		),
-	) as Record<string, string>;
+export async function credentials(deps: Deps, serviceId: string) {
+	return serviceEnvValues(deps, serviceId, ENV_KEYS);
 }
 
 async function databaseRow(c: Context<Env>, serviceId: string) {
@@ -252,41 +242,95 @@ export function keyValueClient(db: DatabaseService): KeyValueClient {
 	return db.client;
 }
 
-// shortcut: in memory, so a cancel must reach the api replica running the query; share it (Redis) when the api scales out.
-const runs = new Map<
-	string,
-	{ serviceId: string; actorId: string; abort: AbortController }
->();
+const RUN_KEY = (runId: string) => `ls:db-run:${runId}`;
+const RUN_CANCEL_CHANNEL = "ls:db-run:cancel";
+/** How long a run's record outlives a replica that died mid-run. */
+const RUN_TTL_S = 6 * 3600;
 
-/** Runs a script under `runId` (when given) so its own actor can cancel it. */
-export async function runQuery(
+export type Runs = ReturnType<typeof createRuns>;
+
+/**
+ * Cancellable runs across api replicas: the owner record lives in Redis so a cancel can land on
+ * any replica, and the replica running the query aborts it when the cancel is broadcast.
+ */
+export function createRuns(redis: RedisClient, shared: Cluster) {
+	const local = new Map<string, AbortController>();
+	const ready = shared.on(RUN_CANCEL_CHANNEL, (m) => {
+		const runId = (m as { runId?: unknown } | null)?.runId;
+		if (typeof runId === "string") local.get(runId)?.abort();
+	});
+	return {
+		/** Runs `fn` under `runId` (when given) so `owner.actorId` can cancel it from any replica. */
+		async run<T>(
+			owner: { serviceId: string; actorId: string },
+			runId: string | undefined,
+			fn: (signal: AbortSignal) => Promise<T>,
+		): Promise<T> {
+			const abort = new AbortController();
+			if (!runId) return fn(abort.signal);
+			await ready;
+			const taken = await redis.send("SET", [
+				RUN_KEY(runId),
+				JSON.stringify(owner),
+				"NX",
+				"EX",
+				String(RUN_TTL_S),
+			]);
+			if (taken !== "OK") throw new Failure("conflict", "run already started");
+			local.set(runId, abort);
+			try {
+				return await fn(abort.signal);
+			} finally {
+				local.delete(runId);
+				await redis.del(RUN_KEY(runId)).catch(() => {});
+			}
+		},
+		/** Aborts a run of `actorId` on `serviceId`; false when there is none (finished, or not theirs). */
+		async cancel(serviceId: string, actorId: string, runId: string) {
+			const raw = await redis.get(RUN_KEY(runId));
+			const owner = (raw ? parseJson(raw) : undefined) as
+				| { serviceId?: string; actorId?: string }
+				| undefined;
+			if (owner?.serviceId !== serviceId || owner.actorId !== actorId)
+				return false;
+			await shared.publish(RUN_CANCEL_CHANNEL, { runId });
+			return true;
+		},
+	};
+}
+
+const runsByUrl = new Map<string, Runs>();
+const runsFor = (url: string) => {
+	let found = runsByUrl.get(url);
+	if (!found) {
+		found = createRuns(redisFor(url), cluster(url));
+		runsByUrl.set(url, found);
+	}
+	return found;
+};
+
+/** Runs a script under `runId` (when given) so its own actor can cancel it, from any replica. */
+export function runQuery(
+	redisUrl: string,
 	db: DatabaseService,
 	actorId: string,
 	input: { sql: string; readOnly: boolean; runId?: string },
 ) {
-	const abort = new AbortController();
-	const { runId } = input;
-	if (runId) {
-		if (runs.has(runId)) throw new Failure("conflict", "run already started");
-		runs.set(runId, { serviceId: db.id, actorId, abort });
-	}
-	try {
-		return await sqlClient(db).query(input.sql, {
-			readOnly: input.readOnly,
-			signal: abort.signal,
-		});
-	} finally {
-		if (runId) runs.delete(runId);
-	}
+	return runsFor(redisUrl).run(
+		{ serviceId: db.id, actorId },
+		input.runId,
+		(signal) =>
+			sqlClient(db).query(input.sql, { readOnly: input.readOnly, signal }),
+	);
 }
 
 /** Aborts a run of `actorId` on `serviceId`; false when there is none (finished, or not theirs). */
-export function cancelRun(serviceId: string, actorId: string, runId: string) {
-	const run = runs.get(runId);
-	if (run?.serviceId !== serviceId || run.actorId !== actorId) return false;
-	run.abort.abort();
-	return true;
-}
+export const cancelRun = (
+	redisUrl: string,
+	serviceId: string,
+	actorId: string,
+	runId: string,
+) => runsFor(redisUrl).cancel(serviceId, actorId, runId);
 
 const DUMP_TIMEOUT_S = 6 * 3600;
 
@@ -412,11 +456,12 @@ export async function dumpResponse(
 			try {
 				const data = await next();
 				if (data) return ctrl.enqueue(data);
-				ctrl.close();
+				// Audit before closing, so the row exists once the client has the whole dump.
 				await audit();
+				ctrl.close();
 			} catch (e) {
-				ctrl.error(e);
 				await audit(e);
+				ctrl.error(e);
 			}
 		},
 		async cancel() {
@@ -434,6 +479,21 @@ export async function dumpResponse(
 	});
 }
 
+/** The body's chunks as they arrive, failing once they pass the declared length. */
+async function* capped(body: ReadableStream<Uint8Array>, limit: number) {
+	let seen = 0;
+	for await (const chunk of body) {
+		seen += chunk.byteLength;
+		if (seen > limit)
+			throw new Failure(
+				"payload_too_large",
+				"the body is longer than its Content-Length",
+				{ reason: "too_large", maxBytes: limit },
+			);
+		yield chunk;
+	}
+}
+
 /**
  * Pipes `body` into the engine's restore tool in the running replica, replacing what the
  * database holds. A non-zero exit is a 409 with the tool's exit code and the tail of its stderr.
@@ -443,6 +503,21 @@ export async function restoreFrom(
 	serviceId: string,
 	body: ReadableStream<Uint8Array>,
 ) {
+	const max = c.var.deps.config.MAX_RESTORE_BYTES;
+	const declared = Number(c.req.header("content-length"));
+	// The limit must hold before the first byte reaches the tool, which starts replacing data at once.
+	if (!Number.isSafeInteger(declared) || declared <= 0)
+		throw new Failure(
+			"payload_too_large",
+			"send the dump with a Content-Length header",
+			{ reason: "length_required", maxBytes: max },
+		);
+	if (declared > max)
+		throw new Failure(
+			"payload_too_large",
+			`the dump is ${declared} bytes; restores take up to ${max}`,
+			{ reason: "too_large", maxBytes: max },
+		);
 	const db = await databaseRow(c, serviceId);
 	if (db.engine === "redis" || db.engine === "libsql")
 		throw new Failure(
@@ -461,7 +536,7 @@ export async function restoreFrom(
 	);
 	let bytes = 0;
 	try {
-		await feed(exec, body, (n) => {
+		await feed(exec, capped(body, declared), (n) => {
 			bytes = n;
 		});
 	} catch (e) {

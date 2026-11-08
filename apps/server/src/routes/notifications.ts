@@ -18,7 +18,12 @@ import {
 	type NotificationChannel,
 	notificationChannels,
 	ProviderError,
+	pluginNotificationChannel,
 } from "@logistack/providers";
+import {
+	openPluginProvider,
+	type PluginProviderRef,
+} from "@logistack/worker/plugin-providers";
 import { and, asc, eq } from "drizzle-orm";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
@@ -33,6 +38,7 @@ import {
 	router,
 	security,
 } from "../openapi.ts";
+import { contributedProvider, PluginProviderFields } from "../plugins.ts";
 import { channelStatusKey, redisFor } from "../redis.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
 import { BlockedHostError, guardedFetch, hostPolicy } from "../ssrf.ts";
@@ -53,6 +59,9 @@ const ChannelView = z
 	.object({
 		id: z.string(),
 		kind: NotificationChannelKind,
+		/** Kind `plugin`: the install contributing it and the channel's name in its manifest. */
+		pluginInstallId: z.string().nullable(),
+		pluginProvider: z.string().nullable(),
 		name: z.string(),
 		rules: z.int(),
 		delivery: Delivery.nullable(),
@@ -75,7 +84,34 @@ const Rule = RuleInput.extend({
 type ChannelRow = typeof notificationChannel.$inferSelect;
 type RuleRow = typeof notificationRule.$inferSelect;
 
-function parseConfig(kind: NotificationChannelKind, config: unknown): unknown {
+/** Config parsed for its kind; a plugin's channel is checked against the plugin's own form. */
+async function parseInput(
+	db: Db,
+	organizationId: string,
+	input: {
+		kind: NotificationChannelKind;
+		config: Record<string, unknown>;
+		pluginInstallId?: string;
+		pluginProvider?: string;
+	},
+) {
+	if (input.kind === "plugin") {
+		const p = await contributedProvider(
+			db,
+			organizationId,
+			"notificationChannels",
+			input,
+			input.config,
+		);
+		return { config: p.config as unknown, columns: p.columns };
+	}
+	return { config: parseConfig(input.kind, input.config), columns: {} };
+}
+
+function parseConfig(
+	kind: Exclude<NotificationChannelKind, "plugin">,
+	config: unknown,
+): unknown {
 	const parsed = notificationChannels[kind].configSchema.safeParse(config);
 	if (!parsed.success)
 		throw new Failure(
@@ -88,19 +124,23 @@ function parseConfig(kind: NotificationChannelKind, config: unknown): unknown {
 
 /** A channel whose requests go through the SSRF guard: webhook, ntfy and Gotify URLs are the user's. */
 async function openChannel(
-	db: Db,
-	kind: NotificationChannelKind,
+	deps: { db: Db; masterKey: CryptoKey },
+	spec: PluginProviderRef & { kind: NotificationChannelKind },
 	config: unknown,
 ): Promise<NotificationChannel> {
-	const policy = await hostPolicy(db);
-	return instantiate(notificationChannels[kind], config, {
+	if (spec.kind === "plugin")
+		return pluginNotificationChannel(
+			await openPluginProvider(deps, "notificationChannels", spec, config),
+		);
+	const policy = await hostPolicy(deps.db);
+	return instantiate(notificationChannels[spec.kind], config, {
 		fetch: (url, init) => guardedFetch(url, init ?? {}, policy),
 	});
 }
 
-async function sendTest(ch: NotificationChannel) {
+async function sendTest(open: () => Promise<NotificationChannel>) {
 	try {
-		await ch.test();
+		await (await open()).test();
 	} catch (err) {
 		if (err instanceof ProviderError || err instanceof BlockedHostError)
 			throw new Failure("bad_request", err.message);
@@ -179,6 +219,8 @@ async function channelView(
 	return {
 		id: r.id,
 		kind: r.kind,
+		pluginInstallId: r.pluginInstallId,
+		pluginProvider: r.pluginProvider,
 		name: r.name,
 		rules,
 		delivery: delivery.success ? delivery.data : null,
@@ -239,7 +281,11 @@ export const notifications = router()
 				summary: "Send the test message through an unsaved channel config",
 				middleware: admin,
 				request: body(
-					z.object({ kind: NotificationChannelKind, config: Config }),
+					z.object({
+						kind: NotificationChannelKind,
+						config: Config,
+						...PluginProviderFields,
+					}),
 				),
 				responses: {
 					200: json(z.object({ ok: z.literal(true) }), "Sent"),
@@ -248,9 +294,15 @@ export const notifications = router()
 			}),
 		),
 		async (c) => {
-			const { kind, config } = c.req.valid("json");
-			await sendTest(
-				await openChannel(c.var.deps.db, kind, parseConfig(kind, config)),
+			const input = c.req.valid("json");
+			const organizationId = requireActor(c).organizationId;
+			const parsed = await parseInput(c.var.deps.db, organizationId, input);
+			await sendTest(() =>
+				openChannel(
+					c.var.deps,
+					{ ...input, ...parsed.columns, organizationId },
+					parsed.config,
+				),
 			);
 			return c.json({ ok: true as const }, 200);
 		},
@@ -269,25 +321,29 @@ export const notifications = router()
 						kind: NotificationChannelKind,
 						name: Name,
 						config: Config,
+						...PluginProviderFields,
 					}),
 				),
 				responses: { 201: json(ChannelView, "Created"), ...errors },
 			}),
 		),
 		async (c) => {
-			const { kind, name, config } = c.req.valid("json");
+			const input = c.req.valid("json");
 			const { db, masterKey } = c.var.deps;
+			const organizationId = requireActor(c).organizationId;
+			const parsed = await parseInput(db, organizationId, input);
 			const row = one(
 				await db
 					.insert(notificationChannel)
 					.values({
-						organizationId: requireActor(c).organizationId,
-						kind,
-						name,
+						organizationId,
+						kind: input.kind,
+						name: input.name,
 						configEncrypted: await encrypt(
 							masterKey,
-							JSON.stringify(parseConfig(kind, config)),
+							JSON.stringify(parsed.config),
 						),
+						...parsed.columns,
 					})
 					.returning(),
 			);
@@ -321,17 +377,26 @@ export const notifications = router()
 			const { id } = c.req.valid("param");
 			const input = c.req.valid("json");
 			const { db, masterKey, config } = c.var.deps;
-			const current = await channelRow(db, requireActor(c).organizationId, id);
+			const organizationId = requireActor(c).organizationId;
+			const current = await channelRow(db, organizationId, id);
+			const parsed =
+				input.config &&
+				(await parseInput(db, organizationId, {
+					kind: current.kind,
+					config: input.config,
+					pluginInstallId: current.pluginInstallId ?? undefined,
+					pluginProvider: current.pluginProvider ?? undefined,
+				}));
 			const row = one(
 				await db
 					.update(notificationChannel)
 					.set({
 						...(input.name ? { name: input.name } : {}),
-						...(input.config
+						...(parsed
 							? {
 									configEncrypted: await encrypt(
 										masterKey,
-										JSON.stringify(parseConfig(current.kind, input.config)),
+										JSON.stringify(parsed.config),
 									),
 								}
 							: {}),
@@ -372,7 +437,7 @@ export const notifications = router()
 				c.req.valid("param").id,
 			);
 			const cfg = JSON.parse(await decrypt(masterKey, row.configEncrypted));
-			await sendTest(await openChannel(db, row.kind, cfg));
+			await sendTest(() => openChannel({ db, masterKey }, row, cfg));
 			c.set("auditResourceId", row.id);
 			return c.json({ ok: true as const }, 200);
 		},

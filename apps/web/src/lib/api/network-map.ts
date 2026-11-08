@@ -12,6 +12,5 @@ const get: () => Promise<NetworkMap> = isMock
 export const networkMapQuery = queryOptions({
 	queryKey: ["network-map"],
 	queryFn: get,
-	// shortcut: polling like the overview; invalidate on org events once /ws carries them.
-	refetchInterval: 15_000,
+	// Refreshed by org events on /ws (`useOrgEventRefresh`), not polled.
 });

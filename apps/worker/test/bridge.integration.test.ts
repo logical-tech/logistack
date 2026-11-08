@@ -14,6 +14,7 @@ import {
 } from "@logistack/db";
 import { createDockerClient } from "@logistack/docker";
 import { eq } from "drizzle-orm";
+import { cluster } from "../../server/src/cluster.ts";
 import { loadConfig } from "../../server/src/config.ts";
 import { startServer } from "../../server/src/index.ts";
 import { setLogLevel } from "../../server/src/log.ts";
@@ -490,7 +491,7 @@ describe.skipIf(!hasDocker || !process.env.BRIDGE_IT)(
 		}, 30_000);
 
 		test("a revoked node is refused, with its node token and with the enrollment token", async () => {
-			expect(await revokeNode(db, nodeId)).toBe(1);
+			expect(await revokeNode(db, cluster(redisUrl), nodeId)).toBe(1);
 			await stopAgent();
 			spawnAgent();
 			const revoked = await waitFor("token_revoked in the agent log", () =>

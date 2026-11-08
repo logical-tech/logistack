@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { log } from "./bus.ts";
 import { caddyStorageKey, openFile, type StoredFile } from "./caddy-storage.ts";
 import type { Ctx } from "./ctx.ts";
+import { rollRenewedCertificates } from "./db-access.ts";
 
 /** Same key as apps/server/src/redis.ts; the server reads the snapshot from it. */
 export const CERTS_KEY = "ls:certs";
@@ -255,6 +256,11 @@ export async function checkCertificates(ctx: Ctx, now = new Date()) {
 			n.payload,
 		);
 	}
+	await rollRenewedCertificates(ctx).catch((e) =>
+		log("warn", "database certificates not checked", {
+			error: e instanceof Error ? e.message : String(e),
+		}),
+	);
 	log("info", "certificates checked", {
 		managed: managed.length,
 		custom: customs.length,

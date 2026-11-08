@@ -26,6 +26,8 @@ LogiStack emits an event whenever something worth knowing happens: a deployment 
 | **Pushover** | An app token and your user key. |
 | **Signed webhook** | Your receiver's URL and a secret of at least 16 characters. LogiStack sends a JSON POST signed with HMAC-SHA256. |
 
+A [plugin](../plugins/index.mdx) can add other channel kinds; they appear in the same wizard with the plugin's name as a badge. A plugin can also subscribe to events directly, without a rule.
+
 ## Add a channel
 
 <Steps>
@@ -126,6 +128,7 @@ The rule appears as a sentence, for example **Deployment failed, Node down, Back
 | | Certificate failed, Certificate issued | `certificate.failed`, `certificate.issued` |
 | | Domain error, Domain active | `domain.error`, `domain.active` |
 | Nodes and services | Node down, Node recovered, Node joined | `node.down`, `node.recovered`, `node.joined` |
+| | Security updates available, Node patching failed, Node patched | `node.patches_available`, `node.patch_failed`, `node.patch_succeeded`, from [OS patching](./os-patching.mdx) |
 | | Service status changed | `service.status_changed` |
 | | Service crash-looping | `service.crash_loop`, when tasks keep failing, and again when it settles |
 | | Service threshold crossed | `service.threshold` |
@@ -255,6 +258,8 @@ Each channel on the Notifications page shows its state:
 - **Delivering**, with when it last sent.
 - **No deliveries yet**: no rule has sent anything through it.
 - **Last delivery failed**, or **Failing, 3 in a row**, with the error, for example `smtp send: Invalid login: 535 5.7.8 Authentication failed`.
+
+A failed delivery is retried up to 3 more times, after 1, 2 and 4 seconds, and a worker restart in between doesn't lose the retry. A 4xx answer other than 429, such as a deleted Slack webhook's 404, is not retried: sending again would fail the same way. The channel shows a failure only once the last try has failed.
 
 Select **Send test** on a channel at any time to send the test message again.
 

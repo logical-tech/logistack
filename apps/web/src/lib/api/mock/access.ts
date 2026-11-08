@@ -38,6 +38,8 @@ const ALL: PermissionAction[] = [
 	"delete",
 	"admin",
 	"exec",
+	"ai",
+	"plugins",
 ];
 
 // Labels for the fixture hierarchy (see fixtures.ts).
@@ -457,6 +459,7 @@ export const mockAccess: AccessAdapter = {
 			grants: [{ role: "owner", scope: { kind: "organization", id: ORG } }],
 			keyScopes: null,
 			twoFactor: null,
+			instanceAdmin: true,
 		}),
 	members: {
 		list: () => delay(state.members),

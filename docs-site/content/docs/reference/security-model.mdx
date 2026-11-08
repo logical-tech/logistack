@@ -1,0 +1,86 @@
+---
+title: Security model
+description: How LogiStack avoids shell injection, scopes cleanup to its own Docker objects, converges state with a reconciler, and protects setup and updates.
+---
+
+A self-hosted PaaS runs as root on every server it manages, so a bug in it is a bug with root access. This page explains the design choices that keep LogiStack's attack surface small: how it talks to Docker, what it is allowed to delete, how it keeps the server in the state you asked for, and how setup and updates are protected. Read it before you put LogiStack on a server that matters, or when you evaluate it against another platform.
+
+## No shell strings
+
+LogiStack never builds a shell command out of text you typed. Branch names, Git URLs, volume names, domains, backup credentials and Compose paths are values, and values never become code.
+
+- **Docker through its API.** The worker drives Docker through the Engine API over the Unix socket, with typed requests. It does not run the `docker` CLI.
+- **Other tools through argv.** When LogiStack runs a program such as `git`, it passes an argument list (`Bun.spawn(["git", "ls-remote", url])`), never one string for `sh -c`. A value full of quotes, semicolons or `$(…)` stays one argument.
+- **Secrets through the environment or stdin.** Passwords and tokens reach a process as environment variables or on standard input, never on the command line, where `ps` would show them to every user on the host.
+- **Fixed scripts inside containers.** A few jobs need a shell inside a container, for example a database dump or a restore check. Those scripts are constants in the source, and the values they need arrive as environment variables. Your own commands, such as a health check or a schedule, run inside your own container, where you asked them to run.
+- **Quoted values over SSH.** Adding a server over SSH sends a script on stdin. The few values it carries, such as the manager's address, are single-quoted before they are written into it.
+
+Every value from outside, whether a request body, a webhook or a GitHub release, is parsed with a schema where it enters, so the rest of the code only sees values of the expected shape.
+
+## Cleanup only touches what LogiStack created
+
+Every container, service, network and volume LogiStack creates carries these labels:
+
+| Label | Value |
+| --- | --- |
+| `logistack.managed` | `true` |
+| `logistack.resource` | The ID of the row it belongs to, such as `svc_m2h5j8k1l4z9` |
+| `logistack.kind` | The kind of object |
+| `logistack.org` | The organization ID |
+
+Cleanup filters on `logistack.managed=true` before it removes anything. A container, network or volume you created yourself on the same server is never removed, even if it is stopped, unused or named like one of LogiStack's.
+
+Docker names come from IDs, never from names you type: a service runs as `ls-svc-<id>`. A name you choose cannot collide with, or point at, another object.
+
+## A reconciler instead of one-off commands
+
+Postgres holds the desired state: each service, domain, variable and schedule is a row. The dashboard, the API, manifests and the MCP server only change rows. The worker then makes Docker Swarm and Caddy match them, and a reconciler compares the two every 30 seconds.
+
+This has three security consequences:
+
+- **No drift.** A change made by hand on the server, or by a script that should not be there, is reported and reverted, instead of silently becoming the new truth.
+- **Every operation can be retried.** A deploy or a domain change that stops halfway is finished by the next attempt, not repeated, so a crash never leaves two copies of a service or a half-written proxy configuration.
+- **Pure compilers.** The code that turns a row into a Docker service spec or a Caddy configuration has no I/O and is covered by snapshot tests. What LogiStack asks Docker and Caddy to do can be read and reviewed.
+
+Caddy is configured through its admin API, which listens only on LogiStack's internal control network. Your services cannot reach it, nor Postgres or Redis.
+
+## Access control on every route
+
+Every API route, including the WebSocket and MCP routes, declares the action it needs (for example **Deploy** or **Administer**) and the scope it acts on: the organization, a folder, a project, an environment or one service. A request for a resource in another organization is refused before any handler runs. Git webhooks carry no session, so LogiStack checks each one's signature instead. See [Roles and permissions](../team/roles-and-permissions.mdx).
+
+Every change is written to an [audit log](../team/audit-log.mdx) with the actor, the outcome and a diff with secrets redacted. The database refuses updates to audit entries.
+
+## Setup token
+
+A fresh install is not reachable from the internet until it has an owner. By default the setup wizard listens only on `127.0.0.1`, and you reach it through an SSH tunnel.
+
+If you install with `--public-setup`, the installer generates a one-time setup token and prints a link with the token in the URL fragment, which your browser never sends to a server or its logs. Every setup request needs the token until the owner account exists; then the token stops working. A bot that finds the server first cannot claim it. See [Install LogiStack](../getting-started/install.mdx).
+
+## Updates that cannot break the database
+
+Database migrations only add: a new column, table or index. A drop or a rename is split across two releases. During an update, and after a rollback, the previous release keeps running on the new schema, so a failed update rolls back to a working instance instead of a broken one. See [Update LogiStack](../operations/updates.mdx).
+
+An update pulls each image by its version tag, never `latest`, so it installs the release you chose.
+
+## Compared with Dokploy and Coolify
+
+Dokploy and Coolify shaped many of LogiStack's ideas, and both are widely used. Their public security advisories show where this class of tool is most exposed. In the 12 months up to November 2026, Coolify published 61 GitHub security advisories, 16 of them critical, and Dokploy about 55, 42 of which were published on 2026-07-21. Most describe one of two problems:
+
+- **Command injection as root.** A value such as a branch name, a Git URL, a volume name, a health check or a backup credential is placed into a shell string that runs on the host.
+- **Cross-tenant authorization.** A route or a terminal WebSocket acts on a resource of another team or organization without checking it.
+
+LogiStack's rules target both: values never become shell strings, and every route checks the action and the scope it acts on. These rules reduce the risk; they do not remove it. Read the advisories yourself:
+
+- [Coolify security advisories](https://github.com/coollabsio/coolify/security/advisories)
+- [Dokploy security advisories](https://github.com/Dokploy/dokploy/security/advisories)
+
+## What LogiStack trusts
+
+- **Owners and admins** control the Docker socket, so they are root on every node by design. Give those roles only to people you would give root.
+- **The node agent** runs on every server with access to that server's Docker socket, and dials the API with its own token.
+- **Your apps** run in their own environment network, and cannot reach LogiStack's control network.
+- **Plugins** run as hardened containers with a read-only root and no capabilities, reach the internet only through a proxy that allows their declared hosts, and call the API with a key limited to the permissions you approved. Their pages run in an opaque origin. See [How plugins work](../plugins/index.mdx#security-model).
+
+## Report a vulnerability
+
+Report it privately, as `SECURITY.md` in the repository describes: through GitHub private vulnerability reporting, or by email to `info@logicaltech.it` with `[security]` in the subject. Do not open a public issue.

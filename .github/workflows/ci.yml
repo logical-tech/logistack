@@ -44,6 +44,10 @@ jobs:
       # The drain and rolling-update suites use the dev Redis on 127.0.0.1:6380.
       - run: docker compose -f docker-compose.dev.yml up -d --wait redis
       - run: bun test
+      # site/ is outside the workspaces and reads its content relative to its own folder.
+      - name: site tests
+        working-directory: site
+        run: bun install --frozen-lockfile && bun test
       - name: vite build
         working-directory: apps/web
         run: bunx --bun vite build

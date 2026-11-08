@@ -22,6 +22,8 @@ const ConfigSchema = z.object({
 	DATABASE_URL: z.url(),
 	REDIS_URL: z.url(),
 	LOGISTACK_MASTER_KEY: z.string().min(1),
+	/** The master key being replaced: set during a rotation, the worker re-encrypts everything to the new key at boot. */
+	LOGISTACK_MASTER_KEY_PREVIOUS: z.string().min(1).optional(),
 	DOCKER_SOCKET: z.string().default("/var/run/docker.sock"),
 	/** Clones and per-deployment log files live here. */
 	LS_WORK_DIR: z.string().default("/var/lib/logistack"),
@@ -29,6 +31,7 @@ const ConfigSchema = z.object({
 	LS_INGRESS_NETWORK: z.string().default("ls-ingress"),
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
+	/** Pre-0.6 shared database network; the api stays on it until every database has moved to `ls-db-<org>`. */
 	LS_DB_NETWORK: z.string().default("ls-db"),
 	LS_GAME_NETWORK: z.string().default("ls-game"),
 	/** The node label Caddy's placement waits on (`install.sh` writes `pending`, then `true`). */
@@ -124,6 +127,10 @@ const ConfigSchema = z.object({
 	LS_CONCURRENCY: z.coerce.number().int().min(1).default(4),
 	/** Needs sh, tar and zstd (installed with apk on first use when missing). Volume backups and restores. */
 	LS_BACKUP_TOOLS_IMAGE: z.string().default("alpine:3.22"),
+	/** The image database gateways run (ROLE=dbgateway); empty: the worker's own stack image. */
+	LS_GATEWAY_IMAGE: z.string().optional(),
+	/** The API URL plugin containers call; default the api's stack service on the plugins network. */
+	LS_PLUGIN_API_URL: z.string().optional(),
 	/** Host-target schedules chroot into the node's / from this image. */
 	LS_HOST_JOB_IMAGE: z.string().default("busybox:1.37"),
 	/** Schedule run output kept per run; the rest is counted, not stored. */
@@ -133,6 +140,8 @@ const ConfigSchema = z.object({
 		.min(1024)
 		.default(1024 * 1024),
 	LS_RUN_CONCURRENCY: z.coerce.number().int().min(1).default(8),
+	/** Uptime checks in flight per worker; they mostly wait on the network. */
+	LS_UPTIME_CONCURRENCY: z.coerce.number().int().min(1).default(32),
 	/** Baked into the image at build time (Dockerfile ARG). */
 	LOGISTACK_VERSION: z.string().default("dev"),
 	/** Trusts sponsor keys from Stripe's sandbox. Set only on test instances. */

@@ -207,6 +207,11 @@ function sample(n: MockNode, t: number): HostPoint {
 		diskTotal,
 		rx,
 		tx: rx * (0.35 + 0.1 * w),
+		diskRead: rx * (0.6 + 0.4 * w),
+		diskWrite: rx * (0.9 + 0.3 * d),
+		temp: 38 + cpu * 0.32,
+		iowait: clamp(1.2 + 3 * w * d, 0, 20),
+		steal: 0,
 	};
 }
 
@@ -241,6 +246,11 @@ function clusterSeries(ns: MockNode[], ts: number[]): HostPoint[] {
 			diskTotal: total("diskTotal"),
 			rx: total("rx"),
 			tx: total("tx"),
+			diskRead: total("diskRead"),
+			diskWrite: total("diskWrite"),
+			temp: Math.max(...ps.map((p) => p.temp ?? 0)),
+			iowait: total("iowait") / ps.length,
+			steal: 0,
 		});
 	}
 	return out;

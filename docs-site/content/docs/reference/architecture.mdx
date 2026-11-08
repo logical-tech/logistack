@@ -42,7 +42,7 @@ LogiStack is a control plane that runs as one Docker Swarm stack on your servers
 
 | Component | Runs as | Does |
 | --- | --- | --- |
-| `logistack-api` | Stack service, 1 replica | The REST API (OpenAPI at `/api/openapi.json`), the [MCP server](../automation/mcp-server.mdx) at `/mcp`, the realtime WebSocket at `/ws`, and the dashboard's static files. Writes desired state to Postgres and queues jobs. Never runs builds. |
+| `logistack-api` | Stack service, 1 replica by default (`--api-replicas`) | The REST API (OpenAPI at `/api/openapi.json`), the [MCP server](../automation/mcp-server.mdx) at `/mcp`, the realtime WebSocket at `/ws`, and the dashboard's static files. Writes desired state to Postgres and queues jobs. Never runs builds. |
 | `logistack-worker` | Stack service, 1 replica | Processes the queues: deployments, builds, backups, schedules, migrations, updates. Runs the reconciler and the proxy sync. Talks to Docker through the Engine API on the Unix socket. |
 | `logistack-agent` | Stack service, global (one per node) | Opens a WebSocket to the api and keeps it open. Reports host and container metrics and Docker events, streams logs, runs terminal sessions, reads and writes files in volumes, and archives volumes for backups on its own node. |
 | `postgres` | Stack service, Postgres 17, 1 replica on the `logistack.data=true` node | The desired state of everything, the audit log and aggregated metrics. |
@@ -63,7 +63,7 @@ Every resource (service, domain, variable, volume, schedule) is a row in Postgre
 
 Every operation is idempotent. If the worker stops halfway through a deploy, the next attempt finds the half-applied state and finishes it instead of starting over. The compilers that turn a row into a Docker service spec or a Caddy config are pure functions with no I/O.
 
-Rollouts are done by Swarm itself: each service updates start-first, monitors new tasks, and rolls back automatically when they fail. A service with a domain and no health check of its own gets a TCP check on its port, so a rollout only completes once the new replicas listen.
+Rollouts are done by Swarm itself: each service updates start-first, monitors new tasks, and rolls back automatically when they fail. A service with a domain and no health check of its own gets a TCP check on its port when its image has a shell, so a rollout only completes once the new replicas listen.
 
 ## Labels and names
 
@@ -105,10 +105,27 @@ Each deployment therefore points at exactly one image. A [rollback](../deploy/de
 | `ls-db` | Database services, the api and the worker | Lets the [database editor](../data/database-editor.mdx) reach databases. Apps never join it. |
 | `ls-storage` | Object storage services, the api and the worker | The object browser and backups to LogiStack storage. Apps never join it. |
 | `ls-game` | Game servers, the api and the worker | RCON and ServerQuery for game panels. Apps never join it. |
+| `ls-plugins` | Plugin containers, the api, the worker and the egress proxy | Internal: it has no route out. LogiStack calls plugins here, and plugins call the API. Apps never join it. |
+| `ls-plugins-egress` | The plugin egress proxy | The proxy's way out to the hosts each plugin declares. See [Plugins](../plugins/index.mdx#egress-is-limited-to-declared-hosts). |
 
 Caddy and the api join fixed networks, so adding an environment never restarts them. The trade-off is that services with a domain can reach each other on `ls-ingress`.
 
 Ports 80 and 443 are published in host mode on each ingress node, so Caddy sees the real client IP. Ports you publish for a service also default to host mode, on the node the task runs on.
+
+## Several api replicas
+
+The api holds no state of its own, so it can run as several replicas. Install or re-run with `--api-replicas 2` (up to 9). Caddy reaches the replicas through the Swarm service address, and each request, WebSocket or agent connection can land on any of them.
+
+What replicas share:
+
+- **Sessions, data and events.** Sessions and desired state live in Postgres. Events, live metrics and log streams go through Redis pub/sub, so a dashboard tab on one replica sees changes made through another.
+- **Agent requests.** Each agent keeps one socket to one replica. A terminal, a log stream, a disk breakdown or a backup archive started on another replica is relayed through Redis to the replica that holds the node's newest socket.
+- **Long runs.** An [Agent](../automation/agent.mdx) conversation and a migration import run on one replica at a time, under a lease in Redis. When that replica stops, another one picks the run up within about 45 seconds.
+- **Cancel and access.** Cancelling a database query works from any replica. A role, grant or membership change applies at once to open dashboard sockets on every replica: channels the person can no longer read are dropped, and a removed member's socket is closed.
+
+Stopping one replica interrupts no request through Caddy, which retries the next replica. Agents and open dashboard tabs on the stopped replica reconnect within seconds. A terminal session or a log stream running on it ends, and you open it again.
+
+The replicas run on manager nodes. To survive the loss of a server, run at least as many managers as replicas; on a single server, replicas only cover a crashed or restarting api process.
 
 ## Data and nodes
 

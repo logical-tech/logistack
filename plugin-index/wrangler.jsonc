@@ -1,0 +1,63 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "logistack-plugin-index",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-11-01",
+	// Under the marketing site's host; the record must be proxied by Cloudflare for routes to apply.
+	"routes": [
+		{
+			"pattern": "stack.logicaltech.it/plugins/api",
+			"zone_name": "logicaltech.it"
+		},
+		{
+			"pattern": "stack.logicaltech.it/plugins/api/*",
+			"zone_name": "logicaltech.it"
+		}
+	],
+	"vars": {
+		"BASE_PATH": "/plugins/api",
+		"PUBLIC_ORIGIN": "https://stack.logicaltech.it",
+		"EMAIL_FROM": "plugins@logicaltech.it"
+	},
+	"d1_databases": [
+		{
+			"binding": "PLUGIN_INDEX",
+			"database_name": "logistack-plugin-index",
+			// Replace with the id `wrangler d1 create logistack-plugin-index` prints.
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+	// Secrets: SIGNING_KEY, RESEND_API_KEY (wrangler secret put). See README.md, "Deploy".
+	"env": {
+		// `wrangler deploy --env sandbox`: its own key and database, for trying the publish flow.
+		// Only a server that adds the sandbox key to its trusted keys accepts what it signs.
+		"sandbox": {
+			"name": "logistack-plugin-index-sandbox",
+			"routes": [
+				{
+					"pattern": "stack.logicaltech.it/plugins/sandbox-api",
+					"zone_name": "logicaltech.it"
+				},
+				{
+					"pattern": "stack.logicaltech.it/plugins/sandbox-api/*",
+					"zone_name": "logicaltech.it"
+				}
+			],
+			"vars": {
+				"BASE_PATH": "/plugins/sandbox-api",
+				"PUBLIC_ORIGIN": "https://stack.logicaltech.it",
+				"EMAIL_FROM": "plugins@logicaltech.it",
+				"SANDBOX": "1"
+			},
+			"d1_databases": [
+				{
+					"binding": "PLUGIN_INDEX",
+					"database_name": "logistack-plugin-index-sandbox",
+					"database_id": "00000000-0000-0000-0000-000000000000",
+					"migrations_dir": "migrations"
+				}
+			]
+		}
+	}
+}

@@ -27,7 +27,7 @@ export const hasDocker = (() => {
 })();
 
 /** Starts `ls-test-<area>-*` Postgres and Redis containers on free ports, labelled `logistack.test=<label>`. */
-async function startInfra(area: string, label: string) {
+export async function startInfra(area: string, label: string) {
 	const tag = `ls-test-${area}-${crypto.randomUUID().slice(0, 8)}`;
 	const names = [`${tag}-pg`, `${tag}-redis`];
 	const run = (name: string, image: string, port: number, ...env: string[]) => {
@@ -84,7 +84,7 @@ async function startInfra(area: string, label: string) {
 export type Harness = Awaited<ReturnType<typeof startHarness>>;
 
 /** A stand-in for apps/web/dist: the app shell and one asset. */
-function webDist() {
+export function webDist() {
 	const dir = mkdtempSync(join(tmpdir(), "ls-test-server-web-"));
 	writeFileSync(join(dir, "index.html"), "<!doctype html><title>shell</title>");
 	writeFileSync(join(dir, "app.js"), "console.log(1)");

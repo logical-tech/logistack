@@ -153,6 +153,7 @@ curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0
 | `--public-setup` | Serve the setup wizard on the server's public address before setup, protected by a one-time token. Not remembered between runs. Cannot be combined with `--no-ingress`. |
 | `--no-ingress` | Leave LogiStack's proxy (Caddy) off and ports 80 and 443 to another proxy. Setup is then reachable only through the SSH tunnel. Kept on re-runs until you pass `--enable-ingress`. |
 | `--enable-ingress` | Turn Caddy on after an install with `--no-ingress`. Ports 80 and 443 must be free by then. |
+| `--api-replicas N` | Run `N` api replicas behind Caddy, from 1 to 9, so a crashed or restarting api interrupts nothing. Kept on re-runs and by in-app updates. |
 | `--local-build` | Build the images from a LogiStack checkout instead of pulling them. For development; single node only. |
 | `--help`, `-h` | Show the usage text. |
 

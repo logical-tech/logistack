@@ -44,8 +44,19 @@ export const idPrefixes = {
 	aiGatewayKey: "agk",
 	aiUsage: "aiu",
 	aiBudget: "aib",
+	aiBudgetReservation: "air",
 	aiAgentConversation: "aac",
 	aiAgentMessage: "aam",
+	databaseAccess: "dba",
+	databaseUpgrade: "dbu",
+	monitor: "mon",
+	incident: "inc",
+	incidentUpdate: "inu",
+	maintenanceWindow: "mtw",
+	statusPage: "stp",
+	patchRun: "pat",
+	pluginInstall: "plg",
+	pluginIndex: "pidx",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];
@@ -72,7 +83,8 @@ export type DockerKind =
 	| "sec"
 	| "cft"
 	| "tsn"
-	| "tsp";
+	| "tsp"
+	| "plg";
 
 /** Docker object name derived from an id, never from user input: `dockerName("svc", "svc_ab12") === "ls-svc-ab12"`. */
 export function dockerName(kind: DockerKind, id: string): string {

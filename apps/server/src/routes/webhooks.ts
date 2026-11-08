@@ -18,6 +18,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { mutation } from "../audit.ts";
 import { envelope } from "../events.ts";
 import { client, loadProvider, providerState } from "../git/providers.ts";
+import { syncGitopsForPush } from "../gitops.ts";
 import { json, router } from "../openapi.ts";
 import { handlePullRequest } from "../previews.ts";
 import { syncGitStacks } from "./stacks.ts";
@@ -34,6 +35,19 @@ const Outcome = z
 		deployments: z.array(z.string()),
 		/** Deployments recorded as `skipped`. */
 		skipped: z.array(z.string()),
+		/** Push events: what each project that follows a manifest in the repository did. */
+		gitops: z
+			.array(
+				z.object({
+					projectId: z.string(),
+					status: z.enum(["applied", "unchanged", "planned", "failed"]),
+					commitSha: z.string().nullable(),
+					changes: z.int(),
+					deployments: z.array(z.string()),
+					error: z.string().optional(),
+				}),
+			)
+			.optional(),
 		/** Pull request events: what each project with previews did. */
 		previews: z
 			.array(
@@ -150,7 +164,23 @@ export const webhooks = router().openapi(
 			);
 		}
 
-		// Stacks first: their own deployments cover the services a sync changed.
+		// Projects that follow a manifest in this repository first: their apply may add stacks and services.
+		const synced = await syncGitopsForPush(
+			c.var.deps,
+			row.id,
+			row.organizationId,
+			event,
+		);
+		const gitopsOut = synced.length
+			? {
+					gitops: synced.map(({ error, ...r }) => ({
+						...r,
+						...(error && { error: error.message }),
+					})),
+				}
+			: {};
+		const viaGitops = synced.flatMap((r) => r.deployments);
+		// Stacks next: their own deployments cover the services a sync changed.
 		const stacks = await syncGitStacks(c, row.id, row.organizationId, event);
 		const viaStack = new Set(stacks.deployments.map((d) => d.serviceId));
 
@@ -192,9 +222,14 @@ export const webhooks = router().openapi(
 			});
 		}
 		const addressed = decisions.filter((d) => d.decision.action !== "ignore");
-		const ids = stacks.deployments.map((d) => d.id);
-		const reasons = new Set(stacks.failures);
-		if (!addressed.length && !ids.length)
+		const ids = [...viaGitops, ...stacks.deployments.map((d) => d.id)];
+		const reasons = new Set([
+			...stacks.failures,
+			...synced.flatMap((r) =>
+				r.error ? [`project ${r.projectId}: ${r.error.message}`] : [],
+			),
+		]);
+		if (!addressed.length && !ids.length && !synced.length)
 			return c.json(
 				ignored(
 					[
@@ -259,19 +294,24 @@ export const webhooks = router().openapi(
 		if (!ids.length)
 			return c.json(
 				{
-					outcome: "skipped" as const,
-					reason: [...reasons].join("; "),
+					outcome:
+						synced.length && !skipped.length
+							? ("ignored" as const)
+							: ("skipped" as const),
+					reason: [...reasons].join("; ") || "no service needed a deployment",
 					deployments: [],
 					skipped,
+					...gitopsOut,
 				},
 				202,
 			);
 		return c.json(
 			{
 				outcome: "deployed" as const,
-				...(stacks.failures.length && { reason: stacks.failures.join("; ") }),
+				...(reasons.size && { reason: [...reasons].join("; ") }),
 				deployments: ids,
 				skipped,
+				...gitopsOut,
 			},
 			200,
 		);

@@ -56,7 +56,8 @@ export type McpTool = Tool & {
 const METHODS = ["get", "post", "put", "patch", "delete"] as const;
 /** First-run setup is not something an agent with an API key should drive. */
 const EXCLUDED_TAGS = new Set(["setup"]);
-const DESTRUCTIVE_VERB = /(^|[_/])(stop|restore|rollback)$/;
+const RESERVED = new Set(["body", "confirm"]);
+const DESTRUCTIVE_VERB = /(^|[_/])(stop|restore|rollback|destructive)$/;
 
 /** Inlines `#/components/schemas/*` references; MCP clients expect self-contained schemas. */
 function deref(
@@ -111,6 +112,11 @@ export function toolsFrom(doc: OpenApiDoc): McpTool[] {
 				(p) => p.in === "path" || p.in === "query",
 			);
 			for (const p of params) {
+				// `body` and `confirm` belong to the tool; a route parameter with either name would be shadowed.
+				if (RESERVED.has(p.name))
+					throw new Error(
+						`${method.toUpperCase()} ${apiPath}: parameter "${p.name}" is reserved for MCP tools; rename it`,
+					);
 				properties[p.name] = {
 					...(deref(p.schema ?? {}, schemas) as JsonSchema),
 					...(p.description && { description: p.description }),

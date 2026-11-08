@@ -7,6 +7,8 @@ const optional = z.string().min(1).optional();
 const ConfigSchema = z.object({
 	DATABASE_URL: z.url(),
 	REDIS_URL: z.url(),
+	/** Swarm service of the Caddy proxy; agents follow its access log for traffic analytics. */
+	LS_CADDY_SERVICE: z.string().default("logistack_caddy"),
 	/** 32 random bytes, base64 (`openssl rand -base64 32`). */
 	LOGISTACK_MASTER_KEY: z.string().refine((v) => {
 		try {
@@ -15,6 +17,8 @@ const ConfigSchema = z.object({
 			return false;
 		}
 	}, "must be 32 bytes, base64"),
+	/** The master key being replaced: values not re-encrypted yet still open with it. Remove once the worker logs that rotation finished. */
+	LOGISTACK_MASTER_KEY_PREVIOUS: optional,
 	BETTER_AUTH_SECRET: z.string().min(32),
 	BETTER_AUTH_URL: z.url(),
 	WEB_ORIGIN: z.url(),
@@ -29,6 +33,20 @@ const ConfigSchema = z.object({
 		.int()
 		.positive()
 		.default(50 * 1024 ** 3),
+	/** Sign-in, sign-up, second-factor and password-reset attempts per client address and minute. */
+	RATE_LIMIT_LOGIN_PER_MINUTE: z.coerce.number().int().positive().default(30),
+	/** Requests per API key and minute, across every api replica. */
+	RATE_LIMIT_API_KEY_PER_MINUTE: z.coerce
+		.number()
+		.int()
+		.positive()
+		.default(600),
+	/** Largest dump the database restore route takes; the body must declare its length. */
+	MAX_RESTORE_BYTES: z.coerce
+		.number()
+		.int()
+		.positive()
+		.default(20 * 1024 ** 3),
 	/** The built web app, served with an SPA fallback when its index.html exists. */
 	WEB_DIST_DIR: z
 		.string()
@@ -72,6 +90,25 @@ const ConfigSchema = z.object({
 		.enum(["", "0", "1", "true", "false"])
 		.optional()
 		.transform((v) => v === "1" || v === "true"),
+	/**
+	 * Extra trusted signing keys of the official plugin index, base64url raw Ed25519, comma-separated.
+	 * Added to `PLUGIN_INDEX_KEYS`, which is empty (a placeholder) until a release bundles the production key.
+	 */
+	LS_PLUGIN_INDEX_PUBLIC_KEY: optional,
+	/** The official plugin index is its sandbox. Set only on test instances. */
+	LOGISTACK_PLUGIN_INDEX_SANDBOX: z
+		.enum(["", "0", "1", "true", "false"])
+		.optional()
+		.transform((v) => v === "1" || v === "true"),
+	/**
+	 * Community templates (docs/plans/plugins.md, phase 0): the signed index fetched on Refresh,
+	 * and the keys that may sign it: base64url raw Ed25519 public keys, comma-separated, as for
+	 * the plugin index. No key: Refresh is refused.
+	 */
+	LS_TEMPLATE_INDEX_URL: z
+		.url()
+		.default("https://stack.logicaltech.it/templates/api/v1/index"),
+	LS_TEMPLATE_INDEX_KEYS: z.string().default(""),
 	GITHUB_CLIENT_ID: optional,
 	GITHUB_CLIENT_SECRET: optional,
 	GOOGLE_CLIENT_ID: optional,

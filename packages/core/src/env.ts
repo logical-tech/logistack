@@ -9,6 +9,8 @@ export type ScopedEnvVar = {
 	isBuildTime: boolean;
 	/** Set for an external secret: what spec snapshots record instead of the value. */
 	snapshotValue?: string;
+	/** A secret reference mounted as a file: the id of the env var row, which names the Swarm secret. */
+	fileId?: string;
 };
 
 /** The winning definition of a key, and the scope it came from. */

@@ -10,6 +10,7 @@
 		"cloudflare-tunnels",
 		"tailscale",
 		"access-control",
+		"traffic-rules",
 		"network-map"
 	]
 }

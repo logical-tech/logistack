@@ -83,6 +83,9 @@ export function secretReferenceIssue(
 			return ref.path.length === 2
 				? null
 				: "1Password references read secret://<provider>/<vault>/<item>#<field>";
+		case "plugin":
+			// The plugin judges its own paths when it reads.
+			return null;
 	}
 }
 
@@ -187,6 +190,9 @@ export type AvailableSecret = z.infer<typeof AvailableSecret>;
 export const SecretProviderView = z.object({
 	id: z.string(),
 	kind: SecretProviderKind,
+	/** Kind `plugin`: the install contributing it and the provider's name in its manifest. */
+	pluginInstallId: z.string().nullable(),
+	pluginProvider: z.string().nullable(),
 	name: SecretProviderName,
 	/** The server it talks to, for display. */
 	url: z.string(),

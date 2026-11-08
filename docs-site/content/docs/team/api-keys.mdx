@@ -144,3 +144,4 @@ Keys also stop working when their owner is removed from the organization, or whe
 - **403 Forbidden.** The key's owner, or its scopes, don't allow that action on that resource. Check the **Access** column, then [roles and permissions](./roles-and-permissions.mdx).
 - **The key works for one project but not another.** It's limited to scopes. Create a key with the scopes you need.
 - **"Keep it to 32 characters."** Shorten the name.
+- **429 Too Many Requests.** One key may make 600 requests a minute, counted across every api replica, MCP and Agent calls included. Wait for the number of seconds in the `Retry-After` header. On your own server you can change the limit with the `RATE_LIMIT_API_KEY_PER_MINUTE` environment variable of the api service.

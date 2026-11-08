@@ -1,7 +1,4 @@
-import {
-	deploymentContextVars,
-	type PendingChange,
-} from "@logistack/contracts";
+import { isReservedEnvKey, type PendingChange } from "@logistack/contracts";
 import type { Mount, PortConfig, ServiceSpec } from "@logistack/docker";
 import {
 	type CompileServiceInput,
@@ -217,7 +214,7 @@ export function diffSpecs(
 				const key = (bv ?? av)?.[0] as string;
 				// Plain wherever the key exists; anything else, engine-derived env included, is withheld.
 				const secret =
-					!(key in deploymentContextVars) &&
+					!isReservedEnvKey(key) &&
 					((!!bv && !plainBefore.has(key)) || (!!av && !plainAfter.has(key)));
 				return {
 					area: "env",

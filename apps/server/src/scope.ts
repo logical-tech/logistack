@@ -8,6 +8,7 @@ import {
 	folder,
 	gameEndpoint,
 	project,
+	projectGitops,
 	service,
 	stack,
 } from "@logistack/db";
@@ -190,9 +191,63 @@ export function requirePermission(
 	resolve: ResolveResource,
 ): MiddlewareHandler<Env> {
 	return async (c, next) => {
-		check(c, action, await resolve(c, requireActor(c)));
+		const resource = await resolve(c, requireActor(c));
+		check(c, action, resource);
+		await refuseGitManaged(c, action, resource);
 		await next();
 	};
+}
+
+export const managedByGitMessage = (link: {
+	repository: string;
+	branch: string;
+	path: string;
+}) =>
+	`this project is managed by git: change ${link.path} in ${link.repository} (${link.branch}) instead, or turn off "Managed by git" in the project's GitOps settings`;
+
+/**
+ * Throws 409 when a write or delete targets a project managed by git, unless the GitOps apply
+ * itself makes it. Secrets stay editable (values never live in the repository), and so do the
+ * GitOps settings, so the mode can be turned off.
+ */
+export async function refuseGitManaged(
+	c: Context<Env>,
+	action: PermissionAction,
+	resource: Resource,
+) {
+	if ((action !== "write" && action !== "delete") || !resource.projectId)
+		return;
+	const path = c.req.path;
+	if (/\/gitops(\/|$)/.test(path) || path.startsWith("/api/secrets")) return;
+	if (requireActor(c).id === `gitops-${resource.projectId}`) return;
+	const [link] = await c.var.deps.db
+		.select({
+			repository: projectGitops.repository,
+			branch: projectGitops.branch,
+			path: projectGitops.path,
+		})
+		.from(projectGitops)
+		.where(
+			and(
+				eq(projectGitops.projectId, resource.projectId),
+				eq(projectGitops.managed, true),
+			),
+		);
+	if (link) throw new Failure("conflict", managedByGitMessage(link));
+}
+
+/**
+ * Instance-level routes (updates, nodes, instance settings): the organization check alone would
+ * let any organization's admin change a server every organization shares.
+ */
+export const requireInstanceAdmin: MiddlewareHandler<Env> = async (c, next) => {
+	assertInstanceAdmin(c);
+	await next();
+};
+
+export function assertInstanceAdmin(c: Context<Env>) {
+	if (!requireActor(c).instanceAdmin)
+		throw new Failure("forbidden", "only an instance admin can do this");
 }
 
 /**

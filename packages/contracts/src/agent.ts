@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DrainNodeStatus, DrainsConfig, LogDrainConfig } from "./drains.ts";
 import { NodeRole } from "./enums.ts";
+import { TrafficConfig, TrafficMinute } from "./traffic.ts";
 
 // Agent <-> server protocol. The agent dials AGENT_WS_PATH with `Authorization: Bearer <token>`
 // and AGENT_NODE_HEADER, then sends `hello` first. Until the server answers `hello.ok` with a
@@ -77,6 +78,16 @@ export const HostMetrics = z.object({
 	/** Cumulative counters summed over physical interfaces. */
 	network: z.object({ rxBytes: Bytes, txBytes: Bytes }),
 	uptimeSec: z.number().nonnegative(),
+	/** 0..100 of all CPU time; older agents omit these and the fields below. */
+	cpuIowaitPercent: z.number().nonnegative().optional(),
+	cpuStealPercent: z.number().nonnegative().optional(),
+	/** Cumulative bytes over whole physical disks. */
+	diskIo: z.object({ readBytes: Bytes, writeBytes: Bytes }).optional(),
+	/** hwmon sensors; empty on hosts that expose none (most VMs). */
+	temperatures: z
+		.array(z.object({ sensor: z.string().max(64), celsius: z.number() }))
+		.max(64)
+		.optional(),
 });
 export type HostMetrics = z.infer<typeof HostMetrics>;
 
@@ -149,6 +160,11 @@ export const JobSpec = z.discriminatedUnion("kind", [
 		labels: z.record(z.string(), z.string()).default({}),
 		mounts: z.array(Mount).default([]),
 		network: z.string().optional(),
+		/**
+		 * Privileged, in the host's PID namespace, so `nsenter -t 1` reaches the host as root.
+		 * For OS patching only; agents without the `host-jobs` capability ignore it.
+		 */
+		host: z.boolean().default(false),
 		...JobCommon,
 	}),
 ]);
@@ -377,6 +393,12 @@ export const AgentMessage = z.discriminatedUnion("type", [
 		status: z.number().int().optional(),
 		error: z.string().max(1024).optional(),
 	}),
+	/** Closed minutes of traffic aggregates; the server answers `traffic.ack` with the same `seq` once they are durable. */
+	z.object({
+		type: z.literal("traffic"),
+		seq: z.number().int().nonnegative(),
+		minutes: z.array(TrafficMinute).max(500),
+	}),
 	z.object({
 		...req("rpc.error"),
 		code: RpcErrorCode,
@@ -444,6 +466,12 @@ export const ServerMessage = z.discriminatedUnion("type", [
 	z.object({ ...req("archive.start"), request: ArchiveRequest }),
 	/** Replaces the agent's whole drain setup; not a request, nothing answers it. */
 	z.object({ type: z.literal("drains.config"), ...DrainsConfig.shape }),
+	/** Replaces the agent's traffic analytics setup (capability `traffic`). */
+	z.object({ type: z.literal("traffic.config"), ...TrafficConfig.shape }),
+	z.object({
+		type: z.literal("traffic.ack"),
+		seq: z.number().int().nonnegative(),
+	}),
 	/** Sends one test line through `drain` from this node. */
 	z.object({ ...req("drains.test"), drain: LogDrainConfig }),
 ]);

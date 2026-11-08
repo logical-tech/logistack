@@ -4,7 +4,9 @@ import { LABEL_KIND, LABEL_ORG, LABEL_RESOURCE } from "@logistack/docker";
 import {
 	type BackupDestination,
 	instantiate,
+	pinnedFetch,
 	rcloneDestination,
+	resolvePublic,
 	s3Destination as s3Provider,
 } from "@logistack/providers";
 import { eq } from "drizzle-orm";
@@ -18,7 +20,7 @@ import {
 	rcloneHost,
 } from "./destinations.ts";
 import { svcName } from "./load.ts";
-import { publicAddress } from "./ssrf.ts";
+import { hostPolicy, publicAddress } from "./ssrf.ts";
 
 type Row = typeof s3Destination.$inferSelect;
 
@@ -109,7 +111,10 @@ async function openS3(ctx: Ctx, d: Row): Promise<BackupDestination> {
 	const url = new URL(d.endpoint);
 	if (url.protocol !== "https:" && !(await allowPrivate(ctx)))
 		throw new Error("only https S3 endpoints are allowed");
-	// shortcut: checked, not pinned; Bun's S3Client takes no custom fetch.
-	await publicAddress(ctx, url.hostname);
-	return instantiate(s3Provider, config);
+	const policy = await hostPolicy(ctx.db);
+	await resolvePublic(url.hostname, policy);
+	// Each request re-checks and pins its address, so a rebinding DNS answer is never dialled.
+	return instantiate(s3Provider, config, {
+		fetch: pinnedFetch(policy, { privateHttp: true }),
+	});
 }

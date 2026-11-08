@@ -1,0 +1,3 @@
+[test]
+# site/ is its own project (paths resolve from its folder); CI tests it there.
+pathIgnorePatterns = ["site/**"]

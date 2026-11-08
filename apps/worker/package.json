@@ -5,10 +5,18 @@
 	"exports": {
 		"./destinations": "./src/destinations.ts",
 		"./load": "./src/load.ts",
+		"./master-key": "./src/master-key.ts",
 		"./node-runner": "./src/node-runner.ts",
+		"./notify": "./src/notify.ts",
+		"./patching": "./src/patching.ts",
+		"./plugin-providers": "./src/plugin-providers.ts",
 		"./schedulers": "./src/schedulers.ts",
 		"./external-secrets": "./src/external-secrets.ts",
-		"./secrets": "./src/secrets.ts"
+		"./secrets": "./src/secrets.ts",
+		"./uptime-checks": "./src/uptime-checks.ts",
+		"./uptime-record": "./src/uptime-record.ts",
+		"./traffic-store": "./src/traffic-store.ts",
+		"./metrics-consumer": "./src/metrics-consumer.ts"
 	},
 	"scripts": {
 		"dev": "bun --watch src/index.ts",

@@ -10,6 +10,7 @@ import {
 	LiveUsage,
 	RoleLabel,
 } from "@/components/monitoring/node-parts";
+import { NodePatchesPanel } from "@/components/monitoring/patches";
 import { Page, PageHeader } from "@/components/page-header";
 import { NodeStatusLabel } from "@/components/status";
 import { ApiError } from "@/lib/api";
@@ -149,6 +150,7 @@ function NodeDetail() {
 						}
 					/>
 					<DiskPanel node={node} />
+					<NodePatchesPanel node={node} />
 				</section>
 				<aside className="grid content-start gap-4">
 					<section

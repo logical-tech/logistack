@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { AddDomainDialog } from "@/components/service/add-domain-dialog";
 import { BasicAuthPanel } from "@/components/service/basic-auth-panel";
+import { MaintenancePanel } from "@/components/service/maintenance-panel";
 import { Button } from "@/components/ui/button";
 import { domainsQuery } from "@/lib/api/networking";
 import { overviewQuery } from "@/lib/api/service-ops";
@@ -52,6 +53,7 @@ function DomainsTab() {
 				{dialog}
 			</Panel>
 			<BasicAuthPanel serviceId={serviceId} />
+			<MaintenancePanel serviceId={serviceId} />
 		</div>
 	);
 }

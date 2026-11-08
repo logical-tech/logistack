@@ -250,7 +250,7 @@ export async function pausedServices(
  * A one-off Swarm service pinned to `nodeId`, for work that needs stdin streamed into a
  * container the agent can exec into: a verify database, or a volume restore.
  */
-async function withHelper<T>(
+export async function withHelper<T>(
 	ctx: Ctx,
 	o: {
 		runId: string;
@@ -305,7 +305,7 @@ async function withHelper<T>(
 }
 
 /** Runs a short script in a container and returns stdout; throws with stderr on a non-zero exit. */
-async function script(
+export async function script(
 	ctx: Ctx,
 	nodeId: string,
 	target:

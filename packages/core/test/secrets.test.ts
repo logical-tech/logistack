@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import {
+	interpolateSecrets,
 	markShadowed,
 	secretChain,
+	secretExpressions,
 	secretInChain,
 	secretMasker,
 } from "../src/secrets.ts";
@@ -64,4 +66,26 @@ test("the masker hides secret values and their base64 form", () => {
 		"pw=*** b64=*** short=abc",
 	);
 	expect(secretMasker([])("x")).toBe("x");
+});
+
+test("interpolates ${{ secrets.KEY }} and reports unknown keys", () => {
+	const lookup = (k: string) => ({ PG: "p@ss", HOST: "db" })[k];
+	expect(
+		interpolateSecrets(
+			"postgres://app:${{ secrets.PG }}@${{secrets.HOST}}/app?x=${{ secrets.NOPE }}&${{ secrets.PG }}",
+			lookup,
+		),
+	).toEqual({
+		value: "postgres://app:p@ss@db/app?x=${{ secrets.NOPE }}&p@ss",
+		used: ["PG", "HOST"],
+		missing: ["NOPE"],
+	});
+	expect(interpolateSecrets("plain $HOME ${{ inputs.x }}", lookup)).toEqual({
+		value: "plain $HOME ${{ inputs.x }}",
+		used: [],
+		missing: [],
+	});
+	expect(
+		secretExpressions("${{ secrets.A }}${{ secrets.B }}${{ secrets.A }}"),
+	).toEqual(["A", "B"]);
 });
