@@ -176,6 +176,14 @@ Differences from the design above, and why:
 - **Cleanup triggers** (`0040_scope_cleanup.sql`): deleting a service, environment, project or folder deletes its variables and secrets. Before this, `env_var` rows outlived their scope.
 - The managed value is never returned by `GET /services/{id}/env-vars` or `GET /env-vars`, even with `read:secrets`; only `POST /secrets/{id}/reveal` returns it.
 
+## Phase 2 as built (2026-11-08)
+
+- `${{ secrets.KEY }}` in plain values (any env_var scope, stacks included) resolves in `loadService` to the most specific secret of that key on the service's chain; the resolved variable counts as secret. Values holding an expression are never frozen into a service secret (env-var PUT, stack writes).
+- `env_var.as_file`: a reference mounts as a `secret` mount at `/run/secrets/<KEY>` (Swarm secret named from the env_var id plus a content hash, same path as file mounts) and sets `<KEY>_FILE`. Shortcut: with an external secret the pending diff compares the placeholder, not the value.
+- Manifests: `secretRef {key, scope?}` and `asFile` on service variables. Export names references; a service's own same-key secret stays `secret: true`. Apply resolves names through `GET /secrets/available`.
+- Master key rotation: `LOGISTACK_MASTER_KEY_PREVIOUS` registers the old key as a decrypt fallback (`withPreviousKey`) in api and worker; the worker re-encrypts every column in `v1Columns` (`apps/worker/src/master-key.ts`) and re-wraps every `secret_key` at boot, idempotently. Caddy's storage key is pinned in `instance_settings.caddy_storage_key_encrypted`. A new v1 column must be added to `v1Columns`.
+- Database, storage and game credential readers use `serviceEnvValues` (managed secrets). The v1 copy is still written for v0.5.0; stop writing it next release.
+
 ## Later (not in this plan)
 
 - Master key rotation across every encrypted column (`v1` and the secrets KEK).

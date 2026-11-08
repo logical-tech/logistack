@@ -1,0 +1,116 @@
+---
+title: The logistack CLI
+description: Diff, apply and export project manifests, deploy services, follow logs and open a shell from your terminal or CI with the logistack command line tool.
+---
+
+`logistack` is a single binary for the terminal and CI. It plans and applies [project manifests](./project-manifests.mdx), exports them, queues deployments, follows logs and opens a shell in a running replica. It talks to the [REST API](./rest-api.mdx) with an [API key](../team/api-keys.mdx), so every command has that key's permissions. Every command takes `--json` for scripts.
+
+## Install
+
+Each release attaches `logistack-linux-amd64`, `logistack-linux-arm64`, `logistack-darwin-amd64` and `logistack-darwin-arm64`, with a `SHA256SUMS` file. Download the one for your machine and put it on your `PATH`:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+install -m 0755 logistack-linux-amd64 /usr/local/bin/logistack
+logistack --version
+```
+
+## Log in
+
+Create an API key in **Settings** › **API keys**, then run:
+
+```bash
+logistack login --url https://stack.example.com
+```
+
+The command asks for the key without echoing it, checks it against the instance and saves both to `~/.config/logistack/config.json`, readable by you only. The key is never accepted as a flag: it would end up in your shell history.
+
+In CI, set `LOGISTACK_URL` and `LOGISTACK_API_KEY` instead. They win over the saved login.
+
+## Plan and apply a manifest
+
+```bash
+logistack diff -f storefront.logistack.yaml
+logistack apply -f storefront.logistack.yaml
+```
+
+Both validate the file locally first. `diff` prints the plan: `+` creates, `~` changes, `-` deletes, one indented line per changed field, never a secret's value. `apply` prints the same plan, asks you to type `yes`, then applies.
+
+```text
+~ service production/web
+    spec.replicas changed
++ domain production/web/shop.example.com
+    new
+
+0 to create, 2 to change, 0 to delete.
+```
+
+A project manifest targets the project with the manifest's name. Pass `--project <id>` when the name is ambiguous or differs. An environment manifest needs `--environment <id>`. Add `--prune` to also delete what the manifest leaves out.
+
+Apply does not deploy: changed services show a pending diff until you deploy them. For deploys on every change, see [GitOps](./gitops.mdx).
+
+## Export
+
+```bash
+logistack export --project prj_8f2k3m -o storefront.logistack.yaml
+logistack export --environment env_storefront_production --format json
+```
+
+Without `-o`, the manifest goes to standard output.
+
+## Deploy, logs and shell
+
+```bash
+logistack deploy --service svc_storefront_production_web --wait
+logistack logs --service svc_storefront_production_web --follow --tail 200
+logistack exec --service svc_storefront_production_web --shell bash
+```
+
+- `deploy --wait` prints each status change and exits with 1 unless the deployment ends `healthy`.
+- `logs` prints the last lines of every running replica and exits. `--follow` (or `-F`) keeps following.
+- `exec` opens an interactive shell, with the `exec` permission. With `--json` it reads commands from standard input and prints the output and exit code: `echo 'ls /app' | logistack exec --service svc_... --json`.
+
+## Use it in CI
+
+This GitHub Actions job plans on pull requests and applies on `main`:
+
+```yaml title=".github/workflows/logistack.yml"
+name: LogiStack
+on:
+  pull_request:
+    paths: [storefront.logistack.yaml]
+  push:
+    branches: [main]
+    paths: [storefront.logistack.yaml]
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    env:
+      LOGISTACK_URL: ${{ vars.LOGISTACK_URL }}
+      LOGISTACK_API_KEY: ${{ secrets.LOGISTACK_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install logistack
+        # LOGISTACK_CLI_URL: where you keep the release's logistack-linux-amd64.
+        run: |
+          curl -fsSLo logistack "${{ vars.LOGISTACK_CLI_URL }}"
+          sudo install -m 0755 logistack /usr/local/bin/logistack
+      - if: github.event_name == 'pull_request'
+        run: logistack diff -f storefront.logistack.yaml
+      - if: github.event_name == 'push'
+        run: logistack apply -f storefront.logistack.yaml --yes
+```
+
+Without a terminal, `apply` refuses to run unless you pass `--yes`. `diff --exit-code` exits with 2 when there are changes, to fail a check that expects none.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Done. |
+| `1` | The API refused the request, or a deployment did not end `healthy`. |
+| `2` | `diff --exit-code` found changes. |
+| `64` | Wrong usage: a missing flag, an invalid manifest, not logged in. |
+
+With `--json`, an error is printed as `{"error": {"message", "status", "details"}}`.

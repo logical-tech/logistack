@@ -31,6 +31,8 @@ export const shots: Record<string, Shot> = {
 	projects: "/projects",
 	project: P,
 	"project-previews": `${P}/previews`,
+	"project-gitops": `${P}/gitops`,
+	"project-gitops-wizard": `${P}/gitops?step=manifest&edit=true`,
 	"project-usage": `${P}/usage`,
 	"project-import": `${P}/import`,
 	"project-variables": `${P}/variables?env=env_storefront_production`,
