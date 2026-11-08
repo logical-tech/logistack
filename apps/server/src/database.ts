@@ -456,11 +456,12 @@ export async function dumpResponse(
 			try {
 				const data = await next();
 				if (data) return ctrl.enqueue(data);
-				ctrl.close();
+				// Audit before closing, so the row exists once the client has the whole dump.
 				await audit();
+				ctrl.close();
 			} catch (e) {
-				ctrl.error(e);
 				await audit(e);
+				ctrl.error(e);
 			}
 		},
 		async cancel() {
