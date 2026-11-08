@@ -1,6 +1,6 @@
 import type {
-	PluginDetailVersion,
 	PluginIndexEntry,
+	PluginIndexVersion,
 	PluginManifest,
 	PluginStatus,
 } from "@logistack/contracts";
@@ -68,9 +68,9 @@ export const pluginInstall = pgTable(
 	(t) => [unique("plugin_install_org_plugin").on(t.organizationId, t.pluginId)],
 );
 
-/** What an index refresh caches: the listing, plus every version of the plugins someone installed. */
+/** What an index refresh caches: the listing, plus every version of a plugin once something needed them. */
 export type PluginIndexCache = (PluginIndexEntry & {
-	versions?: PluginDetailVersion[];
+	versions?: PluginIndexVersion[];
 })[];
 
 /**
@@ -81,8 +81,8 @@ export const pluginIndex = pgTable("plugin_index", {
 	id: id("pidx"),
 	url: text("url").notNull().unique(),
 	name: text("name").notNull(),
-	/** `keyId` to base64 raw Ed25519 public key. */
-	publicKeys: jsonb("public_keys").$type<Record<string, string>>().notNull(),
+	/** base64url raw Ed25519 public keys; an envelope's `keyId` must be one of them. */
+	publicKeys: jsonb("public_keys").$type<string[]>().notNull(),
 	builtin: boolean("builtin").notNull().default(false),
 	fetchedAt: tstz("fetched_at"),
 	entries: jsonb("entries").$type<PluginIndexCache>().notNull().default([]),

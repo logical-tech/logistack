@@ -1,14 +1,12 @@
-import {
-	PluginDetailPayload,
-	type PluginDetailVersion,
-	PluginIndexEnvelope,
-	PluginIndexPayload,
+import type {
+	PluginIndexEntry,
+	PluginIndexVersion,
 } from "@logistack/contracts";
 import {
-	OFFICIAL_PLUGIN_INDEX_KEYS,
-	OFFICIAL_PLUGIN_INDEX_SANDBOX_URL,
-	OFFICIAL_PLUGIN_INDEX_URL,
-	parsePublicKeys,
+	PLUGIN_INDEX_KEYS,
+	PLUGIN_INDEX_URL,
+	readPluginDetail,
+	readPluginIndex,
 	verifyIndexResponse,
 } from "@logistack/core";
 import {
@@ -19,35 +17,47 @@ import {
 	pluginInstall,
 } from "@logistack/db";
 import { and, eq, ne } from "drizzle-orm";
-import type { z } from "zod";
 import type { Config } from "./config.ts";
 import type { Deps } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
 import { devFetch } from "./plugins.ts";
 
-// Marketplace indexes on the server side: fetching and verifying signed responses, the cache in
-// `plugin_index`, and yanked flags. Fetches happen only on an explicit refresh, when someone opens
-// the marketplace with a stale cache, or when an install or update needs a version not cached.
+// Marketplace indexes on the server side (plugin-index/README.md for the format): fetching and
+// verifying signed responses, the cache in `plugin_index`, and yanked flags. Fetches happen only
+// on an explicit refresh, when someone opens the marketplace with a stale cache, or when an
+// install, update or the update dialog needs a plugin's versions and they are not cached.
 
 export type IndexRow = typeof pluginIndex.$inferSelect;
 
 export const OFFICIAL_INDEX_ID = "pidx_official";
+/** The official index's sandbox, used with LOGISTACK_PLUGIN_INDEX_SANDBOX=1. */
+export const PLUGIN_INDEX_SANDBOX_URL =
+	"https://stack.logicaltech.it/plugins/sandbox-api";
 /** The marketplace refreshes an index on open once its cache is older than this. */
 export const INDEX_STALE_MS = 3_600_000;
 
-/** The official index as this server's config defines it. */
+/** `a,b` (LS_PLUGIN_INDEX_PUBLIC_KEY) to a key list. */
+const keyList = (v: string) =>
+	v
+		.split(",")
+		.map((k) => k.trim())
+		.filter(Boolean);
+
+/**
+ * The official index as this server's config defines it. Its keys are `PLUGIN_INDEX_KEYS`
+ * (empty until a release bundles the production key) plus LS_PLUGIN_INDEX_PUBLIC_KEY.
+ */
 export function officialIndex(config: Config) {
-	const keys = config.LS_PLUGIN_INDEX_PUBLIC_KEY
-		? parsePublicKeys(config.LS_PLUGIN_INDEX_PUBLIC_KEY)
-		: OFFICIAL_PLUGIN_INDEX_KEYS;
+	const sandbox = config.LOGISTACK_PLUGIN_INDEX_SANDBOX;
 	return {
-		url: config.LOGISTACK_PLUGIN_INDEX_SANDBOX
-			? OFFICIAL_PLUGIN_INDEX_SANDBOX_URL
-			: OFFICIAL_PLUGIN_INDEX_URL,
-		name: config.LOGISTACK_PLUGIN_INDEX_SANDBOX
-			? "LogiStack (sandbox)"
-			: "LogiStack",
-		publicKeys: keys,
+		url: sandbox ? PLUGIN_INDEX_SANDBOX_URL : PLUGIN_INDEX_URL,
+		name: sandbox ? "LogiStack (sandbox)" : "LogiStack",
+		publicKeys: [
+			...new Set([
+				...PLUGIN_INDEX_KEYS,
+				...keyList(config.LS_PLUGIN_INDEX_PUBLIC_KEY ?? ""),
+			]),
+		],
 	};
 }
 
@@ -74,16 +84,19 @@ export async function indexRow(db: Db, id: string): Promise<IndexRow> {
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** GETs `path` from an index through the SSRF guard and returns its verified, parsed payload. */
-export async function fetchSigned<S extends z.ZodType>(
+/** GETs `path` from an index through the SSRF guard and returns its verified payload. */
+async function fetchVerified(
 	db: Db,
 	index: Pick<IndexRow, "url" | "publicKeys">,
 	path: string,
-	schema: S,
-): Promise<z.infer<S>> {
+): Promise<unknown> {
+	if (!index.publicKeys.length)
+		throw new Failure(
+			"conflict",
+			"no public key is configured for this index; set LS_PLUGIN_INDEX_PUBLIC_KEY",
+		);
 	const f = await devFetch(db);
-	const url = `${index.url.replace(/\/+$/, "")}${path}`;
-	const res = await f(url, {
+	const res = await f(`${index.url.replace(/\/+$/, "")}${path}`, {
 		headers: { accept: "application/json" },
 		signal: AbortSignal.timeout(15_000),
 		redirect: "manual",
@@ -94,60 +107,68 @@ export async function fetchSigned<S extends z.ZodType>(
 		throw new Failure("not_found", `the index has nothing at ${path}`);
 	if (!res.ok)
 		throw new Failure("bad_request", `the index answered ${res.status}`);
-	const envelope = PluginIndexEnvelope.safeParse(
-		await res.json().catch(() => null),
-	);
-	if (!envelope.success)
-		throw new Failure(
-			"bad_request",
-			"the index answered without a signed envelope",
-		);
-	const check = await verifyIndexResponse(envelope.data, index.publicKeys);
+	const check = await verifyIndexResponse(await res.text(), index.publicKeys);
 	if (!check.ok)
 		throw new Failure(
 			"bad_request",
 			check.reason === "unknown_key"
-				? `the index signed with key '${envelope.data.keyId}', which this instance does not trust`
+				? "the index signed with a key this instance does not trust"
 				: check.reason === "signature"
 					? "the index response has a bad signature"
-					: "the index response is not JSON",
+					: "the index answered without a valid signed envelope",
 		);
-	const parsed = schema.safeParse(check.payload);
-	if (!parsed.success)
+	return check.payload;
+}
+
+/** `GET /v1/index`, verified; entries this server cannot read are skipped. */
+export async function fetchIndex(
+	db: Db,
+	index: Pick<IndexRow, "url" | "publicKeys">,
+) {
+	const r = readPluginIndex(await fetchVerified(db, index, "/v1/index"));
+	if (!r)
 		throw new Failure(
 			"bad_request",
 			"the index response does not match the index contract",
-			parsed.error.issues,
 		);
-	return parsed.data;
+	return r;
 }
 
-export const fetchDetail = (
+/** `GET /v1/plugins/{id}`, verified and checked to be about `pluginId`. */
+export async function fetchDetail(
 	db: Db,
 	index: Pick<IndexRow, "url" | "publicKeys">,
 	pluginId: string,
-) =>
-	fetchSigned(
-		db,
-		index,
-		`/v1/plugins/${encodeURIComponent(pluginId)}`,
-		PluginDetailPayload,
+) {
+	const r = readPluginDetail(
+		await fetchVerified(
+			db,
+			index,
+			`/v1/plugins/${encodeURIComponent(pluginId)}`,
+		),
+		pluginId,
 	);
+	if (!r)
+		throw new Failure(
+			"bad_request",
+			"the index answered about another plugin, or not in the index contract",
+		);
+	return r.plugin;
+}
+
+/** The version a listing shows: the newest, else the newest verified one. */
+export const shownVersion = (e: PluginIndexEntry) =>
+	e.latest ?? e.latestVerified;
 
 /**
- * Fetches the listing, plus every version of each plugin installed from this index (for updates
- * and yanked flags), caches both, and flags installs whose version the index yanked. A failure
- * keeps the old cache and is stored as `last_error`.
+ * Fetches the listing, caches it, and flags installs whose version the index yanked (from the
+ * listing's `yanked` list). A failure keeps the old cache and is stored as `last_error`. Cached
+ * versions are dropped, so the next update dialog sees new releases.
  */
 export async function refreshIndex(db: Db, row: IndexRow): Promise<IndexRow> {
 	try {
-		// Nothing could verify the answer: do not fetch (the official index before a release bundles its key).
-		if (!Object.values(row.publicKeys).some(Boolean))
-			throw new Failure(
-				"conflict",
-				"no public key is configured for this index; set LS_PLUGIN_INDEX_PUBLIC_KEY",
-			);
-		const index = await fetchSigned(db, row, "/v1/index", PluginIndexPayload);
+		const index = await fetchIndex(db, row);
+		const entries: PluginIndexCache = index.plugins;
 		const installs = await db
 			.select({
 				id: pluginInstall.id,
@@ -156,32 +177,16 @@ export async function refreshIndex(db: Db, row: IndexRow): Promise<IndexRow> {
 			})
 			.from(pluginInstall)
 			.where(eq(pluginInstall.indexId, row.id));
-		const details = new Map<string, PluginDetailVersion[]>();
-		for (const pluginId of new Set(installs.map((i) => i.pluginId)))
-			details.set(
-				pluginId,
-				await fetchDetail(db, row, pluginId)
-					.then((d) => d.versions)
-					.catch((e: unknown) => {
-						// A plugin the index dropped has no versions to offer.
-						if (e instanceof Failure && e.code === "not_found") return [];
-						throw e;
-					}),
-			);
-		const entries: PluginIndexCache = index.plugins.map((p) => ({
-			...p,
-			...(details.has(p.id) ? { versions: details.get(p.id) } : {}),
-		}));
 		for (const i of installs) {
-			const v = details.get(i.pluginId)?.find((x) => x.version === i.version);
+			const yanked =
+				entries
+					.find((e) => e.id === i.pluginId)
+					?.yanked.some((y) => y.version === i.version) ?? false;
 			await db
 				.update(pluginInstall)
-				.set({ yanked: v?.yanked ?? false })
+				.set({ yanked })
 				.where(
-					and(
-						eq(pluginInstall.id, i.id),
-						ne(pluginInstall.yanked, v?.yanked ?? false),
-					),
+					and(eq(pluginInstall.id, i.id), ne(pluginInstall.yanked, yanked)),
 				);
 		}
 		const [updated] = await db
@@ -199,12 +204,12 @@ export async function refreshIndex(db: Db, row: IndexRow): Promise<IndexRow> {
 	}
 }
 
-/** Every version of a plugin: cached by the last refresh, else fetched now and cached. */
+/** Every listed version of a plugin, newest first: cached, else fetched now and cached. */
 export async function pluginVersions(
 	db: Db,
 	row: IndexRow,
 	pluginId: string,
-): Promise<PluginDetailVersion[]> {
+): Promise<PluginIndexVersion[]> {
 	const entry = row.entries.find((e) => e.id === pluginId);
 	if (entry?.versions) return entry.versions;
 	const { versions } = await fetchDetail(db, row, pluginId);
@@ -220,16 +225,18 @@ export async function pluginVersions(
 	return versions;
 }
 
-/** One version as the index signed it. */
+/** One version as the index signed it; the listing's latest ones need no extra fetch. */
 export async function indexVersion(
 	db: Db,
 	row: IndexRow,
 	pluginId: string,
 	version: string,
-): Promise<PluginDetailVersion> {
+): Promise<PluginIndexVersion> {
 	const entry = row.entries.find((e) => e.id === pluginId);
-	if (entry?.latest.version === version && !entry.versions)
-		return { ...entry.latest, verified: entry.verified };
+	const listed = [entry?.latest, entry?.latestVerified].find(
+		(v) => v?.version === version,
+	);
+	if (listed && !entry?.versions) return listed;
 	const v = (await pluginVersions(db, row, pluginId)).find(
 		(x) => x.version === version,
 	);
@@ -241,12 +248,12 @@ export async function indexVersion(
 	return v;
 }
 
-/** Opt-in, anonymous: the plugin id and version, nothing about the instance. Never awaited by callers. */
+/** Opt-in, anonymous (`POST /v1/ping`): the plugin id and the install's random id, nothing about the instance. */
 export async function pingInstall(
 	deps: Pick<Deps, "db">,
 	row: IndexRow,
 	pluginId: string,
-	version: string,
+	installId: string,
 ) {
 	const [s] = await deps.db
 		.select({ on: instanceSettings.pluginInstallPing })
@@ -254,13 +261,10 @@ export async function pingInstall(
 		.where(eq(instanceSettings.id, "singleton"));
 	if (!s?.on) return;
 	const f = await devFetch(deps.db);
-	await f(
-		`${row.url.replace(/\/+$/, "")}/v1/plugins/${encodeURIComponent(pluginId)}/installs`,
-		{
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ version }),
-			signal: AbortSignal.timeout(5_000),
-		},
-	).catch(() => {});
+	await f(`${row.url.replace(/\/+$/, "")}/v1/ping`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ pluginId, installId }),
+		signal: AbortSignal.timeout(5_000),
+	}).catch(() => {});
 }

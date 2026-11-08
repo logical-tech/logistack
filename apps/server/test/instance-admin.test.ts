@@ -33,7 +33,7 @@ const instanceRoutes: [string, string, unknown?][] = [
 		"/api/plugins/indexes",
 		{
 			url: "https://index.example.com",
-			publicKeys: { k: Buffer.alloc(32).toString("base64") },
+			publicKeys: [Buffer.alloc(32).toString("base64url")],
 		},
 	],
 	["DELETE", `/api/plugins/indexes/${node}`],

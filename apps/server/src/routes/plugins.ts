@@ -2,7 +2,6 @@ import { createRoute, z } from "@hono/zod-openapi";
 import {
 	type PermissionAction,
 	PLUGIN_STORAGE_LIMITS,
-	PluginIndexPayload,
 	type PluginManifest,
 	PluginPage,
 	PluginPolicy,
@@ -43,7 +42,7 @@ import { Failure, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import {
 	ensureOfficialIndex,
-	fetchSigned,
+	fetchIndex,
 	INDEX_STALE_MS,
 	type IndexRow,
 	indexRow,
@@ -51,6 +50,7 @@ import {
 	pingInstall,
 	pluginVersions,
 	refreshIndex,
+	shownVersion,
 } from "../plugin-index.ts";
 import {
 	callInstall,
@@ -465,8 +465,8 @@ const IndexView = z
 		name: z.string(),
 		/** The official index, configured by the server; it cannot be removed. */
 		builtin: z.boolean(),
-		/** Ids of the signing keys this instance trusts for it. */
-		keyIds: z.array(z.string()),
+		/** base64url Ed25519 public keys this instance trusts for it. */
+		publicKeys: z.array(z.string()),
 		fetchedAt: z.string().nullable(),
 		lastError: z.string().nullable(),
 		plugins: z.number(),
@@ -478,7 +478,7 @@ const indexView = (r: IndexRow) => ({
 	url: r.url,
 	name: r.name,
 	builtin: r.builtin,
-	keyIds: Object.keys(r.publicKeys).filter((k) => r.publicKeys[k]),
+	publicKeys: r.publicKeys,
 	fetchedAt: r.fetchedAt?.toISOString() ?? null,
 	lastError: r.lastError,
 	plugins: r.entries.length,
@@ -497,14 +497,21 @@ const MarketEntry = z
 		name: z.string(),
 		description: z.string(),
 		author: z.string().nullable(),
+		/** The publisher's display name on the index. */
+		publisher: z.string(),
+		/** Instances that pinged an install in the last 30 days (opt-in). */
+		installs: z.number(),
 		iconUrl: z.string().nullable(),
+		/** `latest` is verified. */
 		verified: z.boolean(),
+		/** The newest verified version, which the `verified` policy can install. */
+		latestVerified: z.string().nullable(),
+		/** The newest version that is not yanked (the newest verified one if every newer is yanked). */
 		latest: z.object({
 			version: z.string(),
 			image: z.string(),
 			changelog: z.string().nullable(),
 			publishedAt: z.string(),
-			yanked: z.boolean(),
 			manifest: ManifestView,
 		}),
 		/** The manifest's `logistack` range includes this server's version. */
@@ -536,13 +543,14 @@ const UpdateView = z
 	.openapi("PluginUpdate");
 
 const PublicKeys = z
-	.record(z.string().min(1).max(128), z.string().max(256))
-	.refine(
-		(keys) =>
-			Object.keys(keys).length > 0 &&
-			Object.values(keys).every((k) => Buffer.from(k, "base64").length === 32),
-		"at least one key; each a base64 raw Ed25519 public key (32 bytes)",
-	);
+	.array(
+		z
+			.string()
+			.trim()
+			.regex(/^[A-Za-z0-9_-]{43}$/, "a base64url raw Ed25519 public key"),
+	)
+	.min(1)
+	.max(10);
 
 /**
  * Moves an install to another version: the role's actions follow the new manifest and the
@@ -1015,7 +1023,7 @@ export const plugins = router()
 					c.var.deps,
 					await indexRow(db, r.indexId),
 					r.manifest.id,
-					r.manifest.version,
+					installId,
 				).catch(() => {});
 			return c.json(
 				{
@@ -1063,9 +1071,9 @@ export const plugins = router()
 				request: body(
 					z.object({
 						url: z.url().max(2048),
-						/** Defaults to the name the index gives itself. */
+						/** Defaults to the URL's host. */
 						name: z.string().trim().min(1).max(80).optional(),
-						/** `keyId` to base64 raw Ed25519 public key. */
+						/** base64url raw Ed25519 public keys of its signers. */
 						publicKeys: PublicKeys,
 					}),
 				),
@@ -1078,17 +1086,15 @@ export const plugins = router()
 			const url = input.url.replace(/\/+$/, "");
 			if (!/^https?:$/.test(new URL(url).protocol))
 				throw new Failure("bad_request", "the index URL must be http or https");
-			const index = await fetchSigned(
-				db,
-				{ url, publicKeys: input.publicKeys },
-				"/v1/index",
-				PluginIndexPayload,
-			);
+			const index = await fetchIndex(db, {
+				url,
+				publicKeys: input.publicKeys,
+			});
 			const [row] = await db
 				.insert(pluginIndex)
 				.values({
 					url,
-					name: input.name ?? index.indexName,
+					name: input.name ?? new URL(url).host,
 					publicKeys: input.publicKeys,
 					entries: index.plugins,
 					fetchedAt: new Date(),
@@ -1096,7 +1102,7 @@ export const plugins = router()
 				.returning();
 			const created = one(row ? [row] : [], "plugin index");
 			c.set("auditResourceId", created.id);
-			c.set("auditDiff", { url, keyIds: Object.keys(input.publicKeys) });
+			c.set("auditDiff", { url, publicKeys: input.publicKeys });
 			return c.json(indexView(created), 201);
 		},
 	)
@@ -1207,26 +1213,30 @@ export const plugins = router()
 				);
 			const server = normalizeVersion(config.LOGISTACK_VERSION);
 			const entries = rows.flatMap((r) =>
-				r.entries.map((e) => {
+				r.entries.flatMap((e) => {
+					const v = shownVersion(e);
+					if (!v) return [];
 					const i = installs.find((x) => x.pluginId === e.id);
 					return {
 						indexId: r.id,
 						indexName: r.name,
 						id: e.id,
-						name: e.name,
-						description: e.description,
-						author: e.author ?? null,
-						iconUrl: e.iconUrl ?? null,
-						verified: e.verified,
+						name: v.manifest.name,
+						description: v.manifest.description,
+						author: v.manifest.author?.name ?? null,
+						publisher: e.publisher,
+						installs: e.installs,
+						iconUrl: v.iconUrl,
+						verified: v.verified,
+						latestVerified: e.latestVerified?.version ?? null,
 						latest: {
-							version: e.latest.version,
-							image: e.latest.image,
-							changelog: e.latest.changelog ?? null,
-							publishedAt: e.latest.publishedAt,
-							yanked: e.latest.yanked,
-							manifest: e.latest.manifest as Record<string, unknown>,
+							version: v.version,
+							image: v.image,
+							changelog: v.changelog ?? null,
+							publishedAt: v.publishedAt,
+							manifest: v.manifest as Record<string, unknown>,
 						},
-						compatible: compatible(server, e.latest.manifest),
+						compatible: compatible(server, v.manifest),
 						installed: i
 							? { installId: i.id, version: i.version, indexId: i.indexId }
 							: null,

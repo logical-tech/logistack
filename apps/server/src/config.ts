@@ -91,8 +91,8 @@ const ConfigSchema = z.object({
 		.optional()
 		.transform((v) => v === "1" || v === "true"),
 	/**
-	 * Signing keys of the official plugin index, `keyId:base64` comma-separated. Overrides the
-	 * placeholder bundled in `OFFICIAL_PLUGIN_INDEX_KEYS` until a release bundles the real key.
+	 * Extra trusted signing keys of the official plugin index, base64url raw Ed25519, comma-separated.
+	 * Added to `PLUGIN_INDEX_KEYS`, which is empty (a placeholder) until a release bundles the production key.
 	 */
 	LS_PLUGIN_INDEX_PUBLIC_KEY: optional,
 	/** The official plugin index is its sandbox. Set only on test instances. */

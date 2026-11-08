@@ -44,6 +44,8 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 	let registry: ReturnType<typeof Bun.serve>;
 	let index: ReturnType<typeof Bun.serve>;
 	let signer: CryptoKeyPair;
+	/** When set, responses are signed with it while still naming the trusted key. */
+	let forger: CryptoKeyPair | null = null;
 	let publicKey: string;
 	let indexId: string;
 	let installId: string;
@@ -82,12 +84,12 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		],
 	};
 	const imageOf = (id: string, v: string) =>
-		`${registry.url.host}/acme/${id}@sha256:${sha(`${id}@${v}`)}`;
+		`127.0.0.1:${registry.port}/acme/${id}@sha256:${sha(`${id}@${v}`)}`;
 	const sign = async (payload: string) =>
 		Buffer.from(
 			await crypto.subtle.sign(
 				"Ed25519",
-				signer.privateKey,
+				(forger ?? signer).privateKey,
 				new TextEncoder().encode(payload),
 			),
 		).toString("base64url");
@@ -95,7 +97,7 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		const payload = JSON.stringify(body);
 		return Response.json({
 			payload,
-			keyId: "k1",
+			keyId: publicKey,
 			signature: await sign(payload),
 		});
 	};
@@ -103,10 +105,13 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		version: v.manifest.version,
 		image: imageOf(id, v.manifest.version),
 		manifest: v.manifest,
+		verified: v.verified,
+		yanked: v.yanked,
+		iconUrl: null,
 		changelog: v.changelog,
 		publishedAt: "2026-11-01T00:00:00Z",
-		yanked: v.yanked,
 	});
+	const newestFirst = (versions: Version[]) => [...versions].reverse();
 
 	beforeAll(async () => {
 		h = await startHarness({
@@ -126,7 +131,7 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		])) as CryptoKeyPair;
 		publicKey = Buffer.from(
 			await crypto.subtle.exportKey("raw", signer.publicKey),
-		).toString("base64");
+		).toString("base64url");
 		registry = Bun.serve({
 			port: 0,
 			fetch(req) {
@@ -160,30 +165,42 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 				const path = new URL(req.url).pathname;
 				if (path === "/v1/index")
 					return envelope({
-						generatedAt: new Date().toISOString(),
-						indexName: "Acme internal",
+						v: 1,
+						kind: "index",
+						issuedAt: new Date().toISOString(),
 						plugins: Object.entries(plugins).map(([id, versions]) => {
-							const latest = versions.at(-1) as Version;
+							const listed = newestFirst(versions).filter((v) => !v.yanked);
+							const latest = listed[0];
+							const verified = listed.find((v) => v.verified);
 							return {
 								id,
-								name: latest.manifest.name,
-								description: "",
-								author: "Acme",
-								verified: latest.verified,
-								latest: versionOf(id, latest),
+								publisher: "Acme",
+								installs: 3,
+								latest: latest ? versionOf(id, latest) : null,
+								latestVerified: verified ? versionOf(id, verified) : null,
+								yanked: versions
+									.filter((v) => v.yanked)
+									.map((v) => ({
+										version: v.manifest.version,
+										image: imageOf(id, v.manifest.version),
+									})),
 							};
 						}),
 					});
 				const m = /^\/v1\/plugins\/([^/]+)$/.exec(path);
-				const versions = m && plugins[decodeURIComponent(m[1] ?? "")];
-				if (m && versions)
+				const id = decodeURIComponent(m?.[1] ?? "");
+				const versions = plugins[id];
+				if (versions)
 					return envelope({
-						id: m[1],
-						name: versions[0]?.manifest.name,
-						versions: versions.map((v) => ({
-							...versionOf(m[1] as string, v),
-							verified: v.verified,
-						})),
+						v: 1,
+						kind: "plugin",
+						issuedAt: new Date().toISOString(),
+						plugin: {
+							id,
+							publisher: "Acme",
+							installs: 3,
+							versions: newestFirst(versions).map((v) => versionOf(id, v)),
+						},
 					});
 				return new Response("not found", { status: 404 });
 			},
@@ -203,20 +220,20 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 		])) as CryptoKeyPair;
 		const wrong = Buffer.from(
 			await crypto.subtle.exportKey("raw", other.publicKey),
-		).toString("base64");
+		).toString("base64url");
 		const bad = await h.call("POST", "/api/plugins/indexes", {
 			...as(),
-			body: { url: index.url.href, publicKeys: { k1: wrong } },
+			body: { url: index.url.href, publicKeys: [wrong] },
 		});
 		expect(bad.status).toBe(400);
-		expect(bad.json.error.message).toContain("bad signature");
+		expect(bad.json.error.message).toContain("does not trust");
 
 		const res = await h.call("POST", "/api/plugins/indexes", {
 			...as(),
-			body: { url: index.url.href, publicKeys: { k1: publicKey } },
+			body: { url: index.url.href, publicKeys: [publicKey] },
 		});
 		expect(res.status).toBe(201);
-		expect(res.json.name).toBe("Acme internal");
+		expect(res.json.name).toBe(index.url.host);
 		expect(res.json.plugins).toBe(2);
 		indexId = res.json.id;
 
@@ -228,8 +245,7 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 	});
 
 	test("a refresh with a bad signature is rejected and keeps the cache", async () => {
-		const real = signer;
-		signer = (await crypto.subtle.generateKey("Ed25519", true, [
+		forger = (await crypto.subtle.generateKey("Ed25519", true, [
 			"sign",
 			"verify",
 		])) as CryptoKeyPair;
@@ -238,7 +254,7 @@ describe.skipIf(!hasDocker)("plugin marketplace", () => {
 			`/api/plugins/indexes/${indexId}/refresh`,
 			as(),
 		);
-		signer = real;
+		forger = null;
 		expect(res.status).toBe(400);
 		const list = await h.call("GET", "/api/plugins/indexes", as());
 		const row = list.json.find((i: { id: string }) => i.id === indexId);
