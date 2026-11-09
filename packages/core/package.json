@@ -12,7 +12,8 @@
 		"./network-map": "./src/network-map.ts",
 		"./ai-providers": "./src/ai-providers.ts",
 		"./traffic": "./src/traffic.ts",
-		"./version": "./src/version.ts"
+		"./version": "./src/version.ts",
+		"./work-csv": "./src/work/csv-parse.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc -p ."
