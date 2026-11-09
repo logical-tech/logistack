@@ -1,4 +1,4 @@
-import { createRoute, type RouteConfig } from "@hono/zod-openapi";
+import { createRoute, type RouteConfig, z } from "@hono/zod-openapi";
 import {
 	type EventType,
 	FilterNode,
@@ -60,9 +60,10 @@ import { checkWork, type DbOrTx } from "./context.ts";
 /** Route plumbing, permission guards, DTO mappers and task loading shared by the Work routes. */
 
 // Recursive schemas need a component name, or the OpenAPI generator recurses forever.
-// `.openapi()` on a lazy schema also tags the instance its getter refers back to.
-PmNode.openapi("WorkPmNode");
-FilterNode.openapi("WorkFilterNode");
+// `.openapi()` on a lazy schema also tags the instance its getter refers back to; it is called
+// through the prototype because schemas built before zod was extended don't carry the method.
+z.ZodType.prototype.openapi.call(PmNode, "WorkPmNode");
+z.ZodType.prototype.openapi.call(FilterNode, "WorkFilterNode");
 
 type Extra = Omit<RouteConfig, "method" | "path">;
 

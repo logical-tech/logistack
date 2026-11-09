@@ -297,6 +297,7 @@ async function addAssignees(
 	userIds: readonly string[],
 	actorId: string,
 ) {
+	if (userIds.length === 0) return [];
 	const added = await tx
 		.insert(workTaskAssignee)
 		.values(userIds.map((userId) => ({ taskId, userId, assignedBy: actorId })))

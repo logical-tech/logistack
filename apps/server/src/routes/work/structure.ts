@@ -156,7 +156,7 @@ const listsOf = async (db: DbOrTx, projectId: string) => {
 	const rows = await db
 		.select({
 			list: workList,
-			open: sql<number>`(select count(*)::int from work_task t join work_status s on s.id = t.status_id where t.list_id = ${workList.id} and t.parent_id is null and t.archived_at is null and s.category in ('backlog', 'active'))`,
+			open: sql<number>`(select count(*)::int from work_task t join work_status s on s.id = t.status_id where t.list_id = "work_list"."id" and t.parent_id is null and t.archived_at is null and s.category in ('backlog', 'active'))`,
 		})
 		.from(workList)
 		.where(eq(workList.projectId, projectId))
