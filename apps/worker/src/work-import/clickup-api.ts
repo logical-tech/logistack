@@ -1,5 +1,15 @@
-import type { ClickUpConnection, ClickUpTreeNode } from "@logistack/contracts";
-import type { ClickUpField, ClickUpStatus, ClickUpTask } from "@logistack/core";
+import type {
+	ClickUpConnection,
+	ClickUpInspection,
+	ClickUpTreeNode,
+} from "@logistack/contracts";
+import {
+	type ClickUpField,
+	type ClickUpStatus,
+	type ClickUpTask,
+	mapClickUpField,
+	mapClickUpStatus,
+} from "@logistack/core";
 import { type Fetch, ProviderError } from "@logistack/providers";
 
 /** ClickUp API v2 with the token in `Authorization`, a 90 req/min token bucket and 429 handling. */
@@ -312,4 +322,52 @@ export async function clickUpTree(
 			};
 		}),
 	);
+}
+
+/** Statuses, fields and members of the chosen lists with the proposed mapping; the server adds org matches. */
+export async function clickUpInspect(
+	api: ClickUpApi,
+	teamId: string,
+	listIds: string[],
+): Promise<Omit<ClickUpInspection, "orgMembers">> {
+	const statuses = new Map<string, ClickUpInspection["statuses"][number]>();
+	const fields = new Map<string, ClickUpInspection["fields"][number]>();
+	for (const id of listIds) {
+		const [list, listFields] = await Promise.all([
+			api.list(id),
+			api.fields(id),
+		]);
+		for (const s of list.statuses ?? []) {
+			const key = s.status.trim().toLowerCase();
+			if (!statuses.has(key))
+				statuses.set(key, {
+					key,
+					name: s.status,
+					type: s.type,
+					proposed: mapClickUpStatus(s),
+				});
+		}
+		for (const f of listFields) {
+			if (fields.has(f.id)) continue;
+			const m = mapClickUpField(f);
+			fields.set(f.id, {
+				id: f.id,
+				name: f.name,
+				type: f.type,
+				proposed: "skip" in m ? null : m.config,
+				reason: "skip" in m ? m.reason : null,
+			});
+		}
+	}
+	const team = (await api.teams()).find((t) => String(t.id) === teamId);
+	return {
+		statuses: [...statuses.values()],
+		fields: [...fields.values()],
+		members: (team?.members ?? []).map(({ user: u }) => ({
+			id: String(u.id),
+			username: u.username ?? `User ${u.id}`,
+			email: u.email ?? null,
+			matchUserId: null,
+		})),
+	};
 }

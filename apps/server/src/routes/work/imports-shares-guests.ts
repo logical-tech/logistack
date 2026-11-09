@@ -1,6 +1,8 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import {
 	ClickUpConnection,
+	ClickUpInspection,
+	ClickUpInspectRequest,
 	ClickUpToken,
 	ClickUpTreeRequest,
 	CsvImportConfig,
@@ -41,6 +43,7 @@ import {
 import { ProviderError } from "@logistack/providers";
 import {
 	ClickUpApi,
+	clickUpInspect,
 	clickUpTree,
 	testClickUp,
 	WORK_IMPORT_JOB,
@@ -76,15 +79,22 @@ import {
  * `/share/<token>` pages.
  */
 
-const route = (name: WorkRouteName) => {
+/**
+ * OpenAPI fields of a `workRoutes` entry. Method and path are repeated as literals so the typed
+ * client keeps them; a mismatch with the contract throws at startup.
+ */
+const route = <M extends "get" | "post" | "delete", P extends string>(
+	name: WorkRouteName,
+	method: M,
+	path: P,
+) => {
 	const r = workRoutes[name];
-	return {
-		method: r.method.toLowerCase() as "get" | "post" | "delete",
-		path: r.path.replace(/:(\w+)/g, "{$1}"),
-		operationId: r.operationId,
-		tags: ["work"],
-		security,
-	};
+	if (
+		r.method.toLowerCase() !== method ||
+		r.path.replace(/:(\w+)/g, "{$1}") !== path
+	)
+		throw new Error(`work route ${name} drifted from the contract`);
+	return { method, path, operationId: r.operationId, tags: ["work"], security };
 };
 
 const IdParam = z.object({ id: z.string() });
@@ -352,7 +362,7 @@ const shareDto = (s: ShareRow): WorkShare => ({
 export const workImportsSharesGuests = router()
 	.openapi(
 		createRoute({
-			...route("importList"),
+			...route("importList", "get", "/api/work/imports"),
 			summary: "Imports into Work",
 			description: "Your own imports; org-wide Work admins see every import.",
 			responses: { 200: json(z.array(WorkImport), "Imports"), ...errors },
@@ -377,7 +387,7 @@ export const workImportsSharesGuests = router()
 	)
 	.openapi(
 		createRoute({
-			...route("importGet"),
+			...route("importGet", "get", "/api/work/imports/{id}"),
 			summary: "One import with its plan, progress and report",
 			request: { params: IdParam },
 			responses: { 200: json(WorkImport, "Import"), ...errors },
@@ -389,7 +399,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_import.create",
 			createRoute({
-				...route("importCreate"),
+				...route("importCreate", "post", "/api/work/imports"),
 				summary: "Create a draft import",
 				description:
 					"Stores the wizard's choices encrypted (the ClickUp token is wiped once a run ends). Needs `work:admin` on every existing target and `write` where a new project goes. A CSV import takes the file uploaded with `POST /imports/csv/upload`.",
@@ -438,7 +448,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_import.dry_run",
 			createRoute({
-				...route("importDryRun"),
+				...route("importDryRun", "post", "/api/work/imports/{id}/dry-run"),
 				summary: "Fetch and count without writing",
 				description:
 					"Queues a dry run; the import turns `ready` with its `plan`.",
@@ -458,7 +468,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_import.run",
 			createRoute({
-				...route("importRun"),
+				...route("importRun", "post", "/api/work/imports/{id}/run"),
 				summary: "Run the import",
 				description:
 					"Creates the new target projects, then queues the import. Progress arrives on the import (`progress`) and over the WebSocket; rerunning updates what an earlier run created.",
@@ -500,7 +510,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_import.cancel",
 			createRoute({
-				...route("importCancel"),
+				...route("importCancel", "post", "/api/work/imports/{id}/cancel"),
 				summary: "Cancel an import",
 				description:
 					"A running import stops after the entity it is writing; what it wrote stays.",
@@ -533,7 +543,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_import.clickup_test",
 			createRoute({
-				...route("clickupTest"),
+				...route("clickupTest", "post", "/api/work/imports/clickup/test"),
 				summary: "Test a ClickUp token",
 				description:
 					"Calls ClickUp's `GET /user` and `GET /team` with the token; nothing is stored.",
@@ -551,7 +561,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_import.clickup_tree",
 			createRoute({
-				...route("clickupTree"),
+				...route("clickupTree", "post", "/api/work/imports/clickup/tree"),
 				summary: "ClickUp spaces, folders and lists",
 				request: body(ClickUpTreeRequest),
 				// The recursive `ClickUpTreeNode` overflows the OpenAPI generator; documented one level deep.
@@ -569,9 +579,49 @@ export const workImportsSharesGuests = router()
 	)
 	.openapi(
 		mutation(
+			"work_import.clickup_inspect",
+			createRoute({
+				...route("clickupInspect", "post", "/api/work/imports/clickup/inspect"),
+				summary: "Statuses, fields and people of ClickUp lists",
+				description:
+					"What the wizard maps in its Statuses, Fields and People steps, with a proposed mapping. People match org members by email.",
+				request: body(ClickUpInspectRequest),
+				responses: { 200: json(ClickUpInspection, "Inspection"), ...errors },
+			}),
+		),
+		async (c) => {
+			const actor = requireSomewhere(c, "work:admin");
+			const { token, teamId, listIds } = c.req.valid("json");
+			const found = await clickUp(() =>
+				clickUpInspect(clickUpApi(token), teamId, listIds),
+			);
+			const orgMembers = await c.var.deps.db
+				.select({ userId: user.id, name: user.name, email: user.email })
+				.from(member)
+				.innerJoin(user, eq(user.id, member.userId))
+				.where(eq(member.organizationId, actor.organizationId));
+			const byEmail = new Map(
+				orgMembers.map((m) => [m.email.toLowerCase(), m.userId]),
+			);
+			return c.json(
+				{
+					...found,
+					members: found.members.map((m) => ({
+						...m,
+						matchUserId:
+							(m.email && byEmail.get(m.email.toLowerCase())) || null,
+					})),
+					orgMembers,
+				},
+				200,
+			);
+		},
+	)
+	.openapi(
+		mutation(
 			"work_import.csv_upload",
 			createRoute({
-				...route("csvUpload"),
+				...route("csvUpload", "post", "/api/work/imports/csv/upload"),
 				summary: "Upload a CSV for import",
 				description:
 					"Multipart with a `file` field, up to 10 MB. Detects the delimiter (override with `?delimiter=`) and the encoding (UTF-8, else Windows-1252); returns the headers and the first 20 rows. The file is kept for 24 hours.",
@@ -629,7 +679,7 @@ export const workImportsSharesGuests = router()
 	)
 	.openapi(
 		createRoute({
-			...route("shareList"),
+			...route("shareList", "get", "/api/work/projects/{id}/shares"),
 			summary: "Share links of a project",
 			request: { params: IdParam },
 			responses: { 200: json(z.array(WorkShare), "Share links"), ...errors },
@@ -649,7 +699,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_share.create",
 			createRoute({
-				...route("shareCreate"),
+				...route("shareCreate", "post", "/api/work/projects/{id}/shares"),
 				summary: "Create a read-only share link",
 				description:
 					"Shares one list or one view, read-only, with anyone holding the link. Needs `allowShareLinks` on the project. The token is in `url` and shown only now.",
@@ -741,7 +791,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_share.revoke",
 			createRoute({
-				...route("shareRevoke"),
+				...route("shareRevoke", "delete", "/api/work/shares/{id}"),
 				summary: "Revoke a share link",
 				description:
 					"Its creator or a Work admin of the project. The link stops working at once.",
@@ -785,7 +835,7 @@ export const workImportsSharesGuests = router()
 		mutation(
 			"work_guest.invite",
 			createRoute({
-				...route("guestInvite"),
+				...route("guestInvite", "post", "/api/work/projects/{id}/guests"),
 				summary: "Invite a guest to one project",
 				description:
 					"Creates an invitation that joins the organization with no organization-wide access and grants the `guest` role on this project only. `canCreate` turns on the project's `guestsCanCreate`. LogiStack sends no email: share the returned `url`.",

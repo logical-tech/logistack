@@ -29,6 +29,7 @@ import {
 	type WorkTaskRow,
 	workUsers,
 } from "./work-fixture";
+import { workImportsMock } from "./work-imports";
 
 const w = createWorkFixture();
 
@@ -1630,41 +1631,8 @@ export const workMock: WorkApi = {
 			});
 		},
 	},
-	imports: {
-		list: async () => delay([]),
-		get: async () => notFound("import"),
-		create: async () => fail(501, "not_implemented", "imports aren't mocked"),
-		dryRun: async () => notFound("import"),
-		run: async () => notFound("import"),
-		cancel: async () => notFound("import"),
-		clickupTest: async () =>
-			delay({
-				user: { id: "1", username: "Simone", email: "simone@logical.it" },
-				teams: [{ id: "9001", name: "Acme Studio" }],
-			}),
-		clickupTree: async () =>
-			delay([
-				{
-					id: "sp1",
-					type: "space" as const,
-					name: "Clients",
-					taskCount: null,
-					archived: false,
-					children: [
-						{
-							id: "l1",
-							type: "list" as const,
-							name: "Website",
-							taskCount: 42,
-							archived: false,
-							children: [],
-						},
-					],
-				},
-			]),
-		csvUpload: async () =>
-			fail(501, "not_implemented", "imports aren't mocked"),
-	},
+	// Imports live in their own section: ./work-imports.ts.
+	imports: workImportsMock,
 	shares: {
 		list: async (projectId) =>
 			delay(w.shares.filter((s) => s.projectId === projectId)),

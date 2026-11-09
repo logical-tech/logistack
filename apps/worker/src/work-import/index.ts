@@ -6,7 +6,12 @@ import { runClickUp } from "./clickup.ts";
 import { runCsv, type StoredCsvConfig } from "./csv.ts";
 import { ImportCancelled, type ImportDeps, tracker } from "./store.ts";
 
-export { ClickUpApi, clickUpTree, testClickUp } from "./clickup-api.ts";
+export {
+	ClickUpApi,
+	clickUpInspect,
+	clickUpTree,
+	testClickUp,
+} from "./clickup-api.ts";
 export type { StoredCsvConfig } from "./csv.ts";
 export type {
 	ImportDeps,

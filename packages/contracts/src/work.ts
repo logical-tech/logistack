@@ -1674,6 +1674,50 @@ export const ClickUpTreeNode: z.ZodType<ClickUpTreeNode> = z.lazy(() =>
 export const ClickUpTreeRequest = ClickUpToken.extend({ teamId: z.string() });
 export type ClickUpTreeRequest = z.infer<typeof ClickUpTreeRequest>;
 
+export const ClickUpInspectRequest = ClickUpTreeRequest.extend({
+	listIds: z.array(z.string()).min(1).max(200),
+});
+export type ClickUpInspectRequest = z.infer<typeof ClickUpInspectRequest>;
+/** Statuses, custom fields and people of the chosen lists, with the proposed mapping (wizard steps 3–5). */
+export const ClickUpInspection = z.object({
+	statuses: z.array(
+		z.object({
+			/** Lowercased: the key of `ClickUpImportConfig.statuses`. */
+			key: z.string(),
+			name: z.string(),
+			type: z.string(),
+			proposed: z.object({
+				name: z.string(),
+				category: WorkStatusCategory,
+				color: WorkColor,
+			}),
+		}),
+	),
+	fields: z.array(
+		z.object({
+			id: z.string(),
+			name: z.string(),
+			type: z.string(),
+			/** Null: no equivalent; `reason` says why. */
+			proposed: WorkFieldConfig.nullable(),
+			reason: z.string().nullable(),
+		}),
+	),
+	members: z.array(
+		z.object({
+			id: z.string(),
+			username: z.string(),
+			email: z.string().nullable(),
+			/** The org member with the same email. */
+			matchUserId: z.string().nullable(),
+		}),
+	),
+	orgMembers: z.array(
+		z.object({ userId: Id, name: z.string(), email: z.string() }),
+	),
+});
+export type ClickUpInspection = z.infer<typeof ClickUpInspection>;
+
 /** Everything the wizard collects; stored encrypted, the token is wiped when the run ends. */
 export const ClickUpImportConfig = z.object({
 	token: z.string().min(10).max(200),
@@ -2458,6 +2502,12 @@ export const workRoutes = {
 		"/imports/clickup/tree",
 		"work:admin",
 		"work_import_clickup_tree",
+	),
+	clickupInspect: r(
+		"POST",
+		"/imports/clickup/inspect",
+		"work:admin",
+		"work_import_clickup_inspect",
 	),
 	csvUpload: r(
 		"POST",

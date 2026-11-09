@@ -580,6 +580,19 @@ async function people(c: Omit<Ctx, "users" | "tz">, members: CuUser[]) {
 	for (const [cuId, choice] of Object.entries(c.cfg.people))
 		if (choice !== "unassigned" && choice !== "invite") users[cuId] = choice;
 	const { db } = c.deps;
+	// People the wizard left alone match org members by email.
+	const open = members.filter((m) => !c.cfg.people[String(m.id)] && m.email);
+	if (open.length) {
+		const rows = await db
+			.select({ id: user.id, email: user.email })
+			.from(member)
+			.innerJoin(user, eq(user.id, member.userId))
+			.where(eq(member.organizationId, c.organizationId));
+		for (const m of open) {
+			const hit = rows.find((r) => lower(r.email) === lower(m.email as string));
+			if (hit) users[String(m.id)] = hit.id;
+		}
+	}
 	const invite = members.filter(
 		(m) => c.cfg.people[String(m.id)] === "invite" && m.email,
 	);
