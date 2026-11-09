@@ -26,6 +26,7 @@ import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthSsoTestRouteImport } from './routes/_auth/sso-test'
 import { Route as AuthTwoFactorRouteImport } from './routes/_auth/two-factor'
+import { Route as AppAccountNotificationsRouteImport } from './routes/_app/account/notifications'
 import { Route as AppAccountSecurityRouteImport } from './routes/_app/account/security'
 import { Route as AppAiIndexRouteImport } from './routes/_app/ai/index'
 import { Route as AppAiAgentRouteImport } from './routes/_app/ai/agent'
@@ -62,6 +63,7 @@ import { Route as AppSettingsBuildsRouteImport } from './routes/_app/settings/bu
 import { Route as AppSettingsCertificatesRouteImport } from './routes/_app/settings/certificates'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsInstanceAdminsRouteImport } from './routes/_app/settings/instance-admins'
+import { Route as AppSettingsInstanceMailRouteImport } from './routes/_app/settings/instance-mail'
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
 import { Route as AppSettingsMigrateRouteImport } from './routes/_app/settings/migrate'
 import { Route as AppSettingsPluginsRouteImport } from './routes/_app/settings/plugins'
@@ -104,6 +106,7 @@ import { Route as AppSettingsAuthenticationSamlRouteImport } from './routes/_app
 import { Route as AppSettingsBuildsEmulationRouteImport } from './routes/_app/settings/builds_.emulation'
 import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/settings/certificates_.new'
 import { Route as AppSettingsCertificatesOriginRouteImport } from './routes/_app/settings/certificates_.origin'
+import { Route as AppSettingsInstanceMailSetupRouteImport } from './routes/_app/settings/instance-mail_.setup'
 import { Route as AppSettingsPluginsInstallIdRouteImport } from './routes/_app/settings/plugins_.$installId'
 import { Route as AppSettingsPluginsNewRouteImport } from './routes/_app/settings/plugins_.new'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
@@ -219,6 +222,11 @@ const AuthTwoFactorRoute = AuthTwoFactorRouteImport.update({
   id: '/two-factor',
   path: '/two-factor',
   getParentRoute: () => AuthRoute,
+} as any)
+const AppAccountNotificationsRoute = AppAccountNotificationsRouteImport.update({
+  id: '/account/notifications',
+  path: '/account/notifications',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppAccountSecurityRoute = AppAccountSecurityRouteImport.update({
   id: '/account/security',
@@ -409,6 +417,11 @@ const AppSettingsInstanceAdminsRoute =
     path: '/settings/instance-admins',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSettingsInstanceMailRoute = AppSettingsInstanceMailRouteImport.update({
+  id: '/settings/instance-mail',
+  path: '/settings/instance-mail',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsMembersRoute = AppSettingsMembersRouteImport.update({
   id: '/settings/members',
   path: '/settings/members',
@@ -643,6 +656,12 @@ const AppSettingsCertificatesOriginRoute =
     path: '/settings/certificates/origin',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSettingsInstanceMailSetupRoute =
+  AppSettingsInstanceMailSetupRouteImport.update({
+    id: '/settings/instance-mail_/setup',
+    path: '/settings/instance-mail/setup',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppSettingsPluginsInstallIdRoute =
   AppSettingsPluginsInstallIdRouteImport.update({
     id: '/settings/plugins_/$installId',
@@ -854,6 +873,7 @@ export interface FileRoutesByFullPath {
   '/sso-test': typeof AuthSsoTestRoute
   '/two-factor': typeof AuthTwoFactorRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
+  '/account/notifications': typeof AppAccountNotificationsRoute
   '/account/security': typeof AppAccountSecurityRoute
   '/ai/agent': typeof AppAiAgentRoute
   '/ai/budgets': typeof AppAiBudgetsRoute
@@ -886,6 +906,7 @@ export interface FileRoutesByFullPath {
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
+  '/settings/instance-mail': typeof AppSettingsInstanceMailRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/plugins': typeof AppSettingsPluginsRoute
@@ -928,6 +949,7 @@ export interface FileRoutesByFullPath {
   '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
+  '/settings/instance-mail/setup': typeof AppSettingsInstanceMailSetupRoute
   '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
   '/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
@@ -977,6 +999,7 @@ export interface FileRoutesByTo {
   '/sign-up': typeof AuthSignUpRoute
   '/sso-test': typeof AuthSsoTestRoute
   '/two-factor': typeof AuthTwoFactorRoute
+  '/account/notifications': typeof AppAccountNotificationsRoute
   '/account/security': typeof AppAccountSecurityRoute
   '/ai/agent': typeof AppAiAgentRoute
   '/ai/budgets': typeof AppAiBudgetsRoute
@@ -1009,6 +1032,7 @@ export interface FileRoutesByTo {
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
+  '/settings/instance-mail': typeof AppSettingsInstanceMailRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/plugins': typeof AppSettingsPluginsRoute
@@ -1051,6 +1075,7 @@ export interface FileRoutesByTo {
   '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
+  '/settings/instance-mail/setup': typeof AppSettingsInstanceMailSetupRoute
   '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
   '/backups/$serviceId': typeof AppBackupsServiceIdIndexRoute
@@ -1105,6 +1130,7 @@ export interface FileRoutesById {
   '/_auth/two-factor': typeof AuthTwoFactorRoute
   '/_app/': typeof AppIndexRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
+  '/_app/account/notifications': typeof AppAccountNotificationsRoute
   '/_app/account/security': typeof AppAccountSecurityRoute
   '/_app/ai/agent': typeof AppAiAgentRoute
   '/_app/ai/budgets': typeof AppAiBudgetsRoute
@@ -1137,6 +1163,7 @@ export interface FileRoutesById {
   '/_app/settings/certificates': typeof AppSettingsCertificatesRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
+  '/_app/settings/instance-mail': typeof AppSettingsInstanceMailRoute
   '/_app/settings/members': typeof AppSettingsMembersRoute
   '/_app/settings/migrate': typeof AppSettingsMigrateRoute
   '/_app/settings/plugins': typeof AppSettingsPluginsRoute
@@ -1179,6 +1206,7 @@ export interface FileRoutesById {
   '/_app/settings/builds_/emulation': typeof AppSettingsBuildsEmulationRoute
   '/_app/settings/certificates_/new': typeof AppSettingsCertificatesNewRoute
   '/_app/settings/certificates_/origin': typeof AppSettingsCertificatesOriginRoute
+  '/_app/settings/instance-mail_/setup': typeof AppSettingsInstanceMailSetupRoute
   '/_app/settings/plugins_/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/_app/settings/plugins_/new': typeof AppSettingsPluginsNewRoute
   '/_app/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
@@ -1234,6 +1262,7 @@ export interface FileRouteTypes {
     | '/sso-test'
     | '/two-factor'
     | '/projects/$projectId'
+    | '/account/notifications'
     | '/account/security'
     | '/ai/agent'
     | '/ai/budgets'
@@ -1266,6 +1295,7 @@ export interface FileRouteTypes {
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/instance-admins'
+    | '/settings/instance-mail'
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/plugins'
@@ -1308,6 +1338,7 @@ export interface FileRouteTypes {
     | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/settings/certificates/origin'
+    | '/settings/instance-mail/setup'
     | '/settings/plugins/$installId'
     | '/settings/plugins/new'
     | '/backups/$serviceId/'
@@ -1357,6 +1388,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/sso-test'
     | '/two-factor'
+    | '/account/notifications'
     | '/account/security'
     | '/ai/agent'
     | '/ai/budgets'
@@ -1389,6 +1421,7 @@ export interface FileRouteTypes {
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/instance-admins'
+    | '/settings/instance-mail'
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/plugins'
@@ -1431,6 +1464,7 @@ export interface FileRouteTypes {
     | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/settings/certificates/origin'
+    | '/settings/instance-mail/setup'
     | '/settings/plugins/$installId'
     | '/settings/plugins/new'
     | '/backups/$serviceId'
@@ -1484,6 +1518,7 @@ export interface FileRouteTypes {
     | '/_auth/two-factor'
     | '/_app/'
     | '/_app/projects/$projectId'
+    | '/_app/account/notifications'
     | '/_app/account/security'
     | '/_app/ai/agent'
     | '/_app/ai/budgets'
@@ -1516,6 +1551,7 @@ export interface FileRouteTypes {
     | '/_app/settings/certificates'
     | '/_app/settings/general'
     | '/_app/settings/instance-admins'
+    | '/_app/settings/instance-mail'
     | '/_app/settings/members'
     | '/_app/settings/migrate'
     | '/_app/settings/plugins'
@@ -1558,6 +1594,7 @@ export interface FileRouteTypes {
     | '/_app/settings/builds_/emulation'
     | '/_app/settings/certificates_/new'
     | '/_app/settings/certificates_/origin'
+    | '/_app/settings/instance-mail_/setup'
     | '/_app/settings/plugins_/$installId'
     | '/_app/settings/plugins_/new'
     | '/_app/backups/$serviceId/'
@@ -1721,6 +1758,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/two-factor'
       preLoaderRoute: typeof AuthTwoFactorRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_app/account/notifications': {
+      id: '/_app/account/notifications'
+      path: '/account/notifications'
+      fullPath: '/account/notifications'
+      preLoaderRoute: typeof AppAccountNotificationsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/account/security': {
       id: '/_app/account/security'
@@ -1972,6 +2016,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/instance-admins'
       fullPath: '/settings/instance-admins'
       preLoaderRoute: typeof AppSettingsInstanceAdminsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/instance-mail': {
+      id: '/_app/settings/instance-mail'
+      path: '/settings/instance-mail'
+      fullPath: '/settings/instance-mail'
+      preLoaderRoute: typeof AppSettingsInstanceMailRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/members': {
@@ -2266,6 +2317,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/certificates/origin'
       fullPath: '/settings/certificates/origin'
       preLoaderRoute: typeof AppSettingsCertificatesOriginRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/instance-mail_/setup': {
+      id: '/_app/settings/instance-mail_/setup'
+      path: '/settings/instance-mail/setup'
+      fullPath: '/settings/instance-mail/setup'
+      preLoaderRoute: typeof AppSettingsInstanceMailSetupRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/plugins_/$installId': {
@@ -2709,6 +2767,7 @@ interface AppRouteChildren {
   AppSchedulesRoute: typeof AppSchedulesRoute
   AppStorageRoute: typeof AppStorageRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAccountNotificationsRoute: typeof AppAccountNotificationsRoute
   AppAccountSecurityRoute: typeof AppAccountSecurityRoute
   AppDomainsNewRoute: typeof AppDomainsNewRoute
   AppIntegrationsDnsRoute: typeof AppIntegrationsDnsRoute
@@ -2730,6 +2789,7 @@ interface AppRouteChildren {
   AppSettingsCertificatesRoute: typeof AppSettingsCertificatesRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsInstanceAdminsRoute: typeof AppSettingsInstanceAdminsRoute
+  AppSettingsInstanceMailRoute: typeof AppSettingsInstanceMailRoute
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
   AppSettingsMigrateRoute: typeof AppSettingsMigrateRoute
   AppSettingsPluginsRoute: typeof AppSettingsPluginsRoute
@@ -2756,6 +2816,7 @@ interface AppRouteChildren {
   AppSettingsBuildsEmulationRoute: typeof AppSettingsBuildsEmulationRoute
   AppSettingsCertificatesNewRoute: typeof AppSettingsCertificatesNewRoute
   AppSettingsCertificatesOriginRoute: typeof AppSettingsCertificatesOriginRoute
+  AppSettingsInstanceMailSetupRoute: typeof AppSettingsInstanceMailSetupRoute
   AppSettingsPluginsInstallIdRoute: typeof AppSettingsPluginsInstallIdRoute
   AppSettingsPluginsNewRoute: typeof AppSettingsPluginsNewRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
@@ -2773,6 +2834,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSchedulesRoute: AppSchedulesRoute,
   AppStorageRoute: AppStorageRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAccountNotificationsRoute: AppAccountNotificationsRoute,
   AppAccountSecurityRoute: AppAccountSecurityRoute,
   AppDomainsNewRoute: AppDomainsNewRoute,
   AppIntegrationsDnsRoute: AppIntegrationsDnsRoute,
@@ -2794,6 +2856,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsCertificatesRoute: AppSettingsCertificatesRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsInstanceAdminsRoute: AppSettingsInstanceAdminsRoute,
+  AppSettingsInstanceMailRoute: AppSettingsInstanceMailRoute,
   AppSettingsMembersRoute: AppSettingsMembersRoute,
   AppSettingsMigrateRoute: AppSettingsMigrateRoute,
   AppSettingsPluginsRoute: AppSettingsPluginsRoute,
@@ -2821,6 +2884,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsBuildsEmulationRoute: AppSettingsBuildsEmulationRoute,
   AppSettingsCertificatesNewRoute: AppSettingsCertificatesNewRoute,
   AppSettingsCertificatesOriginRoute: AppSettingsCertificatesOriginRoute,
+  AppSettingsInstanceMailSetupRoute: AppSettingsInstanceMailSetupRoute,
   AppSettingsPluginsInstallIdRoute: AppSettingsPluginsInstallIdRoute,
   AppSettingsPluginsNewRoute: AppSettingsPluginsNewRoute,
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,

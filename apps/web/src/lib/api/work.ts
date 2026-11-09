@@ -8,12 +8,19 @@ import {
 	type ClickUpTreeNode,
 	type ClickUpTreeRequest,
 	type CsvUpload,
+	type InstanceMail,
+	type InstanceMailInput,
+	type InstanceMailTest,
+	instanceMailRoutes,
 	type ProjectHealth,
 	type WorkAiDescription,
 	type WorkAiSubtasks,
 	type WorkAiSummary,
 	type WorkAttachment,
 	type WorkAttachmentInline,
+	type WorkAttachmentSettings,
+	type WorkAttachmentSettingsUpdate,
+	type WorkBlobMigrationStarted,
 	type WorkChecklistCreate,
 	type WorkChecklistItem,
 	type WorkChecklistPatch,
@@ -219,6 +226,23 @@ export type WorkApi = {
 		url(id: string, thumb?: boolean): string;
 		remove(id: string): Promise<void>;
 	};
+	/** Organization-wide attachment storage (work:admin on the organization). */
+	attachmentSettings: {
+		get(): Promise<WorkAttachmentSettings>;
+		update(
+			input: WorkAttachmentSettingsUpdate,
+		): Promise<WorkAttachmentSettings>;
+		migrate(): Promise<WorkBlobMigrationStarted>;
+	};
+	/** Instance mail (instance admins): `/api/instance/mail`. */
+	instanceMail: {
+		get(): Promise<InstanceMail>;
+		update(input: InstanceMailInput): Promise<InstanceMail>;
+		remove(): Promise<InstanceMail>;
+		test(
+			input: InstanceMailTest,
+		): Promise<{ ok: boolean; error: string | null }>;
+	};
 	me: {
 		tasks(opts?: { watching?: boolean }): Promise<WorkMyTasks>;
 		inbox(opts?: { unread?: boolean; cursor?: string }): Promise<WorkInboxPage>;
@@ -310,8 +334,20 @@ async function call<T>(
 		form?: FormData;
 	} = {},
 ): Promise<T> {
-	const res = await fetch(url(name, opts.params, opts.query), {
-		method: workRoutes[name].method,
+	return send<T>(
+		workRoutes[name].method,
+		url(name, opts.params, opts.query),
+		opts,
+	);
+}
+
+async function send<T>(
+	method: string,
+	path: string,
+	opts: { json?: unknown; form?: FormData } = {},
+): Promise<T> {
+	const res = await fetch(path, {
+		method,
 		credentials: "include",
 		...(opts.json !== undefined
 			? {
@@ -462,6 +498,17 @@ export const workHttp: WorkApi = {
 		url: (v, thumb) =>
 			url("attachmentGet", id(v), { thumb: thumb ? 1 : undefined }),
 		remove: (v) => call("attachmentDelete", { params: id(v) }),
+	},
+	attachmentSettings: {
+		get: () => call("attachmentSettingsGet"),
+		update: (json) => call("attachmentSettingsUpdate", { json }),
+		migrate: () => call("attachmentMigrate"),
+	},
+	instanceMail: {
+		get: () => send("GET", instanceMailRoutes.get.path),
+		update: (json) => send("PUT", instanceMailRoutes.update.path, { json }),
+		remove: () => send("DELETE", instanceMailRoutes.remove.path),
+		test: (json) => send("POST", instanceMailRoutes.test.path, { json }),
 	},
 	me: {
 		tasks: ({ watching } = {}) =>

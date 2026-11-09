@@ -20,6 +20,7 @@ import {
 	KeyRound,
 	LockKeyhole,
 	type LucideIcon,
+	Mail,
 	Network,
 	Orbit,
 	Palette,
@@ -436,6 +437,14 @@ export const NAV: NavGroup[] = [
 				description:
 					"Who may update LogiStack, manage servers and change instance-wide settings.",
 				keywords: ["superuser", "root", "server admin", "instance"],
+			},
+			{
+				to: "/settings/instance-mail",
+				title: "Instance mail",
+				icon: Mail,
+				description:
+					"SMTP or Resend for task notifications, digests and invitation emails.",
+				keywords: ["email", "smtp", "resend", "notifications", "invitations"],
 			},
 			{
 				to: "/settings/updates",
