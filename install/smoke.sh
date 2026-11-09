@@ -87,7 +87,8 @@ req() {
 	body=${out%$'\n'*}
 }
 container_of() { docker ps -q --filter "label=com.docker.swarm.service.name=logistack_$1" | head -n1; }
-task_ids() { docker stack ps logistack -q --filter desired-state=running | sort | tr '\n' ' '; }
+# service=task pairs, so a failure says which service restarted.
+task_ids() { docker stack ps logistack --filter desired-state=running --format '{{.Name}}={{.ID}}' | sed 's/\.[0-9a-z]*=/=/' | sort | tr '\n' ' '; }
 
 install() {
 	local out=$1
