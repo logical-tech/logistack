@@ -911,7 +911,14 @@ export const workMock: WorkApi = {
 		get: async (id) => delay(toTask(task(id))),
 		update: async (id, patch) => {
 			const t = task(id);
-			const { statusId, expectedUpdatedAt: _e, ...rest } = patch;
+			const { statusId, expectedUpdatedAt, ...rest } = patch;
+			if (expectedUpdatedAt && expectedUpdatedAt !== t.updatedAt)
+				throw new ApiError(
+					409,
+					"someone else changed this task",
+					"conflict",
+					toTask(t),
+				);
 			if (statusId) setStatus(t, statusId);
 			if (rest.priority && rest.priority !== t.priority)
 				log(t, "priority", { from: t.priority, to: rest.priority });

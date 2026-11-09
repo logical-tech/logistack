@@ -41,3 +41,116 @@
 	--wc-teal: oklch(0.7 0.1 195);
 	--wc-teal-text: oklch(0.8 0.08 195);
 }
+
+/* Rich text in descriptions and comments (Tiptap). */
+.work-prose {
+	font-size: var(--text-base);
+	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+.work-prose > * + * {
+	margin-top: 0.6em;
+}
+.work-prose h2 {
+	font-size: var(--text-lg);
+	font-weight: 600;
+	margin-top: 1.2em;
+}
+.work-prose h3 {
+	font-size: var(--text-md);
+	font-weight: 600;
+	margin-top: 1em;
+}
+.work-prose ul {
+	list-style: disc;
+	padding-left: 1.4em;
+}
+.work-prose ol {
+	list-style: decimal;
+	padding-left: 1.4em;
+}
+.work-prose li > p {
+	margin: 0;
+}
+.work-prose ul[data-type="taskList"] {
+	list-style: none;
+	padding-left: 0.2em;
+}
+.work-prose ul[data-type="taskList"] li {
+	display: flex;
+	gap: 0.5em;
+	align-items: flex-start;
+}
+.work-prose ul[data-type="taskList"] li > label {
+	margin-top: 0.3em;
+}
+.work-prose ul[data-type="taskList"] input[type="checkbox"] {
+	accent-color: var(--primary);
+	width: 0.95em;
+	height: 0.95em;
+}
+.work-prose ul[data-type="taskList"] li[data-checked="true"] > div {
+	color: var(--muted-foreground);
+	text-decoration: line-through;
+}
+.work-prose blockquote {
+	border-left: 2px solid var(--border);
+	padding-left: 0.9em;
+	color: var(--muted-foreground);
+}
+.work-prose code {
+	font-family: var(--font-mono);
+	font-size: 0.9em;
+	background: var(--muted);
+	border-radius: 4px;
+	padding: 0.1em 0.3em;
+}
+.work-prose pre {
+	font-family: var(--font-mono);
+	background: var(--muted);
+	border-radius: 8px;
+	padding: 0.75em 1em;
+	overflow-x: auto;
+}
+.work-prose pre code {
+	background: none;
+	padding: 0;
+}
+.work-prose a {
+	color: var(--info-text);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in oklch, var(--info-text) 40%, transparent);
+}
+.work-prose hr {
+	border: none;
+	border-top: 1px solid var(--border);
+	margin: 1.2em 0;
+}
+.work-prose img {
+	max-width: 100%;
+	max-height: 28rem;
+	border-radius: 8px;
+	outline: 1px solid oklch(0 0 0 / 0.1);
+	outline-offset: -1px;
+}
+.dark .work-prose img {
+	outline-color: oklch(1 0 0 / 0.1);
+}
+.work-prose img.ProseMirror-selectednode {
+	outline: 2px solid var(--ring);
+}
+.work-prose .work-mention {
+	color: var(--info-text);
+	font-weight: 500;
+	background: color-mix(in oklch, var(--info) 12%, transparent);
+	border-radius: 4px;
+	padding: 0 0.15em;
+}
+.work-prose p.is-editor-empty:first-child::before {
+	content: attr(data-placeholder);
+	color: var(--muted-foreground);
+	opacity: 0.7;
+	float: left;
+	height: 0;
+	pointer-events: none;
+}
