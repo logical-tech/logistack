@@ -22,6 +22,8 @@ const InstanceSettings = z
 		localRegistryEnabled: z.boolean(),
 		/** Lets source checks and other server-side requests reach private networks. */
 		allowPrivateHosts: z.boolean(),
+		/** Upload cap of Work attachments, in MB. */
+		workAttachmentMaxMb: z.number().int(),
 	})
 	.openapi("InstanceSettings");
 
@@ -67,6 +69,7 @@ async function read(c: Context<Env>) {
 		generatedDomainBase: s?.generatedDomainBase ?? "sslip",
 		localRegistryEnabled: s?.localRegistryEnabled ?? true,
 		allowPrivateHosts: s?.allowPrivateHosts ?? false,
+		workAttachmentMaxMb: s?.workAttachmentMaxMb ?? 25,
 	};
 }
 
@@ -96,22 +99,32 @@ export const instance = router()
 					requirePermission("admin", inOrganization),
 					requireInstanceAdmin,
 				],
-				request: body(z.object({ allowPrivateHosts: z.boolean() })),
+				request: body(
+					z
+						.object({
+							allowPrivateHosts: z.boolean(),
+							workAttachmentMaxMb: z.number().int().min(1).max(100),
+						})
+						.partial(),
+				),
 				responses: { 200: json(InstanceSettings, "Settings"), ...errors },
 			}),
 		),
 		async (c) => {
-			const { allowPrivateHosts } = c.req.valid("json");
+			const input = c.req.valid("json");
 			const before = await read(c);
-			await c.var.deps.db
-				.update(instanceSettings)
-				.set({ allowPrivateHosts })
-				.where(eq(instanceSettings.id, "singleton"));
+			if (Object.keys(input).length)
+				await c.var.deps.db
+					.update(instanceSettings)
+					.set(input)
+					.where(eq(instanceSettings.id, "singleton"));
 			c.set("auditDiff", {
-				before: { allowPrivateHosts: before.allowPrivateHosts },
-				after: { allowPrivateHosts },
+				before: Object.fromEntries(
+					Object.keys(input).map((k) => [k, before[k as keyof typeof input]]),
+				),
+				after: input,
 			});
-			return c.json({ ...before, allowPrivateHosts }, 200);
+			return c.json({ ...before, ...input }, 200);
 		},
 	)
 	.openapi(

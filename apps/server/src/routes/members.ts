@@ -4,6 +4,7 @@ import {
 	instanceSettings,
 	invitation,
 	member,
+	organization,
 	organizationRole,
 	passkey,
 	roleGrant,
@@ -27,6 +28,7 @@ import type { Env } from "../env.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { check, inOrganization, requirePermission } from "../scope.ts";
+import { sendInstanceMail } from "../work/notify.ts";
 
 const Role = z
 	.object({
@@ -111,6 +113,24 @@ async function invitationUrl(c: Context<Env>, id: string) {
 		.where(eq(instanceSettings.id, "singleton"));
 	const base = s?.publicUrl ?? c.var.deps.config.WEB_ORIGIN;
 	return new URL(`/accept-invitation/${id}`, base).href;
+}
+
+/** Emails the link when instance mail is set up; otherwise the inviter shares it by hand. */
+async function sendInvitationEmail(c: Context<Env>, to: string, url: string) {
+	const { db } = c.var.deps;
+	const actor = requireActor(c);
+	const [who] = await db
+		.select({ name: user.name, org: organization.name })
+		.from(user)
+		.innerJoin(organization, eq(organization.id, actor.organizationId))
+		.where(eq(user.id, actor.userId));
+	const inviter = who?.name ?? "Someone";
+	const org = who?.org ?? "LogiStack";
+	await sendInstanceMail(c.var.deps, {
+		to,
+		subject: `${inviter} invited you to ${org} on LogiStack`,
+		text: `${inviter} invited you to join ${org} on LogiStack.\n\nAccept the invitation: ${url}\n\nThe link expires in ${INVITATION_DAYS} days.`,
+	});
 }
 
 export const members = router()
@@ -331,7 +351,7 @@ export const members = router()
 				tags: ["members"],
 				security,
 				summary: "Invite someone by email",
-				description: `Creates a better-auth invitation valid for ${INVITATION_DAYS} days. LogiStack sends no email: share the returned \`url\`. The invitee accepts with better-auth's \`organization/accept-invitation\`.`,
+				description: `Creates a better-auth invitation valid for ${INVITATION_DAYS} days. LogiStack emails the link when instance mail is set up; otherwise share the returned \`url\`. The invitee accepts with better-auth's \`organization/accept-invitation\`.`,
 				middleware: [requirePermission("admin", inOrganization)],
 				request: body(RoleInput.extend({ email: z.email().toLowerCase() })),
 				responses: { 201: json(Invitation, "Invited"), ...errors },
@@ -384,6 +404,8 @@ export const members = router()
 						.returning();
 				}),
 			);
+			const url = await invitationUrl(c, id);
+			await sendInvitationEmail(c, input.email, url);
 			return c.json(
 				{
 					id,
@@ -392,7 +414,7 @@ export const members = router()
 					status: row.status,
 					expiresAt: row.expiresAt.toISOString(),
 					createdAt: row.createdAt.toISOString(),
-					url: await invitationUrl(c, id),
+					url,
 				},
 				201,
 			);

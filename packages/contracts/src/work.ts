@@ -244,15 +244,19 @@ export const PmMark: z.ZodType<PmMark> = z.object({
 	type: z.string(),
 	attrs: z.record(z.string(), z.unknown()).optional(),
 });
-export const PmNode: z.ZodType<PmNode> = z.lazy(() =>
-	z.object({
-		type: z.string(),
-		attrs: z.record(z.string(), z.unknown()).optional(),
-		content: z.array(PmNode).optional(),
-		marks: z.array(PmMark).optional(),
-		text: z.string().optional(),
-	}),
-);
+export const PmNode: z.ZodType<PmNode> = z
+	.lazy(
+		() =>
+			z.object({
+				type: z.string(),
+				attrs: z.record(z.string(), z.unknown()).optional(),
+				content: z.array(PmNode).optional(),
+				marks: z.array(PmMark).optional(),
+				text: z.string().optional(),
+			}),
+		// A named schema: OpenAPI generators emit a `$ref` instead of recursing forever.
+	)
+	.meta({ id: "PmNode" });
 
 const sizedDoc = (maxBytes: number) =>
 	z
@@ -1872,6 +1876,78 @@ export const WorkAiDescription = z.object({ description: RichDoc });
 export type WorkAiDescription = z.infer<typeof WorkAiDescription>;
 
 // ---------------------------------------------------------------------------
+// Attachment storage (10.2) and instance mail (14.3)
+// ---------------------------------------------------------------------------
+
+export const WorkAttachmentSettings = z.object({
+	/** Null: the default (2 GB on the database driver, unlimited on S3). */
+	quotaGb: z.number().int().nullable(),
+	/** Effective quota in bytes; null when unlimited. */
+	quotaBytes: z.number().nullable(),
+	usedBytes: z.number(),
+	/** S3 destination new attachments go to; null keeps them in Postgres. */
+	destinationId: z.string().nullable(),
+	/** Instance-wide upload cap. */
+	maxMb: z.number().int(),
+	/** Live attachments per driver; `db` > 0 with a destination means a migration is pending. */
+	counts: z.object({ db: z.number().int(), s3: z.number().int() }),
+});
+export type WorkAttachmentSettings = z.infer<typeof WorkAttachmentSettings>;
+export const WorkAttachmentSettingsUpdate = z.object({
+	quotaGb: z.number().int().min(1).max(10_000).nullable().optional(),
+	destinationId: Id.nullable().optional(),
+});
+export type WorkAttachmentSettingsUpdate = z.infer<
+	typeof WorkAttachmentSettingsUpdate
+>;
+export const WorkBlobMigrationStarted = z.object({ jobId: z.string() });
+export type WorkBlobMigrationStarted = z.infer<typeof WorkBlobMigrationStarted>;
+
+const mailFrom = z.string().trim().min(3).max(320);
+/** Secrets may be omitted on update to keep the stored ones. */
+export const InstanceMailInput = z.discriminatedUnion("transport", [
+	z.object({
+		transport: z.literal("smtp"),
+		host: z.string().trim().min(1),
+		port: z.number().int().min(1).max(65535).default(587),
+		secure: z.boolean().default(false),
+		username: z.string().optional(),
+		password: z.string().min(1).optional(),
+		from: mailFrom,
+	}),
+	z.object({
+		transport: z.literal("resend"),
+		apiKey: z.string().min(1).optional(),
+		from: mailFrom,
+	}),
+]);
+export type InstanceMailInput = z.input<typeof InstanceMailInput>;
+/** What the API shows: never the secret, only whether one is stored. */
+export const InstanceMail = z.object({
+	configured: z.boolean(),
+	transport: z.enum(["smtp", "resend"]).nullable(),
+	host: z.string().nullable(),
+	port: z.number().int().nullable(),
+	secure: z.boolean(),
+	username: z.string().nullable(),
+	from: z.string().nullable(),
+	hasSecret: z.boolean(),
+});
+export type InstanceMail = z.infer<typeof InstanceMail>;
+export const InstanceMailTest = z.object({
+	to: z.email(),
+	/** Unsaved settings from the wizard; omitted secrets fall back to the stored ones. */
+	config: InstanceMailInput.optional(),
+});
+export type InstanceMailTest = z.input<typeof InstanceMailTest>;
+export const instanceMailRoutes = {
+	get: { method: "GET", path: "/api/instance/mail" },
+	update: { method: "PUT", path: "/api/instance/mail" },
+	remove: { method: "DELETE", path: "/api/instance/mail" },
+	test: { method: "POST", path: "/api/instance/mail/test" },
+} as const;
+
+// ---------------------------------------------------------------------------
 // Realtime (section 9)
 // ---------------------------------------------------------------------------
 
@@ -1890,8 +1966,12 @@ export const WorkRealtimeMessage = z.object({
 		"tag",
 		"project",
 		"health",
+		"time",
+		"notification",
 	]),
 	op: z.enum(["upsert", "delete"]),
+	/** Notifications target one user only. */
+	userId: z.string().optional(),
 	actorId: z.string().nullable(),
 });
 export type WorkRealtimeMessage = z.infer<typeof WorkRealtimeMessage>;
@@ -2330,6 +2410,27 @@ export const workRoutes = {
 		"comment:work",
 		"work_attachment_delete",
 		"uploader, or work:admin",
+	),
+	attachmentSettingsGet: r(
+		"GET",
+		"/attachment-settings",
+		"work:admin",
+		"work_attachment_settings_get",
+		"organization scope",
+	),
+	attachmentSettingsUpdate: r(
+		"PUT",
+		"/attachment-settings",
+		"work:admin",
+		"work_attachment_settings_update",
+		"organization scope; audited",
+	),
+	attachmentMigrate: r(
+		"POST",
+		"/attachment-settings/migrate",
+		"work:admin",
+		"work_attachment_migrate",
+		"organization scope; moves database blobs to the destination; audited",
 	),
 	// 8.5 me
 	myTasks: r(

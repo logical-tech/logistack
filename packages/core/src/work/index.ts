@@ -1,6 +1,7 @@
 export * from "./clickup-map.ts";
 export * from "./dates.ts";
 export * from "./deps.ts";
+export * from "./email.ts";
 export * from "./fields.ts";
 export * from "./filter.ts";
 export * from "./git-refs.ts";

@@ -695,6 +695,7 @@ export const mockAccess: AccessAdapter = {
 				generatedDomainBase: "sslip",
 				localRegistryEnabled: true,
 				allowPrivateHosts: state.allowPrivateHosts,
+				workAttachmentMaxMb: 25,
 			}),
 		setAllowPrivateHosts: async (allow) => {
 			state.allowPrivateHosts = allow;

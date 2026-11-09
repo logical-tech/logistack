@@ -51,7 +51,7 @@ import {
 import { invitation, organization, user } from "./auth.ts";
 import { id, timestamps, tstz } from "./columns.ts";
 import { project } from "./hierarchy.ts";
-import { gitProvider } from "./integrations.ts";
+import { gitProvider, s3Destination } from "./integrations.ts";
 
 /** Work: project management on existing projects (docs/plans/project-management.md, section 4). */
 
@@ -647,6 +647,21 @@ export const workUserPrefs = pgTable(
 			.where(sql`${t.icalTokenHash} is not null`),
 	],
 );
+
+/** Organization-wide Work settings (attachments storage). */
+export const workOrgSettings = pgTable("work_org_settings", {
+	organizationId: text("organization_id")
+		.primaryKey()
+		.references(() => organization.id, { onDelete: "cascade" }),
+	/** Null: 2 GB while attachments live in the database, unlimited on S3. */
+	attachmentQuotaGb: integer("attachment_quota_gb"),
+	/** Set: new attachments go to this S3 destination. */
+	attachmentDestinationId: text("attachment_destination_id").references(
+		() => s3Destination.id,
+		{ onDelete: "set null" },
+	),
+	...timestamps,
+});
 
 // 4.7 Phase 4
 
