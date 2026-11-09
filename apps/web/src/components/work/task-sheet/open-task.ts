@@ -1,5 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { createContext, useCallback, useContext } from "react";
+
+/**
+ * Set by the full task page: inside it, opening another task (a subtask, the parent) moves to
+ * that task's page instead of stacking a sheet over it.
+ */
+export const OpenTaskOverride = createContext<
+	((taskId: string | null) => void) | null
+>(null);
 
 /**
  * Opens (or with `null` closes) the task sheet over the current page through `?task=`, keeping the
@@ -7,7 +15,8 @@ import { useCallback } from "react";
  */
 export function useOpenTask() {
 	const navigate = useNavigate();
-	return useCallback(
+	const override = useContext(OpenTaskOverride);
+	const sheet = useCallback(
 		(taskId: string | null) =>
 			navigate({
 				to: ".",
@@ -18,4 +27,5 @@ export function useOpenTask() {
 			} as never),
 		[navigate],
 	);
+	return override ?? sheet;
 }
