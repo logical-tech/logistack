@@ -5,6 +5,7 @@ import {
 	environment,
 	gitProvider,
 	instanceSettings,
+	project,
 	service,
 } from "@logistack/db";
 import {
@@ -15,7 +16,7 @@ import {
 	LOGISTACK_CHECK,
 	ownerRepoPath,
 } from "@logistack/providers";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Ctx } from "./ctx.ts";
 
 type GitHubState = "pending" | "success" | "failure" | "error";
@@ -45,10 +46,12 @@ export async function reportCommitStatus(
 			spec: service.spec,
 			projectId: environment.projectId,
 			preview: environment.preview,
+			organizationId: project.organizationId,
 		})
 		.from(deployment)
 		.innerJoin(service, eq(service.id, deployment.serviceId))
 		.innerJoin(environment, eq(environment.id, service.environmentId))
+		.innerJoin(project, eq(project.id, environment.projectId))
 		.where(eq(deployment.id, e.resource.id));
 	if (!row?.commitSha || row.spec.kind !== "application") return false;
 	const source = row.spec.source;
@@ -56,7 +59,12 @@ export async function reportCommitStatus(
 	const [gp] = await ctx.db
 		.select()
 		.from(gitProvider)
-		.where(eq(gitProvider.id, source.gitProviderId));
+		.where(
+			and(
+				eq(gitProvider.id, source.gitProviderId),
+				eq(gitProvider.organizationId, row.organizationId),
+			),
+		);
 	if (gp?.kind !== "github") return false;
 	const provider = instantiate(
 		gitProviders.github,

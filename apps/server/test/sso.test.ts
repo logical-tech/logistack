@@ -272,4 +272,47 @@ describe.skipIf(!hasDocker)("sso providers", () => {
 			listed.json.map((p: { providerId: string }) => p.providerId),
 		).toEqual(["acme-idp"]);
 	});
+
+	test("a domain another organization's provider holds is refused", async () => {
+		const [o] = await h.deps.db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.email, owner.email));
+		await h.deps.db.insert(ssoProvider).values({
+			id: crypto.randomUUID(),
+			issuer: "https://other.example.org",
+			providerId: "other-org-idp",
+			userId: o?.id ?? "",
+			organizationId: "org_other",
+			domain: "Taken.example.org",
+		});
+		const res = await h.call("POST", "/api/sso/providers/oidc", {
+			...asOwner(),
+			body: { ...oidcBody("squat-idp"), domain: "taken.example.org" },
+		});
+		expect(res.status).toBe(409);
+		await h.deps.db
+			.delete(ssoProvider)
+			.where(eq(ssoProvider.providerId, "other-org-idp"));
+	});
+
+	test("discovered endpoints better-auth fetches must be public https", async () => {
+		const original = discovery.token_endpoint;
+		try {
+			for (const bad of [
+				"http://example.com/idp/token",
+				"https://127.0.0.1:2019/stop",
+			]) {
+				discovery.token_endpoint = bad;
+				const res = await h.call(
+					"GET",
+					`/api/sso/discovery?issuer=${encodeURIComponent(ISSUER)}`,
+					asOwner(),
+				);
+				expect(res.status).toBe(400);
+			}
+		} finally {
+			discovery.token_endpoint = original;
+		}
+	});
 });

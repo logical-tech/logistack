@@ -28,6 +28,8 @@ const ConfigSchema = z.object({
 	/** Clones and per-deployment log files live here. */
 	LS_WORK_DIR: z.string().default("/var/lib/logistack"),
 	LS_CONTROL_NETWORK: z.string().default("ls-control"),
+	/** BuildKit's own overlay: RUN steps share its network, so only the worker may join it, never ls-control. */
+	LS_BUILD_NETWORK: z.string().default("ls-build"),
 	LS_INGRESS_NETWORK: z.string().default("ls-ingress"),
 	/** Shared by storage services, the api and the worker only; apps never join it. */
 	LS_STORAGE_NETWORK: z.string().default("ls-storage"),
@@ -173,5 +175,15 @@ export function loadConfig(
 	const parsed = ConfigSchema.safeParse(raw);
 	if (!parsed.success)
 		throw new Error(`invalid configuration:\n${z.prettifyError(parsed.error)}`);
+	// The published .env.example key would let anyone decrypt every secret.
+	if (
+		env.NODE_ENV === "production" &&
+		Uint8Array.fromBase64(parsed.data.LOGISTACK_MASTER_KEY.trim()).every(
+			(b) => b === 0,
+		)
+	)
+		throw new Error(
+			"invalid configuration: LOGISTACK_MASTER_KEY is the example key; generate one with openssl rand -base64 32",
+		);
 	return parsed.data;
 }

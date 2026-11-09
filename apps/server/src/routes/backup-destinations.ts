@@ -1,4 +1,6 @@
+import { posix } from "node:path";
 import { createRoute, z } from "@hono/zod-openapi";
+import { isSensitiveHostPath } from "@logistack/contracts";
 import { encrypt } from "@logistack/core";
 import { backupPolicy, node, s3Destination } from "@logistack/db";
 import {
@@ -30,7 +32,11 @@ import {
 	security,
 } from "../openapi.ts";
 import { guardedDestination } from "../s3.ts";
-import { inOrganization, requirePermission } from "../scope.ts";
+import {
+	assertInstanceAdmin,
+	inOrganization,
+	requirePermission,
+} from "../scope.ts";
 import { BlockedHostError, hostPolicy, resolvePublic } from "../ssrf.ts";
 import { Connection } from "./s3-destinations.ts";
 
@@ -120,8 +126,15 @@ function location(d: Row, hostname?: string): string {
 	}
 }
 
-/** The node row for a `local` destination, scoped to the organization. */
-async function orgNode(c: Context, nodeId: string) {
+/**
+ * The node row for a `local` destination, scoped to the organization. The folder is bind-mounted
+ * into a backup job on a node every organization may share: instance admins only, never a
+ * sensitive host path.
+ */
+async function orgNode(c: Context, nodeId: string, path: string) {
+	assertInstanceAdmin(c);
+	if (isSensitiveHostPath(posix.normalize(path).replace(/\/$/, "")))
+		throw new Failure("bad_request", `${path} is a protected host path`);
 	const [n] = await c.var.deps.db
 		.select({ id: node.id, swarm: node.swarmNodeId, hostname: node.hostname })
 		.from(node)
@@ -147,7 +160,7 @@ async function probe(c: Context, input: DestinationInput) {
 		return `Wrote, read and deleted a probe object in ${input.settings.bucket}`;
 	}
 	if (input.kind === "local") {
-		const n = await orgNode(c, input.nodeId);
+		const n = await orgNode(c, input.nodeId, input.settings.path);
 		await localDestination({
 			nodes: c.var.deps.nodes,
 			swarmNodeId: n.swarm,
@@ -316,7 +329,7 @@ export const backupDestinations = router()
 							config: input.settings,
 							nodeId:
 								input.kind === "local"
-									? (await orgNode(c, input.nodeId)).id
+									? (await orgNode(c, input.nodeId, input.settings.path)).id
 									: null,
 							secretEncrypted: await encrypt(
 								masterKey,

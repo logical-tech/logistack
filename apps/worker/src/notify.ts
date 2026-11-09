@@ -258,6 +258,7 @@ export function dispatchDeps(ctx: Ctx, fetchFor?: Fetch): DispatchDeps {
 				fetch:
 					fetchFor ??
 					((url, init) => guardedFetch(url, init ?? {}, policy as HostPolicy)),
+				...(policy ? { hostPolicy: policy } : {}),
 			});
 		},
 		record: (id, outcome, at) => recordDelivery(redis, id, outcome, at),

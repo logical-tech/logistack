@@ -551,9 +551,9 @@ describe.skipIf(!hasDocker)("database explorer on Redis", () => {
 		);
 	});
 
-	test("a viewer reads keys but cannot write or run commands", async () => {
+	test("keys are data like a dump: a viewer cannot read, write or run commands", async () => {
 		expect((await keys({ match: "user:1" }, { cookie: viewer })).status).toBe(
-			200,
+			403,
 		);
 		expect(
 			(await write({ op: "delete", key: "user:1" }, { cookie: viewer })).status,

@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { user } from "@logistack/db";
+import { eq } from "drizzle-orm";
 import {
 	type Harness,
 	hasDocker,
@@ -182,6 +184,15 @@ describe.skipIf(!hasDocker)("instance admins", () => {
 	});
 
 	test("an admin adds another by email, who then passes the guard", async () => {
+		const unverified = await h.call("POST", "/api/instance/admins", {
+			...asOwner(),
+			body: { email: "ADA@example.com" },
+		});
+		expect(unverified.status).toBe(409);
+		await h.deps.db
+			.update(user)
+			.set({ emailVerified: true })
+			.where(eq(user.id, adaId));
 		const added = await h.call("POST", "/api/instance/admins", {
 			...asOwner(),
 			body: { email: "ADA@example.com" },

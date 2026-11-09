@@ -16,7 +16,6 @@ import {
 	environment,
 	incident,
 	incidentUpdate,
-	instanceSettings,
 	maintenanceWindow,
 	monitor,
 	project,
@@ -58,6 +57,7 @@ import {
 	monitorStats,
 	recentChecks,
 } from "../uptime-query.ts";
+import { dashboardHosts, hostsOverlap, overlappingDomains } from "./domains.ts";
 
 // Uptime monitors, incidents, maintenance windows and status pages (authenticated side).
 // The public pages, badges and the push endpoint live in ../status-pages.ts.
@@ -392,37 +392,29 @@ const pushDeadline = (intervalSec: number, config: MonitorConfig) =>
 				1000,
 	);
 
-async function dashboardHost(db: Db) {
-	const [s] = await db.select().from(instanceSettings);
-	return (
-		s?.primaryDomain ??
-		(s?.publicUrl ? new URL(s.publicUrl).hostname : undefined)
-	);
-}
-
-/** A status page hostname must not be the dashboard's nor a service domain's. */
-async function assertFreeHostname(db: Db, hostname: string) {
-	if (hostname === (await dashboardHost(db)))
+/** A status page hostname must not overlap the dashboard's nor a service domain's. */
+async function assertFreeHostname(c: Context<Env>, hostname: string) {
+	if ((await dashboardHosts(c.var.deps)).some((h) => hostsOverlap(h, hostname)))
 		throw new Failure("conflict", "that is the dashboard's own hostname");
-	const [taken] = await db
-		.select({ id: domain.id })
-		.from(domain)
-		.where(eq(domain.hostname, hostname))
-		.limit(1);
-	if (taken)
+	if ((await overlappingDomains(c.var.deps.db, hostname)).length)
 		throw new Failure("conflict", `${hostname} already routes to a service`);
 }
 
+/** Every listed monitor belongs to the organization and to a project the author can read. */
 async function assertSections(
-	db: Db,
+	c: Context<Env>,
 	orgId: string,
 	sections: z.infer<typeof StatusPageSection>[],
 ) {
-	await memberMonitorIds(
-		db,
-		orgId,
-		sections.flatMap((s) => s.monitors.map((m) => m.monitorId)),
-	);
+	const { db } = c.var.deps;
+	const ids = sections.flatMap((s) => s.monitors.map((m) => m.monitorId));
+	await memberMonitorIds(db, orgId, ids);
+	if (ids.length === 0) return;
+	const rows = await db
+		.selectDistinct({ projectId: monitor.projectId })
+		.from(monitor)
+		.where(and(eq(monitor.organizationId, orgId), inArray(monitor.id, ids)));
+	for (const r of rows) check(c, "read", await scopeOf(db, orgId, r.projectId));
 }
 
 function pageView(r: typeof statusPage.$inferSelect) {
@@ -1049,8 +1041,8 @@ export const uptime = router()
 			const { db } = c.var.deps;
 			const orgId = requireActor(c).organizationId;
 			check(c, "write", await scopeOf(db, orgId, input.projectId ?? null));
-			await assertSections(db, orgId, input.sections);
-			if (input.hostname) await assertFreeHostname(db, input.hostname);
+			await assertSections(c, orgId, input.sections);
+			if (input.hostname) await assertFreeHostname(c, input.hostname);
 			const r = one(
 				await db
 					.insert(statusPage)
@@ -1089,9 +1081,9 @@ export const uptime = router()
 			check(c, "write", await scopeOf(db, orgId, prev.projectId));
 			if (input.projectId !== undefined)
 				check(c, "write", await scopeOf(db, orgId, input.projectId));
-			if (input.sections) await assertSections(db, orgId, input.sections);
+			if (input.sections) await assertSections(c, orgId, input.sections);
 			if (input.hostname && input.hostname !== prev.hostname)
-				await assertFreeHostname(db, input.hostname);
+				await assertFreeHostname(c, input.hostname);
 			const r = one(
 				await db
 					.update(statusPage)

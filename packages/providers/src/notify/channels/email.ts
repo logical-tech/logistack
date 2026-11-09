@@ -1,12 +1,15 @@
+import { isIP } from "node:net";
 import nodemailer from "nodemailer";
 import { z } from "zod";
 import {
 	DEFAULT_TIMEOUT_MS,
+	type Deps,
 	defineProvider,
 	Http,
 	ProviderError,
 	secret,
 } from "../../http.ts";
+import { resolvePublic } from "../../ssrf.ts";
 import { channel, type Rendered } from "../types.ts";
 
 const addressing = {
@@ -33,6 +36,32 @@ export const emailConfig = z.discriminatedUnion("transport", [
 ]);
 export type EmailConfig = z.infer<typeof emailConfig>;
 
+type Smtp = Omit<Extract<EmailConfig, { transport: "smtp" }>, "to">;
+
+/**
+ * A transport dialling the checked address of the user-chosen SMTP host, so a second DNS answer
+ * cannot point it elsewhere; TLS still verifies the certificate against the name.
+ */
+export async function smtpTransport(config: Smtp, deps?: Deps) {
+	const timeout = deps?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	const address = await resolvePublic(
+		config.host,
+		deps?.hostPolicy ?? { allowPrivateHosts: false },
+	);
+	return nodemailer.createTransport({
+		host: address,
+		port: config.port,
+		secure: config.secure,
+		tls: isIP(config.host) ? {} : { servername: config.host },
+		auth: config.username
+			? { user: config.username, pass: config.password }
+			: undefined,
+		connectionTimeout: timeout,
+		greetingTimeout: timeout,
+		socketTimeout: timeout,
+	});
+}
+
 export const emailMessage = (r: Rendered) => ({
 	subject: `[${r.severity}] ${r.title}`,
 	text: r.url ? `${r.body}\n\n${r.url}` : r.body,
@@ -52,20 +81,9 @@ export const email = defineProvider({
 				),
 			);
 		}
-		const timeout = deps?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-		const transport = nodemailer.createTransport({
-			host: config.host,
-			port: config.port,
-			secure: config.secure,
-			auth: config.username
-				? { user: config.username, pass: config.password }
-				: undefined,
-			connectionTimeout: timeout,
-			greetingTimeout: timeout,
-			socketTimeout: timeout,
-		});
 		return channel(async (_event, r) => {
 			try {
+				const transport = await smtpTransport(config, deps);
 				await transport.sendMail({
 					from: config.from,
 					to: config.to,

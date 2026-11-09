@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { AGENT_WS_PATH } from "@logistack/contracts";
@@ -12,8 +13,9 @@ import { acmeProxy } from "./acme-proxy.ts";
 import { type Actor, authenticate } from "./actor.ts";
 import { gateway } from "./ai/gateway.ts";
 import { assertMutationsAudited } from "./audit.ts";
+import { apiKeyFrom, trustedOrigins } from "./auth.ts";
 import type { Deps, Env } from "./env.ts";
-import { onError, validationHook } from "./errors.ts";
+import { Failure, onError, validationHook } from "./errors.ts";
 import { terminal } from "./exec-ws.ts";
 import { requestLogger } from "./log.ts";
 import { mcpHandler } from "./mcp.ts";
@@ -88,6 +90,106 @@ import { push, statusBySlug, statusHostRouter } from "./status-pages.ts";
 import { realtime } from "./ws.ts";
 
 /**
+ * better-auth endpoints of these families act on organizations, users and keys outside LogiStack's
+ * permission checks, two-factor rule and audit log (creating an organization, a role named
+ * "x,owner", an API key that skips two-factor, impersonation). LogiStack calls what it needs
+ * through `auth.api`, which this list does not touch; browsers reach only the endpoints below.
+ */
+const AUTH_GATED = ["/organization/", "/admin/", "/api-key/"];
+const AUTH_OPEN = new Set([
+	"/organization/accept-invitation",
+	"/organization/reject-invitation",
+	"/organization/get-invitation",
+	"/organization/list",
+	"/organization/list-user-invitations",
+	"/organization/set-active",
+]);
+export function authPathAllowed(path: string): boolean {
+	let p = path.slice("/api/auth".length);
+	try {
+		p = decodeURIComponent(p);
+	} catch {
+		return false;
+	}
+	p = p.toLowerCase().replace(/\/+$/, "");
+	return !AUTH_GATED.some((f) => p.startsWith(f)) || AUTH_OPEN.has(p);
+}
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Cookie-authenticated changes and WebSocket upgrades must come from the dashboard's own origin.
+ * SameSite=Lax still sends the cookie from any same-site page: every *.sslip.io host on a default
+ * install, or a tenant app on a sibling subdomain. API keys carry no ambient authority.
+ */
+export const sameOriginOnly: MiddlewareHandler<Env> = async (c, next) => {
+	const h = c.req.raw.headers;
+	const upgrade = h.get("upgrade")?.toLowerCase() === "websocket";
+	if (
+		(upgrade || !SAFE_METHODS.has(c.req.method)) &&
+		h.has("cookie") &&
+		!apiKeyFrom(h) &&
+		!h.has("authorization")
+	) {
+		const site = h.get("sec-fetch-site");
+		const origin = h.get("origin");
+		// Neither header: not a browser, so no ambient cookie to ride on.
+		if (site !== "same-origin" && (site || origin)) {
+			const { config, db } = c.var.deps;
+			const trusted = await trustedOrigins(config, db)();
+			if (!origin || !trusted.includes(origin))
+				throw new Failure("forbidden", "cross-site request refused");
+		}
+	}
+	await next();
+};
+
+/** Paths whose own handlers decide framing and policy (public status pages, plugin pages). */
+const OWN_HEADERS = /^\/(status|plugins|share)\//;
+
+const securityHeaders: MiddlewareHandler<Env> = async (c, next) => {
+	await next();
+	if (c.req.header("upgrade")) return;
+	try {
+		const h = c.res.headers;
+		h.set("x-content-type-options", "nosniff");
+		// A route's own, stricter policy (share pages send no-referrer) stays.
+		if (!h.has("referrer-policy"))
+			h.set("referrer-policy", "strict-origin-when-cross-origin");
+		if (!OWN_HEADERS.test(c.req.path) && !h.has("x-frame-options"))
+			h.set("x-frame-options", "SAMEORIGIN");
+		if (c.req.header("x-forwarded-proto") === "https")
+			h.set("strict-transport-security", "max-age=31536000");
+	} catch {
+		// An immutable response (a proxied stream): it keeps its own headers.
+	}
+};
+
+/** The app shell's CSP: its one inline script (the theme bootstrap) by hash, everything else from this origin. */
+function shellPolicy(indexHtml: string): string {
+	const hashes = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
+		(m) =>
+			`'sha256-${createHash("sha256")
+				.update(m[1] ?? "")
+				.digest("base64")}'`,
+	);
+	return [
+		"default-src 'self'",
+		`script-src 'self' ${hashes.join(" ")}`.trim(),
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob: https:",
+		"font-src 'self' data:",
+		"connect-src 'self'",
+		"worker-src 'self' blob:",
+		"frame-src 'self'",
+		"frame-ancestors 'self'",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+	].join("; ");
+}
+
+/**
  * Builds the HTTP app over injected dependencies (real ones in index.ts, containers in tests).
  * `actor` replaces authentication for in-process callers (scripts): every request runs as it.
  */
@@ -105,6 +207,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		c.json({ error: { code: "not_found", message: "route not found" } }, 404),
 	);
 	app.use(requestId());
+	app.use(securityHeaders);
 	app.use(async (c, next) => {
 		c.set("deps", deps);
 		await next();
@@ -132,8 +235,20 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		"/api/*",
 		cors({ origin: deps.config.WEB_ORIGIN, credentials: true }),
 	);
+	app.use("*", (c, next) =>
+		// better-auth checks the origin of its own endpoints; webhooks, heartbeats and keys carry no cookie authority.
+		/^\/(api\/auth|api\/webhooks|push|acme-proxy|v1|mcp|plugins)(\/|$)/.test(
+			c.req.path,
+		)
+			? next()
+			: sameOriginOnly(c, next),
+	);
 	app.use("/api/auth/*", limitCredentials);
-	app.on(["GET", "POST"], "/api/auth/*", (c) => deps.auth.handler(c.req.raw));
+	app.on(["GET", "POST"], "/api/auth/*", (c) => {
+		if (!authPathAllowed(c.req.path))
+			throw new Failure("not_found", "route not found");
+		return deps.auth.handler(c.req.raw);
+	});
 	// Health must answer even when the session store is unreachable; agents present node tokens.
 	app.use("/api/*", async (c, next) =>
 		c.req.path.startsWith("/api/auth/") ||
@@ -151,6 +266,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	app.openAPIRegistry.registerComponent("securitySchemes", "session", {
 		type: "apiKey",
 		in: "cookie",
+		// `__Secure-better-auth.session_token` in production (SECURE_COOKIES).
 		name: "better-auth.session_token",
 	});
 	app.openAPIRegistry.registerComponent("securitySchemes", "apiKey", {
@@ -257,6 +373,12 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 			p.startsWith("/plugins/") ||
 			p.startsWith("/api/") ||
 			p.startsWith("/v1/");
+		const policy = shellPolicy(readFileSync(join(web, "index.html"), "utf8"));
+		app.get("*", async (c, next) => {
+			await next();
+			if (c.res.headers.get("content-type")?.startsWith("text/html"))
+				c.res.headers.set("content-security-policy", policy);
+		});
 		// A file when one matches, else the app shell for client-side routes.
 		for (const handler of [
 			serveStatic({ root: web }),

@@ -41,7 +41,7 @@ describe("egress proxy", () => {
 			hostname: "127.0.0.1",
 			key: "k",
 			rules: {
-				plg_a: ["127.0.0.1", "named.test"],
+				plg_a: ["127.0.0.1", "named.test", "169.254.169.254", "10.247.0.4"],
 				plg_b: ["public.test"],
 			},
 			lookup: async () => ["127.0.0.1"],
@@ -102,6 +102,16 @@ describe("egress proxy", () => {
 				`CONNECT ${hostPort()} HTTP/1.1\r\nProxy-Authorization: Basic ${other}\r\n\r\n`,
 			),
 		).toStartWith("HTTP/1.1 403");
+	});
+
+	test("refuses link-local and ls-control addresses even when declared literally", async () => {
+		for (const host of ["169.254.169.254:80", "10.247.0.4:2019"])
+			expect(
+				await raw(
+					proxy.port,
+					`CONNECT ${host} HTTP/1.1\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`,
+				),
+			).toStartWith("HTTP/1.1 403");
 	});
 
 	test("refuses a declared name that resolves to a private address", async () => {

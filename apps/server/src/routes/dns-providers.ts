@@ -41,6 +41,7 @@ import {
 import { PluginProviderFields, randomSecret } from "../plugins.ts";
 import { publicIp } from "../probe.ts";
 import { byParam, inOrganization, requirePermission } from "../scope.ts";
+import { assertRecordName } from "./domains.ts";
 
 const DnsProviderView = z
 	.object({
@@ -500,7 +501,7 @@ export const dnsProviders = router()
 				security,
 				summary: "Create or replace the record for a service's hostname",
 				description:
-					"Idempotent: the (name, type) record set ends up holding exactly this value. The provider must manage the hostname's zone.",
+					"Idempotent: the (name, type) record set ends up holding exactly this value. The provider must manage the hostname's zone. Without the organization's admin permission the hostname must be one of the service's own, or a name with no A, AAAA or CNAME record that no other service holds.",
 				middleware: [requirePermission("write", byParam("service"))],
 				request: {
 					params: IdParam,
@@ -526,6 +527,9 @@ export const dnsProviders = router()
 			if (input.proxied && row.kind !== "cloudflare")
 				throw new Failure("bad_request", "only Cloudflare can proxy a record");
 			const p = await openProvider({ db, masterKey }, row);
+			await assertRecordName(c, c.req.valid("param").id, input.hostname, () =>
+				viaProvider(() => p.listRecords(zone.id, input.hostname)),
+			);
 			const record = await viaProvider(() =>
 				p.upsertRecord({
 					zoneId: zone.id,

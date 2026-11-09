@@ -20,7 +20,7 @@ const BlockedPath = z
 	.trim()
 	.min(1)
 	.max(256)
-	.regex(/^\/[^\s]*$/, "a path starting with /, such as /wp-admin*");
+	.regex(/^\/[^\s{}]*$/, "a path starting with /, such as /wp-admin*");
 
 const UserAgentFragment = z.string().trim().min(2).max(128);
 

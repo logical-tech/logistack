@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createRoute, z } from "@hono/zod-openapi";
-import { auditLog, envVar } from "@logistack/db";
+import { auditLog, envVar, user } from "@logistack/db";
 import { and, eq } from "drizzle-orm";
 import { assertMutationsAudited } from "../src/audit.ts";
 import { envelope } from "../src/events.ts";
@@ -65,6 +65,15 @@ describe.skipIf(!hasDocker)("api", () => {
 		});
 
 		test("an owner adds the user as viewer", async () => {
+			const unverified = await h.call("POST", "/api/members", {
+				...asOwner(),
+				body: { email: viewer.email, role: "viewer" },
+			});
+			expect(unverified.status).toBe(409);
+			await h.deps.db
+				.update(user)
+				.set({ emailVerified: true })
+				.where(eq(user.email, viewer.email));
 			const added = await h.call("POST", "/api/members", {
 				...asOwner(),
 				body: { email: viewer.email, role: "viewer" },

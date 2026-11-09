@@ -141,14 +141,27 @@ function MountFiles({
 		);
 	return (
 		<div className="grid gap-10">
-			{configs.map((f) => (
-				<ConfigEditor
-					key={f.id}
-					file={f}
-					service={service}
-					projectId={projectId}
-				/>
-			))}
+			{configs.map(({ content, ...f }) =>
+				content === null ? (
+					<section key={f.id} className="grid gap-1">
+						<h2 className="text-sm font-semibold">Configuration</h2>
+						<p className="font-mono text-xs text-muted-foreground">
+							{f.target}
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Contents hidden. Viewing config files needs the read:secrets
+							permission on this service.
+						</p>
+					</section>
+				) : (
+					<ConfigEditor
+						key={f.id}
+						file={{ ...f, content }}
+						service={service}
+						projectId={projectId}
+					/>
+				),
+			)}
 			{volumes.map((v) => (
 				<VolumeFiles
 					key={v.id}
@@ -167,7 +180,7 @@ function ConfigEditor({
 	service,
 	projectId,
 }: {
-	file: ConfigFile;
+	file: ConfigFile & { content: string };
 	service: ServiceOverview;
 	projectId: string;
 }) {

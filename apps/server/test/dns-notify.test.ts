@@ -460,6 +460,38 @@ describe.skipIf(!hasDocker)("dns, domains, certificates, notifications", () => {
 			}),
 		);
 		expect(dom.status).toBe(201);
+		// A record id elsewhere in the zone is refused: deleting the domain would delete it.
+		const forged = await h.call(
+			"PUT",
+			`/api/domains/${dom.json.id}`,
+			as({
+				body: {
+					hostname: "shop.example.com",
+					port: 80,
+					https: true,
+					cert: "auto",
+					dnsProviderId: providerId,
+					dnsRecordId: mx.json.id,
+				},
+			}),
+		);
+		expect(forged.status).toBe(400);
+		expect(forged.json.error.message).toContain("not a record at");
+		// The dashboard's own host (the setup's public URL) is never a service's.
+		const dashboard = await h.call(
+			"POST",
+			`/api/services/${serviceId}/domains`,
+			as({
+				body: {
+					hostname: "ls.example.com",
+					pathPrefix: "/api",
+					port: 80,
+					https: true,
+					cert: "auto",
+				},
+			}),
+		);
+		expect(dashboard.status).toBe(409);
 
 		const list = await h.call("GET", base, as());
 		expect(list.status).toBe(200);

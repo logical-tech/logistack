@@ -55,7 +55,7 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 	});
 	const queues = () => runQueues(h.config.REDIS_URL);
 
-	async function member(role: "viewer" | "developer") {
+	async function member(role: "viewer" | "developer" | "admin") {
 		const user = {
 			name: role,
 			email: `${role}@example.com`,
@@ -86,6 +86,7 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 		ownerCookie = await h.signIn(owner.email, owner.password);
 		await member("viewer");
 		await member("developer");
+		await member("admin");
 		const prj = await h.call("POST", "/api/projects", {
 			...as("owner"),
 			body: { name: "Shop" },
@@ -227,6 +228,17 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 			body: { kind: "local", nodeId: "nod_x", settings: { path: "../etc" } },
 		});
 		expect(relative.status).toBe(400);
+		const byOrgAdmin = await h.call("POST", "/api/backup-destinations/test", {
+			...as("admin"),
+			body: { kind: "local", nodeId: "nod_x", settings: { path: "/srv/b" } },
+		});
+		expect(byOrgAdmin.status).toBe(403);
+		const sensitive = await h.call("POST", "/api/backup-destinations/test", {
+			...as("owner"),
+			body: { kind: "local", nodeId: "nod_x", settings: { path: "/etc//" } },
+		});
+		expect(sensitive.status).toBe(400);
+		expect(sensitive.json.error.message).toContain("protected host path");
 
 		const gone = await h.call(
 			"DELETE",
@@ -480,6 +492,15 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 			body: { target: { kind: "same" }, confirm: "orders" },
 		});
 		expect(wrong.status).toBe(400);
+		const overwrite = await h.call(
+			"POST",
+			`/api/backup-runs/${runId}/restore`,
+			{
+				...as("developer"),
+				body: { target: { kind: "same" }, confirm: "orders-db" },
+			},
+		);
+		expect(overwrite.status).toBe(403);
 		const ok = await h.call("POST", `/api/backup-runs/${runId}/restore`, {
 			...as("developer"),
 			body: {
@@ -518,7 +539,7 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 		});
 		expect(
 			(await audited("backup_run.restore")).map((r) => r.outcome).sort(),
-		).toEqual(["error", "error", "success"]);
+		).toEqual(["denied", "error", "error", "success"]);
 	});
 
 	test("schedules: CRUD, host targets need admin, disable drops the scheduler", async () => {
@@ -541,6 +562,13 @@ describe.skipIf(!hasDocker)("backups and schedules API", () => {
 			},
 		});
 		expect(host.status).toBe(403);
+		// Root on a node other organizations share: an organization admin is not enough.
+		const orgAdminHost = await h.call("POST", "/api/schedules", {
+			...as("admin"),
+			body: { ...base, target: { kind: "host", nodeId: "nod_x" } },
+		});
+		expect(orgAdminHost.status).toBe(403);
+		expect(orgAdminHost.json.error.message).toContain("instance admin");
 
 		const created = await h.call("POST", "/api/schedules", {
 			...as("developer"),

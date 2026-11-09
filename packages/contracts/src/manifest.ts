@@ -92,7 +92,10 @@ export const ManifestDomain = z
 	.object({
 		hostname: Hostname,
 		port: z.int().min(1).max(65535),
-		pathPrefix: z.string().startsWith("/").optional(),
+		pathPrefix: z
+			.string()
+			.regex(/^\/[^\s{}]*$/, "a path starting with /, without spaces or braces")
+			.optional(),
 		https: z.boolean(),
 		cert: CertMode,
 		certificate: Ref.optional().describe(

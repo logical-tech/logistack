@@ -104,6 +104,8 @@ export async function workerConfig(
 		).toString("base64"),
 		LS_WORK_DIR: work,
 		LS_CONTROL_NETWORK: `${PREFIX}control`,
+		// buildctl runs as a container on the test control network, so BuildKit joins it there.
+		LS_BUILD_NETWORK: `${PREFIX}control`,
 		LS_INGRESS_NETWORK: `${PREFIX}ingress`,
 		LS_CADDY_SERVICE: `${PREFIX}caddy`,
 		// buildctl runs in a client container next to the test buildkit; the checkout is bind-mounted.

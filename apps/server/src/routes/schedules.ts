@@ -26,6 +26,7 @@ import {
 } from "../openapi.ts";
 import { runQueues } from "../run-queues.ts";
 import {
+	assertInstanceAdmin,
 	check,
 	inOrganization,
 	locate,
@@ -177,7 +178,10 @@ function viaSchedule(from: "schedule" | "run"): ResolveResource {
 	};
 }
 
-/** Running inside a service needs deploy there; on a host, admin on the organization. */
+/**
+ * Running inside a service needs deploy there; on a host, instance admin: the script runs as root
+ * on a node other organizations may share.
+ */
 async function checkTarget(
 	c: Context<Env>,
 	target: z.infer<typeof ScheduleTarget>,
@@ -195,6 +199,7 @@ async function checkTarget(
 			),
 		);
 	if (target.kind === "host") {
+		assertInstanceAdmin(c);
 		check(c, "admin", organizationResource(actor.organizationId));
 		const n = await c.var.deps.db.$count(
 			node,
@@ -354,8 +359,14 @@ export const schedules = router()
 				.select({ target: schedule.target })
 				.from(schedule)
 				.where(eq(schedule.id, id));
-			// Editing a host schedule's script is running code as root too.
-			if (current?.target.kind === "host" && !input.target)
+			// Changing what runs, or turning it on, is running it on the target too.
+			if (
+				current &&
+				!input.target &&
+				(current.target.kind === "host" ||
+					input.script !== undefined ||
+					input.enabled !== undefined)
+			)
 				await checkTarget(c, current.target);
 			const row = one(
 				await db
@@ -415,7 +426,7 @@ export const schedules = router()
 				await db.select().from(schedule).where(eq(schedule.id, id)),
 				"schedule",
 			);
-			if (s.target.kind === "host") await checkTarget(c, s.target);
+			await checkTarget(c, s.target);
 			const run = one(
 				await db
 					.insert(scheduleRun)

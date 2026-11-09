@@ -112,7 +112,8 @@ export async function reserve(
 	db: Db,
 	who: Member,
 	tier: AiTier,
-	micros: number,
+	/** Null when the model has no known price. */
+	micros: number | null,
 ): Promise<string | undefined> {
 	return db.transaction(async (tx) => {
 		await lockMember(tx, who.organizationId, who.userId);
@@ -129,6 +130,7 @@ export async function reserve(
 			await capsFor(tx, who.organizationId, who.userId, who.isAdmin)
 		)[tier];
 		if (cap !== null) {
+			if (micros === null) return undefined;
 			const spent =
 				(await monthSpend(tx, who.organizationId, who.userId)).get(
 					who.userId,
@@ -156,7 +158,7 @@ export async function reserve(
 				organizationId: who.organizationId,
 				userId: who.userId,
 				tier,
-				micros,
+				micros: Math.max(micros ?? 1, 1),
 				expiresAt: new Date(Date.now() + RESERVATION_TTL_MS),
 			})
 			.returning({ id: aiBudgetReservation.id });

@@ -30,6 +30,7 @@ function fake(answer: (op: string, args: unknown[]) => unknown, status = 200) {
 			await verifyPluginRequest(
 				target.signingSecret,
 				new Headers(init?.headers as Record<string, string>),
+				{ method: init?.method ?? "GET", path: new URL(url).pathname },
 				body,
 			),
 		).toBe(true);

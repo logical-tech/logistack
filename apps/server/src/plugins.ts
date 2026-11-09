@@ -24,7 +24,7 @@ import { sign, verify } from "hono/jwt";
 import type { Deps } from "./env.ts";
 import { Failure, notFound } from "./errors.ts";
 import { Registry, splitRegistryUrl } from "./registry/client.ts";
-import { guardedFetch, hostPolicy } from "./ssrf.ts";
+import { guardedFetch, hostPolicy, pinnedFetch } from "./ssrf.ts";
 
 // Server side of plugins (docs/plans/plugins.md): reading a manifest from an image or a dev URL,
 // calling an install, and the short-lived session tokens plugin pages carry.
@@ -89,10 +89,12 @@ export async function manifestFromImage(
 	organizationId: string,
 	image: string,
 	registryId?: string,
-	fetchFn: typeof fetch = fetch,
+	fetchFn?: Fetch,
 ): Promise<{ manifest: PluginManifest; image: string }> {
 	const { host, repo, reference } = parseImageRef(image);
+	const apiHost = host === "docker.io" ? splitRegistryUrl(host).host : host;
 	let creds: { username: string; password: string } | undefined;
+	let ownRegistry = false;
 	if (registryId) {
 		const [reg] = await db
 			.select()
@@ -104,17 +106,35 @@ export async function manifestFromImage(
 				),
 			);
 		if (!reg) throw notFound("registry");
+		ownRegistry =
+			reg.kind === "local" && splitRegistryUrl(reg.url).host === apiHost;
 		if (reg.username && reg.passwordEncrypted)
 			creds = {
 				username: reg.username,
 				password: await decrypt(masterKey, reg.passwordEncrypted),
 			};
 	}
-	const apiHost = host === "docker.io" ? splitRegistryUrl(host).host : host;
-	const client = new Registry(apiHost, creds, fetchFn);
+	// The image's registry and its token realm are user-chosen hosts; the instance's own registry is not.
+	// Plain http (a loopback registry) only once the instance allows private hosts.
+	const f: Fetch =
+		fetchFn ??
+		(ownRegistry
+			? fetch
+			: pinnedFetch(await hostPolicy(db), { privateHttp: true }));
+	const client = new Registry(apiHost, creds, f);
 	const scope = `repository:${repo}:pull`;
 	const get = async (path: string, accept = ACCEPT) => {
-		const res = await client.request(path, { scope, headers: { accept } });
+		let res = await client.request(path, { scope, headers: { accept } });
+		// Blobs redirect to a presigned storage URL (GHCR, Docker Hub): each hop goes through `f`, without the token.
+		for (let hop = 0; hop < 3 && res.status >= 300 && res.status < 400; hop++) {
+			const location = res.headers.get("location");
+			if (!location) break;
+			res = await f(new URL(location, `https://${apiHost}/`).href, {
+				headers: { accept },
+				redirect: "manual",
+				signal: AbortSignal.timeout(30_000),
+			});
+		}
 		if (!res.ok)
 			throw new Failure(
 				"bad_request",

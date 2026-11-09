@@ -88,6 +88,41 @@ describe("manifestFromImage", () => {
 		).rejects.toThrow("is not a LogiStack plugin");
 	});
 
+	test("a blob redirect to storage is followed through the same fetch", async () => {
+		const seen: string[] = [];
+		const redirecting = async (url: string | URL | Request) => {
+			const u = String(url);
+			seen.push(u);
+			if (u.endsWith("/blobs/sha256:cfg"))
+				return new Response(null, {
+					status: 307,
+					headers: { location: "https://cdn.example/cfg?sig=1" },
+				});
+			if (u === "https://cdn.example/cfg?sig=1")
+				return registry("https://x/blobs/sha256:cfg");
+			return registry(url);
+		};
+		const r = await manifestFromImage(
+			{} as Db,
+			{} as CryptoKey,
+			"org",
+			"registry.example.com/acme/x:1.0",
+			undefined,
+			redirecting as typeof fetch,
+		);
+		expect(r.manifest.id).toBe("com.acme.x");
+		expect(seen).toContain("https://cdn.example/cfg?sig=1");
+	});
+
+	test("without a fetch, a registry on a private address is refused", async () => {
+		const db = {
+			select: () => ({ from: () => ({ where: async () => [] }) }),
+		} as unknown as Db;
+		await expect(
+			manifestFromImage(db, {} as CryptoKey, "org", "10.0.0.5:5000/acme/x:1.0"),
+		).rejects.toThrow("private address");
+	});
+
 	test("a missing tag says so", async () => {
 		await expect(
 			manifestFromImage(

@@ -2,7 +2,7 @@ import {
 	bridgeRouterLabels,
 	type CompileServiceInput,
 	compileService,
-	orgDbNetworkName,
+	orgNetworkName,
 	serviceFiles,
 } from "@logistack/core";
 import { migration, migrationBridge, node, service } from "@logistack/db";
@@ -29,11 +29,11 @@ import {
 } from "./load.ts";
 import { sourceSettings } from "./migration-source.ts";
 
-const notFound = (e: unknown) => e instanceof DockerError && e.notFound;
+export const notFound = (e: unknown) => e instanceof DockerError && e.notFound;
 const conflict = (e: unknown) => e instanceof DockerError && e.conflict;
 
 /** Inspect, create when missing, and re-inspect when a concurrent create won the race. */
-async function ensure<T>(
+export async function ensure<T>(
 	inspect: () => Promise<T | undefined>,
 	create: () => Promise<unknown>,
 ): Promise<T> {
@@ -115,7 +115,7 @@ export async function ensureStackNetwork(
 }
 
 /** Adds the network to each named Swarm service that lacks it; a rolling update of each. */
-async function attachServices(
+export async function attachServices(
 	ctx: Ctx,
 	netId: string,
 	name: string,
@@ -144,14 +144,25 @@ async function attachServices(
 }
 
 /**
- * The organization's database network, created on first use, with the api attached so the
- * explorer reaches its databases. Databases of other organizations are not on it.
+ * An organization's own network of a kind, created on first use, with the control-plane services
+ * that dial its members attached (a rolling update of each, once). Off a stack install (dev
+ * machines, test harnesses) those services do not exist and `fallback` is used instead.
  */
-export async function ensureOrgDbNetwork(
+async function ensureOrgNetwork(
 	ctx: Ctx,
+	kind: "db" | "ingress" | "storage" | "game",
 	organizationId: string,
-): Promise<string> {
-	const name = orgDbNetworkName(organizationId, ctx.cfg.LS_NAME_PREFIX);
+	services: string[],
+	fallback?: string,
+): Promise<string | undefined> {
+	if (fallback && !(await inspectService(ctx, services[0] as string))) {
+		const shared = await ctx.docker.networks.inspect(fallback).catch((e) => {
+			if (notFound(e)) return undefined;
+			throw e;
+		});
+		return shared?.Id;
+	}
+	const name = orgNetworkName(kind, organizationId, ctx.cfg.LS_NAME_PREFIX);
 	const net = await ensure(
 		() =>
 			ctx.docker.networks.inspect(name).catch((e) => {
@@ -174,11 +185,124 @@ export async function ensureOrgDbNetwork(
 				},
 			}),
 	);
-	// Only on a stack install; dev machines and test harnesses run the api outside Swarm.
-	await attachServices(ctx, net.Id, name, [
-		`${ctx.cfg.LS_STACK_NAME}_logistack-api`,
-	]);
+	await attachServices(ctx, net.Id, name, services);
 	return net.Id;
+}
+
+const apiService = (ctx: Ctx) => `${ctx.cfg.LS_STACK_NAME}_logistack-api`;
+const workerService = (ctx: Ctx) => `${ctx.cfg.LS_STACK_NAME}_logistack-worker`;
+
+/**
+ * The organization's database network, with the api attached so the explorer reaches its
+ * databases. Databases of other organizations are not on it.
+ */
+export async function ensureOrgDbNetwork(
+	ctx: Ctx,
+	organizationId: string,
+): Promise<string> {
+	return (await ensureOrgNetwork(ctx, "db", organizationId, [
+		apiService(ctx),
+	])) as string;
+}
+
+/** Its public services and the proxy, which reaches them by name. */
+export const ensureOrgIngressNetwork = (ctx: Ctx, organizationId: string) =>
+	ensureOrgNetwork(
+		ctx,
+		"ingress",
+		organizationId,
+		[ctx.cfg.LS_CADDY_SERVICE],
+		ctx.cfg.LS_INGRESS_NETWORK,
+	);
+
+/** Its storage services, the api (object browser, keys) and the worker (backups to them). */
+const ensureOrgStorageNetwork = (ctx: Ctx, organizationId: string) =>
+	ensureOrgNetwork(
+		ctx,
+		"storage",
+		organizationId,
+		[apiService(ctx), workerService(ctx)],
+		ctx.cfg.LS_STORAGE_NETWORK,
+	);
+
+/** Its game servers and the api, which dials their RCON and query ports. */
+const ensureOrgGameNetwork = (ctx: Ctx, organizationId: string) =>
+	ensureOrgNetwork(
+		ctx,
+		"game",
+		organizationId,
+		[apiService(ctx)],
+		ctx.cfg.LS_GAME_NETWORK,
+	);
+
+/** Ids of the shared networks; they never change once created. */
+const sharedIds = new Map<string, Promise<string | undefined>>();
+const sharedId = (ctx: Ctx, name: string) => {
+	let id = sharedIds.get(name);
+	if (!id) {
+		id = ctx.docker.networks
+			.inspect(name)
+			.then((n) => n.Id)
+			.catch(() => undefined);
+		sharedIds.set(name, id);
+	}
+	return id;
+};
+
+/**
+ * Releases before per-organization networks put every tenant's public, storage and game services
+ * on one shared network each. For a live service still on one: the targets to swap, shared (by id
+ * or name) to its organization's own. Empty when there is nothing to move.
+ */
+export async function sharedNetworkMoves(
+	ctx: Ctx,
+	organizationId: string,
+	targets: string[],
+): Promise<Map<string, string>> {
+	const moves = new Map<string, string>();
+	const kinds = [
+		[ctx.cfg.LS_INGRESS_NETWORK, ensureOrgIngressNetwork],
+		[ctx.cfg.LS_STORAGE_NETWORK, ensureOrgStorageNetwork],
+		[ctx.cfg.LS_GAME_NETWORK, ensureOrgGameNetwork],
+	] as const;
+	for (const [name, own] of kinds) {
+		const id = await sharedId(ctx, name);
+		if (!targets.some((t) => t === name || t === id)) continue;
+		const to = await own(ctx, organizationId);
+		if (!to || to === id) continue;
+		moves.set(name, to);
+		if (id) moves.set(id, to);
+	}
+	return moves;
+}
+
+/**
+ * `docker stack deploy` resets the control-plane services to the stack file, which names none of
+ * the organizations' networks: attach every existing one again (once per network, at boot).
+ */
+export async function reattachOrgNetworks(ctx: Ctx): Promise<void> {
+	const nets = await ctx.docker.networks.list({
+		label: [
+			"logistack.managed=true",
+			"logistack.kind=network",
+			...Object.entries(scope(ctx).labels).map(([k, v]) => `${k}=${v}`),
+		],
+	});
+	const prefix = `${ctx.cfg.LS_NAME_PREFIX}ls-`;
+	for (const n of nets) {
+		const kind = n.Name.startsWith(prefix)
+			? n.Name.slice(prefix.length).split("-")[0]
+			: undefined;
+		const services =
+			kind === "ingress"
+				? [ctx.cfg.LS_CADDY_SERVICE]
+				: kind === "storage"
+					? [apiService(ctx), workerService(ctx)]
+					: kind === "game" || kind === "db"
+						? [apiService(ctx)]
+						: [];
+		if (services.length) await attachServices(ctx, n.Id, n.Name, services);
+	}
 }
 
 async function ensureFiles(
@@ -277,16 +401,15 @@ export async function desiredInput(
 		sc.organizationId,
 		sc.service.environmentId,
 	);
-	const ingress = await ctx.docker.networks.inspect(ctx.cfg.LS_INGRESS_NETWORK);
+	const ingress = await ensureOrgIngressNetwork(ctx, sc.organizationId);
+	if (!ingress)
+		throw new Error(`network ${ctx.cfg.LS_INGRESS_NETWORK} not found`);
 	const storage =
 		sc.service.spec.kind === "storage"
-			? await ctx.docker.networks.inspect(ctx.cfg.LS_STORAGE_NETWORK)
+			? await ensureOrgStorageNetwork(ctx, sc.organizationId)
 			: undefined;
-	const optionalNetwork = (name: string) =>
-		ctx.docker.networks.inspect(name).catch((e) => {
-			if (notFound(e)) return undefined;
-			throw e;
-		});
+	if (sc.service.spec.kind === "storage" && !storage)
+		throw new Error(`network ${ctx.cfg.LS_STORAGE_NETWORK} not found`);
 	const db =
 		sc.service.spec.kind === "database"
 			? await ensureOrgDbNetwork(ctx, sc.organizationId)
@@ -298,7 +421,7 @@ export async function desiredInput(
 	// Optional too: without ls-game the server plays, only the panel's console and status can't reach it.
 	const game =
 		sc.service.spec.kind === "game"
-			? await optionalNetwork(ctx.cfg.LS_GAME_NETWORK)
+			? await ensureOrgGameNetwork(ctx, sc.organizationId)
 			: undefined;
 	// Until the source platform is decommissioned, its proxy and its remaining services reach a
 	// moved service by its old names on the source's network.
@@ -328,10 +451,10 @@ export async function desiredInput(
 	const input = compileInput(sc, deployment, {
 		networks: {
 			environment: envNet,
-			ingress: ingress.Id,
-			...(storage ? { storage: storage.Id } : {}),
+			ingress,
+			...(storage ? { storage } : {}),
 			...(db ? { db } : {}),
-			...(game ? { game: game.Id } : {}),
+			...(game ? { game } : {}),
 			...(bridge ? { bridge: bridge.Id } : {}),
 		},
 		...(bridge && moved && from

@@ -41,6 +41,7 @@ import {
 	requireInstanceAdmin,
 	requirePermission,
 } from "../scope.ts";
+import { hostsOverlap, orgHostnames } from "./domains.ts";
 
 // `privateKey`, not `keyPem`: the audit redactor masks keys matching /private/.
 const Upload = z.object({
@@ -365,7 +366,17 @@ export const certificates = router()
 						.groupBy(domain.customCertificateId)
 				: [];
 			const uses = new Map(used.map((u) => [u.id, u.n]));
-			const managed = await managedCertificates(config.REDIS_URL);
+			// The snapshot is instance-wide: show only names this organization routes.
+			const [managed, hosts] = await Promise.all([
+				managedCertificates(config.REDIS_URL),
+				orgHostnames(db, requireActor(c).organizationId),
+			]);
+			const own = managed.flatMap((m) => {
+				const names = m.names.filter((n) =>
+					hosts.some((h) => hostsOverlap(n, h)),
+				);
+				return names.length ? [{ ...m, names }] : [];
+			});
 			return c.json(
 				{
 					custom: rows.map((r) => {
@@ -381,7 +392,7 @@ export const certificates = router()
 							createdAt: r.createdAt.toISOString(),
 						};
 					}),
-					managed: managed.sort((a, b) => a.notAfter.localeCompare(b.notAfter)),
+					managed: own.sort((a, b) => a.notAfter.localeCompare(b.notAfter)),
 				},
 				200,
 			);

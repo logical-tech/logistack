@@ -1,11 +1,11 @@
 import type { StorageEngine, StorageSpec } from "@logistack/contracts";
 import {
-	decrypt,
 	dockerName,
-	encrypt,
 	STORAGE_ENV,
 	STORAGE_REGION,
+	seal,
 	storageEngineDefs,
+	unseal,
 } from "@logistack/core";
 import { domain, service } from "@logistack/db";
 import { type StorageClient, storageClient } from "@logistack/providers";
@@ -116,11 +116,14 @@ export async function openStorage(
 
 type SharePayload = { s: string; b: string; k: string; e: number };
 
+/** Binds the ciphertext to share links: no other value sealed with the master key opens as one. */
+const SHARE_AAD = "storage_share:v1";
+
 /** An opaque download token: the payload sealed with the master key, so it can be neither read nor forged. */
 export async function shareToken(deps: Deps, p: SharePayload): Promise<string> {
-	return Buffer.from(await encrypt(deps.masterKey, JSON.stringify(p))).toString(
-		"base64url",
-	);
+	return Buffer.from(
+		await seal(deps.masterKey, SHARE_AAD, JSON.stringify(p)),
+	).toString("base64url");
 }
 
 export async function readShareToken(
@@ -129,8 +132,9 @@ export async function readShareToken(
 ): Promise<SharePayload> {
 	try {
 		const p = JSON.parse(
-			await decrypt(
+			await unseal(
 				deps.masterKey,
+				SHARE_AAD,
 				Buffer.from(token, "base64url").toString("utf8"),
 			),
 		) as SharePayload;

@@ -7,6 +7,7 @@ import {
 	workFieldValue,
 	workOrgSettings,
 	workProject,
+	workShare,
 } from "@logistack/db";
 import { eq } from "drizzle-orm";
 import { hasDocker } from "./harness.ts";
@@ -216,6 +217,12 @@ describe.skipIf(!hasDocker)("work share links", () => {
 				)
 			).status,
 		).toBe(401);
+		// A new password ends the cookies the old one set.
+		await w.h.deps.db
+			.update(workShare)
+			.set({ passwordHash: await Bun.password.hash("new password 1") })
+			.where(eq(workShare.id, res.json.share.id));
+		expect((await page(`/share/${token}`, cookie)).status).toBe(401);
 	});
 
 	test("expired links and unknown tokens are gone; turning sharing off closes every link", async () => {

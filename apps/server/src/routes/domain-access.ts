@@ -73,6 +73,19 @@ const loadDomain = async (db: Parameters<typeof hostPolicy>[0], id: string) => {
 	return row;
 };
 
+/** Control-plane names on the proxy's networks; the proxy would ask them whatever the policy says. */
+const CONTROL_PLANE =
+	/^(tasks\.|ls-)|^(postgres|redis|caddy|logistack[-_][a-z0-9_-]+)$/;
+
+/** Why the proxy must not call this forward-auth URL, or null. Caddy's admin API listens on 2019. */
+export function forwardAuthRefusal(url: URL): string | null {
+	const host = url.hostname.toLowerCase().replace(/\.$/, "");
+	if (url.port === "2019") return "port 2019 is the proxy's admin API";
+	if (CONTROL_PLANE.test(host))
+		return `${host} is a LogiStack internal service`;
+	return null;
+}
+
 const tags = ["domains"];
 
 export const domainAccess = router()
@@ -108,7 +121,7 @@ export const domainAccess = router()
 				security,
 				summary: "Replace the domain's access rules",
 				description:
-					"At most one rule per type, checked in a fixed order: ip_allow (403 outside the ranges), then forward_auth, then basic_auth. ip_allow reads the connection address; X-Forwarded-For counts only from the rule's trustedProxies. A basic_auth user sent without a password keeps the one it has. The service's own basic auth (/services/{id}/basic-auth) still applies; its users and the domain's are merged. An empty list removes every rule.",
+					"At most one rule per type, checked in a fixed order: ip_allow (403 outside the ranges), then forward_auth, then basic_auth. ip_allow reads the connection address; X-Forwarded-For counts only from the rule's trustedProxies. A basic_auth user sent without a password keeps the one it has. The service's own basic auth (/services/{id}/basic-auth) still applies; its users and the domain's are merged. A forward_auth URL must resolve to an address the instance allows (private hosts follow its setting) and never to a LogiStack internal service. An empty list removes every rule.",
 				middleware: [requirePermission("write", byParam("domain"))],
 				request: {
 					params: IdParam,
@@ -133,6 +146,20 @@ export const domainAccess = router()
 					"bad_request",
 					"Through a Cloudflare Tunnel every request comes from cloudflared, so an IP allowlist cannot see the visitor",
 				);
+			const fa = rules.find((r) => r.type === "forward_auth");
+			if (fa) {
+				const url = new URL(fa.url);
+				const refused = forwardAuthRefusal(url);
+				if (refused) throw new Failure("bad_request", refused);
+				await resolvePublic(url.hostname, await hostPolicy(db)).catch(
+					(err: unknown) => {
+						throw new Failure(
+							"bad_request",
+							err instanceof Error ? err.message : String(err),
+						);
+					},
+				);
+			}
 			const kept = row.access.find((r) => r.type === "basic_auth")?.users ?? [];
 			const stored: AccessRule[] = await Promise.all(
 				rules.map(async (r) =>
@@ -171,6 +198,8 @@ export const domainAccess = router()
 		async (c) => {
 			const row = await loadDomain(c.var.deps.db, c.req.valid("param").id);
 			const url = new URL(c.req.valid("json").url);
+			const refused = forwardAuthRefusal(url);
+			if (refused) throw new Failure("bad_request", refused);
 			const policy = await hostPolicy(c.var.deps.db);
 			const init = {
 				headers: {

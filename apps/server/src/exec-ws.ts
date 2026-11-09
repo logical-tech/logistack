@@ -9,6 +9,7 @@ import { Failure } from "./errors.ts";
 import { parseJson } from "./events.ts";
 import { redisFor } from "./redis.ts";
 import { ExecTicket, execTicketKey } from "./routes/service-ops.ts";
+import { actorCan, locate } from "./scope.ts";
 
 const Control = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("input"), data: z.string().max(65_536) }),
@@ -50,6 +51,15 @@ export const terminal = new Hono<Env>().get(
 			ticket.data.actorId !== actor.id ||
 			ticket.data.organizationId !== actor.organizationId
 		)
+			throw new Failure("forbidden", "invalid or expired terminal ticket");
+		// The ticket is data in Redis: the right to a shell is re-checked on the service itself.
+		const resource = await locate(
+			c.var.deps.db,
+			actor.organizationId,
+			"service",
+			ticket.data.serviceId,
+		);
+		if (!actorCan(actor, "exec", resource))
 			throw new Failure("forbidden", "invalid or expired terminal ticket");
 		c.set("auditResourceId", ticket.data.serviceId);
 		c.set("auditDiff", ticket.data);

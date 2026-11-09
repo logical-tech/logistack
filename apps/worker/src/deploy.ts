@@ -425,7 +425,7 @@ async function runDeployment(
 				throw new Error(
 					"a multi-node swarm needs a registry: configure one before building",
 				);
-			const supported = await probeBuildkit(ctx, signal);
+			const supported = await probeBuildkit(ctx, signal, sc.organizationId);
 			const native = platformsOfArchs([supported[0]?.split("/")[1] ?? ""])[0];
 			if (!native)
 				throw new Error(
@@ -485,7 +485,12 @@ async function runDeployment(
 					});
 				}
 				await run(
-					[...ctx.cfg.LS_BUILDCTL, "--addr", buildkitAddr(ctx), ...plan.args],
+					[
+						...ctx.cfg.LS_BUILDCTL,
+						"--addr",
+						buildkitAddr(ctx, sc.organizationId),
+						...plan.args,
+					],
 					{
 						log: line,
 						signal,

@@ -1,7 +1,6 @@
-import nodemailer from "nodemailer";
 import { z } from "zod";
-import { DEFAULT_TIMEOUT_MS, type Deps, Http, ProviderError } from "../http.ts";
-import { emailConfig } from "./channels/email.ts";
+import { type Deps, Http, ProviderError } from "../http.ts";
+import { emailConfig, smtpTransport } from "./channels/email.ts";
 
 /** The instance mailer: an email channel's transport without recipients (plan 14.3). */
 export const instanceMailConfig = z.discriminatedUnion("transport", [
@@ -41,19 +40,9 @@ export async function sendMail(
 		);
 		return;
 	}
-	const timeout = deps?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-	const transport = nodemailer.createTransport({
-		host: config.host,
-		port: config.port,
-		secure: config.secure,
-		auth: config.username
-			? { user: config.username, pass: config.password }
-			: undefined,
-		connectionTimeout: timeout,
-		greetingTimeout: timeout,
-		socketTimeout: timeout,
-	});
+	let transport: Awaited<ReturnType<typeof smtpTransport>> | undefined;
 	try {
+		transport = await smtpTransport(config, deps);
 		await transport.sendMail({ from: config.from, ...message });
 	} catch (err) {
 		const e = err as { message?: string; responseCode?: number };
@@ -64,6 +53,6 @@ export async function sendMail(
 			e.responseCode,
 		);
 	} finally {
-		transport.close();
+		transport?.close();
 	}
 }

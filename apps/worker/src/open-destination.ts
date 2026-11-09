@@ -78,7 +78,11 @@ export async function openDestination(
 	if (dial) {
 		if (dial.plain && !(await allowPrivate(ctx)))
 			throw new Error("only https WebDAV servers are allowed");
-		await publicAddress(ctx, dial.host);
+		const address = await publicAddress(ctx, dial.host);
+		// SFTP dials the checked address, so a second DNS answer cannot move it (no TLS name to keep).
+		// shortcut: WebDAV still dials by name and follows redirects (rclone has no SNI or no-redirect
+		// option; it drops auth on redirect); proxy it through a pinning forwarder if that matters.
+		if (config.kind === "sftp") config.settings.host = address;
 	}
 	return rcloneDestination(config);
 }

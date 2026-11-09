@@ -2,6 +2,7 @@ import type {
 	CaddyAutomationPolicy,
 	CaddyConfig,
 	CaddyHandler,
+	CaddyHeaderOps,
 	CaddyIssuer,
 	CaddyLoadedPem,
 	CaddyMatcher,
@@ -151,12 +152,20 @@ export function compileProxy(input: ProxyInput): CaddyConfig {
 	const dashboardRoute: CaddyRoute = {
 		"@id": "ls-dashboard",
 		match: [{ host: [input.dashboard.hostname] }],
-		handle: [proxyTo(input.dashboard.upstream)],
+		// The connection's own address, overwriting anything the client sent: the api's sign-in
+		// limit and audit log key on it, and X-Forwarded-For is client-controlled whenever any
+		// domain on this shared server trusts a proxy.
+		handle: [
+			proxyTo(input.dashboard.upstream, {
+				set: { [CLIENT_IP_HEADER]: ["{http.request.remote.host}"] },
+			}),
+		],
 		terminal: true,
 	};
 
 	return {
-		admin: { listen: settings.adminListen },
+		// No autosave: the worker pushes the whole config, and a file on disk is one more copy of its secrets.
+		admin: { listen: settings.adminListen, config: { persist: false } },
 		logging: {
 			logs: {
 				default: {
@@ -337,7 +346,7 @@ function maintenanceHandler({
 							"Cache-Control": ["no-store"],
 							"Retry-After": ["300"],
 						},
-						body: page,
+						body: literal(page),
 					},
 				],
 			},
@@ -373,7 +382,7 @@ function errorRoutes(routes: ProxyRoute[]): Pick<CaddyServer, "errors"> {
 							"Content-Type": ["text/html; charset=utf-8"],
 							"Cache-Control": ["no-store"],
 						},
-						body: page,
+						body: literal(page),
 					},
 				],
 				terminal: true,
@@ -633,13 +642,17 @@ function compareRoutes(a: ProxyRoute, b: ProxyRoute): number {
  */
 export const UPSTREAM_TRY_DURATION = "30s";
 
-const proxyTo = (u: Upstream): CaddyHandler => ({
+/** Set by Caddy on every request to the dashboard; see `clientIp` in the api. */
+export const CLIENT_IP_HEADER = "X-Logistack-Client-Ip";
+
+const proxyTo = (u: Upstream, request?: CaddyHeaderOps): CaddyHandler => ({
 	handler: "reverse_proxy",
 	upstreams: [{ dial: `${u.host}:${u.port}` }],
 	load_balancing: {
 		try_duration: UPSTREAM_TRY_DURATION,
 		try_interval: "250ms",
 	},
+	...(request && { headers: { request } }),
 });
 const basicAuth = (
 	users: Extract<AccessRule, { type: "basic_auth" }>["users"],
@@ -653,6 +666,13 @@ const basicAuth = (
 		},
 	},
 });
+/**
+ * Caddy expands `{env.*}`, `{file.*}` and other placeholders in response bodies, so tenant text
+ * (error pages, maintenance messages, organization names) would read the proxy's environment and
+ * files. Escaped braces stay literal.
+ */
+export const literal = (s: string) => s.replace(/[{}]/g, (b) => `\\${b}`);
+
 const redirect = (location: string): CaddyHandler => ({
 	handler: "static_response",
 	status_code: 308,

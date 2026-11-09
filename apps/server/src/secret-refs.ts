@@ -7,8 +7,10 @@ import { decrypt } from "@logistack/core";
 import { envVar, secretProvider } from "@logistack/db";
 import { type DbOrTx, readSecretValues } from "@logistack/worker/secrets";
 import { and, eq, inArray } from "drizzle-orm";
+import type { Actor } from "./actor.ts";
 import type { Deps } from "./env.ts";
 import { Failure } from "./errors.ts";
+import { actorCan, organizationResource } from "./scope.ts";
 
 /**
  * Current values of a service's own variables `keys` (minted credentials): a reference reads its
@@ -49,12 +51,18 @@ export async function serviceEnvValues(
 	return out;
 }
 
-/** The columns of an external secret for `reference`, after checking its provider and path shape. */
+/**
+ * The columns of an external secret for `reference`, after checking its provider and path shape.
+ * A provider reads any path its token reaches, so pointing at a new one needs admin on the
+ * organization; `current` (the secret's columns now) lets an unchanged reference through.
+ */
 export async function externalColumns(
 	db: DbOrTx,
-	organizationId: string,
+	actor: Actor,
 	reference: string,
+	current?: { providerId: string | null; externalRef: string | null },
 ) {
+	const { organizationId } = actor;
 	const parsed = parseSecretReference(reference.trim());
 	if (!parsed.ok) throw new Failure("validation_failed", parsed.error);
 	const [p] = await db
@@ -73,9 +81,18 @@ export async function externalColumns(
 		);
 	const issue = secretReferenceIssue(p.kind, parsed.ref);
 	if (issue) throw new Failure("validation_failed", issue);
+	const externalRef = secretReferenceTail(parsed.ref);
+	if (
+		(current?.providerId !== p.id || current.externalRef !== externalRef) &&
+		!actorCan(actor, "admin", organizationResource(organizationId))
+	)
+		throw new Failure(
+			"forbidden",
+			"reading a secret from a provider needs admin on the organization",
+		);
 	return {
 		providerId: p.id,
-		externalRef: secretReferenceTail(parsed.ref),
+		externalRef,
 		externalFingerprint: null,
 		externalCheckedAt: null,
 		externalError: null,
