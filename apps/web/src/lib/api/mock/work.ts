@@ -2,6 +2,7 @@
 import type {
 	DueBucket,
 	FilterNode,
+	InstanceMail,
 	PmDoc,
 	PmNode,
 	WorkComment,
@@ -31,6 +32,18 @@ import {
 } from "./work-fixture";
 
 const w = createWorkFixture();
+
+const noMail: InstanceMail = {
+	configured: false,
+	transport: null,
+	host: null,
+	port: null,
+	secure: false,
+	username: null,
+	from: null,
+	hasSecret: false,
+};
+let mail = noMail;
 
 function delay<T>(value: T, ms = 120 + Math.random() * 220): Promise<T> {
 	return new Promise((resolve) =>
@@ -1348,6 +1361,53 @@ export const workMock: WorkApi = {
 			w.attachments = w.attachments.filter((a) => a.id !== id);
 			return delay(undefined);
 		},
+	},
+	attachmentSettings: {
+		get: async () =>
+			delay({
+				quotaGb: null,
+				quotaBytes: 2 * 1024 ** 3,
+				usedBytes: w.attachments.reduce((n, a) => n + a.size, 0),
+				destinationId: null,
+				maxMb: 25,
+				counts: { db: w.attachments.length, s3: 0 },
+			}),
+		update: async () => workMock.attachmentSettings.get(),
+		migrate: async () =>
+			fail(409, "conflict", "choose an S3 destination for attachments first"),
+	},
+	instanceMail: {
+		get: async () => delay(mail),
+		update: async (input) => {
+			mail = {
+				configured: true,
+				transport: input.transport,
+				host: input.transport === "smtp" ? input.host : null,
+				port: input.transport === "smtp" ? (input.port ?? 587) : null,
+				secure: input.transport === "smtp" ? (input.secure ?? false) : false,
+				username: input.transport === "smtp" ? (input.username ?? null) : null,
+				from: input.from,
+				hasSecret:
+					input.transport === "smtp"
+						? !!input.password || mail.hasSecret
+						: !!input.apiKey || mail.hasSecret,
+			};
+			w.prefs.mailAvailable = true;
+			return delay(mail);
+		},
+		remove: async () => {
+			mail = noMail;
+			w.prefs.mailAvailable = false;
+			w.prefs.email = "off";
+			return delay(mail);
+		},
+		test: async (input) =>
+			delay(
+				input.config?.transport === "smtp" && input.config.host.includes("fail")
+					? { ok: false, error: "connect ECONNREFUSED" }
+					: { ok: true, error: null },
+				700,
+			),
 	},
 	me: {
 		tasks: async ({ watching } = {}) => {

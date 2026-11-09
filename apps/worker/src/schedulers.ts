@@ -27,6 +27,8 @@ export type RunQueues = {
 	migration: Queue<MigrationJob>;
 	scan: Queue<ScanJob & { force?: boolean }>;
 	dbops: Queue<DbOpsJob>;
+	/** Work: instant emails, digests, attachment migrations (apps/worker/src/work-mail.ts). */
+	work: Queue;
 };
 
 const keep = { removeOnComplete: { count: 200 }, removeOnFail: { count: 500 } };
@@ -40,6 +42,7 @@ export function openRunQueues(redisUrl: string): RunQueues {
 		migration: new Queue<MigrationJob>(MIGRATION_QUEUE, { connection }),
 		scan: new Queue<ScanJob & { force?: boolean }>(SCAN_QUEUE, { connection }),
 		dbops: new Queue<DbOpsJob>(DBOPS_QUEUE, { connection }),
+		work: new Queue("work", { connection }),
 	};
 }
 

@@ -47,6 +47,7 @@ import { cutOver, rollBack } from "./migration.ts";
 import { startMonitoring } from "./monitoring.ts";
 import { createNodeRunner } from "./node-runner.ts";
 import { notifier } from "./notify.ts";
+import { openDestination } from "./open-destination.ts";
 import { queueWindowRun, scanAll } from "./patching.ts";
 import { reconcilePlugins } from "./plugins.ts";
 import { expirePreviews } from "./previews.ts";
@@ -78,6 +79,16 @@ import {
 	uptimeWorker,
 } from "./uptime.ts";
 import { processScanJob } from "./vulnscan.ts";
+import { migrateBlobs, orgDestinationId, workGc } from "./work-blobs.ts";
+import {
+	processDigest,
+	processMail,
+	WORK_CHANNEL,
+	WORK_QUEUE,
+	type WorkJob,
+	type WorkMailDeps,
+	workDueTick,
+} from "./work-mail.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
 
@@ -162,6 +173,21 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		log("error", "job failed", { queue, jobId: job?.id, error: err.message });
 
 	const schedules = await createScheduleRunner(ctx);
+	const workMail: WorkMailDeps = {
+		db: ctx.db,
+		masterKey: ctx.masterKey,
+		secret: cfg.LOGISTACK_MASTER_KEY,
+		queue: ctx.queues.work,
+		publishEvent: (type, org, resource, payload) =>
+			ctx.bus.publish(type, org, resource, payload),
+		publishRealtime: async (m) => {
+			await ctx.bus.redis.publish(WORK_CHANNEL, JSON.stringify(m));
+		},
+	};
+	const workDestination = async (organizationId: string) => {
+		const id = await orgDestinationId(ctx.db, organizationId);
+		return id ? openDestination(ctx, id) : null;
+	};
 	const notify = notifier(ctx);
 	const proxySync = coalesce(async () => {
 		await syncProxy(ctx);
@@ -219,6 +245,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 					);
 				else if (job.name === "patch-window")
 					await queueWindowRun(ctx, job.data.organizationId);
+				else if (job.name === "work-due") await workDueTick(workMail);
+				else if (job.name === "work-gc")
+					log("info", "work attachments collected", {
+						...(await workGc(ctx.db, new Date(), workDestination)),
+					});
 				else await sweepOrphans(ctx);
 			},
 			{
@@ -247,6 +278,24 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			{ connection, concurrency: 1 },
 		),
 		uptimeWorker(ctx, connection, cfg.LS_UPTIME_CONCURRENCY),
+		new Worker<WorkJob>(
+			WORK_QUEUE,
+			async (job) => {
+				const d = job.data;
+				if (d.name === "mail") await processMail(workMail, d.notificationId);
+				else if (d.name === "digest") await processDigest(workMail, d);
+				else {
+					const dest = await workDestination(d.organizationId);
+					if (!dest)
+						throw new Error("the organization has no attachment destination");
+					log("info", "work attachments moved", {
+						organizationId: d.organizationId,
+						moved: await migrateBlobs(ctx.db, d.organizationId, dest),
+					});
+				}
+			},
+			{ connection, concurrency: 4 },
+		),
 		new Worker("notify", (job) => notify.retry(job.data), {
 			connection,
 			concurrency: 8,
@@ -299,6 +348,17 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		"db-access-every",
 		{ every: 30_000 },
 		{ name: "db-access" },
+	);
+	// Work due dates and attachment GC: hourly / daily whatever the reconcile interval.
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"work-due",
+		{ every: 3_600_000 },
+		{ name: "work-due" },
+	);
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"work-gc",
+		{ every: 86_400_000 },
+		{ name: "work-gc" },
 	);
 	await ctx.queues.maintenance.upsertJobScheduler(
 		"plugins-every",

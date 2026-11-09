@@ -75,6 +75,7 @@ export const v1Columns: Column[] = [
 	col(aiProviderKey, aiProviderKey.secretEncrypted),
 	col(deployment, deployment.specSnapshotEncrypted),
 	col(instanceSettings, instanceSettings.caddyStorageKeyEncrypted),
+	col(instanceSettings, instanceSettings.mailEncrypted),
 ];
 
 const opens = async (key: CryptoKey, payload: string) =>

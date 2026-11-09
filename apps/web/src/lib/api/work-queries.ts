@@ -58,6 +58,8 @@ export const workKeys = {
 	myTasks: (watching: boolean) => ["work", "me", "tasks", watching] as const,
 	inbox: (unread: boolean) => ["work", "me", "inbox", unread] as const,
 	prefs: () => ["work", "me", "prefs"] as const,
+	attachmentSettings: () => ["work", "attachment-settings"] as const,
+	instanceMail: () => ["instance", "mail"] as const,
 	timer: () => ["work", "me", "timer"] as const,
 	search: (q: string, projectId?: string) =>
 		["work", "search", q, projectId ?? null] as const,
@@ -775,6 +777,48 @@ export const useRotateWorkIcal = () =>
 	useWorkMutation(
 		(w, _: undefined) => w.me.rotateIcal(),
 		() => [workKeys.prefs()],
+	);
+
+// Attachment storage and instance mail
+export const useWorkAttachmentSettings = (enabled = true) =>
+	useQuery({
+		queryKey: workKeys.attachmentSettings(),
+		queryFn: () => work().attachmentSettings.get(),
+		enabled,
+	});
+export const useUpdateWorkAttachmentSettings = () =>
+	useWorkMutation(
+		(w, input: Parameters<WorkApi["attachmentSettings"]["update"]>[0]) =>
+			w.attachmentSettings.update(input),
+		() => [workKeys.attachmentSettings()],
+	);
+export const useMigrateWorkAttachments = () =>
+	useWorkMutation(
+		(w, _: undefined) => w.attachmentSettings.migrate(),
+		() => [workKeys.attachmentSettings()],
+	);
+export const useInstanceMail = (enabled = true) =>
+	useQuery({
+		queryKey: workKeys.instanceMail(),
+		queryFn: () => work().instanceMail.get(),
+		enabled,
+	});
+export const useUpdateInstanceMail = () =>
+	useWorkMutation(
+		(w, input: Parameters<WorkApi["instanceMail"]["update"]>[0]) =>
+			w.instanceMail.update(input),
+		() => [workKeys.instanceMail(), workKeys.prefs()],
+	);
+export const useRemoveInstanceMail = () =>
+	useWorkMutation(
+		(w, _: undefined) => w.instanceMail.remove(),
+		() => [workKeys.instanceMail(), workKeys.prefs()],
+	);
+export const useTestInstanceMail = () =>
+	useWorkMutation(
+		(w, input: Parameters<WorkApi["instanceMail"]["test"]>[0]) =>
+			w.instanceMail.test(input),
+		() => [],
 	);
 
 // Time

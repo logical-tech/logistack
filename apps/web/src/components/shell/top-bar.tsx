@@ -1,5 +1,5 @@
 import { Link, useMatches, useNavigate } from "@tanstack/react-router";
-import { LogOut, Search, UserRound } from "lucide-react";
+import { Bell, LogOut, Search, UserRound } from "lucide-react";
 import { Fragment } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -110,6 +110,11 @@ function UserMenu() {
 						onSelect={() => navigate({ to: "/account/security" })}
 					>
 						<UserRound /> Account and security
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						onSelect={() => navigate({ to: "/account/notifications" })}
+					>
+						<Bell /> Notifications
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator />
