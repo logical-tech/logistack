@@ -926,14 +926,12 @@ describe.skipIf(!hasDocker)("work api", () => {
 		expect((await health()).status).toBe(403);
 		const get = () => w.ok("GET", w.work(`/projects/${project}/health`));
 		expect((await get()).health).toBe("unknown");
-		await w.db
-			.insert(serviceStatus)
-			.values({
-				serviceId: svc.id,
-				observed: "running",
-				replicasRunning: 2,
-				replicasDesired: 2,
-			});
+		await w.db.insert(serviceStatus).values({
+			serviceId: svc.id,
+			observed: "running",
+			replicasRunning: 2,
+			replicasDesired: 2,
+		});
 		const h = await get();
 		expect(Object.keys(h).sort()).toEqual(
 			Object.keys(ProjectHealth.shape).sort(),
@@ -959,14 +957,12 @@ describe.skipIf(!hasDocker)("work api", () => {
 			.where(eq(serviceStatus.serviceId, svc.id));
 		expect((await get()).health).toBe("degraded");
 		// A rollout under 10 minutes old isn't a degradation.
-		await w.db
-			.insert(deployment)
-			.values({
-				serviceId: svc.id,
-				status: "deploying",
-				trigger: "manual",
-				startedAt: new Date(Date.now() - 60_000),
-			});
+		await w.db.insert(deployment).values({
+			serviceId: svc.id,
+			status: "deploying",
+			trigger: "manual",
+			startedAt: new Date(Date.now() - 60_000),
+		});
 		expect((await get()).health).not.toBe("degraded");
 		await w.db
 			.update(serviceStatus)

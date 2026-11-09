@@ -24,10 +24,10 @@ const bool = (p: SQL) => sql`coalesce(${p}, false)`;
 const isPrimitive = (v: unknown): v is string | number | boolean =>
 	typeof v === "string" || typeof v === "number" || typeof v === "boolean";
 const values = (v: unknown) => (Array.isArray(v) ? v : [v]);
-const text = (v: unknown) => sql`${String(v)}::text collate "C"`;
+const text = (v: unknown) => sql`(${String(v)}::text collate "C")`;
 /** `left(x, 10)` when `x` starts with a date; NULL otherwise. */
 const datePart = (x: SQL) =>
-	sql`(case when ${x} ~ '^\\d{4}-\\d{2}-\\d{2}' then left(${x}, 10) end) collate "C"`;
+	sql`((case when ${x} ~ '^\\d{4}-\\d{2}-\\d{2}' then left(${x}, 10) end) collate "C")`;
 /** `x` as a number when it looks like one; NULL otherwise. */
 const numberOf = (x: SQL) =>
 	sql`(case when ${x} ~ '^-?\\d+(\\.\\d+)?$' then (${x})::numeric end)`;
@@ -53,14 +53,24 @@ function compare(c: FilterCondition, x: SQL, v: unknown): SQL {
 			return bool(sql`${d} > ${text(v)}`);
 		case "between": {
 			const [lo, hi] = values(v);
-			const num = numberOf(x);
+			const [nlo, nhi] = [Number(lo), Number(hi)];
+			// Comparing with NaN is false in JavaScript.
+			const num =
+				Number.isFinite(nlo) && Number.isFinite(nhi)
+					? sql`${numberOf(x)} between ${nlo}::numeric and ${nhi}::numeric`
+					: FALSE;
 			return bool(
-				sql`case when ${d} is not null then ${d} between ${text(lo)} and ${text(hi)} else ${num} between ${Number(lo)} and ${Number(hi)} end`,
+				sql`case when ${d} is not null then ${d} between ${text(lo)} and ${text(hi)} else ${num} end`,
 			);
 		}
 		default: {
 			const op = NUMERIC_OPS[c.op as keyof typeof NUMERIC_OPS];
-			return op ? bool(sql`${numberOf(x)} ${sql.raw(op)} ${Number(v)}`) : FALSE;
+			const n = Number(v);
+			if (!op) return FALSE;
+			// `x !== NaN` holds for every set value; every other comparison with NaN fails.
+			if (!Number.isFinite(n))
+				return c.op === "neq" ? sql`(${x} is not null)` : FALSE;
+			return bool(sql`${numberOf(x)} ${sql.raw(op)} ${n}::numeric`);
 		}
 	}
 }
