@@ -28,6 +28,7 @@ import {
 	LogOptions,
 	type StreamMessage,
 } from "./streams.ts";
+import { WORK_CHANNEL, type WorkMessage } from "./work/context.ts";
 
 export { websocket } from "hono/bun";
 
@@ -54,6 +55,8 @@ export type ServerMessage =
 	| { type: "data"; channel: string; data: LiveMessage }
 	/** Log lines of `deployment-log:<id>` and `service-logs:<id>`. */
 	| StreamMessage
+	/** Work changes, sent unasked to sockets that may `read:work` on the project (section 9). */
+	| WorkMessage
 	| {
 			type: "error";
 			channel?: string;
@@ -155,6 +158,32 @@ export function channelsOf(e: EventEnvelope): string[] {
 	return channels;
 }
 
+/**
+ * Whether a Work message may reach this socket's actor: `read:work` on its project, cached per
+ * project in `cache` (cleared on access changes); messages with `userId` go to that user only.
+ */
+export async function workVisible(
+	db: Db,
+	actor: Actor,
+	cache: Map<string, boolean>,
+	m: WorkMessage,
+): Promise<boolean> {
+	if (m.organizationId !== actor.organizationId) return false;
+	if (m.userId && m.userId !== actor.userId) return false;
+	let ok = cache.get(m.projectId);
+	if (ok === undefined) {
+		const resource = await locate(
+			db,
+			actor.organizationId,
+			"project",
+			m.projectId,
+		).catch(() => undefined);
+		ok = resource !== undefined && actorCan(actor, "read:work", resource);
+		cache.set(m.projectId, ok);
+	}
+	return ok;
+}
+
 /** Close code for a socket whose credential no longer reaches the organization. */
 export const ACCESS_REVOKED = 4403;
 
@@ -179,6 +208,9 @@ export const realtime = new Hono<Env>().get(
 		let unlisten: (() => void) | undefined;
 		let unlive: (() => void) | undefined;
 		let unaccess: (() => void) | undefined;
+		let unwork: (() => void) | undefined;
+		const workCache = new Map<string, boolean>();
+		let workQueue = Promise.resolve();
 		let closed = false;
 		let rechecks = Promise.resolve();
 		/** Applies a role, grant or membership change from any replica to this open socket. */
@@ -194,6 +226,7 @@ export const realtime = new Hono<Env>().get(
 			)
 				return ws.close(ACCESS_REVOKED, "access revoked");
 			actor = next;
+			workCache.clear();
 			for (const channel of [...subscribed]) {
 				const resource = await channelResource(db, actor, channel);
 				if (resource && actorCan(actor, "read", resource)) continue;
@@ -237,10 +270,29 @@ export const realtime = new Hono<Env>().get(
 							);
 					},
 				);
+				unwork = await cluster(c.var.deps.config.REDIS_URL).on(
+					WORK_CHANNEL,
+					(m) => {
+						const msg = m as WorkMessage | null;
+						if (msg?.type !== "work") return;
+						// In order, one check at a time, so a cache miss can't reorder messages.
+						workQueue = workQueue
+							.then(async () => {
+								if (!closed && (await workVisible(db, actor, workCache, msg)))
+									send(msg);
+							})
+							.catch((e) =>
+								log("error", "work message forward failed", {
+									error: String(e),
+								}),
+							);
+					},
+				);
 				if (closed) {
 					unlisten();
 					unlive();
 					unaccess();
+					unwork();
 				}
 			},
 			async onMessage(evt, ws) {
@@ -301,6 +353,7 @@ export const realtime = new Hono<Env>().get(
 				unlisten?.();
 				unlive?.();
 				unaccess?.();
+				unwork?.();
 			},
 		};
 	}),
