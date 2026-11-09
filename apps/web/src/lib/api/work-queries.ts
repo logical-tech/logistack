@@ -440,6 +440,18 @@ export const useReorderWorkViews = () =>
 
 type TaskPages = InfiniteData<WorkTaskPage, string | null>;
 
+/**
+ * Edits often spread a full task into a list row or a row into the full task. The one field
+ * whose shape differs is `dependencies` (row: `{blockedById, lagDays}[]`, full task:
+ * `{blockedBy, blocking}`), so each cache keeps its own; only a refetch changes it.
+ */
+function keepShape<T extends { dependencies?: unknown }>(
+	before: T,
+	after: T,
+): T {
+	return { ...after, dependencies: before.dependencies };
+}
+
 /** Applies `edit` to the task everywhere it's cached; returns a rollback. */
 export function patchCachedTask(
 	qc: QueryClient,
@@ -454,10 +466,11 @@ export function patchCachedTask(
 				...data,
 				pages: data.pages.map((p) => ({
 					...p,
-					items: p.items.map((t) => (t.id === id ? edit(t) : t)),
+					items: p.items.map((t) => (t.id === id ? keepShape(t, edit(t)) : t)),
 				})),
 			});
-	if (detail) qc.setQueryData(workKeys.task(id), edit(detail));
+	if (detail)
+		qc.setQueryData(workKeys.task(id), keepShape(detail, edit(detail)));
 	return () => {
 		for (const [key, data] of lists) qc.setQueryData(key, data);
 		if (detail) qc.setQueryData(workKeys.task(id), detail);
