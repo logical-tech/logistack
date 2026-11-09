@@ -57,8 +57,13 @@ const find = <T>(rows: T[], pred: (r: T) => boolean, what: string): T =>
 function seedProject(id: string) {
 	const slug = id.slice(4);
 	const name = slug.replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase());
-	let key = slug.replace(/[^a-z]/gi, "").slice(0, 4).toUpperCase() || "WORK";
-	while (w.projects.some((p) => p.key === key)) key = `${key.slice(0, 3)}${Math.floor(Math.random() * 9)}`;
+	let key =
+		slug
+			.replace(/[^a-z]/gi, "")
+			.slice(0, 4)
+			.toUpperCase() || "WORK";
+	while (w.projects.some((p) => p.key === key))
+		key = `${key.slice(0, 3)}${Math.floor(Math.random() * 9)}`;
 	const listId = `wls_${slug}_tasks`;
 	w.projects.push({
 		...(w.projects[0] as (typeof w.projects)[number]),
@@ -89,7 +94,10 @@ function seedProject(id: string) {
 	w.views.push(...defaultViews(id));
 }
 const project = (id: string) => {
-	if (!w.projects.some((p) => p.projectId === id) && /^prj_[a-z0-9_-]+$/.test(id))
+	if (
+		!w.projects.some((p) => p.projectId === id) &&
+		/^prj_[a-z0-9_-]+$/.test(id)
+	)
 		seedProject(id);
 	return find(w.projects, (p) => p.projectId === id, "project");
 };

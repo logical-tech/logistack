@@ -182,7 +182,7 @@ function General({ project }: { project: WorkProjectContext }) {
 						)}
 					>
 						{keyOk
-							? `Next task: ${key}-${42}`
+							? `Tasks look like ${key}-12`
 							: "2–10 letters or digits, starting with a letter"}
 					</span>
 				</form>
