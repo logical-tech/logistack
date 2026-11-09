@@ -1915,13 +1915,14 @@ export type WorkRoute = {
 	note?: string;
 };
 
-const r = (
-	method: WorkRoute["method"],
-	path: string,
+// Generic so method and path stay literal types: the server derives typed Hono routes from them.
+const r = <M extends WorkRoute["method"], P extends string>(
+	method: M,
+	path: P,
 	action: WorkAction,
 	operationId: string,
 	note?: string,
-): WorkRoute => ({
+): WorkRoute & { method: M; path: `/api/work${P}` } => ({
 	method,
 	path: `/api/work${path}`,
 	action,

@@ -67,16 +67,27 @@ z.ZodType.prototype.openapi.call(FilterNode, "WorkFilterNode");
 
 type Extra = Omit<RouteConfig, "method" | "path">;
 
+/** `/tasks/:id` → `/tasks/{id}`, as a type, so the app's typed client keeps literal paths. */
+type OpenApiPath<S extends string> =
+	S extends `${infer A}:${infer P}/${infer B}`
+		? `${A}{${P}}/${OpenApiPath<B>}`
+		: S extends `${infer A}:${infer P}`
+			? `${A}{${P}}`
+			: S;
+type Path<N extends WorkRouteName> = OpenApiPath<
+	(typeof table)[N]["path"] extends `/api${infer R}` ? R : never
+>;
+
 /** An OpenAPI route whose method, path and operation id come from the contracts' `workRoutes` table. */
-export function workRoute<const E extends Extra>(
-	name: WorkRouteName,
+export function workRoute<N extends WorkRouteName, const E extends Extra>(
+	name: N,
 	extra: E,
 ) {
 	const r = table[name];
 	return createRoute({
 		...extra,
-		method: r.method.toLowerCase() as "get",
-		path: r.path.slice("/api".length).replace(/:(\w+)/g, "{$1}"),
+		method: r.method.toLowerCase() as Lowercase<(typeof table)[N]["method"]>,
+		path: r.path.slice("/api".length).replace(/:(\w+)/g, "{$1}") as Path<N>,
 		operationId: r.operationId,
 		tags: ["work"],
 		security,
@@ -91,8 +102,8 @@ const skipAudit: MiddlewareHandler<Env> = async (c, next) => {
 };
 
 /** A mutating Work route; `audit` keeps its success rows in the audit log. */
-export function workMutation<const E extends Extra>(
-	name: WorkRouteName,
+export function workMutation<N extends WorkRouteName, const E extends Extra>(
+	name: N,
 	extra: E,
 	audit = false,
 ) {
