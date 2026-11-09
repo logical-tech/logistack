@@ -22,6 +22,8 @@ type Frame = { type?: string; channel?: string; data?: LiveMessage };
 type Listener = (msg: Frame) => void;
 
 const listeners = new Map<string, Set<Listener>>();
+/** Bare Work messages, pushed unasked by the server to every socket that may read them. */
+const workListeners = new Set<(msg: WorkRealtimeMessage) => void>();
 /** Subscribe options per channel, resent on every (re)subscribe. */
 const options = new Map<string, unknown>();
 let socket: WebSocket | undefined;
@@ -34,7 +36,7 @@ function send(msg: { type: "subscribe" | "unsubscribe"; channel: string }) {
 }
 
 function open() {
-	if (socket || listeners.size === 0) return;
+	if (socket || (listeners.size === 0 && workListeners.size === 0)) return;
 	const url = new URL("/ws", window.location.href);
 	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 	const ws = new WebSocket(url);
@@ -51,6 +53,10 @@ function open() {
 		} catch {
 			return;
 		}
+		if (msg.type === "work") {
+			for (const fn of workListeners) fn(msg as unknown as WorkRealtimeMessage);
+			return;
+		}
 		if (!msg.channel) return;
 		for (const fn of listeners.get(msg.channel) ?? []) fn(msg);
 	};
@@ -58,7 +64,7 @@ function open() {
 		// A socket closed on purpose has already been replaced or dropped.
 		if (socket !== ws) return;
 		socket = undefined;
-		if (listeners.size === 0) return;
+		if (listeners.size === 0 && workListeners.size === 0) return;
 		// Polling keeps the views fresh meanwhile; reconnect with a capped backoff.
 		retry = Math.min(retry + 1, 6);
 		setTimeout(open, 500 * 2 ** retry);
@@ -81,11 +87,14 @@ function listen(channel: string, fn: Listener, opts?: unknown): () => void {
 		listeners.delete(channel);
 		options.delete(channel);
 		send({ type: "unsubscribe", channel });
-		if (listeners.size === 0) {
-			socket?.close();
-			socket = undefined;
-		}
+		closeIfIdle();
 	};
+}
+
+function closeIfIdle() {
+	if (listeners.size || workListeners.size) return;
+	socket?.close();
+	socket = undefined;
 }
 
 /** Persisted `event` frames for one /ws channel (`migration:<id>`...). Returns the unsubscribe. */
@@ -122,14 +131,25 @@ export const subscribeStream = (
 	);
 
 /**
- * Work changes for one project (`work:<projectId>`, section 9). The hub may send them as `data`
- * frames or bare messages; both are accepted so the client doesn't depend on the framing.
+ * Every Work message this actor may read (section 9). The server pushes them as bare
+ * `{ type: "work", ... }` frames with no subscription; filter by `projectId` or `userId` yourself.
  */
+export function subscribeAllWork(
+	fn: (msg: WorkRealtimeMessage) => void,
+): () => void {
+	workListeners.add(fn);
+	open();
+	return () => {
+		workListeners.delete(fn);
+		closeIfIdle();
+	};
+}
+
+/** Work messages for one project. Returns the unsubscribe. */
 export const subscribeWork = (
 	projectId: string,
 	fn: (msg: WorkRealtimeMessage) => void,
 ) =>
-	listen(`work:${projectId}`, (m) => {
-		const msg = (m.data ?? m) as unknown as WorkRealtimeMessage;
-		if (msg && (msg as { type?: string }).type === "work") fn(msg);
+	subscribeAllWork((msg) => {
+		if (msg.projectId === projectId) fn(msg);
 	});

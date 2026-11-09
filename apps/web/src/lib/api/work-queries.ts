@@ -444,7 +444,7 @@ type TaskPages = InfiniteData<WorkTaskPage, string | null>;
 export function patchCachedTask(
 	qc: QueryClient,
 	id: string,
-	edit: <T extends WorkTaskListItem>(t: T) => T,
+	edit: <T extends Omit<WorkTaskListItem, "dependencies">>(t: T) => T,
 ): () => void {
 	const lists = qc.getQueriesData<TaskPages>({ queryKey: workKeys.tasks() });
 	const detail = qc.getQueryData<WorkTask>(workKeys.task(id));

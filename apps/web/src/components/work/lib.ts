@@ -196,7 +196,11 @@ export const personName = (
 ) => (id ? (people.find((p) => p.userId === id)?.name ?? "Former member") : "");
 
 /** The task with its status category, as core `matchesTask` reads it. */
-export const matchable = (t: WorkTaskListItem, statuses: WorkStatus[]) => ({
+/** Takes a list row or a full task: their `dependencies` differ (array of edges vs both directions). */
+export const matchable = (
+	t: Omit<WorkTaskListItem, "dependencies">,
+	statuses: WorkStatus[],
+) => ({
 	...t,
 	statusCategory: statuses.find((s) => s.id === t.statusId)?.category ?? "",
 	assigneeIds: t.assigneeIds ?? [],

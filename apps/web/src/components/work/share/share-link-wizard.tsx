@@ -88,7 +88,8 @@ export function ShareLinkDialog({
 					<div className="t-reveal grid gap-4">
 						<CopyField value={created.url} label="Copy link" />
 						<p className="text-sm text-muted-foreground">
-							Revoke it any time from Settings → Work → Share links.
+							Revoke it any time in the project's task settings, under Share
+							links.
 						</p>
 						<div className="flex justify-end">
 							<Button onClick={() => close(false)}>Done</Button>

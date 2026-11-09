@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { NewTaskDialog } from "./new-task-dialog";
-import { WORK_TIME_PATH } from "./shell/work-nav";
+import { SaveAsTemplateHost } from "./templates/save-as-template-wizard";
+import { useTimerToggle } from "./time/running-timer-pill";
+import { useWorkUserRefresh } from "./use-work-subscription";
 
 type Handler = (e: KeyboardEvent) => void;
 const registry = new Map<string, Handler[]>();
@@ -163,11 +165,14 @@ export function WorkShortcuts() {
 	useShortcut("g m", () => navigate({ to: "/work" }));
 	useShortcut("g i", () => navigate({ to: "/work/inbox" }));
 	useShortcut("g p", () => navigate({ to: "/work/projects" }));
-	useShortcut("g t", () => navigate({ to: WORK_TIME_PATH as "/work" }));
+	useShortcut("g t", () => navigate({ to: "/work/time" }));
+	useTimerToggle();
+	useWorkUserRefresh();
 	return (
 		<>
 			<ShortcutHelp open={help} onOpenChange={setHelp} />
 			<NewTaskDialog open={creating} onOpenChange={setCreating} />
+			<SaveAsTemplateHost />
 		</>
 	);
 }

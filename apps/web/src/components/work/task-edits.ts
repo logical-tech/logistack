@@ -41,7 +41,7 @@ export function useTaskEdits() {
 
 	async function optimistic(
 		id: string,
-		edit: <T extends WorkTaskListItem>(t: T) => T,
+		edit: <T extends Omit<WorkTaskListItem, "dependencies">>(t: T) => T,
 		run: () => Promise<unknown>,
 		what: string,
 	) {
@@ -68,7 +68,10 @@ export function useTaskEdits() {
 				.mutateAsync({ id: task.id, move: m })
 				.catch((e) => failed(task.key)(e)),
 
-		setAssignees: (task: WorkTaskListItem, ids: string[]) => {
+		setAssignees: (
+			task: Omit<WorkTaskListItem, "dependencies">,
+			ids: string[],
+		) => {
 			const before = task.assigneeIds ?? [];
 			const add = ids.filter((u) => !before.includes(u));
 			const remove = before.filter((u) => !ids.includes(u));
@@ -84,7 +87,7 @@ export function useTaskEdits() {
 			);
 		},
 
-		setTags: (task: WorkTaskListItem, ids: string[]) => {
+		setTags: (task: Omit<WorkTaskListItem, "dependencies">, ids: string[]) => {
 			const before = task.tagIds ?? [];
 			const add = ids.filter((u) => !before.includes(u));
 			const remove = before.filter((u) => !ids.includes(u));
@@ -100,7 +103,11 @@ export function useTaskEdits() {
 			);
 		},
 
-		setField: (task: WorkTaskListItem, fieldId: string, value: unknown) =>
+		setField: (
+			task: Omit<WorkTaskListItem, "dependencies">,
+			fieldId: string,
+			value: unknown,
+		) =>
 			optimistic(
 				task.id,
 				(t) => {

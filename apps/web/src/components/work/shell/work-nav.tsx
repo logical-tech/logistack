@@ -4,7 +4,9 @@
  */
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+	ChartGantt,
 	Clock,
+	Import,
 	Inbox,
 	LayoutGrid,
 	type LucideIcon,
@@ -45,11 +47,17 @@ export function useSurfaces() {
 	};
 }
 
+/** Owners, admins and project managers can import into a project they administer. */
+const IMPORT_ROLES = new Set(["owner", "admin", "manager"]);
+
 /**
- * Routes another part of Work owns (Time, Workload). shortcut: cast because their route files land
- * in a parallel branch; drop the cast once they exist in the route tree.
+ * Whether to offer Import. shortcut: role names only (a custom role holding `work:admin` doesn't
+ * see the link, though the page works); expose actions on /me to tighten this.
  */
-export const WORK_TIME_PATH = "/work/time";
+export function useCanImport() {
+	const { data: me } = useMe();
+	return !!me?.grants.some((g) => IMPORT_ROLES.has(g.role));
+}
 
 export function useInboxUnread() {
 	const inbox = useWorkInbox(true);
@@ -59,31 +67,33 @@ export function useInboxUnread() {
 const isActive = (pathname: string, to: string, exact = false) =>
 	exact ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
 
+type NavPath =
+	| "/work"
+	| "/work/inbox"
+	| "/work/time"
+	| "/work/workload"
+	| "/work/import"
+	| "/work/projects"
+	| "/account/security";
+
 function NavItem({
 	to,
 	icon: Icon,
 	label,
 	active,
 	badge,
-	params,
 }: {
-	to: string;
+	to: NavPath;
 	icon: LucideIcon;
 	label: string;
 	active: boolean;
 	badge?: number;
-	params?: Record<string, string>;
 }) {
 	const { isMobile, setOpenMobile } = useSidebar();
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton asChild isActive={active} tooltip={label}>
-				<Link
-					// Any Work path; the typed union is checked where the constants live.
-					to={to as "/"}
-					params={params as never}
-					onClick={() => isMobile && setOpenMobile(false)}
-				>
+				<Link to={to} onClick={() => isMobile && setOpenMobile(false)}>
 					<Icon
 						strokeWidth={active ? 2 : 1.75}
 						className={cn(!active && "text-muted-foreground")}
@@ -159,7 +169,36 @@ function ProjectItems({ variant }: { variant: "work" | "ops" }) {
 	);
 }
 
-/** "Tasks" in the ops sidebar: My tasks, Inbox, then projects with open-task counts. */
+/** Time, Workload and (for project admins) Import: the same three in both shells. */
+function ToolItems({ pathname }: { pathname: string }) {
+	const canImport = useCanImport();
+	return (
+		<>
+			<NavItem
+				to="/work/time"
+				icon={Clock}
+				label="Time"
+				active={isActive(pathname, "/work/time")}
+			/>
+			<NavItem
+				to="/work/workload"
+				icon={ChartGantt}
+				label="Workload"
+				active={isActive(pathname, "/work/workload")}
+			/>
+			{canImport && (
+				<NavItem
+					to="/work/import"
+					icon={Import}
+					label="Import"
+					active={isActive(pathname, "/work/import")}
+				/>
+			)}
+		</>
+	);
+}
+
+/** "Tasks" in the ops sidebar: My tasks, Inbox, the tools, then projects with open-task counts. */
 export function WorkNavGroup() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const unread = useInboxUnread();
@@ -181,6 +220,7 @@ export function WorkNavGroup() {
 						badge={unread}
 						active={isActive(pathname, "/work/inbox")}
 					/>
+					<ToolItems pathname={pathname} />
 					<ProjectItems variant="ops" />
 				</SidebarMenu>
 			</SidebarGroupContent>
@@ -214,12 +254,7 @@ export function WorkSidebar() {
 								badge={unread}
 								active={isActive(pathname, "/work/inbox")}
 							/>
-							<NavItem
-								to={WORK_TIME_PATH}
-								icon={Clock}
-								label="Time"
-								active={isActive(pathname, "/work/time")}
-							/>
+							<ToolItems pathname={pathname} />
 						</SidebarMenu>
 					</SidebarGroupContent>
 				</SidebarGroup>

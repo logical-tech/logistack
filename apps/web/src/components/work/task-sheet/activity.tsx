@@ -21,7 +21,7 @@ import {
 	SmilePlus,
 	Trash2,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Segmented } from "@/components/segmented";
 import { Button } from "@/components/ui/button";
@@ -422,6 +422,7 @@ export function Composer({
 	onSent,
 	autofocus,
 	placeholder = "Write a comment. @ mentions, # links a task, paste a screenshot.",
+	draft,
 }: {
 	taskId: string;
 	project: WorkProjectContext;
@@ -429,11 +430,18 @@ export function Composer({
 	onSent?: () => void;
 	autofocus?: boolean;
 	placeholder?: string;
+	/** A draft to put in the composer (an AI summary); each new object replaces the text. */
+	draft?: PmDoc | null;
 }) {
 	const create = useCreateWorkComment();
 	const [doc, setDoc] = useState<PmDoc | null>(null);
 	const [uploads, setUploads] = useState<string[]>([]);
 	const editor = useRef<Editor | null>(null);
+	useEffect(() => {
+		if (!draft) return;
+		editor.current?.chain().setContent(draft).focus("end").run();
+		setDoc(draft);
+	}, [draft]);
 	const send = async () => {
 		if (!doc || emptyDoc(doc) || create.isPending) return;
 		try {

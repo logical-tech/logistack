@@ -6,6 +6,7 @@
 import type { PmDoc, WorkTask } from "@logistack/contracts";
 import { useIsMutating, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
+import type { Editor } from "@tiptap/react";
 import {
 	Archive,
 	Copy,
@@ -18,7 +19,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TextMorph } from "torph/react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -53,10 +54,13 @@ import {
 	workKeys,
 } from "@/lib/api/work-queries";
 import { cn } from "@/lib/utils";
+import { TaskAiActions } from "../ai/task-ai-actions";
+import { TaskDevelopmentSection } from "../git/task-development-section";
 import { ColorDot, TaskKey } from "../parts";
 import { useSurfaces } from "../shell/work-nav";
 import { useShortcut } from "../shortcuts";
 import { useTaskEdits } from "../task-edits";
+import { requestSaveAsTemplate } from "../templates/save-as-template-wizard";
 import { useWorkProjectContext } from "../use-work-project";
 import { useWorkSubscription } from "../use-work-subscription";
 import type { WorkProjectContext } from "../views/types";
@@ -189,6 +193,11 @@ function TaskSheet({
 	const create = useCreateWorkTask();
 	const uploadFiles = useUploadFiles(task);
 	const [deleting, setDeleting] = useState(false);
+	const [commentDraft, setCommentDraft] = useState<PmDoc | null>(null);
+	const descEditor = useRef<Editor | null>(null);
+	const setDescEditor = useCallback((e: Editor | null) => {
+		descEditor.current = e;
+	}, []);
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const [dragging, setDragging] = useState(false);
 	const [conflict, setConflict] = useState<{
@@ -389,14 +398,14 @@ function TaskSheet({
 									Make it a top-level task
 								</DropdownMenuItem>
 							)}
-							{can && (
+							{project.canAdmin && (
 								<DropdownMenuItem
 									onSelect={() =>
-										window.dispatchEvent(
-											new CustomEvent("work:save-as-template", {
-												detail: { taskId: task.id },
-											}),
-										)
+										requestSaveAsTemplate({
+											source: { kind: "task", taskId: task.id },
+											projectId: project.id,
+											defaultName: task.title,
+										})
 									}
 								>
 									Save as template…
@@ -517,6 +526,32 @@ function TaskSheet({
 							{task.key} in {project.name}
 						</SheetDescription>
 						<Properties task={task} project={project} edits={edits} me={myId} />
+						{can && (
+							<TaskAiActions
+								taskId={task.id}
+								onDraftComment={setCommentDraft}
+								onDescription={(doc) =>
+									// Lands in the editor like typing, so the usual autosave keeps it.
+									descEditor.current
+										?.chain()
+										.setContent(doc, { emitUpdate: true })
+										.focus("end")
+										.run()
+								}
+								onCreateSubtasks={async (items) => {
+									for (const s of items)
+										await create.mutateAsync({
+											listId: task.listId,
+											parentId: task.id,
+											title: s.title,
+											estimateMinutes: s.estimateMinutes,
+										});
+									toast.success(
+										`${items.length} subtask${items.length === 1 ? "" : "s"} created`,
+									);
+								}}
+							/>
+						)}
 					</div>
 
 					<section aria-label="Description" className="grid gap-2">
@@ -536,6 +571,7 @@ function TaskSheet({
 								people={project.people}
 								projectId={project.id}
 								placeholder="Add a description. Paste screenshots, @mention people, # link tasks."
+								editorRef={setDescEditor}
 								onChange={(doc) => {
 									pendingDesc.current = doc;
 									clearTimeout(descTimer.current);
@@ -569,6 +605,12 @@ function TaskSheet({
 					/>
 					<Checklist task={task} project={project} me={myId} />
 					<Dependencies task={task} project={project} />
+					<TaskDevelopmentSection
+						projectId={project.id}
+						taskKey={task.key}
+						title={task.title}
+						git={task.git}
+					/>
 					<Attachments task={task} project={project} />
 					<Activity taskId={task.id} project={project} me={myId} />
 				</div>
@@ -578,6 +620,7 @@ function TaskSheet({
 				<Composer
 					taskId={task.id}
 					project={project}
+					draft={commentDraft}
 					onSent={() =>
 						requestAnimationFrame(() =>
 							bodyRef.current?.scrollTo({

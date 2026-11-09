@@ -994,6 +994,10 @@ export const WorkTaskListItem = z.object({
 	blocked: z.boolean().optional(),
 	/** Seconds tracked (phase 4), with `include=counts`. */
 	trackedSec: z.number().int().optional(),
+	/** What blocks this task, with `include=dependencies`. */
+	dependencies: z
+		.array(z.object({ blockedById: z.string(), lagDays: z.number() }))
+		.optional(),
 });
 export type WorkTaskListItem = z.infer<typeof WorkTaskListItem>;
 
