@@ -129,7 +129,7 @@ export function createAuth(config: Config, db: Db) {
 			useSecureCookies:
 				config.SECURE_COOKIES === "true" ||
 				(config.SECURE_COOKIES === "auto" &&
-					process.env.NODE_ENV === "production"),
+					config.BETTER_AUTH_URL.startsWith("https://")),
 		},
 		// better-auth's own limiter counts in this process only; limitCredentials counts in Redis instead.
 		rateLimit: { enabled: false },

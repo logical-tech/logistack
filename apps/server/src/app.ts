@@ -266,7 +266,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	app.openAPIRegistry.registerComponent("securitySchemes", "session", {
 		type: "apiKey",
 		in: "cookie",
-		// `__Secure-better-auth.session_token` in production (SECURE_COOKIES).
+		// `__Secure-better-auth.session_token` when BETTER_AUTH_URL is https (SECURE_COOKIES).
 		name: "better-auth.session_token",
 	});
 	app.openAPIRegistry.registerComponent("securitySchemes", "apiKey", {
