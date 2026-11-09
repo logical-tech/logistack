@@ -33,6 +33,7 @@ import {
 	ProjectSections,
 	sectionPanel,
 	useProjectPluginTabs,
+	useSectionsShown,
 } from "@/components/projects/project-sections";
 import { ServiceList } from "@/components/projects/service-list";
 import { SignalStrip } from "@/components/signal-strip";
@@ -139,6 +140,7 @@ function ProjectDetail() {
 	const [creatingEnv, setCreatingEnv] = useState(false);
 	const [archiving, setArchiving] = useState(false);
 	const pluginTabs = useProjectPluginTabs();
+	const sectionsShown = useSectionsShown(pluginTabs);
 	const setArchived = useSetArchived(projectId);
 	const toggleArchived = (archived: boolean) =>
 		setArchived.mutate(archived, {
@@ -318,7 +320,7 @@ function ProjectDetail() {
 				value="services"
 				tabs={pluginTabs}
 			/>
-			<div {...sectionPanel(pluginTabs.length > 0, "services")}>
+			<div {...sectionPanel(sectionsShown, "services")}>
 				{archived && (
 					<div
 						role="status"

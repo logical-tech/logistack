@@ -153,7 +153,7 @@ export function defaultViews(projectId: string): WorkView[] {
 	return [
 		{
 			...base,
-			id: `wvw_${projectId}_list`,
+			id: `wvw_${projectId.slice(4)}_list`,
 			name: "List",
 			kind: "table",
 			config: defaultViewConfig(),
@@ -162,7 +162,7 @@ export function defaultViews(projectId: string): WorkView[] {
 		},
 		{
 			...base,
-			id: `wvw_${projectId}_board`,
+			id: `wvw_${projectId.slice(4)}_board`,
 			name: "Board",
 			kind: "board",
 			config: defaultViewConfig(),
@@ -170,7 +170,7 @@ export function defaultViews(projectId: string): WorkView[] {
 		},
 		{
 			...base,
-			id: `wvw_${projectId}_timeline`,
+			id: `wvw_${projectId.slice(4)}_timeline`,
 			name: "Timeline",
 			kind: "timeline",
 			config: defaultViewConfig({ groupBy: null }),
@@ -178,7 +178,7 @@ export function defaultViews(projectId: string): WorkView[] {
 		},
 		{
 			...base,
-			id: `wvw_${projectId}_calendar`,
+			id: `wvw_${projectId.slice(4)}_calendar`,
 			name: "Calendar",
 			kind: "calendar",
 			config: defaultViewConfig({ groupBy: null }),
@@ -496,6 +496,242 @@ const seeds: Record<string, Seed[]> = {
 		],
 	],
 };
+
+/** A small seeded PRNG so the generated tasks are the same on every load. */
+function prng(seed: number) {
+	let a = seed;
+	return () => {
+		a = (a + 0x6d2b79f5) | 0;
+		let t = Math.imul(a ^ (a >>> 15), 1 | a);
+		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
+const POOLS: Record<
+	string,
+	{ lists: string[]; titles: string[]; tags: string[] }
+> = {
+	prj_shop: {
+		lists: ["launch", "launch", "backlog", "bugs"],
+		titles: [
+			"Size guide modal",
+			"Newsletter popup timing",
+			"Free shipping progress bar",
+			"Cookie banner copy",
+			"Abandoned cart email",
+			"Product schema markup",
+			"Faster category filters",
+			"Return policy page",
+			"Bundle discounts",
+			"Back-in-stock alerts",
+			"Order tracking page",
+			"Gift wrap option",
+			"VAT on invoices",
+			"Coupon field on mobile",
+			"Image CDN migration",
+			"Sitemap for variants",
+			"Wishlist share link",
+			"Checkout error messages",
+			"Klarna instalments",
+			"Low stock badge",
+			"Customer accounts merge",
+			"Analytics funnel events",
+			"Store locator map",
+			"Address book in account",
+			"Recently viewed strip",
+			"Fix flaky payment webhook",
+			"Translate checkout to German",
+			"Accessibility audit fixes",
+			"Lighthouse score above 90",
+			"Product video support",
+			"Search suggestions",
+			"Price drop emails",
+			"Inventory sync with ERP",
+			"Holiday banner",
+			"Black Friday landing",
+			"Loyalty points pilot",
+			"Refund automation",
+			"Fraud rules review",
+			"Mobile app deep links",
+			"Admin bulk price edit",
+		],
+		tags: ["frontend", "backend", "payments"],
+	},
+	prj_blog: {
+		lists: ["content", "content", "design"],
+		titles: [
+			"Interview with the founder",
+			"Case study: Nordwind",
+			"Photo shoot brief",
+			"Category landing pages",
+			"Comment moderation rules",
+			"Podcast episode page",
+			"RSS feed cleanup",
+			"Author archive template",
+			"Reading time estimate",
+			"Related posts block",
+			"Cookie-free analytics",
+			"Social cards per post",
+			"Pull quotes style",
+			"Newsletter archive",
+			"Footer redesign",
+			"Image credits field",
+			"Old tag cleanup",
+			"Print stylesheet",
+			"Guest author guidelines",
+			"Search results page",
+		],
+		tags: ["seo", "copy"],
+	},
+	prj_brand: {
+		lists: ["identity", "guide", "guide"],
+		titles: [
+			"Business card layout",
+			"Letterhead",
+			"Email signature",
+			"Social avatar set",
+			"Pitch deck template",
+			"Packaging mockups",
+			"Signage guidelines",
+			"Tone of voice page",
+			"Illustration style",
+			"Motion principles",
+			"Logo misuse examples",
+			"Co-branding rules",
+			"Photography mood board",
+			"Merch sketches",
+			"Trade show booth",
+		],
+		tags: ["print"],
+	},
+};
+
+/** Fills each project up to `count` tasks with plausible ones spread over three months. */
+function generateSeeds(
+	projectId: string,
+	from: number,
+	count: number,
+	seed: number,
+): Seed[] {
+	const pool = POOLS[projectId];
+	if (!pool) return [];
+	const rnd = prng(seed);
+	const pick = <T>(xs: readonly T[]) => xs[Math.floor(rnd() * xs.length)] as T;
+	const statuses: (keyof typeof S)[] = [
+		"backlog",
+		"todo",
+		"todo",
+		"doing",
+		"review",
+		"done",
+		"done",
+		"cancelled",
+	];
+	const priorities: WorkPriority[] = [
+		"urgent",
+		"high",
+		"normal",
+		"normal",
+		"normal",
+		"low",
+		"none",
+	];
+	return Array.from({ length: count }, (_, i): Seed => {
+		const status = pick(statuses);
+		const start = Math.round(rnd() * 80) - 40;
+		const length = 1 + Math.round(rnd() * 12);
+		const dated = rnd() > 0.15;
+		const who = rnd() > 0.2 ? [Math.floor(rnd() * 4)] : [];
+		if (rnd() > 0.8) who.push((who[0] ?? 0) + 1);
+		return [
+			pick(pool.lists),
+			pool.titles[(from + i) % pool.titles.length] ?? `Task ${from + i}`,
+			status,
+			pick(priorities),
+			who,
+			dated && rnd() > 0.3 ? start : null,
+			dated ? start + length : null,
+			{
+				estimate: rnd() > 0.5 ? 60 * (1 + Math.floor(rnd() * 8)) : undefined,
+				tags: rnd() > 0.5 ? [pick(pool.tags)] : undefined,
+				fields:
+					projectId === "prj_shop" && rnd() > 0.5
+						? { client: pick(["opt_retail", "opt_wholesale", "opt_internal"]) }
+						: undefined,
+			},
+		];
+	});
+}
+
+const SHOP_42: Seed = [
+	"launch",
+	"Product page redesign",
+	"doing",
+	"high",
+	[1, 2],
+	-7,
+	6,
+	{
+		estimate: 960,
+		tags: ["frontend"],
+		fields: {
+			client: "opt_retail",
+			budget: "3200.00",
+			reviewer: "usr_giulia",
+			approved: true,
+		},
+	},
+];
+
+// Shop: 18 hand-written, generated up to 41, the showcase task 42 with three subtasks, then more.
+seeds.prj_shop?.push(
+	...generateSeeds("prj_shop", 0, 23, 7),
+	SHOP_42,
+	[
+		"launch",
+		"Gallery with zoom and swipe",
+		"done",
+		"normal",
+		[2],
+		-7,
+		-2,
+		{ parent: 42 },
+	],
+	[
+		"launch",
+		"Sticky add-to-cart on mobile",
+		"doing",
+		"high",
+		[1],
+		-3,
+		3,
+		{ parent: 42 },
+	],
+	[
+		"launch",
+		"Reviews summary block",
+		"todo",
+		"normal",
+		[3],
+		2,
+		6,
+		{ parent: 42 },
+	],
+	...generateSeeds("prj_shop", 23, 18, 11),
+);
+seeds.prj_blog?.push(...generateSeeds("prj_blog", 0, 20, 23));
+seeds.prj_brand?.push(...generateSeeds("prj_brand", 0, 15, 31));
+
+/** A flat, wireframe-like screenshot as an SVG data URL (the mock has no files to serve). */
+function mockShot(title: string, accent: string, variant: number): string {
+	const blocks =
+		variant === 0
+			? `<rect x="40" y="96" width="420" height="420" rx="14" fill="#e9ecf2"/><rect x="60" y="440" width="70" height="56" rx="8" fill="#d8dde6"/><rect x="140" y="440" width="70" height="56" rx="8" fill="#d8dde6"/><rect x="220" y="440" width="70" height="56" rx="8" fill="${accent}" opacity=".35"/><rect x="500" y="110" width="360" height="28" rx="6" fill="#1f2430"/><rect x="500" y="156" width="140" height="22" rx="6" fill="${accent}"/><rect x="500" y="210" width="380" height="12" rx="6" fill="#c9ced8"/><rect x="500" y="234" width="340" height="12" rx="6" fill="#c9ced8"/><rect x="500" y="258" width="360" height="12" rx="6" fill="#c9ced8"/><rect x="500" y="310" width="110" height="40" rx="10" fill="#fff" stroke="#c9ced8"/><rect x="620" y="310" width="110" height="40" rx="10" fill="#fff" stroke="#c9ced8"/><rect x="500" y="380" width="380" height="54" rx="12" fill="#1f2430"/>`
+			: `<rect x="40" y="96" width="840" height="60" rx="10" fill="#e9ecf2"/><rect x="40" y="180" width="260" height="300" rx="12" fill="#e9ecf2"/><rect x="320" y="180" width="260" height="300" rx="12" fill="#e9ecf2"/><rect x="600" y="180" width="280" height="300" rx="12" fill="${accent}" opacity=".18"/><rect x="620" y="420" width="240" height="40" rx="10" fill="${accent}"/><circle cx="110" cy="250" r="34" fill="#d8dde6"/><circle cx="390" cy="250" r="34" fill="#d8dde6"/>`;
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="920" height="560" viewBox="0 0 920 560"><rect width="920" height="560" fill="#f7f8fa"/><rect width="920" height="56" fill="#fff"/><circle cx="30" cy="28" r="6" fill="#ff5f57"/><circle cx="50" cy="28" r="6" fill="#febc2e"/><circle cx="70" cy="28" r="6" fill="#28c840"/><rect x="330" y="18" width="260" height="20" rx="10" fill="#eef0f4"/><text x="460" y="33" font-family="Inter, sans-serif" font-size="11" text-anchor="middle" fill="#8a909c">${title}</text>${blocks}</svg>`;
+	return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 export function createWorkFixture() {
 	const seed: Pick<
@@ -1141,6 +1377,235 @@ export function createWorkFixture() {
 			updatedAt: isoAgo(60 * 24 * 90),
 		},
 	];
+
+	// The showcase task, SHOP-42: rich description with an inline screenshot, a gallery,
+	// a discussion with a reply, reactions and a resolved question, a checklist and blockers.
+	const shop42 = tasks.find((t) => t.id === "tsk_shop_42");
+	if (shop42) {
+		const shot = (
+			id: string,
+			name: string,
+			title: string,
+			variant: number,
+			inlineIn: "description" | "none",
+			commentId: string | null = null,
+			minutes = 60 * 30,
+		): WorkAttachment => {
+			const url = mockShot(title, variant ? "#2a78d6" : "#0f97a8", variant);
+			return {
+				id,
+				projectId: "prj_shop",
+				taskId: "tsk_shop_42",
+				commentId,
+				inlineIn,
+				uploaderId: "usr_giulia",
+				name,
+				contentType: "image/png",
+				size: 248_000 + variant * 31_000,
+				width: 920,
+				height: 560,
+				url,
+				thumbUrl: url,
+				createdAt: isoAgo(minutes),
+			};
+		};
+		attachments.push(
+			shot(
+				"wat_shop42_hero",
+				"product-page-v3.png",
+				"shop.acme.studio/products/linen-shirt",
+				0,
+				"description",
+			),
+			shot(
+				"wat_shop42_desk",
+				"desktop-layout.png",
+				"Desktop layout",
+				0,
+				"none",
+			),
+			shot(
+				"wat_shop42_cart",
+				"mobile-cart.png",
+				"Sticky add to cart",
+				1,
+				"none",
+			),
+			shot(
+				"wat_shop42_reply",
+				"variant-b.png",
+				"Variant B",
+				1,
+				"none",
+				"wcm_42_3",
+				60 * 3,
+			),
+		);
+		shop42.description = {
+			type: "doc",
+			content: [
+				{
+					type: "paragraph",
+					content: [
+						{
+							type: "text",
+							text: "The product page converts at 1.8%, half of the category average. This redesign puts the photos first, keeps the price and the add-to-cart in view on mobile, and answers the sizing question before people have to ask.",
+						},
+					],
+				},
+				{
+					type: "heading",
+					attrs: { level: 2 },
+					content: [{ type: "text", text: "What changes" }],
+				},
+				{
+					type: "bulletList",
+					content: [
+						"Full-width gallery with swipe and pinch zoom",
+						"Sticky add-to-cart bar on mobile",
+						"Size guide inline, next to the size picker",
+						"Reviews summary above the fold",
+					].map((text) => ({
+						type: "listItem",
+						content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+					})),
+				},
+				{
+					type: "image",
+					attrs: {
+						src: "/api/work/attachments/wat_shop42_hero",
+						alt: "Product page, version 3",
+					},
+				},
+				{
+					type: "heading",
+					attrs: { level: 2 },
+					content: [{ type: "text", text: "Done when" }],
+				},
+				{
+					type: "taskList",
+					content: [
+						["Lighthouse mobile score at 90 or more", true],
+						["No layout shift while the gallery loads", false],
+						["Client signs off the copy", false],
+					].map(([text, checked]) => ({
+						type: "taskItem",
+						attrs: { checked },
+						content: [
+							{
+								type: "paragraph",
+								content: [{ type: "text", text: String(text) }],
+							},
+						],
+					})),
+				},
+				{
+					type: "paragraph",
+					content: [
+						{ type: "text", text: "Copy comes from " },
+						{
+							type: "mention",
+							attrs: { id: "usr_tom", label: "Tom Lindqvist" },
+						},
+						{ type: "text", text: ". Depends on the checkout work in " },
+						{
+							type: "taskRef",
+							attrs: { id: "tsk_shop_3", key: "SHOP-3", number: 3 },
+						},
+						{ type: "text", text: "." },
+					],
+				},
+			],
+		};
+		checklist.push(
+			...(
+				[
+					["Mobile wireframes", true, "usr_giulia"],
+					["Desktop wireframes", true, "usr_giulia"],
+					["Copy review with Tom", false, "usr_tom"],
+					["QA on Safari and Firefox", false, "usr_marco"],
+				] as const
+			).map(([text, done, assigneeId], i) => ({
+				id: `wci_42_${i}`,
+				taskId: "tsk_shop_42",
+				text,
+				done,
+				doneBy: done ? assigneeId : null,
+				doneAt: done ? isoAgo(60 * 24 * (3 - i)) : null,
+				assigneeId,
+				position: rankAt(i),
+			})),
+		);
+		dependencies.push(
+			{ taskId: "tsk_shop_42", blockedById: "tsk_shop_3", lagDays: 0 },
+			{ taskId: "tsk_shop_7", blockedById: "tsk_shop_42", lagDays: 2 },
+		);
+		comments.push(
+			comment(
+				"wcm_42_1",
+				"tsk_shop_42",
+				"usr_giulia",
+				doc(
+					"First pass of the layout is attached. The gallery takes the full width on mobile; on desktop it sits left of the details.",
+				),
+				60 * 30,
+				{
+					reactions: [{ emoji: "🎉", userIds: ["usr_simone", "usr_marco"] }],
+				},
+			),
+			comment(
+				"wcm_42_2",
+				"tsk_shop_42",
+				"usr_marco",
+				mention(
+					"usr_giulia",
+					"Giulia Ferri",
+					" do we lazy-load the gallery below the first image? The current page loads 14 images up front.",
+				),
+				60 * 9,
+				{
+					resolvedAt: isoAgo(60 * 4),
+					resolvedBy: "usr_simone",
+				},
+			),
+			comment(
+				"wcm_42_2r",
+				"tsk_shop_42",
+				"usr_giulia",
+				doc("Yes: first image eager, the rest lazy with blurred placeholders."),
+				60 * 7,
+				{
+					parentId: "wcm_42_2",
+					reactions: [{ emoji: "👍", userIds: ["usr_marco"] }],
+				},
+			),
+			comment(
+				"wcm_42_3",
+				"tsk_shop_42",
+				"usr_simone",
+				doc("Client prefers variant B for the sticky bar. Going with it."),
+				60 * 3,
+				{
+					reactions: [
+						{ emoji: "👀", userIds: ["usr_giulia"] },
+						{ emoji: "🚀", userIds: ["usr_marco", "usr_ana"] },
+					],
+					attachments: attachments.filter((a) => a.id === "wat_shop42_reply"),
+				},
+			),
+		);
+		notifications.push(
+			notification(
+				"wnt_42",
+				"commented",
+				"tsk_shop_42",
+				"usr_simone",
+				60 * 3,
+				false,
+				"wcm_42_3",
+			),
+		);
+	}
 
 	const prefs: WorkPrefs = {
 		email: "off",

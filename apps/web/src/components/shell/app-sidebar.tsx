@@ -36,6 +36,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useSurfaces, WorkNavGroup } from "@/components/work/shell/work-nav";
 import { useMe, useOrganization } from "@/lib/api/access";
 import { versionQuery } from "@/lib/api/instance";
 import { nodesQuery } from "@/lib/api/monitoring";
@@ -51,7 +52,7 @@ const orgsQuery = {
 	staleTime: Number.POSITIVE_INFINITY,
 };
 
-function OrgSwitcher() {
+export function OrgSwitcher() {
 	const qc = useQueryClient();
 	const { data: orgs = [] } = useQuery(orgsQuery);
 	// The session's active organization, not the first in the list.
@@ -275,6 +276,7 @@ function PluginsGroup({ pathname }: { pathname: string }) {
 export function AppSidebar() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const { isMobile, setOpenMobile } = useSidebar();
+	const { work } = useSurfaces();
 
 	return (
 		<Sidebar collapsible="icon">
@@ -284,6 +286,7 @@ export function AppSidebar() {
 			<SidebarContent>
 				{NAV.map((group, i) => (
 					<Fragment key={group.label ?? "main"}>
+						{i === 1 && work && <WorkNavGroup />}
 						{i === 1 && <PluginsGroup pathname={pathname} />}
 						<SidebarGroup>
 							{group.label && (

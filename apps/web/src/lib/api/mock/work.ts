@@ -24,7 +24,9 @@ import type { WorkApi } from "../work";
 import {
 	createWorkFixture,
 	dayOf,
+	defaultViews,
 	rankAt,
+	seedStatuses,
 	WORK_ME,
 	WORK_ORG,
 	type WorkTaskRow,
@@ -62,8 +64,57 @@ const today = () => dayOf(0);
 
 const find = <T>(rows: T[], pred: (r: T) => boolean, what: string): T =>
 	rows.find(pred) ?? notFound(what);
-const project = (id: string) =>
-	find(w.projects, (p) => p.projectId === id, "project");
+/**
+ * Like the server's lazy `work_project` insert: any other project id (the ops mock's projects)
+ * gets statuses, one list and the four views the first time Work opens on it.
+ */
+function seedProject(id: string) {
+	const slug = id.slice(4);
+	const name = slug.replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase());
+	let key =
+		slug
+			.replace(/[^a-z]/gi, "")
+			.slice(0, 4)
+			.toUpperCase() || "WORK";
+	while (w.projects.some((p) => p.key === key))
+		key = `${key.slice(0, 3)}${Math.floor(Math.random() * 9)}`;
+	const listId = `wls_${slug}_tasks`;
+	w.projects.push({
+		...(w.projects[0] as (typeof w.projects)[number]),
+		projectId: id,
+		name,
+		key,
+		folderPath: [],
+		health: "unknown",
+		since: null,
+		services: [],
+		nextNumber: 1,
+		defaultListId: listId,
+		allowShareLinks: false,
+		hiddenServiceIds: [],
+		repos: [],
+	});
+	w.lists.push({
+		id: listId,
+		projectId: id,
+		name: "Tasks",
+		description: null,
+		color: "blue",
+		icon: null,
+		position: rankAt(0),
+		archivedAt: null,
+	});
+	w.statuses.push(...seedStatuses(id));
+	w.views.push(...defaultViews(id));
+}
+const project = (id: string) => {
+	if (
+		!w.projects.some((p) => p.projectId === id) &&
+		/^prj_[a-z0-9_-]+$/.test(id)
+	)
+		seedProject(id);
+	return find(w.projects, (p) => p.projectId === id, "project");
+};
 const task = (id: string) => find(w.tasks, (t) => t.id === id, "task");
 const statusOf = (id: string) => find(w.statuses, (s) => s.id === id, "status");
 const keyOf = (t: WorkTaskRow) => `${project(t.projectId).key}-${t.number}`;
@@ -925,7 +976,14 @@ export const workMock: WorkApi = {
 		get: async (id) => delay(toTask(task(id))),
 		update: async (id, patch) => {
 			const t = task(id);
-			const { statusId, expectedUpdatedAt: _e, ...rest } = patch;
+			const { statusId, expectedUpdatedAt, ...rest } = patch;
+			if (expectedUpdatedAt && expectedUpdatedAt !== t.updatedAt)
+				throw new ApiError(
+					409,
+					"someone else changed this task",
+					"conflict",
+					toTask(t),
+				);
 			if (statusId) setStatus(t, statusId);
 			if (rest.priority && rest.priority !== t.priority)
 				log(t, "priority", { from: t.priority, to: rest.priority });
