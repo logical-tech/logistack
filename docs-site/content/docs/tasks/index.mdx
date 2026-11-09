@@ -5,7 +5,7 @@ description: Plan client work in LogiStack with lists, tasks, custom fields and 
 
 Tasks add project management to the projects you already deploy: lists, tasks, subtasks, checklists, comments, attachments, custom fields, and table, board, timeline and calendar views. Use them when your team tracks client work in ClickUp, Linear or a spreadsheet and you want it next to the services it is about. A **Project manager** role runs the work and sees whether the client's services are up, without seeing deployments, logs or settings.
 
-{/* screenshot pending until the Work mock fixture lands: ![The Tasks projects grid: Shop is Operational, Blog relaunch is Degraded since 14:02, Brand book has No services, each with open and overdue task counts](/screens/work-projects.webp) */}
+![The Tasks projects grid in the project manager's dashboard: Shop is Operational, Blog relaunch is Degraded, Brand book has No services, each with open, overdue, mine and done-this-week counts](/screens/work-projects.webp)
 
 ## How it fits together
 
@@ -35,9 +35,9 @@ Tasks are permission actions in the same [role model](../team/roles-and-permissi
 
 | Who | What they see |
 | --- | --- |
-| Owner, Admin, Developer | The full dashboard. The sidebar gains **Tasks** (My tasks, Inbox, then projects with their open-task counts), and every project page gains a **Tasks** tab next to its environments. |
+| Owner, Admin, Developer | The full dashboard. The sidebar gains **Tasks** (My tasks, Inbox, Time, Workload, Import for owners and admins, then projects with their open-task counts), and every project page gains a **Tasks** tab next to its environments. |
 | Viewer | The full dashboard, read-only. Viewers read tasks and comment on them. |
-| Project manager | The **Tasks** dashboard only: My tasks, Inbox, Projects with a health dot each, and Time. No deployments, logs, variables, nodes, domains, monitoring or settings. |
+| Project manager | The **Tasks** dashboard only: My tasks, Inbox, Time, Workload, Import, and Projects with a health dot each. No deployments, logs, variables, nodes, domains, monitoring or settings. |
 | Guest | The Tasks dashboard for the one project they were invited to. They read and comment. |
 
 A Project manager who opens a link to a deployment or a service is sent to **Tasks** instead of an error page that names the resource. See [Project manager and guest roles](./roles.mdx).
@@ -49,13 +49,15 @@ A Project manager who opens a link to a deployment or a service is sent to **Tas
 | **My tasks** | `/work` | Tasks assigned to you across projects, grouped by due date: Overdue, Today, Tomorrow, This week, Next week, Later, No date. |
 | **Inbox** | `/work/inbox` | Your notifications. See [Notifications and email](./notifications-and-email.mdx). |
 | **Projects** | `/work/projects` | Every project you can read, with its health and task counts. |
-| Project overview | `/work/projects/<id>` | Health of the project's services, progress, lists and recent activity. |
+| Project overview | `/work/projects/<id>` | Health of the project's services, progress (done, open, overdue and tasks completed per week), lists and recently updated tasks. |
 | A view | `/work/projects/<id>/v/<view-id>` | A table, board, timeline or calendar. See [Views](./views.mdx). |
 | **Time** | `/work/time` | Your week of tracked time and reports. See [Time tracking](./time-tracking.mdx). |
+| **Workload** | `/work/workload` | Estimated hours of open tasks per person for the next six weeks, with weeks over capacity highlighted. |
+| **Import** | `/work/import` | Import from ClickUp or a CSV file. See [Import from ClickUp](./import-from-clickup.mdx). |
 
 `/work/t/SHOP-42` opens a task by its key. Adding `?task=<id>` to any page opens the task over it.
 
-{/* screenshot pending until the Work mock fixture lands: ![My tasks: tasks assigned to the viewer grouped into Overdue, Today and This week, with status and due date on each row](/screens/work-my-tasks.webp) */}
+![My tasks: tasks assigned to the viewer grouped into Overdue, Today, Tomorrow and Later, with project, priority and due date on each row](/screens/work-my-tasks.webp)
 
 ## Keyboard shortcuts
 

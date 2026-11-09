@@ -9,7 +9,7 @@ Lists group a project's tasks, statuses track where each task is, and custom fie
 
 A list is a group of tasks inside a project, such as "Launch", "Content" or "Bugs". Each list has a name, an optional description, color and icon, and a position in the project.
 
-- **Create a list** from the project overview or the view's list menu with **New list**. Names are unique among a project's active lists.
+- **Create a list** in the **Lists** section of the project's task settings (select **Settings** at the top of the project's Tasks page): type a name in **New list** and select **Add list**. Names are unique among a project's active lists.
 - **Archive a list** to hide it from views. Its tasks stay readable and searchable, and you can restore it.
 - **Delete a list** only when it is empty, or after you choose a list to move its tasks to. Deleting a list together with its tasks asks you to type its name to confirm.
 
@@ -28,7 +28,7 @@ Statuses belong to the project and apply to every list in it. Each status has a 
 | Done | Finished. Moving a task here sets its completion time. | Done |
 | Cancelled | Closed without doing it | Cancelled |
 
-To edit them, open the project's **⋯** menu, select **Settings** and open the **Work** tab. There you can rename statuses, drag them into order, pick a color from the palette, change the category and set a **WIP limit**: a board column turns amber when it holds more tasks than the limit.
+To edit them, open the project's task settings (select **Settings** at the top of the project's Tasks page). In **Statuses** you can rename statuses, drag them into order, pick a color from the palette, change the category and set a **WIP limit**: a board column turns amber when it holds more tasks than the limit.
 
 A project always keeps at least one Backlog status and one Done status. To delete a status, pick the status its tasks move to. Both happen in one step.
 
@@ -65,7 +65,7 @@ A custom field applies to the whole project, or to one list only. You add one wi
 <Step>
 ### Open the field wizard
 
-In a table view, open the column menu and select **Add field**, or open the project's **Work** settings and select **Add field**.
+Open the project's task settings and, in **Fields**, select **New field**.
 </Step>
 <Step>
 ### Pick the kind
@@ -108,15 +108,15 @@ Check the summary and create the field. It appears as a column in table views an
 
 ## Project settings
 
-The **Work** tab of the project settings also holds:
+The project's task settings also hold:
 
 | Setting | What it does |
 | --- | --- |
-| **Key** | The task prefix, 2 to 10 uppercase letters and digits starting with a letter, such as `SHOP`. Old keys keep resolving after a change. |
-| **Hidden services** | Services left out of [service health](./service-health.mdx). |
+| **Task key** | The task prefix, 2 to 10 uppercase letters and digits starting with a letter, such as `SHOP`. Old keys keep resolving after a change. |
+| **Services in health** | Untick services to leave them out of [service health](./service-health.mdx). |
 | **Working days** | Monday to Friday by default. Used for durations, the timeline and recurring tasks. |
 | **Closing status** | The status a "Fixes SHOP-42" commit sets. By default, the first Done status. See [Connect commits and pull requests](./commits-and-pull-requests.mdx). |
 | **Repositories** | Extra repositories linked to the project, besides those of its services. |
 | **Guests can be assigned**, **Guests can create tasks** | See [Guests](./guests.mdx). |
-| **Share links** | Allows read-only links. See [Share links](./share-links.mdx). |
+| **Share links** | Allows read-only links, listed below the switch. See [Share links](./share-links.mdx). |
 | **Time tracking** | On by default. When off, the project hides all time controls. See [Time tracking](./time-tracking.mdx). |

@@ -1,6 +1,6 @@
 import type { WorkTemplateCreate } from "@logistack/contracts";
 import { Building2, FolderKanban } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Field } from "@/components/field";
@@ -251,5 +251,43 @@ export function SaveAsTemplateWizard({
 				}}
 			/>
 		</WizardDialog>
+	);
+}
+
+/** Detail of the `work:save-as-template` window event that task, list and project menus send. */
+export type SaveAsTemplateRequest = {
+	source: WorkTemplateCreate["source"];
+	projectId: string;
+	defaultName?: string;
+};
+
+export const requestSaveAsTemplate = (detail: SaveAsTemplateRequest) =>
+	window.dispatchEvent(new CustomEvent("work:save-as-template", { detail }));
+
+/** Opens the wizard on `work:save-as-template`. Mounted once with the Work layer. */
+export function SaveAsTemplateHost() {
+	const [request, setRequest] = useState<SaveAsTemplateRequest | null>(null);
+	const [open, setOpen] = useState(false);
+	useEffect(() => {
+		const on = (e: Event) => {
+			const detail = (e as CustomEvent<SaveAsTemplateRequest>).detail;
+			if (!detail?.source || !detail.projectId) return;
+			setRequest(detail);
+			setOpen(true);
+		};
+		window.addEventListener("work:save-as-template", on);
+		return () => window.removeEventListener("work:save-as-template", on);
+	}, []);
+	if (!request) return null;
+	return (
+		<SaveAsTemplateWizard
+			// A new request starts a fresh wizard.
+			key={JSON.stringify(request)}
+			source={request.source}
+			projectId={request.projectId}
+			defaultName={request.defaultName}
+			open={open}
+			onOpenChange={setOpen}
+		/>
 	);
 }

@@ -18,9 +18,11 @@ import {
 	Columns3,
 	Download,
 	Layers,
+	LayoutTemplate,
 	Plus,
 	Search,
 	SlidersHorizontal,
+	SquarePen,
 	X,
 } from "lucide-react";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +39,7 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
+	DropdownMenuShortcut,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -83,6 +86,7 @@ import { ColorDot } from "./parts";
 import { ProjectHeader } from "./project-header";
 import { useShortcut } from "./shortcuts";
 import { useOpenTask } from "./task-sheet/open-task";
+import { NewFromTemplateWizard } from "./templates/new-from-template-wizard";
 import { useQuickCreate, useWorkProjectContext } from "./use-work-project";
 import { useWorkSubscription } from "./use-work-subscription";
 import { VIEW_COMPONENTS } from "./views/registry";
@@ -244,10 +248,13 @@ function ViewBody({
 			...(config.sort.length ? { sort: JSON.stringify(config.sort) } : {}),
 			includeClosed: config.showClosed ? "true" : "false",
 			...(config.showSubtasks === "flat" ? {} : { topLevel: "true" as const }),
-			include: "fields,assignees,tags,counts",
+			include:
+				view.kind === "timeline"
+					? "fields,assignees,tags,counts,dependencies"
+					: "fields,assignees,tags,counts",
 			limit: 200,
 		};
-	}, [project.id, listId, config, search.q]);
+	}, [project.id, listId, config, search.q, view.kind]);
 	const result = useWorkTasks(query);
 	const items = useMemo(
 		() => result.data?.pages.flatMap((p) => p.items) ?? [],
@@ -255,6 +262,7 @@ function ViewBody({
 	);
 
 	const create = useQuickCreate(project, listId ?? view.listId);
+	const [fromTemplate, setFromTemplate] = useState(false);
 	useShortcut("c", () => {
 		if (!project.canEdit) return;
 		window.dispatchEvent(new CustomEvent("work:quick-add"));
@@ -360,18 +368,36 @@ function ViewBody({
 						</DropdownMenuContent>
 					</DropdownMenu>
 					{project.canEdit && (
-						<Button
-							size="sm"
-							onClick={() =>
-								window.dispatchEvent(new CustomEvent("work:quick-add"))
-							}
-						>
-							<Plus data-icon="inline-start" />
-							Task
-						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button size="sm">
+									<Plus data-icon="inline-start" />
+									New
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-48">
+								<DropdownMenuItem
+									onSelect={() =>
+										window.dispatchEvent(new CustomEvent("work:quick-add"))
+									}
+								>
+									<SquarePen /> Task
+									<DropdownMenuShortcut>C</DropdownMenuShortcut>
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={() => setFromTemplate(true)}>
+									<LayoutTemplate /> From template…
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					)}
 				</div>
 			</div>
+			<NewFromTemplateWizard
+				projectId={project.id}
+				listId={listId ?? view.listId ?? undefined}
+				open={fromTemplate}
+				onOpenChange={setFromTemplate}
+			/>
 			<SaveBar
 				dirty={dirty}
 				canSave={canSave}

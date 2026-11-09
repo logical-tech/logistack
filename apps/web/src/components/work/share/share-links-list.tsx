@@ -48,8 +48,8 @@ export function ShareLinksList({ projectId }: { projectId: string }) {
 		>
 			{!allowed && (
 				<p className="mb-3 text-sm text-muted-foreground">
-					Share links are off for this project. Turn on “Allow share links”
-					above to create one; existing links stop working while it's off.
+					Share links are off for this project. Turn on “Share links” above to
+					create one; existing links stop working while it's off.
 				</p>
 			)}
 			{shares.isPending ? (

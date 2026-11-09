@@ -3,7 +3,14 @@
  * shell, then Overview plus one tab per view and "+ View".
  */
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Archive, Plus, Settings2 } from "lucide-react";
+import {
+	Archive,
+	LayoutTemplate,
+	MoreHorizontal,
+	Plus,
+	Settings2,
+	UserPlus,
+} from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -12,8 +19,15 @@ import {
 } from "@/components/projects/project-sections";
 import { SlidingTabs } from "@/components/sliding-tabs";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ProjectId } from "@/lib/api/types";
 import { useWorkProjects, useWorkViews } from "@/lib/api/work-queries";
+import { InviteGuestDialog } from "./guests/invite-guest-wizard";
 import {
 	overviewRoute,
 	settingsRoute,
@@ -22,6 +36,7 @@ import {
 } from "./links";
 import { HealthPill, TaskKey } from "./parts";
 import { useShortcut } from "./shortcuts";
+import { requestSaveAsTemplate } from "./templates/save-as-template-wizard";
 import { ViewWizard } from "./view-wizard";
 import { VIEW_KINDS } from "./views/registry";
 import type { WorkProjectContext } from "./views/types";
@@ -44,6 +59,7 @@ export function ProjectHeader({
 	const item = projects?.find((p) => p.id === project.id);
 	const pluginTabs = useProjectPluginTabs();
 	const [creating, setCreating] = useState(false);
+	const [inviting, setInviting] = useState(false);
 	const params = { projectId: project.id };
 
 	const go = (id: string) =>
@@ -98,6 +114,35 @@ export function ProjectHeader({
 								</Link>
 							</Button>
 						)}
+						{project.canAdmin && (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										variant="outline"
+										size="icon"
+										aria-label="More project actions"
+									>
+										<MoreHorizontal />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="w-56">
+									<DropdownMenuItem onSelect={() => setInviting(true)}>
+										<UserPlus /> Invite guest…
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onSelect={() =>
+											requestSaveAsTemplate({
+												source: { kind: "project", projectId: project.id },
+												projectId: project.id,
+												defaultName: project.name,
+											})
+										}
+									>
+										<LayoutTemplate /> Save as template…
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						)}
 					</>
 				}
 			/>
@@ -151,6 +196,12 @@ export function ProjectHeader({
 				onOpenChange={setCreating}
 				project={project}
 				onCreated={(v) => go(v.id)}
+			/>
+			<InviteGuestDialog
+				projectId={project.id}
+				projectName={project.name}
+				open={inviting}
+				onOpenChange={setInviting}
 			/>
 		</>
 	);

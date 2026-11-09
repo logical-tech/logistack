@@ -1,6 +1,12 @@
 import { Square } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useStopWorkTimer, useWorkTimer } from "@/lib/api/work-queries";
+import {
+	useStartWorkTimer,
+	useStopWorkTimer,
+	useWorkTimer,
+} from "@/lib/api/work-queries";
 import { cn } from "@/lib/utils";
 import { clock, useElapsed } from "./clock";
 
@@ -39,4 +45,29 @@ export function RunningTimerPill({ className }: { className?: string }) {
 			</Button>
 		</div>
 	);
+}
+
+/**
+ * `work:timer-toggle` (the task sheet's `t`): stops the timer when it runs on that task, else
+ * starts it there (the server stops any other running timer). Mounted once with the Work layer.
+ */
+export function useTimerToggle() {
+	const { data } = useWorkTimer();
+	const start = useStartWorkTimer();
+	const stop = useStopWorkTimer();
+	const live = useRef({ data, start, stop });
+	live.current = { data, start, stop };
+	useEffect(() => {
+		const onToggle = (e: Event) => {
+			const taskId = (e as CustomEvent<{ taskId?: string }>).detail?.taskId;
+			const { data, start, stop } = live.current;
+			if (!taskId || start.isPending || stop.isPending) return;
+			const onError = (err: unknown) =>
+				toast.error(err instanceof Error ? err.message : String(err));
+			if (data?.running?.taskId === taskId) stop.mutate(undefined, { onError });
+			else start.mutate(taskId, { onError });
+		};
+		window.addEventListener("work:timer-toggle", onToggle);
+		return () => window.removeEventListener("work:timer-toggle", onToggle);
+	}, []);
 }

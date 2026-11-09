@@ -5,20 +5,20 @@ description: Edit a task's status, dates and fields, add subtasks, checklists an
 
 Selecting a task anywhere opens it in a side panel over the current page, full screen on a phone. Everything about the task is on that panel. Read this page to learn what each part does and how comments, mentions and attachments behave.
 
-{/* screenshot pending until the Work mock fixture lands: ![A task panel for SHOP-42 Checkout redesign: status In progress, two assignees, dates, priority, custom fields, a description with a screenshot, subtasks and the comment thread](/screens/work-task.webp) */}
+![A task panel for SHOP-42 Product page redesign: status In progress, two assignees, dates with Doesn't repeat, priority, tags, estimate, the Time row, custom fields, the AI buttons and the description](/screens/work-task.webp)
 
 The task's address is the page you were on plus `?task=<id>`, so you can share it. `/work/t/SHOP-42` also opens it by key.
 
 ## The header
 
-The header shows where the task lives (project, list and parent task), its key with a button that copies the link, a **Watch** toggle, and a **⋯** menu with:
+The header shows where the task lives (project, list and parent task), its key with a button that copies the link, a watch button (the eye), and a **⋯** menu with:
 
-- **Duplicate**: copy the task, choosing whether subtasks, checklist, fields, assignees and attachments come along.
-- **Move to list** and **Move to project**. Moving to another project gives the task a new key. The old key keeps working. Fields the other project lacks are listed before you confirm.
-- **Convert to subtask**, or back to a task.
-- **Save as template**. See [Templates](./templates.mdx).
-- **Archive** and **Delete**.
+- **Duplicate**: copy the task and open the copy.
+- **Move to list**, to another list of the same project.
+- **Make it a top-level task**, for a subtask.
+- **Save as template…**, for project managers. See [Templates](./templates.mdx).
 - **Copy branch name**, for people who can see services. See [Connect commits and pull requests](./commits-and-pull-requests.mdx).
+- **Archive** and **Delete**.
 
 Edits save as you make them. "Saving…" and then "Saved" appear in the header.
 
@@ -28,15 +28,21 @@ Edits save as you make them. "Saving…" and then "Saved" appear in the header.
 | --- | --- | --- |
 | Status | `s` | Moving to a Done status sets the completion time. Required fields must be filled first. |
 | Assignees | `a` | Up to 20 people who hold `work` on the project. |
-| Dates | `d` | Start date, due date and an optional due time, in the organization's time zone. Type dates such as `next fri` or `in 2 weeks`. The **Repeat** row makes the task recur. See [Recurring tasks](./recurring-tasks.mdx). |
+| Dates | `d` | Start date, due date and an optional due time, in the organization's time zone. Type dates such as `next fri` or `in 2 weeks`. **Doesn't repeat**, next to the dates, makes the task recur. See [Recurring tasks](./recurring-tasks.mdx). |
 | Priority | `p` | Urgent, High, Normal, Low or None. |
 | Tags | `l` | Project tags. You can create one here. |
 | List | | Moves the task to another list of the project. |
 | Estimate | | A duration, such as `3h`. |
-| Tracked time | | With time tracking on. See [Time tracking](./time-tracking.mdx). |
+| Time | `t` | With time tracking on: start or stop the timer, tracked time against the estimate, and **Add time** for a manual entry. See [Time tracking](./time-tracking.mdx). |
 | Milestone | | Shows the task as a diamond on the timeline, with one date. |
 
 Custom fields follow. Empty fields are hidden behind **Show N empty fields**.
+
+People who can use AI see three buttons under the properties. Each one writes a draft and saves nothing on its own:
+
+- **Summarise thread** puts a summary of the comments in the comment box, for you to edit and send.
+- **Break into subtasks** proposes subtasks with estimates. Untick what you don't need, edit the titles, and create them.
+- **Write description** writes a description into the editor. An existing description stays, with the draft below it.
 
 ## Description
 
@@ -56,6 +62,10 @@ The description saves about a second after you stop typing. If someone else chan
 ## Dependencies
 
 **Blocked by** lists the tasks that must finish before this one starts, and **Blocking** the tasks waiting on it. A task blocked by an unfinished task shows a blocked icon in every view. Add dependencies with the search picker here or by dragging on the [timeline](./views.mdx#dependencies).
+
+## Development
+
+The **Development** section lists the commits, branches and pull requests that mention the task's key. See [Connect commits and pull requests](./commits-and-pull-requests.mdx).
 
 ## Attachments
 

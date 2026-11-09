@@ -3,6 +3,7 @@
  * which services count for health, linked repositories, and the sharing switches (their full
  * flows live with share links, guests and time tracking).
  */
+
 import type {
 	WorkColor,
 	WorkProjectSettingsPatch,
@@ -45,6 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { WORK_COLORS } from "../lib";
 import { StatusIcon } from "../parts";
+import { ShareLinksList } from "../share/share-links-list";
 import { useWorkProjectContext } from "../use-work-project";
 import type { WorkProjectContext } from "../views/types";
 import { FIELD_KINDS, FieldWizard } from "./field-wizard";
@@ -118,6 +120,7 @@ export function WorkSettings({ projectId }: { projectId: string }) {
 				<Health project={project} />
 				<Repos project={project} />
 				<Sharing project={project} />
+				<ShareLinksList projectId={project.id} />
 			</div>
 		</Page>
 	);

@@ -5,7 +5,7 @@ description: The six health states a project manager sees for each project and s
 
 A project manager needs to know whether the client's site is up, not how it is deployed. Tasks show every project's health as one of six plain states, with a short explanation, and nothing about deployments, replicas, logs or servers. Read this page to understand what each state means and why a project shows the state it does.
 
-{/* screenshot pending until the Work mock fixture lands: ![The overview of project Blog relaunch: a Services card listing Website as Degraded since 14:02 with a 30-day uptime bar, and API as Operational](/screens/work-project.webp) */}
+![The overview of project Blog relaunch: a Services card listing Blog as Degraded with a 30-day uptime bar and Database as Operational, a Progress card, lists and recently updated tasks](/screens/work-project.webp)
 
 ## Where health shows
 
@@ -56,19 +56,19 @@ Hide internal services, such as a worker or a cache, that a client doesn't need 
 
 <Steps>
 <Step>
-### Open the project's Work settings
+### Open the project's task settings
 
-Open the project's **⋯** menu, select **Settings** and open the **Work** tab.
+On the project's Tasks page, select **Settings**.
 </Step>
 <Step>
 ### Pick the services to hide
 
-In **Hidden services**, check the services to leave out, for example `storefront-worker`.
+In **Services in health**, untick the services to leave out, for example `storefront-worker`.
 </Step>
 <Step>
-### Save
+### Check the result
 
-Save the settings. The **Services** card and the project's dot no longer include them.
+Each change saves at once. The **Services** card and the project's dot no longer include the unticked services.
 </Step>
 </Steps>
 

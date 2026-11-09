@@ -1,15 +1,22 @@
 /* A project at a glance: are the services up, how far along is the work, what moved lately. */
 import { Link } from "@tanstack/react-router";
-import { ListTodo } from "lucide-react";
+import { LayoutTemplate, Link2, ListTodo, MoreHorizontal } from "lucide-react";
+import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Page } from "@/components/page-header";
 import { Panel } from "@/components/panel";
+import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	useWorkHealth,
 	useWorkLists,
 	useWorkProjects,
-	useWorkSummary,
 	useWorkTasks,
 	useWorkViews,
 } from "@/lib/api/work-queries";
@@ -18,10 +25,13 @@ import { isClosed, timeAgo } from "./lib";
 import { viewRoute, type WorkBase } from "./links";
 import { AvatarStack, ColorDot, StatusIcon, TaskKey } from "./parts";
 import { ProjectHeader } from "./project-header";
+import { ShareLinkDialog } from "./share/share-link-wizard";
 import { useOpenTask } from "./task-sheet/open-task";
+import { requestSaveAsTemplate } from "./templates/save-as-template-wizard";
 import { useWorkProjectContext } from "./use-work-project";
 import { useWorkSubscription } from "./use-work-subscription";
 import type { WorkProjectContext } from "./views/types";
+import { ProjectProgressCard } from "./workload/project-progress-card";
 
 export function ProjectOverview({
 	projectId,
@@ -66,7 +76,7 @@ export function ProjectOverview({
 			>
 				<div className="grid content-start gap-6">
 					<HealthCard projectId={projectId} />
-					<ProgressCard project={project} />
+					<ProjectProgressCard projectId={projectId} />
 				</div>
 				<div className="grid content-start gap-6">
 					<ListsCard project={project} base={base} />
@@ -97,81 +107,6 @@ function HealthCard({ projectId }: { projectId: string }) {
 	);
 }
 
-const CATEGORY = [
-	["done", "Done", "bg-ok"],
-	["active", "In progress", "bg-info"],
-	["backlog", "Not started", "bg-muted-foreground/30"],
-	["cancelled", "Cancelled", "bg-muted-foreground/15"],
-] as const;
-
-function ProgressCard({ project }: { project: WorkProjectContext }) {
-	const { data } = useWorkSummary(project.id);
-	if (!data) return <Skeleton className="h-48" />;
-	const total = Math.max(1, data.total);
-	const done = data.byCategory.done ?? 0;
-	const max = Math.max(1, ...data.completedPerWeek.map((w) => w.count));
-	return (
-		<Panel title="Progress" bodyClassName="p-4" id="work-progress">
-			<div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-				<p className="text-2xl font-semibold tabular">
-					{Math.round((done / total) * 100)}%
-					<span className="ml-1.5 text-sm font-normal text-muted-foreground">
-						done
-					</span>
-				</p>
-				<p className="text-sm text-muted-foreground tabular">
-					{done} of {data.total} tasks
-				</p>
-				{data.overdue > 0 && (
-					<p className="text-sm font-medium text-bad-text tabular">
-						{data.overdue} overdue
-					</p>
-				)}
-			</div>
-			<div
-				role="img"
-				aria-label={CATEGORY.map(
-					([k, label]) => `${label} ${data.byCategory[k] ?? 0}`,
-				).join(", ")}
-				className="mt-4 flex h-2 overflow-hidden rounded-full bg-muted"
-			>
-				{CATEGORY.map(([k, , cls]) => (
-					<span
-						key={k}
-						className={cls}
-						style={{ width: `${((data.byCategory[k] ?? 0) / total) * 100}%` }}
-					/>
-				))}
-			</div>
-			<ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-				{CATEGORY.map(([k, label, cls]) => (
-					<li key={k} className="inline-flex items-center gap-1.5 tabular">
-						<span aria-hidden className={`size-2 rounded-full ${cls}`} />
-						{label} {data.byCategory[k] ?? 0}
-					</li>
-				))}
-			</ul>
-			<h3 className="mt-6 mb-2 text-xs font-medium text-muted-foreground">
-				Completed per week, last 12 weeks
-			</h3>
-			<div
-				role="img"
-				aria-label={`Completed per week: ${data.completedPerWeek.map((w) => w.count).join(", ")}`}
-				className="flex h-16 items-end gap-1"
-			>
-				{data.completedPerWeek.map((w) => (
-					<span
-						key={w.weekStart}
-						title={`Week of ${w.weekStart}: ${w.count}`}
-						className="min-h-0.5 flex-1 rounded-[2px] bg-foreground/70"
-						style={{ height: `${(w.count / max) * 100}%` }}
-					/>
-				))}
-			</div>
-		</Panel>
-	);
-}
-
 function ListsCard({
 	project,
 	base,
@@ -181,20 +116,22 @@ function ListsCard({
 }) {
 	const { data: lists = [] } = useWorkLists(project.id);
 	const { data: views = [] } = useWorkViews(project.id);
+	const [sharing, setSharing] = useState<string | null>(null);
 	const table = views.find((v) => v.kind === "table") ?? views[0];
+	const canShare = project.canEdit && project.settings.allowShareLinks;
 	return (
 		<Panel title="Lists" id="work-lists">
 			<ul className="divide-y">
 				{lists
 					.filter((l) => !l.archivedAt)
 					.map((l) => (
-						<li key={l.id}>
+						<li key={l.id} className="group/list relative flex items-center">
 							{table ? (
 								<Link
 									to={viewRoute(base)}
 									params={{ projectId: project.id, viewId: table.id }}
 									search={{ list: l.id } as never}
-									className="flex items-center gap-2.5 px-4 py-2.5 text-sm outline-none hover:bg-muted/60 focus-visible:bg-muted/60"
+									className="flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2.5 text-sm outline-none hover:bg-muted/60 focus-visible:bg-muted/60"
 								>
 									<ColorDot color={l.color} />
 									<span className="truncate">{l.name}</span>
@@ -203,11 +140,53 @@ function ListsCard({
 									</span>
 								</Link>
 							) : (
-								<span className="flex px-4 py-2.5 text-sm">{l.name}</span>
+								<span className="flex flex-1 px-4 py-2.5 text-sm">
+									{l.name}
+								</span>
+							)}
+							{(canShare || project.canAdmin) && (
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											variant="ghost"
+											size="icon-xs"
+											aria-label={`${l.name} actions`}
+											className="mr-2 text-muted-foreground opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
+										>
+											<MoreHorizontal />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end" className="w-52">
+										{canShare && (
+											<DropdownMenuItem onSelect={() => setSharing(l.id)}>
+												<Link2 /> Share link…
+											</DropdownMenuItem>
+										)}
+										{project.canAdmin && (
+											<DropdownMenuItem
+												onSelect={() =>
+													requestSaveAsTemplate({
+														source: { kind: "list", listId: l.id },
+														projectId: project.id,
+														defaultName: l.name,
+													})
+												}
+											>
+												<LayoutTemplate /> Save as template…
+											</DropdownMenuItem>
+										)}
+									</DropdownMenuContent>
+								</DropdownMenu>
 							)}
 						</li>
 					))}
 			</ul>
+			<ShareLinkDialog
+				projectId={project.id}
+				listId={sharing ?? undefined}
+				open={sharing !== null}
+				onOpenChange={(o) => !o && setSharing(null)}
+			/>
 		</Panel>
 	);
 }

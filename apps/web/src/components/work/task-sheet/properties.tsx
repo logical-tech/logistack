@@ -1,4 +1,5 @@
 /* The task's properties: status, people, dates, priority, tags, list, estimate, milestone, fields. */
+
 import type { WorkField, WorkTask } from "@logistack/contracts";
 import { Diamond } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -36,8 +37,10 @@ import {
 	statusOptions,
 	tagOptions,
 } from "../pickers";
+import { RepeatPicker } from "../recurrence/repeat-picker";
 import { useShortcut } from "../shortcuts";
 import type { useTaskEdits } from "../task-edits";
+import { TaskTimeRow } from "../time/task-time-row";
 import type { WorkProjectContext } from "../views/types";
 
 type Edits = ReturnType<typeof useTaskEdits>;
@@ -254,17 +257,25 @@ export function Properties({
 				/>
 			</Row>
 			<Row label="Dates">
-				<DateRangePicker
-					open={open === "d"}
-					onOpenChange={toggle("d")}
-					value={task}
-					onChange={(v) => void edits.patch(task, v)}
-					trigger={
-						<ValueButton label="Dates: change (D)" disabled={!can}>
-							<DateRangeLabel value={task} />
-						</ValueButton>
-					}
-				/>
+				<span className="flex min-w-0 flex-wrap items-center gap-1">
+					<DateRangePicker
+						open={open === "d"}
+						onOpenChange={toggle("d")}
+						value={task}
+						onChange={(v) => void edits.patch(task, v)}
+						trigger={
+							<ValueButton label="Dates: change (D)" disabled={!can}>
+								<DateRangeLabel value={task} />
+							</ValueButton>
+						}
+					/>
+					<RepeatPicker
+						value={task.recurrence}
+						dueDate={task.dueDate}
+						disabled={!can}
+						onChange={(recurrence) => void edits.patch(task, { recurrence })}
+					/>
+				</span>
 			</Row>
 			<Row label="Priority">
 				<Picker
@@ -376,6 +387,14 @@ export function Properties({
 					/>
 				)}
 			</Row>
+			{project.settings.timeTracking && (
+				<Row label="Time">
+					<TaskTimeRow
+						taskId={task.id}
+						estimateMinutes={task.estimateMinutes}
+					/>
+				</Row>
+			)}
 			<Row label="Milestone">
 				<span className="flex items-center gap-2">
 					<Switch

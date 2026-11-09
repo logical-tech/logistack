@@ -21,7 +21,7 @@ import {
 import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/api/access";
-import { subscribeWork } from "@/lib/api/live";
+import { subscribeAllWork, subscribeWork } from "@/lib/api/live";
 import { patchCachedTask, workKeys } from "@/lib/api/work-queries";
 import { matchable } from "./lib";
 
@@ -30,7 +30,7 @@ type Pages = InfiniteData<WorkTaskPage, string | null>;
 /** Whether a cached list query would contain `task`, judged client-side. */
 export function listWants(
 	query: WorkTaskListQuery,
-	task: WorkTaskListItem,
+	task: Omit<WorkTaskListItem, "dependencies">,
 	statuses: WorkStatus[],
 	me: string,
 ): boolean {
@@ -142,4 +142,29 @@ export function useWorkSubscription(projectId: string | undefined) {
 			void qc.invalidateQueries({ queryKey: workKeys.tasks() });
 		});
 	}, [projectId, qc, myId]);
+}
+
+/**
+ * Messages addressed to one person (`userId`: notifications, time) refresh that person's inbox
+ * badge and timer wherever they are, with no project open. Mounted once with the Work layer.
+ */
+export function useWorkUserRefresh() {
+	const qc = useQueryClient();
+	const { data: me } = useMe();
+	const myId = me?.userId;
+	useEffect(() => {
+		if (!myId) return;
+		return subscribeAllWork((msg) => {
+			if (msg.userId !== myId) return;
+			if (msg.entity === "notification")
+				void qc.invalidateQueries({ queryKey: [...workKeys.me(), "inbox"] });
+			if (msg.entity === "time") {
+				void qc.invalidateQueries({ queryKey: workKeys.timer() });
+				for (const id of msg.taskIds ?? [])
+					void qc.invalidateQueries({
+						queryKey: workKeys.taskPart(id, "time"),
+					});
+			}
+		});
+	}, [qc, myId]);
 }
