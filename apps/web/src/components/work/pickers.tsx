@@ -356,8 +356,11 @@ export function DateRangePicker({
 			return;
 		}
 		setError(null);
+		// Only the three date fields: callers pass a whole task as `value`, and spreading it would
+		// send every field (dependencies included) as the patch.
 		onChange({
-			...next,
+			startDate: next.startDate,
+			dueDate: next.dueDate,
 			dueTime: next.dueDate ? (next.dueTime ?? null) : null,
 		});
 	};
