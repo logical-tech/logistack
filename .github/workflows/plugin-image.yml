@@ -41,6 +41,7 @@ jobs:
         run: |
           [[ $PLUGIN =~ ^[a-z0-9-]+$ ]] || { echo "::error::bad plugin name"; exit 1; }
           cd "examples/plugins/$PLUGIN"
+          # shellcheck disable=SC2016 # JS template literals, not shell expansions
           bun -e 'const { manifest } = await import(`${process.cwd()}/src/manifest.ts`); await Bun.write("/tmp/manifest.json", JSON.stringify(manifest)); console.log(`version=${manifest.version}`)' >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
@@ -92,5 +93,7 @@ jobs:
         working-directory: /tmp/digests
         run: |
           image=$REGISTRY/logistack-plugin-$PLUGIN
-          docker buildx imagetools create -t "$image:$VERSION" $(printf "$image@sha256:%s " *)
+          refs=()
+          for digest in *; do refs+=("$image@sha256:$digest"); done
+          docker buildx imagetools create -t "$image:$VERSION" "${refs[@]}"
           docker buildx imagetools inspect "$image:$VERSION"
