@@ -36,7 +36,12 @@ export async function guestCreateDefaults(
 		throw new Error("guestCreateDefaults needs a project resource");
 	if (actorCan(actor, "work", resource)) return null;
 	const wp = await ensureWorkProject(db, projectId);
-	if (!wp.guestsCanCreate || !actorCan(actor, "comment:work", resource))
+	// Org-wide readers (viewers) are not guests: they still need `work`.
+	if (
+		guestProjectIds(actor) === null ||
+		!wp.guestsCanCreate ||
+		!actorCan(actor, "comment:work", resource)
+	)
 		throw new Failure("forbidden", "guests can't create tasks in this project");
 	const [backlog] = await db
 		.select({ id: workStatus.id })

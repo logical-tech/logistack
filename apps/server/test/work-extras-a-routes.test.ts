@@ -560,6 +560,56 @@ describe.skipIf(!hasDocker)(
 				expect(next?.recurrence?.mode).toBe("on_complete");
 			});
 
+			const occurrences = async (seriesId: string) =>
+				(
+					await h.deps.db
+						.select({ dueDate: workTask.dueDate })
+						.from(workTask)
+						.where(eq(workTask.recurrenceSeriesId, seriesId))
+				)
+					.map((r) => r.dueDate)
+					.sort();
+
+			test("completing through PATCH creates exactly one next occurrence", async () => {
+				const t = await task("Water the plants", {
+					dueDate: "2026-11-12",
+					recurrence: rule("on_complete"),
+				});
+				await h.deps.db
+					.update(workTask)
+					.set({ recurrenceSeriesId: t.id })
+					.where(eq(workTask.id, t.id));
+				const res = await h.call("PATCH", `/api/work/tasks/${t.id}`, {
+					...asOwner(),
+					body: { statusId: doneId },
+				});
+				expect(res.status).toBe(200);
+				// A repeated PATCH to the same status is not a second completion.
+				await h.call("PATCH", `/api/work/tasks/${t.id}`, {
+					...asOwner(),
+					body: { statusId: doneId },
+				});
+				expect(await occurrences(t.id)).toEqual(["2026-11-12", "2026-11-13"]);
+			});
+
+			test("completing through bulk creates exactly one next occurrence", async () => {
+				const t = await task("Back up the laptop", {
+					dueDate: "2026-11-12",
+					recurrence: rule("on_complete"),
+				});
+				await h.deps.db
+					.update(workTask)
+					.set({ recurrenceSeriesId: t.id })
+					.where(eq(workTask.id, t.id));
+				const res = await h.call("POST", "/api/work/tasks/bulk", {
+					...asOwner(),
+					body: { taskIds: [t.id], set: { statusId: doneId } },
+				});
+				expect(res.status).toBe(200);
+				expect(res.json.errors).toEqual([]);
+				expect(await occurrences(t.id)).toEqual(["2026-11-12", "2026-11-13"]);
+			});
+
 			test("the on_schedule tick is idempotent across workers", async () => {
 				const today = localDate(new Date(), "UTC");
 				const t = await task("Weekly report", {

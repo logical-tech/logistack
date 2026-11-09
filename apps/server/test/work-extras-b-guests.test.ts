@@ -2,11 +2,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
 	invitationGrant,
 	roleGrant,
+	workList,
 	workProject,
 	workStatus,
 	workTag,
 } from "@logistack/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { grantsFor } from "../src/actor.ts";
 import { Failure } from "../src/errors.ts";
 import { locate } from "../src/scope.ts";
@@ -146,6 +147,74 @@ describe.skipIf(!hasDocker)("work guests", () => {
 		expect(seen?.has(ownerId)).toBe(true);
 		expect(seen?.has(devId)).toBe(false);
 		expect(await visiblePeople(w.h.deps.db, await actorOf(ownerId))).toBeNull();
+	});
+
+	test("GET /projects/:id/people: a guest gets only visible people", async () => {
+		const ownerId = (await w.h.call("GET", "/api/me", w.as())).json.userId;
+		const res = await w.h.call(
+			"GET",
+			`/api/work/projects/${shop.id}/people`,
+			w.as(guestCookie),
+		);
+		expect(res.status).toBe(200);
+		const ids = res.json.map((p: { userId: string }) => p.userId).sort();
+		expect(ids).toEqual([guestId, ownerId].sort());
+		const seen = await visiblePeople(w.h.deps.db, await actorOf(guestId));
+		for (const id of ids) expect(seen?.has(id)).toBe(true);
+	});
+
+	test("POST /tasks as a guest: forced into the default list's backlog with the guest tag", async () => {
+		const [extra] = await w.h.deps.db
+			.insert(workList)
+			.values({
+				projectId: shop.id,
+				name: "Internal",
+				position: "z",
+			})
+			.returning();
+		const [active] = await w.h.deps.db
+			.select()
+			.from(workStatus)
+			.where(
+				and(
+					eq(workStatus.projectId, shop.id),
+					eq(workStatus.category, "active"),
+				),
+			);
+		const res = await w.h.call("POST", "/api/work/tasks", {
+			...w.as(guestCookie),
+			body: {
+				listId: extra?.id,
+				statusId: active?.id,
+				title: "The logo is blurry",
+			},
+		});
+		expect(res.status).toBe(201);
+		const [backlog] = await w.h.deps.db
+			.select()
+			.from(workStatus)
+			.where(eq(workStatus.id, res.json.statusId));
+		expect(backlog?.category).toBe("backlog");
+		expect(res.json.listId).toBe(shop.listId);
+		const [tag] = await w.h.deps.db
+			.select()
+			.from(workTag)
+			.where(eq(workTag.id, res.json.tagIds[0]));
+		expect(tag?.name).toBe("From guest");
+
+		await w.h.deps.db
+			.update(workProject)
+			.set({ guestsCanCreate: false })
+			.where(eq(workProject.projectId, shop.id));
+		const refused = await w.h.call("POST", "/api/work/tasks", {
+			...w.as(guestCookie),
+			body: { listId: shop.listId, title: "Another one" },
+		});
+		expect(refused.status).toBe(403);
+		await w.h.deps.db
+			.update(workProject)
+			.set({ guestsCanCreate: true })
+			.where(eq(workProject.projectId, shop.id));
 	});
 
 	test("the guest role can't be org-wide without scoped grants", async () => {

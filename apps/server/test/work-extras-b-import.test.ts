@@ -235,7 +235,8 @@ describe.skipIf(!hasDocker)("work imports", () => {
 					.from(workAttachment)
 					.where(eq(workAttachment.taskId, t1?.id ?? ""))
 			).map((a) => [a.name, a.size, a.contentType]),
-		).toEqual([["hero.png", 8, "image/png"]]);
+			// Through the upload pipeline: the type is sniffed from the bytes (not a whole PNG), not taken from ClickUp.
+		).toEqual([["hero.png", 8, "application/octet-stream"]]);
 		expect(
 			await db
 				.select()

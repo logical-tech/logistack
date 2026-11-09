@@ -32,6 +32,14 @@ describe("MCP tool input schemas", () => {
 		expect(bad).toEqual([]);
 	});
 
+	test("recursive Work schemas are named components, so the document serialises", () => {
+		const schemas = (doc as { components?: { schemas?: object } }).components
+			?.schemas;
+		expect(schemas).toHaveProperty("WorkPmNode");
+		expect(schemas).toHaveProperty("WorkFilterNode");
+		expect(() => JSON.stringify(doc)).not.toThrow();
+	});
+
 	test("storage_bucket_delete takes the bucket name apart from confirm", () => {
 		const t = tools.find((x) => x.name === "storage_bucket_delete");
 		expect(t?.inputSchema.required).toEqual([

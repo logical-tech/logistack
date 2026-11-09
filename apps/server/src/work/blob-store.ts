@@ -1,5 +1,11 @@
 import { decrypt, storageEngineDefs } from "@logistack/core";
-import { type Db, s3Destination, service } from "@logistack/db";
+import {
+	type Db,
+	s3Destination,
+	service,
+	workAttachment,
+	workTask,
+} from "@logistack/db";
 import { instantiate, s3Destination as s3Provider } from "@logistack/providers";
 import {
 	type BlobStore,
@@ -7,12 +13,14 @@ import {
 	orgDestinationId,
 	s3BlobStore,
 } from "@logistack/worker/work-blobs";
-import { eq } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import type { Deps } from "../env.ts";
 import { Failure } from "../errors.ts";
+import { log } from "../log.ts";
 import { guardedDestination } from "../s3.ts";
 import { hostPolicy } from "../ssrf.ts";
 import { defaultStorageEndpoint } from "../storage.ts";
+import type { DbOrTx } from "./context.ts";
 
 export type { BlobStore };
 
@@ -98,4 +106,55 @@ export async function storeFor(
 		await openAttachmentDestination(deps, organizationId, id),
 		organizationId,
 	);
+}
+
+/**
+ * Blob keys of every attachment on these tasks and their subtasks (comment attachments included). Read them before
+ * deleting the tasks: the rows go with the tasks by cascade, then `releaseBlobs` drops the bytes.
+ */
+export async function taskBlobs(db: DbOrTx, taskIds: string[]) {
+	if (!taskIds.length) return [];
+	const rows = await db
+		.select({
+			driver: workAttachment.driver,
+			objectKey: workAttachment.objectKey,
+			thumbKey: workAttachment.thumbKey,
+		})
+		.from(workAttachment)
+		.where(
+			inArray(
+				workAttachment.taskId,
+				db
+					.select({ id: workTask.id })
+					.from(workTask)
+					.where(
+						or(
+							inArray(workTask.id, taskIds),
+							inArray(workTask.parentId, taskIds),
+						),
+					),
+			),
+		);
+	return rows.flatMap((r) =>
+		[r.objectKey, r.thumbKey]
+			.filter((k): k is string => k !== null)
+			.map((key) => ({ driver: r.driver, key })),
+	);
+}
+
+/** After the rows are gone: one release per reference; failures are logged, `work-gc` sweeps S3 orphans. */
+export async function releaseBlobs(
+	deps: Deps,
+	organizationId: string,
+	blobs: { driver: "db" | "s3"; key: string }[],
+) {
+	for (const b of blobs)
+		await storeFor(deps, organizationId, b.driver)
+			.then((s) => s.release(b.key))
+			.catch((error: unknown) =>
+				log("error", "work blob not released", {
+					key: b.key,
+					error: String(error),
+				}),
+			);
 }

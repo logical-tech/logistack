@@ -1,7 +1,6 @@
-import { createRoute, type RouteConfig, z } from "@hono/zod-openapi";
+import { createRoute, type RouteConfig } from "@hono/zod-openapi";
 import {
 	type EventType,
-	FilterNode,
 	type PermissionAction,
 	type RecurrenceRule,
 	workRoutes as table,
@@ -15,6 +14,7 @@ import {
 	type WorkTaskListItem,
 	type WorkView,
 	WorkViewConfig,
+	type workTaskIncludes,
 } from "@logistack/contracts";
 import { can, type Grant, type Resource } from "@logistack/core";
 import {
@@ -25,6 +25,7 @@ import {
 	type workAttachment,
 	type workChecklistItem,
 	workComment,
+	workDependency,
 	type workField,
 	workFieldValue,
 	type workList,
@@ -57,12 +58,6 @@ import { actorCan } from "../scope.ts";
 import { checkWork, type DbOrTx } from "./context.ts";
 
 /** Route plumbing, permission guards, DTO mappers and task loading shared by the Work routes. */
-
-// Recursive schemas need a component name, or the OpenAPI generator recurses forever.
-// `.openapi()` on a lazy schema also tags the instance its getter refers back to; it is called
-// through the prototype because schemas built before zod was extended don't carry the method.
-// PmNode is named in contracts (meta id WorkPmNode).
-z.ZodType.prototype.openapi.call(FilterNode, "WorkFilterNode");
 
 type Extra = Omit<RouteConfig, "method" | "path">;
 
@@ -266,8 +261,9 @@ export async function taskRow(db: DbOrTx, id: string) {
 	return rowOr404(tasksFrom(db).where(eq(workTask.id, id)), "task");
 }
 
+/** What the full task embeds; it carries dependencies in its own shape. */
 export const taskIncludes = ["fields", "assignees", "tags", "counts"] as const;
-export type TaskInclude = (typeof taskIncludes)[number];
+export type TaskInclude = (typeof workTaskIncludes)[number];
 
 export function itemDto(t: TaskRow): WorkTaskListItem {
 	return {
@@ -319,7 +315,7 @@ export async function enrich(
 ): Promise<WorkTaskListItem[]> {
 	const ids = rows.map((r) => r.id);
 	if (ids.length === 0) return [];
-	const [assignees, tags, fields, counts] = await Promise.all([
+	const [assignees, tags, fields, counts, deps] = await Promise.all([
 		include.has("assignees")
 			? db
 					.select({ t: workTaskAssignee.taskId, u: workTaskAssignee.userId })
@@ -344,6 +340,16 @@ export async function enrich(
 					.where(inArray(workFieldValue.taskId, ids))
 			: [],
 		include.has("counts") ? taskCounts(db, ids) : new Map(),
+		include.has("dependencies")
+			? db
+					.select({
+						t: workDependency.taskId,
+						b: workDependency.blockedById,
+						lag: workDependency.lagDays,
+					})
+					.from(workDependency)
+					.where(inArray(workDependency.taskId, ids))
+			: [],
 	]);
 	const a = group(
 		assignees,
@@ -368,6 +374,13 @@ export async function enrich(
 			? { fields: Object.fromEntries(f.get(r.id) ?? []) }
 			: {}),
 		...(include.has("counts") ? { counts: counts.get(r.id) } : {}),
+		...(include.has("dependencies")
+			? {
+					dependencies: deps
+						.filter((d) => d.t === r.id)
+						.map((d) => ({ blockedById: d.b, lagDays: d.lag })),
+				}
+			: {}),
 	}));
 }
 

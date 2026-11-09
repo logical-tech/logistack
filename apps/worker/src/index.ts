@@ -304,6 +304,7 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 									.publish(WORK_CHANNEL, JSON.stringify({ type: "work", ...m }))
 									.catch(() => {}),
 							attachmentFetch: pinnedFetch(await hostPolicy(ctx.db)),
+							openDestination: workDestination,
 						},
 						job.data as WorkImportJob,
 					);

@@ -16,12 +16,15 @@ import {
 	workStatus,
 	workTask,
 	workTaskAlias,
+	workTaskWatcher,
 } from "@logistack/db";
 import type { GitEvent } from "@logistack/providers";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Deps } from "../env.ts";
 import { log } from "../log.ts";
-import { publishWork, writeActivity } from "./context.ts";
+import { type DbOrTx, publishWork, writeActivity } from "./context.ts";
+import { notify } from "./notify.ts";
+import { applyRecurrenceOnComplete } from "./recurrence.ts";
 
 /**
  * Git integration (plan 12.4): commits, branches and pull requests that mention `KEY-n` link to
@@ -201,17 +204,21 @@ async function resolveTask(db: Db, projectId: string, number: number) {
 	return alias?.id;
 }
 
-/** Sets the closing status unless the task is already done or cancelled; true when it changed. */
+/**
+ * Sets the closing status unless the task is already done or cancelled. Returns null when nothing
+ * changed, else the next occurrence a recurring task got (or null in `next`).
+ */
 async function closeTask(
 	db: Db,
 	taskId: string,
 	c: Candidate,
 	repo: string,
-): Promise<boolean> {
+): Promise<{ next: string | null } | null> {
 	return db.transaction(async (tx) => {
 		const [t] = await tx
 			.select({
 				projectId: workTask.projectId,
+				recurrence: workTask.recurrence,
 				completedAt: workTask.completedAt,
 				category: workStatus.category,
 				closingStatusId: workProject.closingStatusId,
@@ -221,7 +228,7 @@ async function closeTask(
 			.innerJoin(workProject, eq(workProject.projectId, workTask.projectId))
 			.where(eq(workTask.id, taskId))
 			.for("update", { of: workTask });
-		if (!t || t.category === "done" || t.category === "cancelled") return false;
+		if (!t || t.category === "done" || t.category === "cancelled") return null;
 		const statuses = await tx
 			.select({ id: workStatus.id, category: workStatus.category })
 			.from(workStatus)
@@ -230,7 +237,7 @@ async function closeTask(
 		const target =
 			statuses.find((s) => s.id === t.closingStatusId) ??
 			statuses.find((s) => s.category === "done");
-		if (!target) return false;
+		if (!target) return null;
 		const now = new Date();
 		await tx
 			.update(workTask)
@@ -246,8 +253,43 @@ async function closeTask(
 			kind: "git_closed",
 			data: { repo, ref: c.ref, author: c.author },
 		});
-		return true;
+		return {
+			next: await applyRecurrenceOnComplete(
+				tx,
+				{ id: taskId, recurrence: t.recurrence },
+				t,
+				target,
+			),
+		};
 	});
+}
+
+/** Unmuted watchers hear that git closed the task. */
+async function notifyClosed(
+	deps: Deps,
+	organizationId: string,
+	projectId: string,
+	taskId: string,
+	repo: string,
+) {
+	const watchers = await deps.db
+		.select({ userId: workTaskWatcher.userId })
+		.from(workTaskWatcher)
+		.where(
+			and(eq(workTaskWatcher.taskId, taskId), eq(workTaskWatcher.muted, false)),
+		);
+	await notify(
+		deps,
+		watchers.map((w) => ({
+			userId: w.userId,
+			kind: "status_changed" as const,
+			taskId,
+			projectId,
+			organizationId,
+			actorId: null,
+			data: { via: "git", repo },
+		})),
+	);
 }
 
 /** Links (and maybe closes) the tasks an authentic webhook event mentions. Idempotent on redelivery. */
@@ -311,9 +353,20 @@ export async function linkGitEvent(
 				data: { kind: c.kind, repo: event.repo },
 			});
 		}
-		if (c.closes && (await closeTask(db, taskId, c, event.repo))) closed++;
 		const set = touched.get(projectId) ?? new Set();
 		set.add(taskId);
+		const done = c.closes ? await closeTask(db, taskId, c, event.repo) : null;
+		if (done) {
+			closed++;
+			if (done.next) set.add(done.next);
+			await notifyClosed(
+				deps,
+				provider.organizationId,
+				projectId,
+				taskId,
+				event.repo,
+			);
+		}
 		touched.set(projectId, set);
 	}
 	for (const [projectId, ids] of touched)
@@ -355,7 +408,7 @@ export const settleGitLinks = () => Promise.all([...pending]);
  * on the project, else counts only (commit text can carry deploy talk). Null when nothing is linked.
  */
 export async function gitForTask(
-	db: Db,
+	db: DbOrTx,
 	taskId: string,
 	canReadOps: boolean,
 ): Promise<WorkTaskGit | null> {

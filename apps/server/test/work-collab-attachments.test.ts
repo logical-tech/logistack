@@ -7,11 +7,11 @@ import {
 	workOrgSettings,
 } from "@logistack/db";
 import type { BackupDestination } from "@logistack/providers";
+import { sniffContentType } from "@logistack/worker/work-attachments";
 import { migrateBlobs, workGc } from "@logistack/worker/work-blobs";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { parseRange } from "../src/routes/work/attachments.ts";
-import { sniffContentType } from "../src/work/attachments.ts";
 import { hasDocker } from "./harness.ts";
 import { collabFixture } from "./work-collab-fixture.ts";
 
@@ -353,6 +353,48 @@ describe.skipIf(!hasDocker)("work attachments", () => {
 		await f.h.call("DELETE", b.json.url, f.dev.as);
 		await workGc(f.h.deps.db, future, async () => null);
 		expect(await blob()).toEqual([]);
+	});
+
+	test("deleting tasks releases their blobs (task, subtask and bulk deletes)", async () => {
+		const blob = (b: Uint8Array) =>
+			f.h.deps.db
+				.select()
+				.from(workBlob)
+				.where(
+					eq(
+						workBlob.sha256,
+						new Bun.CryptoHasher("sha256").update(b).digest("hex"),
+					),
+				);
+		const parent = await f.task("Doomed");
+		const sub = await f.task("Doomed sub", { parentId: parent.id });
+		const a = text(`parent ${crypto.randomUUID()}`);
+		const b = text(`sub ${crypto.randomUUID()}`);
+		expect(
+			(await upload(f.dev.as, a, "a.txt", { taskId: parent.id })).status,
+		).toBe(201);
+		expect(
+			(await upload(f.dev.as, b, "b.txt", { taskId: sub.id })).status,
+		).toBe(201);
+		expect((await blob(a))[0]?.refCount).toBe(1);
+		const del = await f.h.call(
+			"DELETE",
+			`/api/work/tasks/${parent.id}`,
+			f.mia.as,
+		);
+		expect(del.status).toBe(204);
+		expect(await blob(a)).toEqual([]);
+		expect(await blob(b)).toEqual([]);
+
+		const bulk = await f.task("Bulk doomed");
+		const c = text(`bulk ${crypto.randomUUID()}`);
+		await upload(f.dev.as, c, "c.txt", { taskId: bulk.id });
+		const res = await f.h.call("POST", "/api/work/tasks/bulk", {
+			...f.mia.as,
+			body: { taskIds: [bulk.id], delete: true },
+		});
+		expect(res.json.errors).toEqual([]);
+		expect(await blob(c)).toEqual([]);
 	});
 
 	test("migrate-blobs moves database attachments to S3, resumably; GC cleans S3 too", async () => {

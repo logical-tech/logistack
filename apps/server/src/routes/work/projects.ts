@@ -42,6 +42,7 @@ import {
 	workRoute,
 } from "../../work/api.ts";
 import { ensureWorkProject, publishWork } from "../../work/context.ts";
+import { visiblePeople } from "../../work/guests.ts";
 import { healthOfProject, healthOfProjects } from "../../work/health.ts";
 
 async function projectDto(
@@ -442,10 +443,12 @@ export const projectRoutes = router()
 				members.map((m) => m.userId),
 			);
 			const showEmail = actorCan(actor, "work", resource);
+			const visible = await visiblePeople(db, actor);
 			const people = members.flatMap((m) => {
 				const g = grants.get(m.userId);
 				if (
 					!g ||
+					(visible && !visible.has(m.userId)) ||
 					!actorCan(
 						{ ...actor, id: m.userId, grants: g, keyScopes: undefined },
 						"read:work",

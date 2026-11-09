@@ -22,7 +22,6 @@ import {
 	workAttachment,
 	workChecklistItem,
 	workDependency,
-	workGitLink,
 	workList,
 	workStatus,
 	workTask,
@@ -54,6 +53,7 @@ import {
 } from "./api.ts";
 import type { DbOrTx } from "./context.ts";
 import { compileFilter, type FilterContext } from "./filter-sql.ts";
+import { gitForTask } from "./git-links.ts";
 
 /** Task reads and the placement rules shared by the task, me and search routes. */
 
@@ -84,7 +84,6 @@ export async function fullTask(
 		blockedBy,
 		blocking,
 		attachments,
-		links,
 		categories,
 	] = await Promise.all([
 		db.select().from(workTaskWatcher).where(eq(workTaskWatcher.taskId, id)),
@@ -121,7 +120,6 @@ export async function fullTask(
 				),
 			)
 			.orderBy(asc(workAttachment.createdAt)),
-		db.select().from(workGitLink).where(eq(workGitLink.taskId, id)),
 		db
 			.select({ id: workStatus.id, category: workStatus.category })
 			.from(workStatus)
@@ -167,39 +165,7 @@ export async function fullTask(
 		recurrence: recurrenceOf(row.recurrence),
 		recurrenceSeriesId: row.recurrenceSeriesId,
 		source: row.source ?? null,
-		git:
-			links.length === 0
-				? null
-				: opsReader
-					? {
-							links: links.map((l) => ({
-								id: l.id,
-								taskId: l.taskId,
-								providerId: l.providerId,
-								repo: l.repo,
-								kind: l.kind,
-								ref: l.ref,
-								title: l.title,
-								url: l.url,
-								state: l.state,
-								author: l.author,
-								createdAt: l.createdAt.toISOString(),
-								updatedAt: l.updatedAt.toISOString(),
-							})),
-						}
-					: {
-							summary: {
-								pullRequests: {
-									open: links.filter(
-										(l) => l.kind === "pull_request" && l.state === "open",
-									).length,
-									merged: links.filter(
-										(l) => l.kind === "pull_request" && l.state === "merged",
-									).length,
-								},
-								commits: links.filter((l) => l.kind === "commit").length,
-							},
-						},
+		git: await gitForTask(db, id, opsReader),
 	} as WorkTask;
 }
 

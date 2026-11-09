@@ -158,9 +158,30 @@ export function channelsOf(e: EventEnvelope): string[] {
 	return channels;
 }
 
+/** `read:work` of the actor on a project, cached per project in `cache` (cleared on access changes). */
+async function readsWork(
+	db: Db,
+	actor: Actor,
+	cache: Map<string, boolean>,
+	projectId: string,
+): Promise<boolean> {
+	let ok = cache.get(projectId);
+	if (ok === undefined) {
+		const resource = await locate(
+			db,
+			actor.organizationId,
+			"project",
+			projectId,
+		).catch(() => undefined);
+		ok = resource !== undefined && actorCan(actor, "read:work", resource);
+		cache.set(projectId, ok);
+	}
+	return ok;
+}
+
 /**
- * Whether a Work message may reach this socket's actor: `read:work` on its project, cached per
- * project in `cache` (cleared on access changes); messages with `userId` go to that user only.
+ * Whether a Work message may reach this socket's actor: `read:work` on its project; messages
+ * with `userId` go to that user only.
  */
 export async function workVisible(
 	db: Db,
@@ -170,18 +191,21 @@ export async function workVisible(
 ): Promise<boolean> {
 	if (m.organizationId !== actor.organizationId) return false;
 	if (m.userId && m.userId !== actor.userId) return false;
-	let ok = cache.get(m.projectId);
-	if (ok === undefined) {
-		const resource = await locate(
-			db,
-			actor.organizationId,
-			"project",
-			m.projectId,
-		).catch(() => undefined);
-		ok = resource !== undefined && actorCan(actor, "read:work", resource);
-		cache.set(m.projectId, ok);
-	}
-	return ok;
+	return readsWork(db, actor, cache, m.projectId);
+}
+
+/** `task.*` envelopes carry task titles: only actors with `read:work` on the project get them. */
+export async function eventVisible(
+	db: Db,
+	actor: Actor,
+	cache: Map<string, boolean>,
+	e: EventEnvelope,
+): Promise<boolean> {
+	if (!e.type.startsWith("task.")) return true;
+	const projectId = e.payload.projectId;
+	return (
+		typeof projectId === "string" && readsWork(db, actor, cache, projectId)
+	);
 }
 
 /** Close code for a socket whose credential no longer reaches the organization. */
@@ -246,7 +270,20 @@ export const realtime = new Hono<Env>().get(
 				unlisten = bus.onEvent((event) => {
 					if (event.organizationId !== actor.organizationId) return;
 					const channel = channelsOf(event).find((ch) => subscribed.has(ch));
-					if (channel) send({ type: "event", channel, event });
+					if (!channel) return;
+					if (!event.type.startsWith("task."))
+						return send({ type: "event", channel, event });
+					// Through the Work queue: the permission check is async and must not reorder.
+					workQueue = workQueue
+						.then(async () => {
+							if (!closed && (await eventVisible(db, actor, workCache, event)))
+								send({ type: "event", channel, event });
+						})
+						.catch((e) =>
+							log("error", "task event forward failed", {
+								error: String(e),
+							}),
+						);
 				});
 				unlive = (await live(c.var.deps.config.REDIS_URL)).onLive((data) => {
 					if (subscribed.has(data.channel))

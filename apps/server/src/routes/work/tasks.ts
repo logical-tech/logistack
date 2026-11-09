@@ -87,6 +87,7 @@ import {
 	workMutation,
 	workRoute,
 } from "../../work/api.ts";
+import { releaseBlobs, taskBlobs } from "../../work/blob-store.ts";
 import {
 	type DbOrTx,
 	ensureWorkProject,
@@ -94,6 +95,8 @@ import {
 	publishWork,
 	writeActivity,
 } from "../../work/context.ts";
+import { guestCreateDefaults } from "../../work/guests.ts";
+import { applyRecurrenceOnComplete } from "../../work/recurrence.ts";
 import {
 	fullTask,
 	groupFilter,
@@ -815,11 +818,23 @@ export const taskRoutes = router()
 		async (c) => {
 			const input = c.req.valid("json");
 			const { db } = c.var.deps;
-			const list = await rowOr404(
+			let list = await rowOr404(
 				db.select().from(workList).where(eq(workList.id, input.listId)),
 				"list",
 			);
-			const { actor, resource } = await guard(c, "work", list.projectId);
+			const { actor, resource } = await guard(
+				c,
+				"read:work",
+				list.projectId,
+				true,
+			);
+			// Guests (when the project lets them) land in the default list's backlog, tagged.
+			const guest = await guestCreateDefaults(db, actor, resource);
+			if (guest && guest.listId !== list.id)
+				list = await rowOr404(
+					db.select().from(workList).where(eq(workList.id, guest.listId)),
+					"list",
+				);
 			if (list.archivedAt)
 				throw new Failure("conflict", "the list is archived");
 			await ensureWorkProject(db, list.projectId);
@@ -848,14 +863,17 @@ export const taskRoutes = router()
 					);
 			}
 			const statuses = await statusesOf(db, list.projectId);
-			const status = input.statusId
-				? statuses.find((s) => s.id === input.statusId)
+			const statusId = guest?.statusId ?? input.statusId;
+			const status = statusId
+				? statuses.find((s) => s.id === statusId)
 				: statuses[0];
 			if (!status)
 				throw new Failure("bad_request", "status not in this project");
 			const assignees = [...new Set(input.assignees ?? [])];
 			await assertAssignable(db, resource, assignees);
-			const tags = [...new Set(input.tags ?? [])];
+			const tags = [
+				...new Set([...(input.tags ?? []), ...(guest ? [guest.tagId] : [])]),
+			];
 			await assertTags(db, list.projectId, tags);
 			const fields = await fieldsFor(db, list.projectId, list.id);
 			const values: [Field, unknown][] = [];
@@ -1052,7 +1070,22 @@ export const taskRoutes = router()
 				if (Object.keys(set).length)
 					await tx.update(workTask).set(set).where(eq(workTask.id, id));
 				for (const entry of log) await writeActivity(tx, entry);
-				return { status };
+				const next = status
+					? await applyRecurrenceOnComplete(
+							tx,
+							{
+								id,
+								recurrence:
+									set.recurrence !== undefined
+										? (set.recurrence ?? null)
+										: cur.recurrence,
+							},
+							status.from,
+							status.to,
+							actor.userId,
+						)
+					: null;
+				return { status, next };
 			});
 			if (changed === null) {
 				const current = await fullTask(
@@ -1079,7 +1112,7 @@ export const taskRoutes = router()
 						statusName: changed.status.to.name,
 					});
 			}
-			pub(c, task.projectId, [id]);
+			pub(c, task.projectId, changed.next ? [id, changed.next] : [id]);
 			return respond(c, id);
 		},
 	)
@@ -1133,7 +1166,7 @@ export const taskRoutes = router()
 						"a task with subtasks can't become a subtask",
 					);
 			}
-			const status = await db.transaction(async (tx) => {
+			const { status, next } = await db.transaction(async (tx) => {
 				const set: Partial<typeof workTask.$inferInsert> = {};
 				let status: Awaited<ReturnType<typeof statusChange>> | undefined;
 				if (input.statusId && input.statusId !== task.statusId) {
@@ -1174,7 +1207,16 @@ export const taskRoutes = router()
 				}
 				if (Object.keys(set).length)
 					await tx.update(workTask).set(set).where(eq(workTask.id, id));
-				return status;
+				const next = status
+					? await applyRecurrenceOnComplete(
+							tx,
+							task,
+							status.from,
+							status.to,
+							actor.userId,
+						)
+					: null;
+				return { status, next };
 			});
 			if (status) {
 				await emitTaskEvent(c, "task.status_changed", task, {
@@ -1185,7 +1227,7 @@ export const taskRoutes = router()
 						statusName: status.to.name,
 					});
 			}
-			pub(c, task.projectId, [id]);
+			pub(c, task.projectId, next ? [id, next] : [id]);
 			return respond(c, id);
 		},
 	)
@@ -1592,7 +1634,9 @@ export const taskRoutes = router()
 			const task = await taskRow(db, id);
 			await guardDelete(c, task);
 			c.set("auditResourceId", id);
+			const blobs = await taskBlobs(db, [id]);
 			await db.delete(workTask).where(eq(workTask.id, id));
+			await releaseBlobs(c.var.deps, requireActor(c).organizationId, blobs);
 			pub(c, task.projectId, [id], "delete");
 			return c.body(null, 204);
 		},
@@ -1623,6 +1667,7 @@ export const taskRoutes = router()
 			const touched = new Map<string, string[]>();
 			const s = input.set ?? {};
 			const workingDays = new Map<string, number>();
+			const blobs: Awaited<ReturnType<typeof taskBlobs>> = [];
 			await db.transaction(async (tx) => {
 				for (const taskId of input.taskIds) {
 					const t = rows.find((r) => r.id === taskId);
@@ -1634,18 +1679,24 @@ export const taskRoutes = router()
 						});
 						continue;
 					}
+					// Set inside the savepoint, kept only when it commits.
+					let gone: typeof blobs = [];
+					let created: string | null = null;
 					try {
 						await tx.transaction(async (sp) => {
 							const { resource } = input.delete
 								? await guardDelete(c, t)
 								: await guard(c, "work", t.projectId);
 							if (input.delete) {
+								gone = await taskBlobs(sp, [t.id]);
 								await sp.delete(workTask).where(eq(workTask.id, t.id));
 								return;
 							}
 							const set: Partial<typeof workTask.$inferInsert> = {};
+							let change: Awaited<ReturnType<typeof statusChange>> | undefined;
 							if (s.statusId && s.statusId !== t.statusId) {
 								const st = await statusChange(sp, t, s.statusId);
+								change = st;
 								Object.assign(set, {
 									statusId: s.statusId,
 									completedAt: st.completedAt,
@@ -1739,6 +1790,16 @@ export const taskRoutes = router()
 							}
 							if (Object.keys(set).length)
 								await sp.update(workTask).set(set).where(eq(workTask.id, t.id));
+							if (change) {
+								const next = await applyRecurrenceOnComplete(
+									sp,
+									t,
+									change.from,
+									change.to,
+									actor.userId,
+								);
+								if (next) created = next;
+							}
 							if (s.addAssignees?.length) {
 								await assertAssignable(db, resource, s.addAssignees);
 								const added = await addAssignees(
@@ -1806,12 +1867,19 @@ export const taskRoutes = router()
 							...(touched.get(t.projectId) ?? []),
 							t.id,
 						]);
+						blobs.push(...gone);
+						if (created)
+							touched.set(t.projectId, [
+								...(touched.get(t.projectId) ?? []),
+								created,
+							]);
 					} catch (e) {
 						if (!(e instanceof Failure)) throw e;
 						errors.push({ taskId, code: e.code, message: e.message });
 					}
 				}
 			});
+			await releaseBlobs(c.var.deps, actor.organizationId, blobs);
 			for (const e of events) await e();
 			for (const [projectId, ids] of touched)
 				pub(c, projectId, ids, input.delete ? "delete" : "upsert");

@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { workField, workFieldValue, workProject } from "@logistack/db";
+import { encrypt } from "@logistack/core";
+import {
+	s3Destination,
+	workAttachment,
+	workField,
+	workFieldValue,
+	workOrgSettings,
+	workProject,
+} from "@logistack/db";
 import { eq } from "drizzle-orm";
 import { hasDocker } from "./harness.ts";
 import {
@@ -111,6 +119,68 @@ describe.skipIf(!hasDocker)("work share links", () => {
 			).status,
 		).toBe(204);
 		expect((await page(`/share/${token}`)).status).toBe(404);
+	});
+
+	test("a shared attachment stored on S3 is served through the blob store", async () => {
+		const bytes = new TextEncoder().encode("brief on s3");
+		const sha = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+		const key = `work/${w.orgId}/${sha}`;
+		const s3 = Bun.serve({
+			port: 0,
+			fetch: (req) =>
+				new URL(req.url).pathname === `/bucket/${key}`
+					? new Response(bytes)
+					: new Response("NoSuchKey", { status: 404 }),
+		});
+		try {
+			await w.h.call("PATCH", "/api/instance/settings", {
+				...w.as(),
+				body: { allowPrivateHosts: true },
+			});
+			const [d] = await w.h.deps.db
+				.insert(s3Destination)
+				.values({
+					organizationId: w.orgId,
+					name: "fake",
+					endpoint: `http://127.0.0.1:${s3.port}`,
+					region: "us-east-1",
+					bucket: "bucket",
+					accessKeyId: "a",
+					secretEncrypted: await encrypt(w.h.deps.masterKey, "s"),
+					forcePathStyle: true,
+				})
+				.returning();
+			await w.h.deps.db
+				.insert(workOrgSettings)
+				.values({ organizationId: w.orgId, attachmentDestinationId: d?.id })
+				.onConflictDoUpdate({
+					target: workOrgSettings.organizationId,
+					set: { attachmentDestinationId: d?.id },
+				});
+			const t = await seedTask(w.h.deps.db, p, "Brief");
+			const [a] = await w.h.deps.db
+				.insert(workAttachment)
+				.values({
+					projectId: p.id,
+					taskId: t.id,
+					name: "brief.txt",
+					contentType: "text/plain; charset=utf-8",
+					size: bytes.length,
+					sha256: sha,
+					driver: "s3",
+					objectKey: key,
+				})
+				.returning();
+			const res = await w.h.call("POST", `/api/work/projects/${p.id}/shares`, {
+				...w.as(),
+				body: { name: "Files", listId: p.listId },
+			});
+			const file = await page(`/share/${tokenOf(res.json.url)}/a/${a?.id}`);
+			expect(file.status).toBe(200);
+			expect(file.text).toBe("brief on s3");
+		} finally {
+			s3.stop(true);
+		}
 	});
 
 	test("a password link asks first, then sets a cookie scoped to the share", async () => {

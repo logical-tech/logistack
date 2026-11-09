@@ -1,13 +1,13 @@
 import type { WorkImportReport } from "@logistack/contracts";
+import { type Db, workImport, workImportMap } from "@logistack/db";
+import type { BackupDestination, Fetch } from "@logistack/providers";
+import { and, eq } from "drizzle-orm";
 import {
-	type Db,
-	workAttachment,
-	workBlob,
-	workImport,
-	workImportMap,
-} from "@logistack/db";
-import type { Fetch } from "@logistack/providers";
-import { and, eq, sql } from "drizzle-orm";
+	attachmentQuota,
+	prepareAttachment,
+	saveAttachment,
+} from "../work-attachments.ts";
+import { dbBlobStore, s3BlobStore } from "../work-blobs.ts";
 
 /** Shared plumbing for Work imports (plan 12.5, 12.6): id map, progress, report, attachments. */
 
@@ -25,50 +25,42 @@ export type WorkPublish = {
 };
 
 /**
- * Stores downloaded bytes as a task attachment. The default writes `work_blob`/`work_attachment`
- * rows directly (the `db` driver); the server's upload pipeline can replace it.
+ * Stores downloaded bytes as a task attachment through the upload pipeline (sniffing, EXIF
+ * strip, thumbnail, dedup, the organization's driver); throws when the quota is exceeded.
  */
-export type StoreImportedAttachment = (
+export async function storeImportedAttachment(
+	deps: ImportDeps,
 	db: DbOrTx,
 	a: {
+		organizationId: string;
 		projectId: string;
 		taskId: string;
 		uploaderId: string | null;
 		name: string;
-		contentType: string;
 		bytes: Uint8Array;
 	},
-) => Promise<string>;
-
-export const dbStoreImportedAttachment: StoreImportedAttachment = async (
-	db,
-	a,
-) => {
-	const sha256 = new Bun.CryptoHasher("sha256").update(a.bytes).digest("hex");
-	await db
-		.insert(workBlob)
-		.values({ sha256, bytes: Buffer.from(a.bytes), size: a.bytes.length })
-		.onConflictDoUpdate({
-			target: workBlob.sha256,
-			set: { refCount: sql`${workBlob.refCount} + 1` },
-		});
-	const [row] = await db
-		.insert(workAttachment)
-		.values({
-			projectId: a.projectId,
-			taskId: a.taskId,
-			uploaderId: a.uploaderId,
-			name: a.name.slice(0, 255) || "file",
-			contentType: a.contentType || "application/octet-stream",
-			size: a.bytes.length,
-			sha256,
-			driver: "db",
-			objectKey: sha256,
-		})
-		.returning({ id: workAttachment.id });
-	if (!row) throw new Error("attachment insert returned nothing");
+): Promise<string> {
+	const p = await prepareAttachment(a.bytes, a.name);
+	const q = await attachmentQuota(deps.db, a.organizationId);
+	if (q.quotaBytes !== null && q.usedBytes + p.bytes.length > q.quotaBytes)
+		throw new Error(
+			`attachment quota exceeded: ${q.usedBytes + p.bytes.length} of ${q.quotaBytes} bytes`,
+		);
+	const dest = q.destinationId
+		? await deps.openDestination?.(a.organizationId)
+		: null;
+	if (q.destinationId && !dest)
+		throw new Error("the attachment destination can't be opened");
+	const store = dest
+		? s3BlobStore(db, dest, a.organizationId)
+		: dbBlobStore(db);
+	const row = await saveAttachment(db, store, p, {
+		projectId: a.projectId,
+		taskId: a.taskId,
+		uploaderId: a.uploaderId,
+	});
 	return row.id;
-};
+}
 
 export type ImportDeps = {
 	db: Db;
@@ -85,7 +77,10 @@ export type ImportDeps = {
 	attachmentFetch?: Fetch;
 	/** Per-file cap; larger files are skipped and reported. */
 	attachmentCapBytes?: number;
-	storeAttachment?: StoreImportedAttachment;
+	/** The organization's attachment destination; without it S3-configured orgs can't import files. */
+	openDestination?: (
+		organizationId: string,
+	) => Promise<BackupDestination | null>;
 };
 
 export const DEFAULT_ATTACHMENT_CAP = 25 * 1024 * 1024;

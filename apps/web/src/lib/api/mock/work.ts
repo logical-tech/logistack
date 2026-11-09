@@ -943,8 +943,21 @@ export const workMock: WorkApi = {
 			const offset = Number(q.cursor ?? 0);
 			const limit = Number(q.limit ?? 100);
 			const page = rows.slice(offset, offset + limit);
+			const deps = (q.include ?? "").split(",").includes("dependencies");
 			return delay({
-				items: page.map(toItem),
+				items: page.map((t) =>
+					deps
+						? {
+								...toItem(t),
+								dependencies: w.dependencies
+									.filter((d) => d.taskId === t.id)
+									.map(({ blockedById, lagDays }) => ({
+										blockedById,
+										lagDays,
+									})),
+							}
+						: toItem(t),
+				),
 				nextCursor:
 					offset + limit < rows.length ? String(offset + limit) : null,
 				total: rows.length,

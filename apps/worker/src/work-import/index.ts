@@ -13,11 +13,7 @@ export {
 	testClickUp,
 } from "./clickup-api.ts";
 export type { StoredCsvConfig } from "./csv.ts";
-export type {
-	ImportDeps,
-	StoreImportedAttachment,
-	WorkPublish,
-} from "./store.ts";
+export type { ImportDeps, WorkPublish } from "./store.ts";
 
 /** BullMQ queue for Work background jobs; imports run as job `work-import`. */
 export const WORK_QUEUE = "work";

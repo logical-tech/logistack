@@ -4,15 +4,18 @@ import {
 	gitProvider,
 	workActivity,
 	workGitLink,
+	workNotification,
 	workProject,
 	workStatus,
 	workTask,
+	workTaskWatcher,
 } from "@logistack/db";
 import { hmacSha256 } from "@logistack/providers";
 import { and, eq } from "drizzle-orm";
 import { gitForTask, settleGitLinks } from "../src/work/git-links.ts";
 import { hasDocker } from "./harness.ts";
 import {
+	acceptAs,
 	seedTask,
 	type WorkHarness,
 	workHarness,
@@ -283,5 +286,58 @@ describe.skipIf(!hasDocker)("work git links", () => {
 				true,
 			),
 		).toBeNull();
+	});
+
+	test("GET /tasks/:id: links for ops readers, counts for a work-only guest", async () => {
+		const t = await seedTask(w.h.deps.db, p, "Sheet visibility");
+		const ref = `${p.key}-${t.number}`;
+		await deliver(
+			push("feat", [{ id: "5".repeat(40), message: `${ref} deploy talk` }]),
+		);
+		const owner = await w.h.call("GET", `/api/work/tasks/${t.id}`, w.as());
+		expect(owner.status).toBe(200);
+		expect(owner.json.git.links.map((l: { title: string }) => l.title)).toEqual(
+			[`${ref} deploy talk`],
+		);
+		const inv = await w.h.call("POST", `/api/work/projects/${p.id}/guests`, {
+			...w.as(),
+			body: { email: "gil@client.example" },
+		});
+		expect(inv.status).toBe(201);
+		const guest = await acceptAs(
+			w.h,
+			{
+				name: "Gil Guest",
+				email: "gil@client.example",
+				password: "gil password 123",
+			},
+			inv.json.invitationId,
+		);
+		const seen = await w.h.call("GET", `/api/work/tasks/${t.id}`, w.as(guest));
+		expect(seen.status).toBe(200);
+		expect(seen.json.git).toEqual({
+			summary: { pullRequests: { open: 0, merged: 0 }, commits: 1 },
+		});
+	});
+
+	test("a git close notifies the task's unmuted watchers", async () => {
+		const t = await seedTask(w.h.deps.db, p, "Watched", "active");
+		const ownerId = (await w.h.call("GET", "/api/me", w.as())).json.userId;
+		await w.h.deps.db
+			.insert(workTaskWatcher)
+			.values({ taskId: t.id, userId: ownerId, reason: "manual" });
+		await deliver(
+			push("main", [
+				{ id: "6".repeat(40), message: `Fixes ${p.key}-${t.number}` },
+			]),
+		);
+		expect(await statusOf(t.id)).toBe("done");
+		const notes = await w.h.deps.db
+			.select()
+			.from(workNotification)
+			.where(eq(workNotification.taskId, t.id));
+		expect(notes).toMatchObject([
+			{ userId: ownerId, kind: "status_changed", actorId: null },
+		]);
 	});
 });

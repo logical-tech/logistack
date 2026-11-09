@@ -2,9 +2,9 @@ import type { PmDoc, WorkColor, WorkFieldConfig } from "@logistack/contracts";
 import { docToEmailHtml, formatFieldValue, matchesTask } from "@logistack/core";
 import {
 	type Db,
+	project,
 	user,
 	workAttachment,
-	workBlob,
 	workChecklistItem,
 	workComment,
 	workField,
@@ -26,6 +26,7 @@ import { clientIp } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { overLimit } from "../rate-limit.ts";
 import { escapeHtml as esc } from "../status-render.ts";
+import { storeFor } from "./blob-store.ts";
 
 /**
  * Read-only share links (plan 12.7): server-rendered pages at `/share/<token>` with no client JS,
@@ -539,8 +540,10 @@ sharePages.get("/:token/a/:attachmentId", async (c) => {
 			contentType: workAttachment.contentType,
 			driver: workAttachment.driver,
 			objectKey: workAttachment.objectKey,
+			organizationId: project.organizationId,
 		})
 		.from(workAttachment)
+		.innerJoin(project, eq(project.id, workAttachment.projectId))
 		.leftJoin(workComment, eq(workComment.id, workAttachment.commentId))
 		.where(
 			and(
@@ -555,13 +558,11 @@ sharePages.get("/:token/a/:attachmentId", async (c) => {
 		taskId &&
 		(!a.commentTaskId || share.showComments) &&
 		(await loadShare(db, share)).tasks.some((t) => t.id === taskId);
-	// shortcut: only the `db` driver is served here; S3-stored files 404 until the blob store lands in this path.
-	if (!visible || a.driver !== "db") return c.text("not found", 404);
-	const [blob] = await db
-		.select({ bytes: workBlob.bytes })
-		.from(workBlob)
-		.where(eq(workBlob.sha256, a.objectKey));
-	if (!blob) return c.text("not found", 404);
+	if (!visible) return c.text("not found", 404);
+	const body = await storeFor(c.var.deps, a.organizationId, a.driver)
+		.then((store) => store.read(a.objectKey))
+		.catch(() => null);
+	if (!body) return c.text("not found", 404);
 	const inline = INLINE_TYPES.has(a.contentType);
 	c.header("content-type", inline ? a.contentType : "application/octet-stream");
 	c.header(
@@ -569,5 +570,5 @@ sharePages.get("/:token/a/:attachmentId", async (c) => {
 		`${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(a.name)}`,
 	);
 	c.header("content-security-policy", "default-src 'none'; sandbox");
-	return c.body(new Uint8Array(blob.bytes));
+	return c.body(body);
 });

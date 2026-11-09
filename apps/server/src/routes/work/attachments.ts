@@ -12,6 +12,11 @@ import {
 	workComment,
 	workOrgSettings,
 } from "@logistack/db";
+import {
+	prepareAttachment,
+	saveAttachment,
+	servedInline,
+} from "@logistack/worker/work-attachments";
 import { and, count, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "../../actor.ts";
@@ -24,14 +29,8 @@ import { actorCan, check, organizationResource } from "../../scope.ts";
 import {
 	assertQuota,
 	capUpload,
-	cleanName,
-	isRaster,
 	maxUploadBytes,
-	processImage,
 	quotaOf,
-	servedInline,
-	sha256Hex,
-	sniffContentType,
 	toAttachmentDto,
 	tooLarge,
 } from "../../work/attachments.ts";
@@ -183,58 +182,32 @@ export const workAttachments = router()
 					"conflict",
 					`a task holds at most ${ATTACHMENTS_PER_TASK} attachments`,
 				);
-			const name = cleanName(file.name);
-			const raw = new Uint8Array(await file.arrayBuffer());
-			const contentType = sniffContentType(raw, name);
-			const image = isRaster(contentType)
-				? await processImage(raw, contentType)
-				: { bytes: raw, width: null, height: null, thumb: null };
-			await assertQuota(deps, task.organizationId, image.bytes.length);
-			const sha = sha256Hex(image.bytes);
-			const thumbSha = image.thumb ? sha256Hex(image.thumb) : null;
-			const store = await writeStore(deps, deps.db, task.organizationId);
-			const key = store.keyFor(sha);
-			const thumbKey = thumbSha ? store.keyFor(thumbSha) : null;
-			await store.put(key, image.bytes, contentType);
-			if (thumbKey && image.thumb)
-				await store.put(thumbKey, image.thumb, "image/webp");
-			let row: typeof workAttachment.$inferSelect;
-			try {
-				row = await deps.db.transaction(async (tx) => {
-					const [r] = await tx
-						.insert(workAttachment)
-						.values({
-							projectId: task.projectId,
-							taskId: task.id,
-							commentId,
-							inlineIn: commentId ? "comment" : inline.data,
-							uploaderId: actor.userId,
-							name,
-							contentType,
-							size: image.bytes.length,
-							sha256: sha,
-							driver: store.driver,
-							objectKey: key,
-							width: image.width,
-							height: image.height,
-							thumbKey,
-						})
-						.returning();
-					if (!r) throw new Error("attachment not inserted");
+			const prepared = await prepareAttachment(
+				new Uint8Array(await file.arrayBuffer()),
+				file.name,
+			);
+			await assertQuota(deps, task.organizationId, prepared.bytes.length);
+			const row = await saveAttachment(
+				deps.db,
+				await writeStore(deps, deps.db, task.organizationId),
+				prepared,
+				{
+					projectId: task.projectId,
+					taskId: task.id,
+					commentId,
+					inlineIn: commentId ? "comment" : inline.data,
+					uploaderId: actor.userId,
+				},
+				async (tx, r) => {
 					if (r.inlineIn === "none")
 						await writeActivity(tx, {
 							taskId: task.id,
 							actorId: actor.userId,
 							kind: "attachment_added",
-							data: { attachmentId: r.id, name },
+							data: { attachmentId: r.id, name: r.name },
 						});
-					return r;
-				});
-			} catch (error) {
-				await store.release(key);
-				if (thumbKey) await store.release(thumbKey);
-				throw error;
-			}
+				},
+			);
 			c.set("auditResourceId", row.id);
 			publishWork(deps, {
 				organizationId: task.organizationId,

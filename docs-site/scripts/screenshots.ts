@@ -19,7 +19,7 @@ const PG = `${P}/services/svc_storefront_production_postgres`;
 const REDIS = `${P}/services/svc_storefront_production_redis`;
 // shortcut: ids assumed for the Work mock fixture (project "Shop"); align them when the fixture lands.
 const W = "/work/projects/prj_shop";
-const AUTOSCALE =`${P}/services/svc_storefront_production_api/settings?scaling=setup&step=`;
+const AUTOSCALE = `${P}/services/svc_storefront_production_api/settings?scaling=setup&step=`;
 
 /** A path, or a path plus the buttons/links to click (by accessible name, in order) before the shot. */
 type Shot = string | { path: string; click: string[] };

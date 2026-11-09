@@ -28,6 +28,7 @@ import { requireActor } from "../../actor.ts";
 import { errors, json, router } from "../../openapi.ts";
 import { actorCan, locate } from "../../scope.ts";
 import { checkWork } from "../../work/context.ts";
+import { visiblePeople } from "../../work/guests.ts";
 import { spec } from "./extras-a-spec.ts";
 
 const DEFAULT_CAPACITY_HOURS = 32;
@@ -165,7 +166,8 @@ export const workReports = router().openapi(
 				}
 			}
 		}
-		const userIds = [...grid.keys()];
+		const visible = await visiblePeople(db, actor);
+		const userIds = [...grid.keys()].filter((u) => !visible || visible.has(u));
 		if (!userIds.length) return c.json(empty, 200);
 		const [users, prefs] = await Promise.all([
 			db

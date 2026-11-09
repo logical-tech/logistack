@@ -8,8 +8,9 @@ import {
 } from "@logistack/db";
 import { eq } from "drizzle-orm";
 import { cluster } from "../src/cluster.ts";
+import { envelope } from "../src/events.ts";
 import { WORK_CHANNEL, type WorkMessage } from "../src/work/context.ts";
-import { workVisible } from "../src/ws.ts";
+import { eventVisible, workVisible } from "../src/ws.ts";
 import { hasDocker } from "./harness.ts";
 import {
 	type ActorName,
@@ -1014,5 +1015,73 @@ describe.skipIf(!hasDocker)("work api", () => {
 		expect(await visible("manager", { ...msg, organizationId: "other" })).toBe(
 			false,
 		);
+	});
+
+	test("task.* events on the org channel need read:work on the event's project", async () => {
+		const ev = (type: "task.created" | "deployment.started", payload = {}) =>
+			envelope(type, w.orgId, { type: "task", id: "tsk_x" }, payload);
+		const titled = ev("task.created", { projectId: w.P, title: "Secret plan" });
+		for (const a of actorNames)
+			expect(await eventVisible(w.db, w.actors[a], new Map(), titled)).toBe(
+				caps[a].includes("R"),
+			);
+		expect(
+			await eventVisible(w.db, w.actors.manager, new Map(), {
+				...titled,
+				payload: { ...titled.payload, projectId: w.Q },
+			}),
+		).toBe(false);
+		expect(
+			await eventVisible(w.db, w.actors.owner, new Map(), ev("task.created")),
+		).toBe(false);
+		expect(
+			await eventVisible(
+				w.db,
+				w.actors.env,
+				new Map(),
+				ev("deployment.started"),
+			),
+		).toBe(true);
+	});
+
+	test("include=dependencies lists each row's blockers in one extra query", async () => {
+		// Subtasks of one parent, so a single page holds them all.
+		const parent = await w.task(w.P);
+		const sub = () => w.task(w.P, { parentId: parent.id });
+		const [a, b, c] = [await sub(), await sub(), await sub()];
+		await w.ok("POST", w.work(`/tasks/${a.id}/dependencies`), {
+			blockedById: b.id,
+			lagDays: 2,
+		});
+		await w.ok("POST", w.work(`/tasks/${a.id}/dependencies`), {
+			blockedById: c.id,
+		});
+		const page = await w.ok(
+			"GET",
+			w.work(
+				`/tasks?projectId=${w.P}&parentId=${parent.id}&include=dependencies`,
+			),
+		);
+		const row = (id: string) =>
+			page.items.find((t: { id: string }) => t.id === id);
+		expect(
+			row(a.id).dependencies.sort(
+				(x: { blockedById: string }, y: { blockedById: string }) =>
+					x.blockedById.localeCompare(y.blockedById),
+			),
+		).toEqual(
+			[
+				{ blockedById: b.id, lagDays: 2 },
+				{ blockedById: c.id, lagDays: 0 },
+			].sort((x, y) => x.blockedById.localeCompare(y.blockedById)),
+		);
+		expect(row(b.id).dependencies).toEqual([]);
+		const plain = await w.ok(
+			"GET",
+			w.work(`/tasks?projectId=${w.P}&parentId=${parent.id}`),
+		);
+		expect(
+			plain.items.find((t: { id: string }) => t.id === a.id).dependencies,
+		).toBeUndefined();
 	});
 });

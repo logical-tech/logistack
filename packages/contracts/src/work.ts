@@ -994,6 +994,10 @@ export const WorkTaskListItem = z.object({
 	blocked: z.boolean().optional(),
 	/** Seconds tracked (phase 4), with `include=counts`. */
 	trackedSec: z.number().int().optional(),
+	/** Blockers of this task, with `include=dependencies`. */
+	dependencies: z
+		.array(z.object({ blockedById: Id, lagDays: z.number().int() }))
+		.optional(),
 });
 export type WorkTaskListItem = z.infer<typeof WorkTaskListItem>;
 
@@ -1138,6 +1142,7 @@ export const workTaskIncludes = [
 	"assignees",
 	"tags",
 	"counts",
+	"dependencies",
 ] as const;
 
 /** Query of `GET /api/work/tasks`. Arrays and the filter arrive as JSON strings. */

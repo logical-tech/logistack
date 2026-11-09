@@ -47,9 +47,9 @@ import {
 import {
 	type DbOrTx,
 	DEFAULT_ATTACHMENT_CAP,
-	dbStoreImportedAttachment,
 	type ImportDeps,
 	idMap,
+	storeImportedAttachment,
 	type Tracker,
 } from "./store.ts";
 
@@ -761,7 +761,6 @@ export async function runClickUp(
 	}
 
 	const c: Ctx = { ...base, tz, users: await people(base, members) };
-	const store = deps.storeAttachment ?? dbStoreImportedAttachment;
 	const download = deps.attachmentFetch ?? fetch;
 	const touched = new Map<string, Set<string>>();
 
@@ -966,15 +965,12 @@ export async function runClickUp(
 							continue;
 						}
 						await deps.db.transaction(async (tx) => {
-							const id = await store(tx, {
+							const id = await storeImportedAttachment(deps, tx, {
+								organizationId: p.organizationId,
 								projectId: p.projectId,
 								taskId,
 								uploaderId: c.importerId,
 								name: a.title,
-								contentType:
-									a.mimetype ??
-									res.headers.get("content-type") ??
-									"application/octet-stream",
 								bytes,
 							});
 							await map.set(tx, "attachment", a.id, id);
@@ -984,7 +980,7 @@ export async function runClickUp(
 						c.t.skip(
 							"attachment",
 							a.title,
-							`download failed: ${e instanceof Error ? e.message : String(e)}`,
+							`not imported: ${e instanceof Error ? e.message : String(e)}`,
 						);
 					}
 				}

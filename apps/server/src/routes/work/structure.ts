@@ -36,6 +36,7 @@ import {
 } from "@logistack/db";
 import { and, asc, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
+import { requireActor } from "../../actor.ts";
 import type { Env } from "../../env.ts";
 import { Failure } from "../../errors.ts";
 import { body, IdParam, json, router } from "../../openapi.ts";
@@ -51,6 +52,7 @@ import {
 	workMutation,
 	workRoute,
 } from "../../work/api.ts";
+import { releaseBlobs, taskBlobs } from "../../work/blob-store.ts";
 import {
 	type DbOrTx,
 	ensureWorkProject,
@@ -448,7 +450,7 @@ export const structureRoutes = router()
 			await guard(c, "work:admin", l.projectId);
 			c.set("auditResourceId", id);
 			const moved: string[] = [];
-			await db.transaction(async (tx) => {
+			const blobs = await db.transaction(async (tx) => {
 				const tasks = await tx
 					.select({ id: workTask.id })
 					.from(workTask)
@@ -495,8 +497,15 @@ export const structureRoutes = router()
 					.update(workProject)
 					.set({ defaultListId: null })
 					.where(eq(workProject.defaultListId, id));
+				// Tasks still on the list (deleteTasks) go with it by cascade, and so do their attachments.
+				const gone = await taskBlobs(
+					tx,
+					moved.length ? [] : tasks.map((t) => t.id),
+				);
 				await tx.delete(workList).where(eq(workList.id, id));
+				return gone;
 			});
+			await releaseBlobs(c.var.deps, requireActor(c).organizationId, blobs);
 			pub(c, l.projectId, "list", "delete");
 			if (moved.length) pub(c, l.projectId, "task", "upsert", moved);
 			return c.body(null, 204);
