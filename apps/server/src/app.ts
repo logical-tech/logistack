@@ -80,6 +80,7 @@ import { uptime } from "./routes/uptime.ts";
 import { usage } from "./routes/usage.ts";
 import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
+import { workExtrasA } from "./routes/work/extras-a.ts";
 import { push, statusBySlug, statusHostRouter } from "./status-pages.ts";
 import { realtime } from "./ws.ts";
 
@@ -168,6 +169,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	// DNS-01 for plugin DNS providers, called by Caddy with a per-provider basic-auth secret.
 	app.route("/acme-proxy", acmeProxy);
 
+	// Work routes are called through `workRoutes` (contracts), not the RPC client: kept out of `AppType`.
+	app.route("/api", workExtrasA);
 	const routes = app
 		.route("/api", health)
 		.route("/api", setup)
