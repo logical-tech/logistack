@@ -108,7 +108,10 @@ export const PluginManifest = z.object({
 	name: z.string().min(1).max(60),
 	description: z.string().max(300).default(""),
 	author: z
-		.object({ name: z.string().min(1).max(80), url: z.url({ protocol: /^https?$/ }).optional() })
+		.object({
+			name: z.string().min(1).max(80),
+			url: z.url({ protocol: /^https?$/ }).optional(),
+		})
 		.optional(),
 	license: z.string().max(40).optional(),
 	/** Compatible server versions, as `>=0.6.0`. */

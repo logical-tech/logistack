@@ -35,8 +35,9 @@ const ConfigSchema = z.object({
 		.default(50 * 1024 ** 3),
 	/** Sign-in, sign-up, second-factor and password-reset attempts per client address and minute. */
 	/**
-	 * Session cookies only over HTTPS (`__Secure-` names). `auto` means in production; set `false`
-	 * only for an install served over plain HTTP.
+	 * Session cookies only over HTTPS (`__Secure-` names). `auto` follows BETTER_AUTH_URL: the
+	 * installer's http bootstrap URL keeps them plain, because the setup tunnel and the api's own
+	 * http port would drop them.
 	 */
 	SECURE_COOKIES: z.enum(["auto", "true", "false"]).default("auto"),
 	/**
