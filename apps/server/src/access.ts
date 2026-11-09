@@ -28,7 +28,18 @@ export const builtinRoleNames: BuiltinRole[] = [
 	"admin",
 	"developer",
 	"viewer",
+	"manager",
+	"guest",
 ];
+
+/** The guest role only makes sense on one project: refuse it on wider scopes. */
+export function assertGuestScope(role: string, scopeKind: Scope["kind"]) {
+	if (role === "guest" && scopeKind !== "project")
+		throw new Failure(
+			"bad_request",
+			"the guest role can only be granted on a project",
+		);
+}
 
 /** Actions a role allows below the organization, asked of `can` itself. */
 export const actionsOf = (role: Grant["role"]): PermissionAction[] =>

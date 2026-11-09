@@ -1,0 +1,37 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`email rendering a mention with the comment quoted 1`] = `
+{
+  "html": "<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#171717"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:24px"><p style="margin:0 0 16px">Sara &lt;admin&gt; mentioned you on SHOP-42 Fix the &lt;checkout&gt; &amp; cart</p><div style="border-left:3px solid #e5e5e5;padding-left:12px;margin:0 0 16px"><p>Can you look at @x?</p></div><a href="https://ls.example.com/work/t/SHOP-42" style="display:inline-block;background:#171717;color:#fff;text-decoration:none;padding:8px 14px;border-radius:6px">Open SHOP-42</a></div><p style="max-width:560px;margin:12px auto 0;color:#737373;font-size:12px">You get this email because of your notification settings. <a href="https://ls.example.com/mail/unsubscribe/abc" style="color:#737373">Stop emails like this</a>.</p></body></html>",
+  "subject": "[Shop] Sara <admin> mentioned you on SHOP-42 Fix the <checkout> & cart",
+  "text": 
+"Sara <admin> mentioned you on SHOP-42 Fix the <checkout> & cart
+
+> Can you look at @x?
+
+https://ls.example.com/work/t/SHOP-42
+
+Stop emails like this: https://ls.example.com/mail/unsubscribe/abc"
+,
+}
+`;
+
+exports[`email rendering the daily digest, and none when empty 1`] = `
+{
+  "html": "<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#171717"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:24px"><h2 style="font-size:14px;margin:0 0 8px">Due today</h2><ul style="margin:0 0 16px;padding-left:18px"><li><a href="https://ls.example.com/work/t/SHOP-1" style="color:#171717">SHOP-1 Task 1</a> <span style="color:#737373">Shop</span></li></ul><h2 style="font-size:14px;margin:0 0 8px">Overdue</h2><ul style="margin:0 0 16px;padding-left:18px"><li><a href="https://ls.example.com/work/t/SHOP-2" style="color:#171717">SHOP-2 Task 2</a> <span style="color:#737373">Shop</span></li><li><a href="https://ls.example.com/work/t/SHOP-3" style="color:#171717">SHOP-3 Task 3</a> <span style="color:#737373">Shop</span></li></ul></div><p style="max-width:560px;margin:12px auto 0;color:#737373;font-size:12px"><a href="https://ls.example.com/account/notifications" style="color:#737373">Notification settings</a> · <a href="https://ls.example.com/mail/unsubscribe/d" style="color:#737373">Stop the daily digest</a></p></body></html>",
+  "subject": "Your tasks for 2026-11-09: 1 due today, 2 overdue",
+  "text": 
+"Your tasks for 2026-11-09: 1 due today, 2 overdue
+
+Due today
+- SHOP-1 Task 1 (Shop) https://ls.example.com/work/t/SHOP-1
+
+Overdue
+- SHOP-2 Task 2 (Shop) https://ls.example.com/work/t/SHOP-2
+- SHOP-3 Task 3 (Shop) https://ls.example.com/work/t/SHOP-3
+
+Notification settings: https://ls.example.com/account/notifications
+Stop the daily digest: https://ls.example.com/mail/unsubscribe/d"
+,
+}
+`;

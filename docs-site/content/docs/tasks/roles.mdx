@@ -1,0 +1,94 @@
+---
+title: Project manager and guest roles
+description: The read:work, comment:work, work and work:admin actions, the Project manager and Guest roles, and why a project manager never sees deployments.
+---
+
+Tasks use four permission actions in the same [grant model](../team/roles-and-permissions.mdx) as the rest of LogiStack. Read this page to choose a role for someone who plans work but should not touch servers, to invite a client to one project, or to build a custom role for Tasks.
+
+## The four actions
+
+| Action | Allows |
+| --- | --- |
+| `read:work` | See lists, tasks, subtasks, checklists, comments, attachments, shared views, tags, fields and activity. See the project's [service health](./service-health.mdx) and the people who can be assigned. |
+| `comment:work` | Comment and reply, react, attach files to comments, and tick checklist items assigned to you. |
+| `work` | Everything in `comment:work`, plus create, edit, move and archive tasks, assign people, set fields, upload attachments, save personal views, track your own time, manage watchers and create [share links](./share-links.mdx) when the project allows them. |
+| `work:admin` | Create, rename, archive and delete lists. Manage statuses, custom fields, tags, shared views, templates and the project's Tasks settings. Delete any task or comment, edit anyone's time entries, and run imports into the project. |
+
+`work` includes `comment:work` and `read:work`. A custom role that lists only `work` can still read and comment.
+
+Grants on an organization, a folder or a project give Tasks access to everything below them. Grants on an environment or a service do not: tasks live at project level.
+
+## Built-in roles
+
+| Role | `read` | `deploy`, `write` | `read:work` | `comment:work` | `work` | `work:admin` |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: |
+| **Owner** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Admin** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Developer** | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| **Viewer** | ✓ | | ✓ | ✓ | | |
+| **Project manager** | | | ✓ | ✓ | ✓ | ✓ |
+| **Guest** | | | ✓ | ✓ | | |
+
+- **Project manager** (`manager`): manages tasks, lists and fields, and sees whether services are up. No access to deployments, logs or settings.
+- **Guest** (`guest`): reads tasks and comments on one project. For clients. Guest can only be granted on a project, never on the organization or a folder. See [Guests](./guests.mdx).
+
+Developers and Viewers gained Tasks actions in release 0.7.0. API keys that use a built-in role gain them too. Custom roles and keys with custom roles keep exactly the actions they list.
+
+## What a Project manager never sees
+
+The Project manager role has no `read`. Every route outside Tasks checks `read` or a stronger action, so a Project manager gets `403` or `404` from all of them: deployments, images, logs, variables, secrets, nodes, domains, metrics and settings. Tasks routes return their own shapes that never include service details. The health of a project is the one exception, and it carries only service names, a state and an uptime percentage. See [Service health](./service-health.mdx).
+
+Commit and pull request links on a task follow the same rule: a Project manager sees how many changes are in review or merged, never commit messages or links. See [Connect commits and pull requests](./commits-and-pull-requests.mdx).
+
+## Who can be assigned or mentioned
+
+- **Assignable** on a project: members who hold `work` there.
+- **Mentionable**: members who hold `read:work` there.
+- Guests can be mentioned. They can be assigned only when the project's **Guests can be assigned** setting is on.
+
+## Make someone a Project manager
+
+<Steps>
+<Step>
+### Open Members
+
+In the sidebar, under **Settings**, select **Members**.
+</Step>
+<Step>
+### Pick the role
+
+To make them Project manager on the whole organization, invite them with the role **Project manager**, or change the role of an existing member. See [Members and invitations](../team/members-and-invitations.mdx).
+
+To limit them to some clients, add a grant instead: open their **⋯** menu, select **Add access**, pick **Project manager** and, in **Applies to**, the folder or project. For example **Project manager** on folder `Clients / Acme`. Any organization role they also hold still applies everywhere: a Viewer organization role would let them read services, so leave it out.
+</Step>
+<Step>
+### Check it worked
+
+Ask them to sign in. They land on **Tasks** with the projects of that folder, each with a health dot, and no **Projects**, **Monitoring** or **Settings** entries in the sidebar.
+</Step>
+</Steps>
+
+### Recipes
+
+| Goal | Organization role | Extra grant |
+| --- | --- | --- |
+| A project manager runs all client work | Project manager | none |
+| A project manager runs one client's projects | none | Project manager on folder `Clients / Acme` |
+| A developer may plan but not deploy one project | Viewer | Project manager on project `Shop` |
+| A client follows their own project | none | Guest on project `Shop`, through a [guest invitation](./guests.mdx) |
+| An agency lead reads tasks everywhere and edits only theirs | Viewer | custom role with `work` on folder `Clients / Acme` |
+
+## Custom roles
+
+On **Settings › Roles**, select **Create role** and check the Tasks actions you need. The editor names them **Read tasks** (`read:work`), **Comment on tasks** (`comment:work`), **Work on tasks** (`work`) and **Manage tasks** (`work:admin`). Two common roles:
+
+| Role | Actions | For |
+| --- | --- | --- |
+| `task-editor` | `work` | Someone who works on tasks but should not see services. |
+| `ops-lead` | `read`, `deploy`, `work`, `work:admin` | A lead who ships code and manages the project's lists and fields. |
+
+## Troubleshooting
+
+- **A Project manager sees "No services" on a project.** The project has no environments yet, or every service is hidden from Tasks. See [Hide a service from health](./service-health.mdx#hide-a-service-from-health).
+- **Someone is missing from the assignee picker.** They don't hold `work` on that project. Grants on an environment or service don't count.
+- **`bad_request` when granting Guest.** Guest can only be granted on a project.

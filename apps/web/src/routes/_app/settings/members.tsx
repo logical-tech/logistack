@@ -32,6 +32,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GuestsSection } from "@/components/work/guests/guests-section";
 import {
 	useCancelInvitation,
 	useGrants,
@@ -71,8 +72,9 @@ function Members() {
 	const [removing, setRemoving] = useState<Member | null>(null);
 	const remove = useRemoveMember();
 
-	const people = members.data ?? [];
-	const pending = invitations.data ?? [];
+	// Guests (one project each) have their own section below.
+	const people = (members.data ?? []).filter((m) => m.role !== "guest");
+	const pending = (invitations.data ?? []).filter((i) => i.role !== "guest");
 
 	return (
 		<Page>
@@ -155,6 +157,8 @@ function Members() {
 						</ul>
 					</Panel>
 				)}
+
+				<GuestsSection />
 			</div>
 
 			<InviteDialog open={inviting} onOpenChange={setInviting} />

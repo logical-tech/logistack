@@ -31,13 +31,17 @@ const pushPayload = z.object({
 	/** The commit a tag points at (`after` is the tag object for an annotated tag). */
 	checkout_sha: z.string().nullish(),
 	user_name: z.string().optional(),
-	project: z.object({ path_with_namespace: z.string() }),
+	project: z.object({
+		path_with_namespace: z.string(),
+		default_branch: z.string().optional(),
+	}),
 	total_commits_count: z.number().optional(),
 	commits: z
 		.array(
 			z.object({
 				id: z.string(),
 				message: z.string(),
+				url: z.string().optional(),
 				author: z.object({ name: z.string() }).optional(),
 				added: z.array(z.string()).optional(),
 				modified: z.array(z.string()).optional(),
@@ -63,11 +67,17 @@ const releasePayload = z.object({
 const mrPayload = z.object({
 	object_kind: z.literal("merge_request"),
 	user: z.object({ name: z.string() }).optional(),
-	project: z.object({ path_with_namespace: z.string() }),
+	project: z.object({
+		path_with_namespace: z.string(),
+		default_branch: z.string().optional(),
+	}),
 	object_attributes: z.object({
 		iid: z.number(),
 		action: z.string().optional(),
 		title: z.string(),
+		description: z.string().nullish(),
+		/** opened, closed, merged, locked. */
+		state: z.string().optional(),
 		source_branch: z.string(),
 		target_branch: z.string(),
 		source_project_id: z.number().optional(),
@@ -119,6 +129,15 @@ function normalize(event: string | null, body: unknown): GitEvent | null {
 							(p.total_commits_count ?? p.commits.length) > p.commits.length,
 						)
 					: undefined,
+			commits: p.commits.map((c) => ({
+				sha: c.id,
+				message: c.message,
+				...(c.url && { url: c.url }),
+				author: c.author?.name ?? "",
+			})),
+			...(p.project.default_branch && {
+				defaultBranch: p.project.default_branch,
+			}),
 		};
 	}
 	if (event === "Release Hook") {
@@ -158,7 +177,18 @@ function normalize(event: string | null, body: unknown): GitEvent | null {
 					a.source_project_id === undefined ||
 					a.source_project_id !== a.target_project_id,
 				...(a.url && { url: a.url }),
+				...(a.description && { body: a.description }),
+				merged: a.state === "merged" || a.action === "merge",
+				state:
+					a.state === "merged" || a.action === "merge"
+						? "merged"
+						: a.state === "closed" || a.action === "close"
+							? "closed"
+							: "open",
 			},
+			...(p.project.default_branch && {
+				defaultBranch: p.project.default_branch,
+			}),
 		};
 	}
 	return null;

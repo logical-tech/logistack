@@ -1,0 +1,22 @@
+{
+	"title": "Tasks",
+	"icon": "ListChecks",
+	"pages": [
+		"index",
+		"roles",
+		"lists-statuses-and-fields",
+		"views",
+		"task-details",
+		"service-health",
+		"notifications-and-email",
+		"templates",
+		"recurring-tasks",
+		"time-tracking",
+		"share-links",
+		"guests",
+		"commits-and-pull-requests",
+		"import-from-clickup",
+		"csv-import-and-export",
+		"api-and-mcp"
+	]
+}

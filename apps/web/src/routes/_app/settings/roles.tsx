@@ -24,7 +24,10 @@ const BUILTIN_NOTE: Record<string, string> = {
 	owner: "Everything, including deleting the organization.",
 	admin: "Everything except deleting the organization.",
 	developer: "Ships code: reads, deploys and edits, never sees secrets.",
-	viewer: "Reads everything except secrets.",
+	viewer: "Reads everything except secrets; comments on tasks.",
+	manager:
+		"Project manager: manages tasks, lists and fields; sees whether services are up. No access to deployments, logs or settings.",
+	guest: "Reads tasks and comments on one project. For clients.",
 };
 
 function Roles() {

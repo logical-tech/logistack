@@ -18,6 +18,7 @@ import { stacksMock } from "./stacks";
 import { templatesMock } from "./templates";
 import { usageMock } from "./usage";
 import { variablesStore } from "./variables";
+import { workMock } from "./work";
 
 const db = createMockDb();
 const variables = variablesStore(db);
@@ -468,4 +469,5 @@ export const mockAdapter: ApiAdapter = {
 	stacks: stacksMock(db),
 	templates: templatesMock(db),
 	variables: variables.api,
+	work: workMock,
 };

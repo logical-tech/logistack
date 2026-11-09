@@ -8,6 +8,7 @@ import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { admin, organization, twoFactor } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import type { Config } from "./config.ts";
+import { applyInvitationGrants } from "./invitation-grants.ts";
 import { joinOrganization } from "./sso.ts";
 import {
 	blockedOnOrganizationEndpoint,
@@ -204,6 +205,15 @@ export function createAuth(config: Config, db: Db) {
 			organization({
 				teams: { enabled: false },
 				dynamicAccessControl: { enabled: true },
+				organizationHooks: {
+					// Scoped grants the invitation carries (a guest on one project).
+					afterAcceptInvitation: ({ invitation, user }) =>
+						applyInvitationGrants(db, {
+							invitationId: invitation.id,
+							userId: user.id,
+							organizationId: invitation.organizationId,
+						}),
+				},
 			}),
 			twoFactor(),
 			passkey(),

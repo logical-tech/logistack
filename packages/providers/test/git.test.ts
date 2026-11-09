@@ -82,6 +82,15 @@ const cases: Case[] = [
 			commitMessage: "Update README.md",
 			author: "Codertocat",
 			changedPaths: ["README.md", "apps/web/new.ts"],
+			commits: [
+				{
+					sha: "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+					message: "Update README.md",
+					url: "https://github.com/Codertocat/Hello-World/commit/0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+					author: "Codertocat",
+				},
+			],
+			defaultBranch: "main",
 		},
 	},
 	{
@@ -106,6 +115,9 @@ const cases: Case[] = [
 				headBranch: "changes",
 				fromFork: false,
 				url: "https://github.com/Codertocat/Hello-World/pull/2",
+				body: "This is a pretty simple change that we need to pull into master.",
+				merged: false,
+				state: "open",
 			},
 		},
 	},
@@ -131,6 +143,19 @@ const cases: Case[] = [
 				"app/controller/application.rb",
 				"old.txt",
 			],
+			commits: [
+				{
+					sha: "b6568db1bc1dcd7f8b4d5a946b0b91f9dacd7327",
+					message: "Update Catalan translation to e38cb41.",
+					author: "Jordi Mallach",
+				},
+				{
+					sha: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
+					message: "fixed readme",
+					url: "http://example.com/mike/diaspora/commit/da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
+					author: "GitLab dev user",
+				},
+			],
 		},
 	},
 	{
@@ -155,6 +180,9 @@ const cases: Case[] = [
 				headBranch: "ms-viewport",
 				fromFork: false,
 				url: "https://gitlab.example.com/gitlabhq/gitlab-test/-/merge_requests/1",
+				body: "Fixes GT-12",
+				merged: false,
+				state: "open",
 			},
 		},
 	},
@@ -175,6 +203,13 @@ const cases: Case[] = [
 			commitMessage: "Webhooks Yay!",
 			author: "Gitea",
 			changedPaths: ["services/web/index.ts"],
+			commits: [
+				{
+					sha: "bffeb74224043ba2feb48d137756c8a9331c449a",
+					message: "Webhooks Yay!",
+					author: "",
+				},
+			],
 		},
 	},
 	{
@@ -198,6 +233,8 @@ const cases: Case[] = [
 				action: "updated",
 				headBranch: "feature/preview",
 				fromFork: false,
+				merged: false,
+				state: "open",
 			},
 		},
 	},
@@ -218,6 +255,13 @@ const cases: Case[] = [
 			commitMessage: "Fix the build\n",
 			author: "Emma",
 			changedPaths: undefined,
+			commits: [
+				{
+					sha: "709d658dc5b6d6afcd46049c2f332ee3f515a67d",
+					message: "Fix the build\n",
+					author: "Emma",
+				},
+			],
 		},
 	},
 	{
@@ -241,11 +285,24 @@ const cases: Case[] = [
 				action: "opened",
 				headBranch: "feature/x",
 				fromFork: false,
+				url: "https://bitbucket.org/team/repo/pull-requests/12",
+				body: "Closes TEAM-3",
+				merged: false,
+				state: "open",
 			},
 		},
 	},
 ];
 
+const closedGithubPr = {
+	...fx.githubPullRequest,
+	action: "closed",
+	pull_request: {
+		...fx.githubPullRequest.pull_request,
+		state: "closed",
+		merged: true,
+	},
+};
 const rejection = (p: Promise<unknown>) =>
 	p.then(
 		() => "accepted",
@@ -366,6 +423,49 @@ describe("webhook verification", () => {
 		expect(await fromFork({ full_name: "mallory/Hello-World" })).toBe(true);
 		expect(await fromFork(null)).toBe(true);
 		expect(await fromFork({ full_name: "codertocat/hello-world" })).toBe(false);
+	});
+
+	test("merged pull requests say so on every provider", async () => {
+		const gh = await providers.github?.verifyWebhook(
+			...signed("pull_request", closedGithubPr),
+		);
+		expect(gh?.kind === "pull_request" && gh.pr).toMatchObject({
+			action: "closed",
+			merged: true,
+			state: "merged",
+		});
+		const glBody = {
+			...fx.gitlabMergeRequest,
+			object_attributes: {
+				...fx.gitlabMergeRequest.object_attributes,
+				action: "merge",
+				state: "merged",
+			},
+		};
+		const gl = await providers.gitlab?.verifyWebhook(
+			new Headers({
+				"x-gitlab-event": "Merge Request Hook",
+				"x-gitlab-token": SECRET,
+			}),
+			JSON.stringify(glBody),
+		);
+		expect(gl?.kind === "pull_request" && gl.pr.state).toBe("merged");
+		const bbBody = {
+			...fx.bitbucketPullRequest,
+			pullrequest: { ...fx.bitbucketPullRequest.pullrequest, state: "MERGED" },
+		};
+		const raw = JSON.stringify(bbBody);
+		const bb = await providers.bitbucket?.verifyWebhook(
+			new Headers({
+				"x-event-key": "pullrequest:fulfilled",
+				"x-hub-signature": `sha256=${hmac(raw)}`,
+			}),
+			raw,
+		);
+		expect(bb?.kind === "pull_request" && bb.pr).toMatchObject({
+			action: "closed",
+			state: "merged",
+		});
 	});
 
 	test("a full commit list means changed paths are unknown", async () => {

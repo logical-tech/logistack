@@ -23,6 +23,7 @@ export * from "./channels/slack.ts";
 export * from "./channels/teams.ts";
 export * from "./channels/telegram.ts";
 export * from "./channels/webhook.ts";
+export * from "./mailer.ts";
 export * from "./render.ts";
 export * from "./rules.ts";
 export * from "./types.ts";

@@ -49,6 +49,13 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 	},
 	"monitor.down": { severity: "error", what: "Monitor down" },
 	"monitor.up": { severity: "success", what: "Monitor up" },
+	"task.created": { severity: "info", what: "Task created" },
+	"task.assigned": { severity: "info", what: "Task assigned" },
+	"task.status_changed": { severity: "info", what: "Task status changed" },
+	"task.completed": { severity: "success", what: "Task completed" },
+	"task.commented": { severity: "info", what: "New comment on a task" },
+	"task.due_soon": { severity: "warning", what: "Task due soon" },
+	"task.overdue": { severity: "warning", what: "Task overdue" },
 	"instance.update_available": {
 		severity: "info",
 		what: "LogiStack update available",

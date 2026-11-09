@@ -1,0 +1,77 @@
+---
+title: Service health for project managers
+description: The six health states a project manager sees for each project and service, how LogiStack decides them, and which services count.
+---
+
+A project manager needs to know whether the client's site is up, not how it is deployed. Tasks show every project's health as one of six plain states, with a short explanation, and nothing about deployments, replicas, logs or servers. Read this page to understand what each state means and why a project shows the state it does.
+
+![The overview of project Blog relaunch: a Services card listing Blog as Degraded with a 30-day uptime bar and Database as Operational, a Progress card, lists and recently updated tasks](/screens/work-project.webp)
+
+## Where health shows
+
+- **Projects**: each project has a dot and a label, such as "Operational", "Degraded since 14:02", "Down for 12 min", "Maintenance" or "Off".
+- **Project overview**: a **Services** card lists each service with its state, a 30-day bar when the service has an [uptime monitor](../operations/uptime-and-status-pages.mdx), and **Open ↗** to visit its public address.
+
+Health updates live: when a service changes state, open pages change with it.
+
+## The six states
+
+| State | Label | What it means for you |
+| --- | --- | --- |
+| `operational` | Operational | Working normally. |
+| `degraded` | Degraded | Working, but slower or partly unavailable. |
+| `down` | Down | Not reachable. |
+| `maintenance` | Maintenance | Planned work is in progress. |
+| `paused` | Off | Switched off on purpose. |
+| `unknown` | Unknown | LogiStack has no status for it yet, for example right after it was created. |
+
+When a [notification rule](../operations/alerts-and-notifications.mdx) covers the service, the Degraded and Down explanations add "The team has been notified."
+
+## How LogiStack decides
+
+LogiStack checks each service in the project's default environment with these rules. The first that matches wins.
+
+| Order | State | When |
+| --- | --- | --- |
+| 1 | Off | The service is stopped on purpose. |
+| 2 | Maintenance | The service is in maintenance mode, or a maintenance window covers one of its uptime monitors. |
+| 3 | Down | The service failed, stopped by itself, has no running copies, or an uptime monitor confirmed it is down. |
+| 4 | Degraded | The service has been starting for more than 5 minutes, is unhealthy, runs fewer copies than it should, keeps crashing, an uptime monitor is checking a failure, or an alert threshold is crossed. |
+| 5 | Operational | The service runs with all its copies and every uptime monitor is up, or it has none. |
+| 6 | Unknown | No status has been recorded yet. |
+
+During a deployment, a service briefly runs fewer copies than it should. For the first 10 minutes of a deployment that doesn't count as degraded, so a project manager never sees a false alarm caused by a release.
+
+The project's state is the worst state among its services, in this order: Down, Degraded, Maintenance, Operational, Unknown. Services that are Off are ignored, unless all of them are Off: then the project shows Off.
+
+## Which services count
+
+- Only services in the project's **default environment**. Staging, other environments and [preview environments](../deploy/preview-environments.mdx) never count.
+- Services hidden from Tasks don't count.
+- A project with no environments shows **No services**.
+
+### Hide a service from health
+
+Hide internal services, such as a worker or a cache, that a client doesn't need to hear about. You need `work:admin` on the project.
+
+<Steps>
+<Step>
+### Open the project's task settings
+
+On the project's Tasks page, select **Settings**.
+</Step>
+<Step>
+### Pick the services to hide
+
+In **Services in health**, untick the services to leave out, for example `storefront-worker`.
+</Step>
+<Step>
+### Check the result
+
+Each change saves at once. The **Services** card and the project's dot no longer include the unticked services.
+</Step>
+</Steps>
+
+## What a project manager doesn't see
+
+The health of a project contains only, for each service, its name, icon, state, the time it entered that state, its 30-day uptime percentage and daily bars when a monitor exists, and its primary public address. Images, commits, deployments, replica counts, nodes, ports, logs, variables and domain settings are never sent to someone without `read` on the project.

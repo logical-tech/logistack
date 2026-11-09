@@ -186,6 +186,38 @@ describe.skipIf(!hasDocker)("access control", () => {
 		).toBe(204);
 	});
 
+	test("guests are granted on projects only; /api/me lists surfaces", async () => {
+		const me = await h.call("GET", "/api/me", asDev());
+		expect(me.json.surfaces).toEqual(["ops", "work"]);
+		const grant = (kind: string, id: string) =>
+			h.call("POST", "/api/grants", {
+				...asOwner(),
+				body: { userId: devUserId, role: "guest", scope: { kind, id } },
+			});
+		expect((await grant("organization", orgId)).status).toBe(400);
+		expect((await grant("folder", clientsFolder)).status).toBe(400);
+		const ok = await grant("project", insideProject);
+		expect(ok.status).toBe(201);
+		expect(
+			(await h.call("DELETE", `/api/grants/${ok.json.id}`, asOwner())).status,
+		).toBe(204);
+		const invite = await h.call("POST", "/api/invitations", {
+			...asOwner(),
+			body: { email: "client@example.com", role: "guest" },
+		});
+		expect(invite.status).toBe(400);
+		const roles = await h.call("GET", "/api/roles", asOwner());
+		const manager = roles.json.find(
+			(r: { name: string }) => r.name === "manager",
+		);
+		expect(manager.actions).toEqual([
+			"read:work",
+			"comment:work",
+			"work",
+			"work:admin",
+		]);
+	});
+
 	test("a scoped key gets the intersection of its owner's grants and its scopes", async () => {
 		const key = await h.call("POST", "/api/api-keys", {
 			...asOwner(),
@@ -226,7 +258,11 @@ describe.skipIf(!hasDocker)("access control", () => {
 			},
 		});
 		expect(wider.status).toBe(403);
-		expect(wider.json.error.details.missing).toEqual(["deploy", "write"]);
+		expect(wider.json.error.details.missing).toEqual([
+			"deploy",
+			"write",
+			"work",
+		]);
 		// A key the developer owns stays within the developer's grants, scopes or not.
 		const devKey = await h.call("POST", "/api/api-keys", {
 			...asDev(),
@@ -505,8 +541,8 @@ describe.skipIf(!hasDocker)("access control", () => {
 		expect(lines[0]).toBe(
 			"at,actorKind,actorId,actorName,action,resourceType,resourceId,outcome,ip,userAgent,requestId,diff",
 		);
-		// Two successful grants and the developer's denied attempt.
-		expect(lines).toHaveLength(4);
+		// Two successful grants, the developer's denied attempt, and the guest test's three.
+		expect(lines).toHaveLength(7);
 		expect(lines.slice(1).every((l) => l.includes('"grant.create"'))).toBe(
 			true,
 		);

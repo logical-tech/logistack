@@ -1,0 +1,122 @@
+---
+title: Lists, statuses and custom fields
+description: Organize a project's tasks into lists, edit its statuses and WIP limits, and add custom fields such as select, currency, date, user and rating.
+---
+
+Lists group a project's tasks, statuses track where each task is, and custom fields hold whatever else your team needs, such as "Client", "Budget" or "Sprint". Read this page when you set up a new project's Tasks or adapt one that came from ClickUp. Changing lists, statuses and fields needs `work:admin` on the project, which the Project manager, Admin and Owner roles hold.
+
+## Lists
+
+A list is a group of tasks inside a project, such as "Launch", "Content" or "Bugs". Each list has a name, an optional description, color and icon, and a position in the project.
+
+- **Create a list** in the **Lists** section of the project's task settings (select **Settings** at the top of the project's Tasks page): type a name in **New list** and select **Add list**. Names are unique among a project's active lists.
+- **Archive a list** to hide it from views. Its tasks stay readable and searchable, and you can restore it.
+- **Delete a list** only when it is empty, or after you choose a list to move its tasks to. Deleting a list together with its tasks asks you to type its name to confirm.
+
+<Callout type="warn">
+Deleting a list with its tasks deletes their subtasks, comments and attachments too. It can't be undone. Archive the list instead if you may need it again.
+</Callout>
+
+## Statuses
+
+Statuses belong to the project and apply to every list in it. Each status has a name, a color and one of four categories. The category decides what the status means:
+
+| Category | Meaning | Seeded statuses |
+| --- | --- | --- |
+| Backlog | Not started | Backlog |
+| Active | In progress | To do, In progress, Review |
+| Done | Finished. Moving a task here sets its completion time. | Done |
+| Cancelled | Closed without doing it | Cancelled |
+
+To edit them, open the project's task settings (select **Settings** at the top of the project's Tasks page). In **Statuses** you can rename statuses, drag them into order, pick a color from the palette, change the category and set a **WIP limit**: a board column turns amber when it holds more tasks than the limit.
+
+A project always keeps at least one Backlog status and one Done status. To delete a status, pick the status its tasks move to. Both happen in one step.
+
+Colors are palette names (gray, blue, amber, green, red, violet, pink, teal), not hex values, so they stay readable in light and dark mode.
+
+## Tags
+
+Tags are short labels with a color, per project. Anyone with `work` can create a tag from a task. Renaming and deleting tags needs `work:admin`.
+
+## Custom fields
+
+A custom field applies to the whole project, or to one list only. You add one with a wizard: kind, name and description, options or settings, scope, whether it is required, and a summary.
+
+| Kind | Holds | Example |
+| --- | --- | --- |
+| Text | One line, up to 2,000 characters | Client contact |
+| Long text | Plain text, up to 20,000 characters | Acceptance notes |
+| Number | A number with 0 to 6 decimals, optional min, max and unit | Pages: 12 |
+| Currency | An amount in one ISO 4217 currency | Budget: EUR 4,500.00 |
+| Percent | 0 to 100 | Progress: 60 |
+| Date | A date, optionally with a time | Go-live: 2026-12-01 |
+| Checkbox | Yes or no | Client approved |
+| Select | One option out of up to 200, each with a color | Client: Acme, Globex |
+| Multi-select | Several options | Channels: Web, Email |
+| User | One person, or several | Reviewer |
+| URL | An http or https link | Figma file |
+| Email | An email address | Billing contact |
+| Phone | A phone number | On-site contact |
+| Rating | 0 up to a maximum of 3 to 10, shown as stars, flames or hearts | Effort: 3 of 5 |
+
+### Add a field
+
+<Steps>
+<Step>
+### Open the field wizard
+
+Open the project's task settings and, in **Fields**, select **New field**.
+</Step>
+<Step>
+### Pick the kind
+
+Pick one of the kinds above. The wizard shows an example of how it looks in a table and on a card.
+</Step>
+<Step>
+### Name it
+
+Type a name, such as `Client`, and an optional description. The description appears as a tooltip. Names are unique within the project, ignoring case.
+</Step>
+<Step>
+### Set the options
+
+For a select, add the options and their colors. For currency, pick the currency and decimals. For a rating, pick the maximum and icon.
+</Step>
+<Step>
+### Choose the scope
+
+**Whole project** shows the field on every list. **One list** shows it on that list only.
+</Step>
+<Step>
+### Decide if it is required
+
+A required field must be filled when a task is created and before it moves to a Done status.
+</Step>
+<Step>
+### Create it
+
+Check the summary and create the field. It appears as a column in table views and can be shown on board cards.
+</Step>
+</Steps>
+
+### Change or delete a field
+
+- You can rename a field, edit its description and add, rename or reorder options at any time.
+- Removing a select option shows how many tasks use it first. Those tasks lose the value.
+- You can't change a field's kind. Duplicate it as a new kind instead, then delete the old one.
+- Deleting a field deletes its values on every task.
+
+## Project settings
+
+The project's task settings also hold:
+
+| Setting | What it does |
+| --- | --- |
+| **Task key** | The task prefix, 2 to 10 uppercase letters and digits starting with a letter, such as `SHOP`. Old keys keep resolving after a change. |
+| **Services in health** | Untick services to leave them out of [service health](./service-health.mdx). |
+| **Working days** | Monday to Friday by default. Used for durations, the timeline and recurring tasks. |
+| **Closing status** | The status a "Fixes SHOP-42" commit sets. By default, the first Done status. See [Connect commits and pull requests](./commits-and-pull-requests.mdx). |
+| **Repositories** | Extra repositories linked to the project, besides those of its services. |
+| **Guests can be assigned**, **Guests can create tasks** | See [Guests](./guests.mdx). |
+| **Share links** | Allows read-only links, listed below the switch. See [Share links](./share-links.mdx). |
+| **Time tracking** | On by default. When off, the project hides all time controls. See [Time tracking](./time-tracking.mdx). |

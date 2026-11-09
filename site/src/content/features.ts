@@ -388,6 +388,55 @@ export const areas = (templates: number): Area[] => [
 		],
 	},
 	{
+		id: "tasks",
+		title: "Tasks for the projects you deploy",
+		intro:
+			"Plan client work where it ships. Lists, tasks and views live on the same projects as your services, and the people who run the work don't need access to the servers.",
+		where: "Tasks",
+		items: [
+			[
+				"Four views",
+				"Table, board, timeline and calendar, each with filters, grouping and saved views shared with the team or kept to yourself.",
+			],
+			[
+				"Project manager role",
+				"Manages tasks, lists and fields and sees whether each service is up, in six plain states. Deployments, logs and settings stay out of reach.",
+			],
+			[
+				"Custom fields",
+				"Fourteen kinds, from select and currency to dates, people and ratings, on the whole project or one list.",
+			],
+			[
+				"Timeline and dependencies",
+				"Drag bars to reschedule, link tasks that wait on each other, and move the dependent work along with them.",
+			],
+			[
+				"Task details",
+				"Subtasks, checklists, comments with mentions, screenshots pasted inline, and an inbox with optional email.",
+			],
+			[
+				"Time tracking",
+				"A timer or manual entries per task, a weekly timesheet, and reports by project, person or day exported as CSV.",
+			],
+			[
+				"Templates and recurring tasks",
+				"Save a task, list or whole project as a template and schedule it from a start or finish date. Routine work repeats on its own rule.",
+			],
+			[
+				"Commits that close tasks",
+				"Branches, commits and pull requests that mention SHOP-42 link to it, and Fixes SHOP-42 closes it once it reaches the default branch.",
+			],
+			[
+				"Import from ClickUp",
+				"One wizard brings spaces, lists, tasks, fields, comments, attachments and time entries across. Running it again updates instead of duplicating.",
+			],
+			[
+				"Clients included",
+				"Invite a client to one project as a guest who reads and comments, or send a read-only link with a password and an expiry.",
+			],
+		],
+	},
+	{
 		id: "automation",
 		title: "API, MCP and automation",
 		intro:

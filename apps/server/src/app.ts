@@ -80,6 +80,10 @@ import { uptime } from "./routes/uptime.ts";
 import { usage } from "./routes/usage.ts";
 import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
+import { workCollab } from "./routes/work/collab.ts";
+import { workExtrasA } from "./routes/work/extras-a.ts";
+import { workImportsSharesGuests } from "./routes/work/imports-shares-guests.ts";
+import { workRoutes } from "./routes/work/index.ts";
 import { push, statusBySlug, statusHostRouter } from "./status-pages.ts";
 import { realtime } from "./ws.ts";
 
@@ -168,6 +172,9 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 	// DNS-01 for plugin DNS providers, called by Caddy with a per-provider basic-auth secret.
 	app.route("/acme-proxy", acmeProxy);
 
+	// Work paths come from the contracts route table (plain strings), so they stay out of AppType.
+	app.route("/", workCollab);
+	app.route("/api", workExtrasA);
 	const routes = app
 		.route("/api", health)
 		.route("/api", setup)
@@ -230,6 +237,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", aiAgent)
 		.route("/api", uptime)
 		.route("/api", plugins)
+		.route("/api", workRoutes)
+		.route("/", workImportsSharesGuests)
 		.route("/", realtime)
 		.route("/", terminal);
 
