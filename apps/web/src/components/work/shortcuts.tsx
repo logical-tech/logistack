@@ -13,6 +13,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { NewTaskDialog } from "./new-task-dialog";
 import { WORK_TIME_PATH } from "./shell/work-nav";
 
 type Handler = (e: KeyboardEvent) => void;
@@ -150,10 +151,23 @@ export function ShortcutHelp({
 export function WorkShortcuts() {
 	const navigate = useNavigate();
 	const [help, setHelp] = useState(false);
+	const [creating, setCreating] = useState(false);
 	useShortcut("?", () => setHelp(true));
+	// A project view registers its own `c` (quick add in place), which wins while it's mounted.
+	useShortcut("c", () => setCreating(true));
+	useEffect(() => {
+		const open = () => setCreating(true);
+		window.addEventListener("work:new-task", open);
+		return () => window.removeEventListener("work:new-task", open);
+	}, []);
 	useShortcut("g m", () => navigate({ to: "/work" }));
 	useShortcut("g i", () => navigate({ to: "/work/inbox" }));
 	useShortcut("g p", () => navigate({ to: "/work/projects" }));
 	useShortcut("g t", () => navigate({ to: WORK_TIME_PATH as "/work" }));
-	return <ShortcutHelp open={help} onOpenChange={setHelp} />;
+	return (
+		<>
+			<ShortcutHelp open={help} onOpenChange={setHelp} />
+			<NewTaskDialog open={creating} onOpenChange={setCreating} />
+		</>
+	);
 }

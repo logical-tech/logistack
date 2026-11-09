@@ -4,7 +4,7 @@ import type {
 	WorkNotificationKind,
 } from "@logistack/contracts";
 import { useQueries } from "@tanstack/react-query";
-import { Inbox } from "lucide-react";
+import { Bell, Inbox } from "lucide-react";
 import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Page, PageHeader } from "@/components/page-header";
@@ -200,14 +200,16 @@ export function InboxList() {
 												)}
 											>
 												<span className="relative mt-0.5">
-													<PersonAvatar
-														person={
-															actor
-																? { name: actor, avatar: null }
-																: { name: "LogiStack", avatar: null }
-														}
-														className="size-7 text-2xs"
-													/>
+													{actor ? (
+														<PersonAvatar
+															person={{ name: actor, avatar: null }}
+															className="size-7 text-2xs"
+														/>
+													) : (
+														<span className="grid size-7 place-items-center rounded-full bg-muted text-muted-foreground">
+															<Bell className="size-3.5" aria-hidden />
+														</span>
+													)}
 													{!n.readAt && (
 														<span
 															role="img"

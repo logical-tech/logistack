@@ -299,8 +299,10 @@ function TaskSheet({
 					className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground"
 				>
 					<span className="truncate">{project.name}</span>
-					<span aria-hidden>/</span>
-					<span className="inline-flex min-w-0 items-center gap-1.5">
+					<span aria-hidden className="max-sm:hidden">
+						/
+					</span>
+					<span className="inline-flex min-w-0 items-center gap-1.5 max-sm:hidden">
 						<ColorDot color={list?.color} />
 						<span className="truncate">{list?.name}</span>
 					</span>
