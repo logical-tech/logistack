@@ -16,7 +16,7 @@ Open the task and select its dates, or press `d`.
 <Step>
 ### Pick a rule
 
-Select **Repeat** and pick a preset: **Every day**, **Every weekday**, **Every week on** a day, **Every month on the** n-th day, or **Custom…**.
+In the task's **Dates** row, select **Doesn't repeat** and pick a preset: **Every day**, **Every weekday**, **Every week on** a day, **Every month on the** n-th day, or **Custom…**.
 </Step>
 <Step>
 ### Set the details
@@ -25,14 +25,13 @@ In **Custom…** you can set:
 
 | Setting | Options |
 | --- | --- |
-| Frequency | Daily, weekly, monthly or yearly, every 1 to 365 periods |
-| Days | For weekly rules, the weekdays |
-| Monthly | A day of the month (or the last day), or the n-th weekday, such as the last Friday |
-| When | **When completed**, or **On a schedule** |
-| Create in advance | For scheduled rules, how many days before the due date the next task appears |
-| Ends | Never, on a date, or after a number of occurrences |
-| Copy | Subtasks, checklist, field values, assignees and description |
-| Skip weekends | Moves a date that falls on a non-working day to the next working day |
+| **Every** | 1 to 365 days, weeks, months or years |
+| **On** | For weekly rules, the weekdays |
+| **On day** | For monthly rules, a day of the month, or **Last day** |
+| **Create the next one** | **When done**, or **On schedule** |
+| **Ends** | **Never**, **On date**, or **After** a number of occurrences |
+
+The [API and MCP tools](./api-and-mcp.mdx) also accept the n-th weekday of a month (such as the last Friday), creating scheduled tasks some days before their due date, which parts to copy (subtasks, checklist, field values, assignees, description), and moving dates off non-working days.
 </Step>
 <Step>
 ### Save
@@ -43,8 +42,8 @@ The task shows ↻ in every view. Hover it to read the rule, such as "Every mont
 
 ## When the next task appears
 
-- **When completed**: the next task is created the moment you complete this one, in the same list, with its first active status and the checklist unticked.
-- **On a schedule**: the next task is created on time, whether or not this one is done. LogiStack checks every hour.
+- **When done**: the next task is created the moment you complete this one, in the same list, with its first active status and the checklist unticked.
+- **On schedule**: the next task is created on time, whether or not this one is done. LogiStack checks every hour.
 
 Dates move from the previous occurrence's scheduled dates, not from when it was completed, so a late completion doesn't make the series drift. A monthly rule on the 31st falls on the last day of shorter months.
 

@@ -530,14 +530,22 @@ function TaskSheet({
 							<TaskAiActions
 								taskId={task.id}
 								onDraftComment={setCommentDraft}
-								onDescription={(doc) =>
-									// Lands in the editor like typing, so the usual autosave keeps it.
-									descEditor.current
-										?.chain()
-										.setContent(doc, { emitUpdate: true })
-										.focus("end")
-										.run()
-								}
+								onDescription={(doc) => {
+									const ed = descEditor.current;
+									if (!ed) return;
+									// Lands in the editor like typing, so the usual autosave keeps it. An existing
+									// description stays: the draft goes below it, for the person to merge.
+									if (ed.isEmpty)
+										ed.chain()
+											.setContent(doc, { emitUpdate: true })
+											.focus("end")
+											.run();
+									else
+										ed.chain()
+											.focus("end")
+											.insertContent(doc.content ?? [])
+											.run();
+								}}
 								onCreateSubtasks={async (items) => {
 									for (const s of items)
 										await create.mutateAsync({
