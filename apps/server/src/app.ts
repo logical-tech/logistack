@@ -80,6 +80,7 @@ import { uptime } from "./routes/uptime.ts";
 import { usage } from "./routes/usage.ts";
 import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
+import { workImportsSharesGuests } from "./routes/work/imports-shares-guests.ts";
 import { push, statusBySlug, statusHostRouter } from "./status-pages.ts";
 import { realtime } from "./ws.ts";
 
@@ -230,6 +231,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", aiAgent)
 		.route("/api", uptime)
 		.route("/api", plugins)
+		.route("/", workImportsSharesGuests)
 		.route("/", realtime)
 		.route("/", terminal);
 

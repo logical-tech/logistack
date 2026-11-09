@@ -16,7 +16,8 @@
 		"./uptime-checks": "./src/uptime-checks.ts",
 		"./uptime-record": "./src/uptime-record.ts",
 		"./traffic-store": "./src/traffic-store.ts",
-		"./metrics-consumer": "./src/metrics-consumer.ts"
+		"./metrics-consumer": "./src/metrics-consumer.ts",
+		"./work-import": "./src/work-import/index.ts"
 	},
 	"scripts": {
 		"dev": "bun --watch src/index.ts",

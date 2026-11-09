@@ -20,6 +20,7 @@ import {
 	schedule,
 } from "@logistack/db";
 import { createDockerClient, type DockerEvent } from "@logistack/docker";
+import { pinnedFetch } from "@logistack/providers";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
 import { eq, notInArray } from "drizzle-orm";
@@ -70,6 +71,7 @@ import {
 } from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
 import { convertLegacySecrets } from "./secrets.ts";
+import { hostPolicy } from "./ssrf.ts";
 import { syncTailscale } from "./tailscale.ts";
 import { syncTunnels } from "./tunnels.ts";
 import {
@@ -78,6 +80,12 @@ import {
 	uptimeWorker,
 } from "./uptime.ts";
 import { processScanJob } from "./vulnscan.ts";
+import {
+	processWorkImportJob,
+	WORK_IMPORT_JOB,
+	WORK_QUEUE,
+	type WorkImportJob,
+} from "./work-import/index.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
 
@@ -261,6 +269,27 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				// shortcut: a dead worker must not replay a half-done upgrade, so it fails as stalled and its row stays running; add a boot check once upgrades get long enough to matter.
 				maxStalledCount: 0,
 			},
+		),
+		// Work background jobs; an unknown job name fails loudly rather than being dropped.
+		new Worker<WorkImportJob>(
+			WORK_QUEUE,
+			async (job) => {
+				if (job.name !== WORK_IMPORT_JOB)
+					throw new Error(`unknown work job ${job.name}`);
+				await processWorkImportJob(
+					{
+						db: ctx.db,
+						masterKey: ctx.masterKey,
+						publish: (m) =>
+							void ctx.bus.redis
+								.publish("ls:work", JSON.stringify({ type: "work", ...m }))
+								.catch(() => {}),
+						attachmentFetch: pinnedFetch(await hostPolicy(ctx.db)),
+					},
+					job.data,
+				);
+			},
+			{ connection, concurrency: 2 },
 		),
 		// One cutover at a time: the wizard moves services in order, databases first.
 		new Worker<MigrationJob>(
