@@ -10,6 +10,14 @@ export type GitRepo = {
 
 export type PrAction = "opened" | "updated" | "closed" | "reopened";
 
+/** One commit of a push, as listed by the provider (GitHub and GitLab cap the list at 20). */
+export type GitCommit = {
+	sha: string;
+	message: string;
+	url?: string;
+	author: string;
+};
+
 /**
  * A branch push, a tag push or a published release, normalised from any provider. Releases come
  * from GitHub, Gitea/Forgejo and GitLab; Bitbucket has no releases.
@@ -24,6 +32,10 @@ export type PushEvent = {
 	author: string;
 	/** Branch pushes only. Undefined when the provider does not list files or truncated the commit list: deploy as if anything changed. */
 	changedPaths?: string[];
+	/** Every listed commit, for Work task links; deploy code ignores it. */
+	commits?: GitCommit[];
+	/** The repository's default branch, when the payload names it. */
+	defaultBranch?: string;
 };
 
 export type PullRequestEvent = {
@@ -42,7 +54,13 @@ export type PullRequestEvent = {
 		fromFork: boolean;
 		/** The pull request's web page. */
 		url?: string;
+		/** Work task links only; deploy code ignores these. */
+		body?: string;
+		merged?: boolean;
+		state?: "open" | "closed" | "merged";
 	};
+	/** The repository's default branch, when the payload names it. */
+	defaultBranch?: string;
 };
 
 export type GitEvent = PushEvent | PullRequestEvent;
