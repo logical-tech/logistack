@@ -244,19 +244,18 @@ export const PmMark: z.ZodType<PmMark> = z.object({
 	type: z.string(),
 	attrs: z.record(z.string(), z.unknown()).optional(),
 });
+// The id names it as one OpenAPI component, which is what lets the generator follow the recursion.
 export const PmNode: z.ZodType<PmNode> = z
-	.lazy(
-		() =>
-			z.object({
-				type: z.string(),
-				attrs: z.record(z.string(), z.unknown()).optional(),
-				content: z.array(PmNode).optional(),
-				marks: z.array(PmMark).optional(),
-				text: z.string().optional(),
-			}),
-		// A named schema: OpenAPI generators emit a `$ref` instead of recursing forever.
+	.lazy(() =>
+		z.object({
+			type: z.string(),
+			attrs: z.record(z.string(), z.unknown()).optional(),
+			content: z.array(PmNode).optional(),
+			marks: z.array(PmMark).optional(),
+			text: z.string().optional(),
+		}),
 	)
-	.meta({ id: "PmNode" });
+	.meta({ id: "WorkPmNode" });
 
 const sizedDoc = (maxBytes: number) =>
 	z
@@ -463,13 +462,15 @@ export const FilterCondition = z.object({
 	value: z.unknown().optional(),
 });
 /** Shape only; core `validateFilter` checks keys/ops/values against fields, depth ≤ 4 and ≤ 30 conditions. */
-export const FilterNode: z.ZodType<FilterNode> = z.lazy(() =>
-	z.union([
-		z.object({ and: z.array(FilterNode).max(30) }),
-		z.object({ or: z.array(FilterNode).max(30) }),
-		FilterCondition,
-	]),
-);
+export const FilterNode: z.ZodType<FilterNode> = z
+	.lazy(() =>
+		z.union([
+			z.object({ and: z.array(FilterNode).max(30) }),
+			z.object({ or: z.array(FilterNode).max(30) }),
+			FilterCondition,
+		]),
+	)
+	.meta({ id: "WorkFilterNode" });
 export const FILTER_MAX_DEPTH = 4;
 export const FILTER_MAX_CONDITIONS = 30;
 
@@ -678,32 +679,34 @@ export type TaskTemplate = {
 	/** Indexes into the same `tasks` array. */
 	dependsOn: number[];
 };
-export const TaskTemplate: z.ZodType<TaskTemplate> = z.lazy(() =>
-	z.object({
-		title: z.string().min(1).max(500),
-		description: RichDoc.nullable(),
-		priority: WorkPriority,
-		startOffset: z.number().int().optional(),
-		dueOffset: z.number().int().optional(),
-		isMilestone: z.boolean(),
-		estimateMinutes: z.number().int().min(0).nullable(),
-		statusRef: z.string().nullable(),
-		tagRefs: z.array(z.string()),
-		fieldValues: z.array(
-			z.object({ fieldRef: z.string(), value: z.unknown() }),
-		),
-		assigneeRefs: z.array(TemplateAssigneeRef),
-		checklist: z.array(
-			z.object({
-				text: z.string().max(500),
-				assigneeRef: TemplateAssigneeRef.optional(),
-			}),
-		),
-		subtasks: z.array(TaskTemplate).max(200),
-		attachmentShas: z.array(z.string()),
-		dependsOn: z.array(z.number().int().min(0)),
-	}),
-);
+export const TaskTemplate: z.ZodType<TaskTemplate> = z
+	.lazy(() =>
+		z.object({
+			title: z.string().min(1).max(500),
+			description: RichDoc.nullable(),
+			priority: WorkPriority,
+			startOffset: z.number().int().optional(),
+			dueOffset: z.number().int().optional(),
+			isMilestone: z.boolean(),
+			estimateMinutes: z.number().int().min(0).nullable(),
+			statusRef: z.string().nullable(),
+			tagRefs: z.array(z.string()),
+			fieldValues: z.array(
+				z.object({ fieldRef: z.string(), value: z.unknown() }),
+			),
+			assigneeRefs: z.array(TemplateAssigneeRef),
+			checklist: z.array(
+				z.object({
+					text: z.string().max(500),
+					assigneeRef: TemplateAssigneeRef.optional(),
+				}),
+			),
+			subtasks: z.array(TaskTemplate).max(200),
+			attachmentShas: z.array(z.string()),
+			dependsOn: z.array(z.number().int().min(0)),
+		}),
+	)
+	.meta({ id: "WorkTaskTemplate" });
 
 export const TemplatePayload = z.object({
 	statuses: z
@@ -1487,6 +1490,8 @@ export const WorkTimeReportQuery = z.object({
 	groupBy: WorkTimeGroup.default("day"),
 	billable: z.enum(["true", "false"]).optional(),
 	format: z.enum(["json", "csv"]).optional(),
+	/** IANA zone days are cut in; default the caller's Work timezone, else UTC. */
+	tz: z.string().max(64).optional(),
 });
 export type WorkTimeReportQuery = z.input<typeof WorkTimeReportQuery>;
 export const WorkTimeReport = z.object({

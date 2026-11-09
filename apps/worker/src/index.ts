@@ -89,6 +89,7 @@ import {
 	type WorkMailDeps,
 	workDueTick,
 } from "./work-mail.ts";
+import { workRecurrenceJob } from "./work-recurrence.ts";
 
 export type RunningWorker = { ctx: Ctx; stop(): Promise<void> };
 
@@ -239,6 +240,10 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 				else if (job.name === "binfmt-install") await installEmulation(ctx);
 				else if (job.name === "db-access") await reconcileDbAccess(ctx);
 				else if (job.name === "plugins") await reconcilePlugins(ctx);
+				else if (job.name === "work-recurrence")
+					await workRecurrenceJob(ctx.db, (m) => {
+						void ctx.bus.redis.publish(WORK_CHANNEL, JSON.stringify(m));
+					});
 				else if (job.name === "patch-scan")
 					await withLock(ctx.bus.redis, "ls:lock:patch-scan", 3_600_000, () =>
 						scanAll(ctx),
@@ -342,6 +347,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		"checks-every",
 		{ every: CHECKS_POLL_MS },
 		{ name: "checks" },
+	);
+	await ctx.queues.maintenance.upsertJobScheduler(
+		"work-recurrence-every",
+		{ every: 3_600_000 },
+		{ name: "work-recurrence" },
 	);
 	// Port forwards must close at their expiry whatever the reconcile interval is.
 	await ctx.queues.maintenance.upsertJobScheduler(

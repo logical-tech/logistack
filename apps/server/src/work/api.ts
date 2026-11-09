@@ -3,7 +3,6 @@ import {
 	type EventType,
 	FilterNode,
 	type PermissionAction,
-	PmNode,
 	type RecurrenceRule,
 	workRoutes as table,
 	type WorkAttachment,
@@ -62,7 +61,7 @@ import { checkWork, type DbOrTx } from "./context.ts";
 // Recursive schemas need a component name, or the OpenAPI generator recurses forever.
 // `.openapi()` on a lazy schema also tags the instance its getter refers back to; it is called
 // through the prototype because schemas built before zod was extended don't carry the method.
-z.ZodType.prototype.openapi.call(PmNode, "WorkPmNode");
+// PmNode is named in contracts (meta id WorkPmNode).
 z.ZodType.prototype.openapi.call(FilterNode, "WorkFilterNode");
 
 type Extra = Omit<RouteConfig, "method" | "path">;

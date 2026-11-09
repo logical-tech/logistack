@@ -72,6 +72,8 @@ import { Route as AppSettingsSponsorRouteImport } from './routes/_app/settings/s
 import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/ssh-keys'
 import { Route as AppSettingsUpdatesRouteImport } from './routes/_app/settings/updates'
 import { Route as AppSettingsVariablesRouteImport } from './routes/_app/settings/variables'
+import { Route as AppWorkTimeRouteImport } from './routes/_app/work/time'
+import { Route as AppWorkWorkloadRouteImport } from './routes/_app/work/workload'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
 import { Route as AppAiProvidersNewRouteImport } from './routes/_app/ai/providers_.new'
 import { Route as AppBackupsServiceIdIndexRouteImport } from './routes/_app/backups/$serviceId/index'
@@ -460,6 +462,16 @@ const AppSettingsUpdatesRoute = AppSettingsUpdatesRouteImport.update({
 const AppSettingsVariablesRoute = AppSettingsVariablesRouteImport.update({
   id: '/settings/variables',
   path: '/settings/variables',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkTimeRoute = AppWorkTimeRouteImport.update({
+  id: '/work/time',
+  path: '/work/time',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkWorkloadRoute = AppWorkWorkloadRouteImport.update({
+  id: '/work/workload',
+  path: '/work/workload',
   getParentRoute: () => AppRoute,
 } as any)
 const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
@@ -915,6 +927,8 @@ export interface FileRoutesByFullPath {
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/settings/variables': typeof AppSettingsVariablesRoute
+  '/work/time': typeof AppWorkTimeRoute
+  '/work/workload': typeof AppWorkWorkloadRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/ai/': typeof AppAiIndexRoute
   '/monitoring/': typeof AppMonitoringIndexRoute
@@ -1041,6 +1055,8 @@ export interface FileRoutesByTo {
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/settings/variables': typeof AppSettingsVariablesRoute
+  '/work/time': typeof AppWorkTimeRoute
+  '/work/workload': typeof AppWorkWorkloadRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/ai': typeof AppAiIndexRoute
   '/monitoring': typeof AppMonitoringIndexRoute
@@ -1172,6 +1188,8 @@ export interface FileRoutesById {
   '/_app/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/_app/settings/updates': typeof AppSettingsUpdatesRoute
   '/_app/settings/variables': typeof AppSettingsVariablesRoute
+  '/_app/work/time': typeof AppWorkTimeRoute
+  '/_app/work/workload': typeof AppWorkWorkloadRoute
   '/_auth/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/_app/ai/': typeof AppAiIndexRoute
   '/_app/monitoring/': typeof AppMonitoringIndexRoute
@@ -1304,6 +1322,8 @@ export interface FileRouteTypes {
     | '/settings/ssh-keys'
     | '/settings/updates'
     | '/settings/variables'
+    | '/work/time'
+    | '/work/workload'
     | '/accept-invitation/$id'
     | '/ai/'
     | '/monitoring/'
@@ -1430,6 +1450,8 @@ export interface FileRouteTypes {
     | '/settings/ssh-keys'
     | '/settings/updates'
     | '/settings/variables'
+    | '/work/time'
+    | '/work/workload'
     | '/accept-invitation/$id'
     | '/ai'
     | '/monitoring'
@@ -1560,6 +1582,8 @@ export interface FileRouteTypes {
     | '/_app/settings/ssh-keys'
     | '/_app/settings/updates'
     | '/_app/settings/variables'
+    | '/_app/work/time'
+    | '/_app/work/workload'
     | '/_auth/accept-invitation/$id'
     | '/_app/ai/'
     | '/_app/monitoring/'
@@ -2079,6 +2103,20 @@ declare module '@tanstack/react-router' {
       path: '/settings/variables'
       fullPath: '/settings/variables'
       preLoaderRoute: typeof AppSettingsVariablesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/work/time': {
+      id: '/_app/work/time'
+      path: '/work/time'
+      fullPath: '/work/time'
+      preLoaderRoute: typeof AppWorkTimeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/work/workload': {
+      id: '/_app/work/workload'
+      path: '/work/workload'
+      fullPath: '/work/workload'
+      preLoaderRoute: typeof AppWorkWorkloadRouteImport
       parentRoute: typeof AppRoute
     }
     '/_auth/accept-invitation/$id': {
@@ -2798,6 +2836,8 @@ interface AppRouteChildren {
   AppSettingsSshKeysRoute: typeof AppSettingsSshKeysRoute
   AppSettingsUpdatesRoute: typeof AppSettingsUpdatesRoute
   AppSettingsVariablesRoute: typeof AppSettingsVariablesRoute
+  AppWorkTimeRoute: typeof AppWorkTimeRoute
+  AppWorkWorkloadRoute: typeof AppWorkWorkloadRoute
   AppBackupsServiceIdNewRoute: typeof AppBackupsServiceIdNewRoute
   AppBackupsServiceIdRestoreRoute: typeof AppBackupsServiceIdRestoreRoute
   AppIntegrationsDnsNewRoute: typeof AppIntegrationsDnsNewRoute
@@ -2865,6 +2905,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsSshKeysRoute: AppSettingsSshKeysRoute,
   AppSettingsUpdatesRoute: AppSettingsUpdatesRoute,
   AppSettingsVariablesRoute: AppSettingsVariablesRoute,
+  AppWorkTimeRoute: AppWorkTimeRoute,
+  AppWorkWorkloadRoute: AppWorkWorkloadRoute,
   AppBackupsServiceIdNewRoute: AppBackupsServiceIdNewRoute,
   AppBackupsServiceIdRestoreRoute: AppBackupsServiceIdRestoreRoute,
   AppIntegrationsDnsNewRoute: AppIntegrationsDnsNewRoute,
