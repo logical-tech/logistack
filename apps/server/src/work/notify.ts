@@ -18,6 +18,7 @@ import type { Deps } from "../env.ts";
 import { envelope } from "../events.ts";
 import { log } from "../log.ts";
 import { runQueues } from "../run-queues.ts";
+import { hostPolicy } from "../ssrf.ts";
 import { publishWork } from "./context.ts";
 
 /**
@@ -209,7 +210,9 @@ export async function sendInstanceMail(
 	try {
 		const config = await loadInstanceMail(deps.db, deps.masterKey);
 		if (!config) return false;
-		await mailer.send(config, message);
+		await mailer.send(config, message, {
+			hostPolicy: await hostPolicy(deps.db),
+		});
 		return true;
 	} catch (error) {
 		log("error", "instance mail failed", { error: String(error) });

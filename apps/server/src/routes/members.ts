@@ -15,6 +15,7 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import {
 	actionsOf,
+	assertEmailVouched,
 	assertGuestScope,
 	assertOwnershipChange,
 	builtinRoleNames,
@@ -203,6 +204,7 @@ export const members = router()
 					.where(and(eq(user.email, input.email), eq(user.kind, "human"))),
 				"user",
 			);
+			await assertEmailVouched(c, u.id);
 			const existing = await db.$count(
 				member,
 				and(eq(member.organizationId, orgId), eq(member.userId, u.id)),

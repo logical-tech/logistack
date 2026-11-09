@@ -17,7 +17,12 @@ import { Failure, notFound, one } from "../errors.ts";
 import { log } from "../log.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { requestProxySync } from "../redis.ts";
-import { inOrganization, locate, requirePermission } from "../scope.ts";
+import {
+	inOrganization,
+	locate,
+	requireInstanceAdmin,
+	requirePermission,
+} from "../scope.ts";
 
 const Publication = z
 	.object({
@@ -120,7 +125,11 @@ async function view(c: Context<Env>): Promise<z.infer<typeof TailscaleView>> {
 	};
 }
 
-const admin = [requirePermission("admin", inOrganization)];
+// tailscaled runs as a host-network global service on every node, shared by every organization.
+const admin = [
+	requirePermission("admin", inOrganization),
+	requireInstanceAdmin,
+];
 
 export const tailscale = router()
 	.openapi(

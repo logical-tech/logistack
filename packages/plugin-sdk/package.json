@@ -1,6 +1,6 @@
 {
 	"name": "@logistack/plugin-sdk",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Write LogiStack plugins: signed request checks, event, tool and page handlers, and the page bridge.",
 	"type": "module",
 	"license": "MIT",

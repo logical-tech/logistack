@@ -59,10 +59,14 @@ if [ -n "$(docker stack ls --format '{{.Name}}' | grep -x "$STACK_NAME" || true)
 else
 	ok "Stack $STACK_NAME is not deployed"
 fi
-# The worker creates ls-buildkit itself, so the stack removal leaves it on ls-control.
-if [ "$(docker service inspect ls-buildkit --format '{{index .Spec.Labels "logistack.managed"}}' 2>/dev/null)" = true ]; then
-	docker service rm ls-buildkit >/dev/null && ok "Service ls-buildkit removed"
-fi
+# The worker creates the BuildKit services itself (the instance's and one per organization), so the stack removal leaves them.
+for svc in $(docker service ls -q --filter label=logistack.managed=true --filter label=logistack.resource=buildkit); do
+	name=$(docker service inspect "$svc" --format '{{.Spec.Name}}')
+	docker service rm "$svc" >/dev/null && ok "Service $name removed"
+done
+for network in ls-build; do
+	docker network rm "$network" >/dev/null 2>&1 && ok "Network $network removed"
+done
 # install.sh runs the loopback API tunnel as a plain container on ls-control.
 if [ "$(docker inspect logistack-api-tunnel --format '{{index .Config.Labels "logistack.managed"}}' 2>/dev/null)" = true ]; then
 	docker rm -f logistack-api-tunnel >/dev/null && ok "Container logistack-api-tunnel removed"
@@ -91,6 +95,10 @@ for volume in "${VOLUMES[@]}"; do
 	if docker volume inspect "$volume" >/dev/null 2>&1; then
 		docker volume rm "$volume" >/dev/null && ok "Volume $volume deleted"
 	fi
+done
+# Each organization's BuildKit cache.
+for volume in $(docker volume ls -q --filter label=logistack.managed=true --filter label=logistack.resource=buildkit); do
+	docker volume rm "$volume" >/dev/null && ok "Volume $volume deleted"
 done
 for secret in "${SECRETS[@]}"; do
 	if docker secret inspect "$secret" >/dev/null 2>&1; then

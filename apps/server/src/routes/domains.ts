@@ -12,17 +12,26 @@ import {
 	domain,
 	environment,
 	folder,
+	gameEndpoint,
 	instanceSettings,
 	project,
 	service,
+	statusPage,
 } from "@logistack/db";
 import { findZoneForHostname } from "@logistack/providers";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, like, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
 import { mutation } from "../audit.ts";
+import { trustedOrigins } from "../auth.ts";
 import { managedCertificates } from "../certs.ts";
-import { managedZones, openProvider, providerRow } from "../dns.ts";
+import type { Config } from "../config.ts";
+import {
+	managedZones,
+	openProvider,
+	providerRow,
+	viaProvider,
+} from "../dns.ts";
 import type { Env } from "../env.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import { log } from "../log.ts";
@@ -30,7 +39,14 @@ import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { covers } from "../pem.ts";
 import { publicIp } from "../probe.ts";
 import { requestProxySync } from "../redis.ts";
-import { actorCan, byParam, requirePermission } from "../scope.ts";
+import {
+	actorCan,
+	byParam,
+	check,
+	locate,
+	organizationResource,
+	requirePermission,
+} from "../scope.ts";
 
 /**
  * `<svc-slug>-<short>.<ip-dashed>.sslip.io` (or nip.io), or `<svc-slug>-<short>.<wildcard>`
@@ -93,17 +109,166 @@ export const tlsMode = (d: {
 				? ("dns-01" as const)
 				: ("http-01" as const);
 
+/** Two hostname patterns reach the same visitors: equal, or one a single-label wildcard over the other. */
+export const hostsOverlap = (a: string, b: string) =>
+	covers(a, b) || covers(b, a);
+
+/** Every hostname the dashboard answers on: WEB_ORIGIN, the public URL, the primary domain, the tunnel origin. */
+export async function dashboardHosts(deps: {
+	config: Config;
+	db: Db;
+}): Promise<string[]> {
+	const origins = await trustedOrigins(deps.config, deps.db)();
+	return [
+		...new Set(
+			origins.flatMap((o) => {
+				try {
+					return [new URL(o).hostname];
+				} catch {
+					return [];
+				}
+			}),
+		),
+	];
+}
+
+/** Domain rows of any organization whose hostname overlaps `hostname`. */
+export async function overlappingDomains(db: Db, hostname: string) {
+	const parent = hostname.slice(hostname.indexOf(".") + 1);
+	const rows = await db
+		.select({
+			id: domain.id,
+			hostname: domain.hostname,
+			serviceId: domain.serviceId,
+			organizationId: project.organizationId,
+		})
+		.from(domain)
+		.innerJoin(service, eq(service.id, domain.serviceId))
+		.innerJoin(environment, eq(environment.id, service.environmentId))
+		.innerJoin(project, eq(project.id, environment.projectId))
+		.where(
+			or(
+				eq(domain.hostname, hostname),
+				eq(domain.hostname, `*.${parent}`),
+				hostname.startsWith("*.")
+					? like(domain.hostname, `%.${parent}`)
+					: undefined,
+			),
+		);
+	return rows.filter((r) => hostsOverlap(r.hostname, hostname));
+}
+
+/** Hostnames the organization routes: its domains and its status pages. */
+export async function orgHostnames(db: Db, organizationId: string) {
+	const [domains, pages] = await Promise.all([
+		db
+			.select({ hostname: domain.hostname })
+			.from(domain)
+			.innerJoin(service, eq(service.id, domain.serviceId))
+			.innerJoin(environment, eq(environment.id, service.environmentId))
+			.innerJoin(project, eq(project.id, environment.projectId))
+			.where(eq(project.organizationId, organizationId)),
+		db
+			.select({ hostname: statusPage.hostname })
+			.from(statusPage)
+			.where(eq(statusPage.organizationId, organizationId)),
+	]);
+	return [...domains, ...pages].flatMap((r) =>
+		r.hostname ? [r.hostname] : [],
+	);
+}
+
+/**
+ * Caddy routes are global and the longest path prefix wins, so a hostname another organization
+ * routes, the dashboard answers on, or a published status page holds is refused outright. Inside
+ * the organization, sharing a hostname with another service needs `write` on that service too.
+ */
+export async function assertHostnameFree(
+	c: Context<Env>,
+	hostname: string,
+	own: { serviceId: string; domainId?: string },
+) {
+	const { organizationId } = requireActor(c);
+	const { db } = c.var.deps;
+	if ((await dashboardHosts(c.var.deps)).some((h) => hostsOverlap(h, hostname)))
+		throw new Failure(
+			"conflict",
+			`${hostname} overlaps the dashboard's own hostname`,
+		);
+	const pages = await db
+		.select({ hostname: statusPage.hostname })
+		.from(statusPage)
+		.where(and(eq(statusPage.published, true), isNotNull(statusPage.hostname)));
+	if (pages.some((p) => p.hostname && hostsOverlap(p.hostname, hostname)))
+		throw new Failure("conflict", `${hostname} is a status page's hostname`);
+	for (const d of await overlappingDomains(db, hostname)) {
+		if (d.id === own.domainId || d.serviceId === own.serviceId) continue;
+		if (d.organizationId !== organizationId)
+			throw new Failure(
+				"conflict",
+				`${hostname} overlaps a hostname another organization routes`,
+			);
+		check(c, "write", await locate(db, organizationId, "service", d.serviceId));
+	}
+}
+
+/**
+ * A service writes DNS only at its own hostnames, or at a name nobody holds yet (the add-domain
+ * wizard writes the record before the domain row exists). Replacing anything else needs org admin.
+ */
+export async function assertRecordName(
+	c: Context<Env>,
+	serviceId: string,
+	hostname: string,
+	existing: () => Promise<{ type: string }[]>,
+) {
+	const actor = requireActor(c);
+	if (actorCan(actor, "admin", organizationResource(actor.organizationId)))
+		return;
+	const { db } = c.var.deps;
+	const holders = (
+		await Promise.all([
+			db
+				.select({ serviceId: domain.serviceId })
+				.from(domain)
+				.where(eq(domain.hostname, hostname)),
+			db
+				.select({ serviceId: gameEndpoint.serviceId })
+				.from(gameEndpoint)
+				.where(eq(gameEndpoint.hostname, hostname)),
+		])
+	)
+		.flat()
+		.map((r) => r.serviceId);
+	if (holders.includes(serviceId)) return;
+	if (
+		holders.length === 0 &&
+		!(await existing()).some((r) => ["A", "AAAA", "CNAME"].includes(r.type))
+	)
+		return;
+	throw new Failure(
+		"forbidden",
+		`${hostname} is not this service's hostname; replacing its records needs the organization's admin permission`,
+	);
+}
+
 /**
  * Rejects what the proxy compiler cannot route, so one bad row never reaches a sync: a
  * wildcard needs DNS-01 through a provider managing its zone, a linked provider must manage
  * the hostname, and a custom certificate must name it. Every referenced row must belong to
- * the organization.
+ * the organization, and the hostname must be free (`assertHostnameFree`).
  */
 async function assertRoutable(
-	db: Db,
-	organizationId: string,
+	c: Context<Env>,
 	input: DomainBody,
+	own: { serviceId: string; before?: DomainRow },
 ) {
+	const { db, masterKey } = c.var.deps;
+	const { organizationId } = requireActor(c);
+	await assertHostnameFree(c, input.hostname, {
+		serviceId: own.serviceId,
+		domainId: own.before?.id,
+	});
 	if (input.tunnel) {
 		if (!input.dnsProviderId)
 			throw new Failure(
@@ -138,11 +303,27 @@ async function assertRoutable(
 		throw new Failure("bad_request", "dnsRecordId needs its dnsProviderId");
 	if (input.dnsProviderId) {
 		const p = await providerRow(db, organizationId, input.dnsProviderId);
-		if (!findZoneForHostname(input.hostname, managedZones(p)))
+		const zone = findZoneForHostname(input.hostname, managedZones(p));
+		if (!zone)
 			throw new Failure(
 				"bad_request",
 				`${p.name} does not manage a zone for ${input.hostname}`,
 			);
+		// The record is deleted with the domain: it must be one at this hostname, not any id in the zone.
+		const kept =
+			own.before?.dnsProviderId === input.dnsProviderId &&
+			own.before.dnsRecordId === input.dnsRecordId;
+		if (input.dnsRecordId && !kept) {
+			const provider = await openProvider({ db, masterKey }, p);
+			const records = await viaProvider(() =>
+				provider.listRecords(zone.id, input.hostname),
+			);
+			if (!records.some((r) => r.id === input.dnsRecordId))
+				throw new Failure(
+					"bad_request",
+					`dnsRecordId is not a record at ${input.hostname}`,
+				);
+		}
 	}
 	if (input.customCertificateId) {
 		const [crt] = await db
@@ -160,6 +341,24 @@ async function assertRoutable(
 				"bad_request",
 				`The certificate does not cover ${input.hostname}`,
 			);
+		// Caddy picks loaded certificates by SNI across every route.
+		const dashboard = await dashboardHosts(c.var.deps);
+		for (const san of crt.sans) {
+			if (dashboard.some((h) => hostsOverlap(h, san)))
+				throw new Failure(
+					"conflict",
+					`The certificate names ${san}, the dashboard's own hostname`,
+				);
+			if (
+				(await overlappingDomains(db, san)).some(
+					(d) => d.organizationId !== organizationId,
+				)
+			)
+				throw new Failure(
+					"conflict",
+					`The certificate names ${san}, a hostname another organization routes`,
+				);
+		}
 	}
 }
 
@@ -376,7 +575,7 @@ export const domains = router()
 		async (c) => {
 			const input = c.req.valid("json");
 			const { db } = c.var.deps;
-			await assertRoutable(db, requireActor(c).organizationId, input);
+			await assertRoutable(c, input, { serviceId: c.req.valid("param").id });
 			const row = one(
 				await db
 					.insert(domain)
@@ -454,8 +653,9 @@ export const domains = router()
 			const { id } = c.req.valid("param");
 			const input = c.req.valid("json");
 			const { db } = c.var.deps;
-			await assertRoutable(db, requireActor(c).organizationId, input);
 			const [before] = await db.select().from(domain).where(eq(domain.id, id));
+			if (!before) throw notFound("domain");
+			await assertRoutable(c, input, { serviceId: before.serviceId, before });
 			const row = one(
 				await db
 					.update(domain)
@@ -475,7 +675,7 @@ export const domains = router()
 			);
 			// A record the domain no longer points at is no longer ours to keep.
 			if (
-				before?.dnsRecordId &&
+				before.dnsRecordId &&
 				(before.dnsRecordId !== row.dnsRecordId ||
 					before.dnsProviderId !== row.dnsProviderId)
 			)

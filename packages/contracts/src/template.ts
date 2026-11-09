@@ -302,8 +302,8 @@ export const Template = z
 			.string()
 			.regex(/^logos\/[a-z0-9-]+\.(svg|png|jpg|webp)$/)
 			.optional(),
-		website: z.url().optional(),
-		docs: z.url().optional(),
+		website: z.url({ protocol: /^https?$/ }).optional(),
+		docs: z.url({ protocol: /^https?$/ }).optional(),
 		/** The template's own version: the primary image's tag. */
 		version: z.string().min(1),
 		source: TemplateSource,

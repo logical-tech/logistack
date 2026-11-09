@@ -5,8 +5,7 @@ import {
 } from "@logistack/contracts";
 import { monitoringSettings, node } from "@logistack/db";
 import { eq } from "drizzle-orm";
-import { inspectService } from "./apply.ts";
-import { buildkitAddr, buildkitName, run } from "./build.ts";
+import { BUILDKIT_PORT, buildkitServices, run } from "./build.ts";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 
@@ -67,23 +66,24 @@ export async function runCleanup(ctx: Ctx): Promise<CleanupRun> {
 			}),
 		),
 	};
-	if (
-		c.targets.includes("buildCache") &&
-		(await inspectService(ctx, buildkitName(ctx)))
-	)
-		await run(
-			[
-				"buildctl",
-				"--addr",
-				buildkitAddr(ctx),
-				"prune",
-				"--keep-duration",
-				`${c.untilHours}h`,
-			],
-			{ log: () => {}, signal: AbortSignal.timeout(10 * 60_000) },
-		).catch((e) =>
-			log("warn", "buildkit cache prune failed", { error: String(e) }),
-		);
+	if (c.targets.includes("buildCache"))
+		for (const bk of await buildkitServices(ctx))
+			await run(
+				[
+					"buildctl",
+					"--addr",
+					`tcp://${bk.Spec.Name}:${BUILDKIT_PORT}`,
+					"prune",
+					"--keep-duration",
+					`${c.untilHours}h`,
+				],
+				{ log: () => {}, signal: AbortSignal.timeout(10 * 60_000) },
+			).catch((e) =>
+				log("warn", "buildkit cache prune failed", {
+					service: bk.Spec.Name,
+					error: String(e),
+				}),
+			);
 	await ctx.db
 		.insert(monitoringSettings)
 		.values({ lastCleanup: result })

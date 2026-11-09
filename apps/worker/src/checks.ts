@@ -12,13 +12,14 @@ import {
 	type GitProvider,
 	gitProviders,
 	instantiate,
+	pinnedFetch,
 } from "@logistack/providers";
 import { and, desc, eq, gt, ne } from "drizzle-orm";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
 import type { DeploymentRow } from "./deploy.ts";
 import { enqueueDeploy } from "./queues.ts";
-import { publicAddress } from "./ssrf.ts";
+import { hostPolicy } from "./ssrf.ts";
 
 export const CHECKS_POLL_MS = 20_000;
 /** CI takes a moment to register its checks after a push; until then "no checks" means "not yet". */
@@ -101,19 +102,20 @@ async function readChecks(
 		? await ctx.db
 				.select()
 				.from(gitProvider)
-				.where(eq(gitProvider.id, gitProviderId))
+				.where(
+					and(
+						eq(gitProvider.id, gitProviderId),
+						eq(gitProvider.organizationId, w.organizationId),
+					),
+				)
 		: [];
 	if (!gp) throw new Error("the service has no git provider to ask");
 	const provider = instantiate(
 		gitProviders[gp.kind],
 		JSON.parse(await decrypt(ctx.masterKey, gp.configEncrypted)),
-		{
-			// GitLab and Gitea live wherever the user said: refuse private addresses like a clone does.
-			fetch: async (url, init) => {
-				await publicAddress(ctx, new URL(url).hostname);
-				return fetch(url, init);
-			},
-		},
+		// GitLab and Gitea live wherever the user said: every request (redirects too) is pinned to a
+		// checked address, like a clone.
+		{ fetch: pinnedFetch(await hostPolicy(ctx.db)) },
 	) as GitProvider;
 	return provider.commitChecks(repository, ref);
 }

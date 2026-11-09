@@ -15,6 +15,8 @@ export const PLUGIN_CONTRACT_VERSION = "v1";
 export const PLUGIN_HEADERS = {
 	timestamp: "x-logistack-timestamp",
 	signature: "x-logistack-signature",
+	/** Also covers method and path; SDK >= 0.2 checks only this one. */
+	signatureV2: "x-logistack-signature-v2",
 	install: "x-logistack-install",
 	/** JSON of `PluginUserClaims`, on requests a plugin page makes through the proxy. */
 	user: "x-logistack-user",
@@ -106,7 +108,7 @@ export const PluginManifest = z.object({
 	name: z.string().min(1).max(60),
 	description: z.string().max(300).default(""),
 	author: z
-		.object({ name: z.string().min(1).max(80), url: z.url().optional() })
+		.object({ name: z.string().min(1).max(80), url: z.url({ protocol: /^https?$/ }).optional() })
 		.optional(),
 	license: z.string().max(40).optional(),
 	/** Compatible server versions, as `>=0.6.0`. */
@@ -201,7 +203,7 @@ export const PluginPageMessage = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		type: z.literal("openExternal"),
-		url: z.url().max(2048),
+		url: z.url({ protocol: /^https$/ }).max(2048),
 	}),
 	z.object({ type: z.literal("storage.get"), id: z.string(), key: z.string() }),
 	z.object({
@@ -275,7 +277,7 @@ export const PluginIndexVersion = z.object({
 	manifest: PluginManifest,
 	verified: z.boolean(),
 	yanked: z.boolean(),
-	iconUrl: z.url().nullable(),
+	iconUrl: z.url({ protocol: /^https?$/ }).nullable(),
 	/** ISO 8601. */
 	publishedAt: z.string(),
 	/** Only in `GET /v1/plugins/{id}`. */

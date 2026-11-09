@@ -160,6 +160,10 @@ export const JobSpec = z.discriminatedUnion("kind", [
 		labels: z.record(z.string(), z.string()).default({}),
 		mounts: z.array(Mount).default([]),
 		network: z.string().optional(),
+		/** Agents before this field run the container unlimited. */
+		limits: z
+			.object({ memoryBytes: Bytes, nanoCpus: z.number().int().positive() })
+			.optional(),
 		/**
 		 * Privileged, in the host's PID namespace, so `nsenter -t 1` reaches the host as root.
 		 * For OS patching only; agents without the `host-jobs` capability ignore it.

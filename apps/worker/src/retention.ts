@@ -8,9 +8,11 @@ import {
 	registryRetention,
 	service,
 } from "@logistack/db";
+import { type Fetch, pinnedFetch } from "@logistack/providers";
 import { and, eq, isNotNull, like } from "drizzle-orm";
 import { log } from "./bus.ts";
 import type { Ctx } from "./ctx.ts";
+import { hostPolicy } from "./ssrf.ts";
 
 const DEFAULT_KEEP = 10;
 
@@ -50,18 +52,18 @@ const loopback = (host: string) =>
  * shortcut: the distribution API calls retention needs, duplicated from apps/server/src/registry/client.ts
  * (apps cannot share code outside packages/*); move both into packages/providers.
  */
-function registryApi(
-	host: string,
-	creds?: { username: string; password: string },
+export function registryApi(
+	base: string,
+	creds: { username: string; password: string } | undefined,
+	fetchFn: Fetch,
 ) {
-	const base = `${loopback(host) ? "http" : "https"}://${host === "docker.io" ? "registry-1.docker.io" : host}/v2`;
 	const basic = creds
 		? `Basic ${btoa(`${creds.username}:${creds.password}`)}`
 		: undefined;
 	let auth: string | undefined;
 	return async (path: string, init: RequestInit, scope: string) => {
 		const send = () =>
-			fetch(`${base}${path}`, {
+			fetchFn(`${base}${path}`, {
 				...init,
 				headers: {
 					...(init.headers as Record<string, string>),
@@ -83,8 +85,9 @@ function registryApi(
 				const url = new URL(p.realm ?? "");
 				if (p.service) url.searchParams.set("service", p.service);
 				url.searchParams.set("scope", scope);
-				const t = await fetch(url, {
+				const t = await fetchFn(url.href, {
 					headers: basic ? { authorization: basic } : {},
+					signal: AbortSignal.timeout(30_000),
 				});
 				const body = (await t.json()) as {
 					token?: string;
@@ -134,14 +137,20 @@ export async function pruneImages(ctx: Ctx): Promise<{ deleted: string[] }> {
 			repos.set(repo, [...(repos.get(repo) ?? []), d]);
 		}
 		if (!repos.size) continue;
+		// The local registry's URL is the instance's own (loopback over http on a single node); every
+		// other registry is a user-chosen host, as is its token realm: guarded, redirects not followed.
+		const local = r.kind === "local";
 		const api = registryApi(
-			apiHost,
+			`${local && loopback(apiHost) ? "http" : "https"}://${apiHost === "docker.io" ? "registry-1.docker.io" : apiHost}/v2`,
 			r.username && r.passwordEncrypted
 				? {
 						username: r.username,
 						password: await decrypt(ctx.masterKey, r.passwordEncrypted),
 					}
 				: undefined,
+			local
+				? (url, init) => fetch(url, { ...init, redirect: "manual" })
+				: pinnedFetch(await hostPolicy(ctx.db)),
 		);
 		for (const [repo, deps] of repos) {
 			const scope = `repository:${repo}:pull,push,delete`;

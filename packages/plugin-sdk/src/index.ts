@@ -53,31 +53,46 @@ function safeEqual(a: string, b: string): boolean {
 	return diff === 0;
 }
 
-/** The signature LogiStack sends: HMAC-SHA256 over `<timestamp>.<user claims>\n<body>` (claims only on page requests). */
+/** The request a signature is for: method and path with its query. */
+export type SignedRoute = { method: string; path: string };
+
+/**
+ * The signature LogiStack sends in `x-logistack-signature-v2`: HMAC-SHA256 over
+ * `<timestamp>.<METHOD> <path>\n<user claims>\n<body>` (claims empty unless a page made the
+ * request), so a captured signature does not replay to another route.
+ */
 export async function sign(
 	secret: string,
 	timestamp: number,
+	route: SignedRoute,
 	body: string,
 	user?: string | null,
 ): Promise<string> {
-	const payload = user ? `${user}\n${body}` : body;
+	const payload = `${route.method.toUpperCase()} ${route.path}\n${user ?? ""}\n${body}`;
 	return `sha256=${await hmacHex(secret, `${timestamp}.${payload}`)}`;
 }
 
-/** True when the request came from LogiStack: valid signature, fresh timestamp. */
+/** True when the request came from LogiStack: valid signature for its method and path, fresh timestamp. */
 export async function verifyRequest(
 	secret: string,
-	headers: Headers,
+	req: Request,
 	body: string,
 	nowS = Math.floor(Date.now() / 1000),
 ): Promise<boolean> {
-	const sig = headers.get(PLUGIN_HEADERS.signature);
-	const ts = Number(headers.get(PLUGIN_HEADERS.timestamp));
+	const sig = req.headers.get(PLUGIN_HEADERS.signatureV2);
+	const ts = Number(req.headers.get(PLUGIN_HEADERS.timestamp));
 	if (!sig || !Number.isInteger(ts)) return false;
 	if (Math.abs(nowS - ts) > REPLAY_WINDOW_S) return false;
+	const url = new URL(req.url);
 	return safeEqual(
 		sig,
-		await sign(secret, ts, body, headers.get(PLUGIN_HEADERS.user)),
+		await sign(
+			secret,
+			ts,
+			{ method: req.method, path: url.pathname + url.search },
+			body,
+			req.headers.get(PLUGIN_HEADERS.user),
+		),
 	);
 }
 
@@ -309,7 +324,7 @@ export function createPlugin(h: PluginHandlers): Hono<PluginEnv> {
 		if (!secret)
 			return c.json({ error: "LOGISTACK_SIGNING_SECRET is not set" }, 500);
 		const body = await c.req.raw.clone().text();
-		if (!(await verifyRequest(secret, c.req.raw.headers, body)))
+		if (!(await verifyRequest(secret, c.req.raw, body)))
 			return c.json({ error: "bad signature" }, 401);
 		c.set("ctx", context());
 		const user = c.req.header(PLUGIN_HEADERS.user);

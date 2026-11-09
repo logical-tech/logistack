@@ -535,8 +535,8 @@ describe.skipIf(!hasDocker || mongoRefusesKernel)(
 			});
 		});
 
-		test("a viewer reads documents but cannot write them", async () => {
-			expect((await find("items", {}, { cookie: viewer })).status).toBe(200);
+		test("documents are data like a dump: a viewer neither reads nor writes them", async () => {
+			expect((await find("items", {}, { cookie: viewer })).status).toBe(403);
 			const w = await write(
 				"items",
 				{ op: "delete", id: "sku-0" },

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { RecurrenceRule } from "@logistack/contracts";
 import { addDays, localDate } from "@logistack/core";
 import {
+	user,
 	workDependency,
 	workNotification,
 	workProject,
@@ -107,6 +108,10 @@ describe.skipIf(!hasDocker)(
 
 		async function join(u: typeof dev, role: string) {
 			await h.call("POST", "/api/auth/sign-up/email", { body: u });
+			await h.deps.db
+				.update(user)
+				.set({ emailVerified: true })
+				.where(eq(user.email, u.email));
 			const added = await h.call("POST", "/api/members", {
 				...asOwner(),
 				body: { email: u.email, role },

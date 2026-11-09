@@ -452,8 +452,8 @@ describe.skipIf(!hasDocker)("database explorer API", () => {
 		expect((await rows("nope")).status).toBe(404);
 	});
 
-	test("a viewer reads rows but cannot write them", async () => {
-		expect((await rows("notes", {}, { cookie: viewer })).status).toBe(200);
+	test("rows are data like a dump: a viewer neither reads nor writes them", async () => {
+		expect((await rows("notes", {}, { cookie: viewer })).status).toBe(403);
 		const w = await write("notes", [{ op: "delete", key: { id: 1 } }], {
 			cookie: viewer,
 		});

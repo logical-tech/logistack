@@ -34,6 +34,24 @@ const ConfigSchema = z.object({
 		.positive()
 		.default(50 * 1024 ** 3),
 	/** Sign-in, sign-up, second-factor and password-reset attempts per client address and minute. */
+	/**
+	 * Session cookies only over HTTPS (`__Secure-` names). `auto` means in production; set `false`
+	 * only for an install served over plain HTTP.
+	 */
+	SECURE_COOKIES: z.enum(["auto", "true", "false"]).default("auto"),
+	/**
+	 * Address prefixes of the proxies in front of the api (Caddy on ls-control). Only a request
+	 * from one of them may name the client's address; any other peer is the client.
+	 */
+	TRUSTED_PROXY_PREFIXES: z
+		.string()
+		.default("10.247.")
+		.transform((s) =>
+			s
+				.split(",")
+				.map((p) => p.trim())
+				.filter(Boolean),
+		),
 	RATE_LIMIT_LOGIN_PER_MINUTE: z.coerce.number().int().positive().default(30),
 	/** Requests per API key and minute, across every api replica. */
 	RATE_LIMIT_API_KEY_PER_MINUTE: z.coerce
@@ -131,5 +149,20 @@ export function loadConfig(
 	const parsed = ConfigSchema.safeParse(raw);
 	if (!parsed.success)
 		throw new Error(`invalid configuration:\n${z.prettifyError(parsed.error)}`);
+	if (env.NODE_ENV === "production") {
+		// The published .env.example values would let anyone decrypt secrets and forge sessions.
+		if (
+			Uint8Array.fromBase64(parsed.data.LOGISTACK_MASTER_KEY.trim()).every(
+				(b) => b === 0,
+			)
+		)
+			throw new Error(
+				"invalid configuration: LOGISTACK_MASTER_KEY is the example key; generate one with openssl rand -base64 32",
+			);
+		if (parsed.data.BETTER_AUTH_SECRET.startsWith("dev-only-change-me"))
+			throw new Error(
+				"invalid configuration: BETTER_AUTH_SECRET is the example secret; generate one with openssl rand -hex 32",
+			);
+	}
 	return parsed.data;
 }

@@ -222,8 +222,10 @@ async function estimate(cand: Candidate, payload: string, embeddings: boolean) {
 		parsed.max_tokens,
 		parsed.max_completion_tokens,
 		parsed.max_output_tokens,
-	].find((v): v is number => typeof v === "number");
+	].find((v): v is number => Number.isInteger(v) && (v as number) > 0);
 	const price = priceFor(await priceCatalog(), cand.def.catalogId, cand.model);
+	// Unpriced: the cost cannot be bounded, so a capped member is refused rather than billed $0.
+	if (!price) return null;
 	return costMicros(price, {
 		input: Math.ceil(payload.length / 4),
 		output: embeddings ? 0 : (limit ?? DEFAULT_OUTPUT_TOKENS),

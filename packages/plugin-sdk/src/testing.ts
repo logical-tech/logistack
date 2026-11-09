@@ -13,6 +13,7 @@ export type Check = { name: string; ok: boolean; detail?: string };
 async function signedInit(
 	secret: string,
 	installId: string,
+	path: string,
 	body: string,
 	method = "POST",
 	user?: string,
@@ -25,7 +26,13 @@ async function signedInit(
 			"content-type": "application/json",
 			[PLUGIN_HEADERS.install]: installId,
 			[PLUGIN_HEADERS.timestamp]: String(ts),
-			[PLUGIN_HEADERS.signature]: await sign(secret, ts, body, user),
+			[PLUGIN_HEADERS.signatureV2]: await sign(
+				secret,
+				ts,
+				{ method, path },
+				body,
+				user,
+			),
 			...(user ? { [PLUGIN_HEADERS.user]: user } : {}),
 		},
 	};
@@ -73,7 +80,7 @@ export async function contractTest(
 	await run("GET /v1/health answers a signed request", async () => {
 		const res = await fetch(
 			`${base}/v1/health`,
-			await signedInit(secret, installId, "", "GET"),
+			await signedInit(secret, installId, "/v1/health", "", "GET"),
 		);
 		return res.ok ? undefined : `answered ${res.status}`;
 	});
@@ -87,6 +94,7 @@ export async function contractTest(
 		const init = await signedInit(
 			secret,
 			installId,
+			"/v1/events",
 			JSON.stringify({ event: testEvent() }),
 		);
 		const res = await fetch(`${base}/v1/events`, {
@@ -105,6 +113,7 @@ export async function contractTest(
 				await signedInit(
 					secret,
 					installId,
+					"/v1/events",
 					JSON.stringify({ event: testEvent() }),
 				),
 			);

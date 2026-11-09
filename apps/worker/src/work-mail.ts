@@ -24,7 +24,6 @@ import {
 import {
 	type InstanceMailConfig,
 	instanceMailConfig,
-	type MailMessage,
 	sendMail,
 } from "@logistack/providers";
 import type { Queue } from "bullmq";
@@ -38,6 +37,7 @@ import {
 	lte,
 	notInArray,
 } from "drizzle-orm";
+import { hostPolicy } from "./ssrf.ts";
 
 /**
  * Work notifications outside the request path (plan 14.2, 14.3): the hourly `work-due` tick,
@@ -70,7 +70,7 @@ export type WorkMailDeps = {
 	): Promise<void>;
 	publishRealtime(message: Record<string, unknown>): Promise<void>;
 	/** Tests capture messages here. */
-	send?: (config: InstanceMailConfig, message: MailMessage) => Promise<void>;
+	send?: typeof sendMail;
 };
 
 export async function loadInstanceMail(
@@ -234,11 +234,15 @@ export async function processMail(d: WorkMailDeps, notificationId: string) {
 		.returning({ id: workNotification.id });
 	if (!claimed) return false;
 	try {
-		await (d.send ?? sendMail)(config, {
-			to: n.email,
-			...mail,
-			headers: { "List-Unsubscribe": `<${unsubscribe}>` },
-		});
+		await (d.send ?? sendMail)(
+			config,
+			{
+				to: n.email,
+				...mail,
+				headers: { "List-Unsubscribe": `<${unsubscribe}>` },
+			},
+			{ hostPolicy: await hostPolicy(d.db) },
+		);
 	} catch (err) {
 		await d.db
 			.update(workNotification)
@@ -366,7 +370,11 @@ export async function processDigest(
 		}),
 	});
 	if (!mail) return false;
-	await (d.send ?? sendMail)(config, { to: p.address, ...mail });
+	await (d.send ?? sendMail)(
+		config,
+		{ to: p.address, ...mail },
+		{ hostPolicy: await hostPolicy(d.db) },
+	);
 	if (recent.length)
 		await d.db
 			.update(workNotification)

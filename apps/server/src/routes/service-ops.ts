@@ -759,8 +759,7 @@ export const serviceOps = router()
 						};
 					} else if (v.value !== undefined && isSecretReference(v.value)) {
 						// A typed `secret://` value: this service's own external secret, then referenced.
-						const own = await serviceExternalSecret(tx, {
-							organizationId: actor.organizationId,
+						const own = await serviceExternalSecret(tx, actor, {
 							serviceId,
 							key: v.key,
 							reference: v.value,
@@ -959,15 +958,14 @@ async function serviceSecret(
 /** The service's own external secret named `key`, created or pointed at `reference`. */
 async function serviceExternalSecret(
 	db: DbOrTx,
+	actor: Actor,
 	o: {
-		organizationId: string;
 		serviceId: string;
 		key: string;
 		reference: string;
 		userId: string;
 	},
 ) {
-	const cols = await externalColumns(db, o.organizationId, o.reference);
 	const [existing] = await db
 		.select()
 		.from(secret)
@@ -978,6 +976,7 @@ async function serviceExternalSecret(
 				eq(secret.key, o.key),
 			),
 		);
+	const cols = await externalColumns(db, actor, o.reference, existing);
 	if (
 		existing?.providerId === cols.providerId &&
 		existing.externalRef === cols.externalRef
@@ -995,7 +994,7 @@ async function serviceExternalSecret(
 		await db
 			.insert(secret)
 			.values({
-				organizationId: o.organizationId,
+				organizationId: actor.organizationId,
 				scope: "service",
 				scopeId: o.serviceId,
 				key: o.key,

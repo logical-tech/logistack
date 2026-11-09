@@ -27,6 +27,9 @@ type Schedule = typeof schedule.$inferSelect;
 type Run = typeof scheduleRun.$inferSelect;
 
 const body = (id: string) => id.slice(id.indexOf("_") + 1);
+
+/** An ephemeral run takes a user-chosen image onto the worker's node: cap it like a plugin. */
+const EPHEMERAL_LIMITS = { memoryBytes: 1024 * 1024 * 1024, nanoCpus: 1e9 };
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export type ScheduleRunner = {
@@ -70,7 +73,13 @@ async function plan(
 		case "ephemeral":
 			return {
 				nodeId: await workerNode(ctx),
-				spec: { ...container, ...common, image: t.image, cmd: ["sh"] },
+				spec: {
+					...container,
+					...common,
+					image: t.image,
+					cmd: ["sh"],
+					limits: EPHEMERAL_LIMITS,
+				},
 			};
 		case "service": {
 			const task = await locateTask(ctx, t.serviceId);

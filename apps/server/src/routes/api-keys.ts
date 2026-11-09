@@ -138,7 +138,11 @@ async function listKeys(c: Context<Env>, ids?: string[]) {
 	);
 }
 
+/** A key for rotate or delete; a scoped key may only manage itself, so it never mints or revokes a wider one. */
 async function keyOf(c: Context<Env>, id: string) {
+	const actor = requireActor(c);
+	if (actor.keyScopes && actor.keyId !== id)
+		throw new Failure("forbidden", "a scoped API key can only manage itself");
 	const [k] = await listKeys(c, [id]);
 	if (!k) throw notFound("api key");
 	return k;
@@ -214,7 +218,9 @@ async function createKey(
 		},
 	});
 	c.set("auditResourceId", created.id);
-	return { ...(await keyOf(c, created.id)), key: created.key };
+	const [k] = await listKeys(c, [created.id]);
+	if (!k) throw notFound("api key");
+	return { ...k, key: created.key };
 }
 
 async function revoke(c: Context<Env>, id: string, ownerId: string) {

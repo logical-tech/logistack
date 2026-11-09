@@ -374,11 +374,7 @@ export const secrets = router()
 										...input,
 										description: input.description ?? null,
 										organizationId: actor.organizationId,
-										...(await externalColumns(
-											tx,
-											actor.organizationId,
-											reference,
-										)),
+										...(await externalColumns(tx, actor, reference)),
 										currentVersion: 0,
 										createdBy: actor.userId,
 										updatedBy: actor.userId,
@@ -459,7 +455,7 @@ export const secrets = router()
 						await tx
 							.update(secret)
 							.set({
-								...(await externalColumns(tx, actor.organizationId, reference)),
+								...(await externalColumns(tx, actor, reference, prev)),
 								updatedBy: actor.userId,
 							})
 							.where(eq(secret.id, prev.id))

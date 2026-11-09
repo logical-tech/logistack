@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readlink, realpath, rm, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
 import type { ApplicationSpec, BuildPlatform } from "@logistack/contracts";
@@ -9,7 +9,13 @@ import {
 	registryAuthHeader,
 	type ServiceSpec,
 } from "@logistack/docker";
-import { inspectService, upsertService } from "./apply.ts";
+import {
+	attachServices,
+	ensure,
+	inspectService,
+	notFound,
+	upsertService,
+} from "./apply.ts";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
 import type { GitAuth } from "./load.ts";
@@ -197,11 +203,37 @@ export async function clone(
 			run(["git", ...args], { log: o.log, signal: o.signal, env, cwd });
 		for (const args of cloneCommands({ ref: o.ref, sha: o.sha, target, dir }))
 			await git(args);
+		await assertSymlinksInside(dir, (args) => git(args, dir));
 		const commitSha = await git(["rev-parse", "HEAD"], dir);
 		const commitMessage = await git(["log", "-1", "--format=%s"], dir);
 		return { dir, commitSha, commitMessage };
 	} finally {
 		await rm(keys, { recursive: true, force: true });
+	}
+}
+
+/**
+ * A committed symlink is followed by every later read of the checkout (build context, Dockerfile,
+ * Railpack's prepare), so one pointing at `/run/secrets` or another build's key would hand the
+ * worker's files to the build. Every tracked symlink must resolve inside the checkout.
+ */
+export async function assertSymlinksInside(
+	dir: string,
+	git: (args: string[]) => Promise<string>,
+): Promise<void> {
+	const root = await realpath(dir);
+	const links = (await git(["ls-files", "-s", "-z"]))
+		.split("\0")
+		.filter((e) => e.startsWith("120000 "))
+		.map((e) => e.slice(e.indexOf("\t") + 1));
+	for (const link of links) {
+		const at = join(dir, link);
+		// Dangling links resolve by their text; a later write could still land outside.
+		const target = await realpath(at).catch(async () =>
+			resolve(dirname(at), await readlink(at)),
+		);
+		if (target !== root && !target.startsWith(`${root}/`))
+			throw new Error(`symlink ${link} points outside the repository`);
 	}
 }
 
@@ -403,19 +435,85 @@ COPY --from=build /app/${publish} /srv
 `;
 }
 
-const BUILDKIT_PORT = 1234;
-export const buildkitName = (ctx: Ctx) =>
-	`${ctx.cfg.LS_NAME_PREFIX}ls-buildkit`;
-export const buildkitAddr = (ctx: Ctx) =>
-	`tcp://${buildkitName(ctx)}:${BUILDKIT_PORT}`;
+export const BUILDKIT_PORT = 1234;
+/**
+ * One BuildKit per organization (none: the instance's own, for probes). Rootless BuildKit in a
+ * Swarm task runs RUN steps without a process sandbox, so a shared daemon would let one tenant's
+ * build read another's processes and secrets and poison its cache.
+ */
+export const buildkitName = (ctx: Ctx, org?: string) =>
+	`${ctx.cfg.LS_NAME_PREFIX}ls-buildkit${
+		org
+			? `-${org
+					.toLowerCase()
+					.replace(/[^a-z0-9]/g, "")
+					.slice(0, 24)}`
+			: ""
+	}`;
+export const buildkitAddr = (ctx: Ctx, org?: string) =>
+	`tcp://${buildkitName(ctx, org)}:${BUILDKIT_PORT}`;
+/** Every BuildKit service the worker created, the instance's and each organization's. */
+export const buildkitServices = (ctx: Ctx) =>
+	ctx.docker.services.list({
+		label: [
+			"logistack.managed=true",
+			"logistack.resource=buildkit",
+			...Object.entries(scope(ctx).labels).map(([k, v]) => `${k}=${v}`),
+		],
+	});
 
-/** Rootless BuildKit as a managed system service on ls-control; Swarm cannot run privileged tasks. */
-export async function ensureBuildkit(ctx: Ctx): Promise<void> {
-	const name = buildkitName(ctx);
-	if (await inspectService(ctx, name)) return;
+/**
+ * BuildKit's network: RUN steps share its namespace, so a Dockerfile could reach anything on it.
+ * Only the worker joins (attached here on installs older than the stack entry); never ls-control,
+ * where Caddy's admin API, Postgres and Redis listen.
+ */
+async function ensureBuildNetwork(ctx: Ctx): Promise<string> {
+	const name = ctx.cfg.LS_BUILD_NETWORK;
+	const net = await ensure(
+		() =>
+			ctx.docker.networks.inspect(name).catch((e) => {
+				if (notFound(e)) return undefined;
+				throw e;
+			}),
+		() =>
+			ctx.docker.networks.create({
+				Name: name,
+				Driver: "overlay",
+				Attachable: true,
+				Scope: "swarm",
+				Labels: { "com.docker.stack.namespace": ctx.cfg.LS_STACK_NAME },
+			}),
+	);
+	await attachServices(ctx, net.Id, name, [
+		`${ctx.cfg.LS_STACK_NAME}_logistack-worker`,
+	]);
+	return net.Id;
+}
+
+/**
+ * Rootless BuildKit as a managed system service on its own network; Swarm cannot run privileged
+ * tasks. Pinned to the worker's node, where emulators are installed and images are loaded.
+ */
+export async function ensureBuildkit(ctx: Ctx, org?: string): Promise<void> {
+	const name = buildkitName(ctx, org);
+	const netId = await ensureBuildNetwork(ctx);
+	const pin = `node.id==${(await ctx.docker.info()).Swarm.NodeID}`;
+	const existing = await inspectService(ctx, name);
+	const current =
+		existing &&
+		(existing.Spec.TaskTemplate.Networks ?? []).every(
+			(n) => n.Target === netId || n.Target === ctx.cfg.LS_BUILD_NETWORK,
+		) &&
+		(existing.Spec.TaskTemplate.Placement?.Constraints ?? []).includes(pin);
+	// An older release put BuildKit on ls-control, unpinned: move it.
+	if (current) return;
 	// shortcut: assumes a found service is serving; a crashlooping buildkit surfaces as a buildctl error.
 	const labels = {
-		...managedLabels({ resource: "buildkit", kind: "system", org: "system" }),
+		...managedLabels({
+			resource: "buildkit",
+			kind: "system",
+			org: org ?? "system",
+		}),
 		...scope(ctx).labels,
 	};
 	const spec: ServiceSpec = {
@@ -448,7 +546,8 @@ export async function ensureBuildkit(ctx: Ctx): Promise<void> {
 				],
 			},
 			RestartPolicy: { Condition: "any", Delay: 5e9 },
-			Networks: [{ Target: ctx.cfg.LS_CONTROL_NETWORK }],
+			Placement: { Constraints: [pin] },
+			Networks: [{ Target: ctx.cfg.LS_BUILD_NETWORK }],
 		},
 		Mode: { Replicated: { Replicas: 1 } },
 	};

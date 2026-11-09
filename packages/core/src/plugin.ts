@@ -86,6 +86,8 @@ export function compilePlugin(i: PluginInput): ServiceSpec {
 				),
 				ReadOnly: true,
 				CapabilityDrop: ["ALL"],
+				// Not in our hand-written types (API >= 1.44): setuid binaries in the image gain nothing.
+				...({ Privileges: { NoNewPrivileges: true } } as object),
 				Mounts: [
 					{
 						Type: "tmpfs",

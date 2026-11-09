@@ -35,6 +35,10 @@ describe("isPrivateAddress", () => {
 		["::ffff:a9fe:a9fe", true],
 		["64:ff9b::a9fe:a9fe", true],
 		["2002:7f00:1::", true],
+		["::127.0.0.1", true],
+		["::a9fe:a9fe", true],
+		["::ffff:0:7f00:1", true],
+		["::ffff:8.8.8.8", false],
 		["not-an-ip", true],
 		["8.8.8.8", false],
 		["1.1.1.1", false],
@@ -87,6 +91,15 @@ describe("resolvePublic", () => {
 		expect(
 			await resolvePublic("registry.lan", allow, answers("10.0.0.5")),
 		).toBe("10.0.0.5");
+	});
+
+	test("ls-control stays refused even when private hosts are allowed", async () => {
+		await expect(
+			resolvePublic("caddy.lan", allow, answers("10.247.0.4")),
+		).rejects.toThrow("control network");
+		await expect(resolvePublic("[::ffff:10.247.0.4]", allow)).rejects.toThrow(
+			"control network",
+		);
 	});
 });
 

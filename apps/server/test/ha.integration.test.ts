@@ -190,6 +190,9 @@ const usage = (marker: string) => ({
  * A node agent speaking just enough of the protocol: hello, then a `disk.result` naming `marker`
  * for each disk request. `reconnect` keeps dialing after the socket drops, as the real agent does.
  */
+/** Node tokens issued per node: a node enrolls once, then reconnects with its own token. */
+const issued = new Map<string, string>();
+
 function fakeAgent(
 	target: Replica | "caddy",
 	nodeId: string,
@@ -206,7 +209,7 @@ function fakeAgent(
 	const dial = () => {
 		const ws = new WebSocket(`ws://${at(target)}${AGENT_WS_PATH}`, {
 			headers: {
-				authorization: `Bearer ${AGENT_TOKEN}`,
+				authorization: `Bearer ${issued.get(nodeId) ?? AGENT_TOKEN}`,
 				[AGENT_NODE_HEADER]: nodeId,
 			},
 		} as never);
@@ -224,7 +227,10 @@ function fakeAgent(
 			);
 		ws.onmessage = (e) => {
 			const m = JSON.parse(String(e.data));
-			if (m.type === "hello.ok") state.hellos++;
+			if (m.type === "hello.ok") {
+				state.hellos++;
+				if (m.nodeToken) issued.set(nodeId, m.nodeToken);
+			}
 			if (m.type !== "disk.run") return;
 			state.requests++;
 			ws.send(

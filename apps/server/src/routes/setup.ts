@@ -208,7 +208,7 @@ export async function completeSetup(
 			id: userId,
 			name: input.owner.name,
 			email: input.owner.email,
-			emailVerified: false,
+			emailVerified: true,
 			kind: "human",
 			role: "admin",
 		});

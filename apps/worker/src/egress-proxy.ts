@@ -1,4 +1,4 @@
-import { connect, createServer, isIP, type Socket } from "node:net";
+import { BlockList, connect, createServer, isIP, type Socket } from "node:net";
 // Subpaths, not the barrels: the proxy loads only what it runs.
 import { egressAllowed, egressPassword } from "@logistack/core/plugin-egress";
 import { resolvePublic } from "@logistack/providers/ssrf";
@@ -15,6 +15,11 @@ const log = (level: string, msg: string, fields: object = {}) =>
 // never to a private address unless the manifest names that address literally.
 
 const HEAD_LIMIT = 16 * 1024;
+
+// Never reachable, even named literally: cloud metadata lives here. (ls-control is refused by resolvePublic.)
+const linkLocal = new BlockList();
+linkLocal.addSubnet("169.254.0.0", 16, "ipv4");
+linkLocal.addSubnet("fe80::", 10, "ipv6");
 const HEAD_TIMEOUT_MS = 10_000;
 
 export type EgressProxyOptions = {
@@ -127,6 +132,8 @@ export async function startEgressProxy(o: EgressProxyOptions) {
 				{ allowPrivateHosts: isIP(host) !== 0 },
 				o.lookup,
 			);
+			if (linkLocal.check(address, isIP(address) === 4 ? "ipv4" : "ipv6"))
+				throw new Error(`${address} is link-local`);
 		} catch (e) {
 			log("warn", "egress refused: address", {
 				installId: id,

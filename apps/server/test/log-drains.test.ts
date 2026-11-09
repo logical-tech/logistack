@@ -183,5 +183,10 @@ describe.skipIf(!hasDocker)("log drains api", () => {
 		});
 		expect(res.status).toBe(400);
 		expect(res.json.error.message).toContain("no online node");
+		const foreign = await h.call("POST", "/api/log-drains/test", {
+			...as(),
+			body: { config: loki, nodeId: "nod_other_org" },
+		});
+		expect(foreign.status).toBe(404);
 	});
 });

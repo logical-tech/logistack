@@ -169,7 +169,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - workerdata:/var/lib/logistack
     # ls-storage: backups to a LogiStack storage service. ls-db, ls-game: so the worker can attach services to them.
-    networks: [ls-control, ls-storage, ls-db, ls-game]
+    networks: [ls-control, ls-storage, ls-db, ls-game, ls-build]
     deploy:
       <<: *rolling
       replicas: 1
@@ -245,6 +245,13 @@ networks:
     ipam:
       config:
         - subnet: 10.247.0.0/16
+  # BuildKit and the worker only: a Dockerfile's RUN steps run in BuildKit's network namespace.
+  ls-build:
+    name: ls-build
+    driver: overlay
+    attachable: true
+  # Caddy, tunnels and the local registry. Apps never join it: each organization's public services
+  # share a network with Caddy only (ls-ingress-<hash>, created by the worker).
   ls-ingress:
     name: ls-ingress
     driver: overlay

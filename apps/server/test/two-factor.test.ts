@@ -153,11 +153,8 @@ describe.skipIf(!hasDocker)("organization two-factor requirement", () => {
 			"/api/auth/organization/invite-member",
 			{ ...asOwner(), body: { email: "x@qw6.example.com", role: "admin" } },
 		);
-		expect(invite.status).toBe(403);
-		expect(invite.json).toMatchObject({
-			code: "two_factor_required",
-			message: expect.stringContaining("two-factor"),
-		});
+		// Closed for everyone: members change through /api, which checks two-factor itself.
+		expect(invite.status).toBe(404);
 		const role = await h.call(
 			"POST",
 			"/api/auth/organization/update-member-role",
@@ -166,8 +163,7 @@ describe.skipIf(!hasDocker)("organization two-factor requirement", () => {
 				body: { memberId: devMemberId, role: "owner", organizationId: orgId },
 			},
 		);
-		expect(role.status).toBe(403);
-		expect(role.json.code).toBe("two_factor_required");
+		expect(role.status).toBe(404);
 		const [devRole] = await h.deps.db
 			.select({ role: member.role })
 			.from(member)

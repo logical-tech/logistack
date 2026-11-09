@@ -42,11 +42,17 @@ This has three security consequences:
 - **Every operation can be retried.** A deploy or a domain change that stops halfway is finished by the next attempt, not repeated, so a crash never leaves two copies of a service or a half-written proxy configuration.
 - **Pure compilers.** The code that turns a row into a Docker service spec or a Caddy configuration has no I/O and is covered by snapshot tests. What LogiStack asks Docker and Caddy to do can be read and reviewed.
 
-Caddy is configured through its admin API, which listens only on LogiStack's internal control network. Your services cannot reach it, nor Postgres or Redis.
+Caddy is configured through its admin API, which listens only on LogiStack's internal control network. Your services cannot reach it, nor Postgres or Redis. Builds cannot either: each organization's BuildKit runs on a build network that only the worker joins, so a Dockerfile's `RUN` steps never see the control network or another organization's builds. A repository whose symlinks point outside the checkout is refused before the build starts.
+
+Text you write that ends up in the proxy configuration, such as a custom error page or a maintenance message, is escaped, so it can never read the proxy's environment or files.
 
 ## Access control on every route
 
 Every API route, including the WebSocket and MCP routes, declares the action it needs (for example **Deploy** or **Administer**) and the scope it acts on: the organization, a folder, a project, an environment or one service. A request for a resource in another organization is refused before any handler runs. Git webhooks carry no session, so LogiStack checks each one's signature instead. See [Roles and permissions](../team/roles-and-permissions.mdx).
+
+Requests that use the session cookie must come from the dashboard's own origin, so another site on the same domain cannot act with your session. Sign-in attempts are limited per address and per account, and the address is the one Caddy saw, not one the client claims.
+
+The AI Agent asks for your approval before every operation that changes something, and it treats what tools return (logs, comments, files) as data, never as instructions. It is available only to signed-in members, never to API keys.
 
 Every change is written to an [audit log](../team/audit-log.mdx) with the actor, the outcome and a diff with secrets redacted. The database refuses updates to audit entries.
 
@@ -76,9 +82,9 @@ LogiStack's rules target both: values never become shell strings, and every rout
 
 ## What LogiStack trusts
 
-- **Owners and admins** control the Docker socket, so they are root on every node by design. Give those roles only to people you would give root.
+- **Instance admins** control the Docker socket, so they are root on every node by design. Give that role only to people you would give root. Anything that reaches a host (bind mounts, extra capabilities, host schedules, adopting other volumes, Tailscale, local backup folders) needs an instance admin, and a GitOps sync never acts as one. An organization's owner or admin alone cannot reach the nodes.
 - **The node agent** runs on every server with access to that server's Docker socket, and dials the API with its own token.
-- **Your apps** run in their own environment network, and cannot reach LogiStack's control network.
+- **Your apps** run in their own environment network, and cannot reach LogiStack's control network. Each organization's public, storage and game services share a network only with the proxy and the API, never with another organization's, so an app cannot dial another tenant's service around the proxy's access rules.
 - **Plugins** run as hardened containers with a read-only root and no capabilities, reach the internet only through a proxy that allows their declared hosts, and call the API with a key limited to the permissions you approved. Their pages run in an opaque origin. See [How plugins work](../plugins/index.mdx#security-model).
 
 ## Report a vulnerability

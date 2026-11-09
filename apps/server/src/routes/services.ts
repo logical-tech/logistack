@@ -24,13 +24,16 @@ import {
 	deployment,
 	domain,
 	envVar,
+	gitProvider,
 	mount,
 	service,
 	serviceStatus,
 } from "@logistack/db";
 import { and, asc, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
+import type { Context } from "hono";
 import { requireActor } from "../actor.ts";
 import { auditInTx, mutation } from "../audit.ts";
+import type { Env } from "../env.ts";
 import { Failure, one } from "../errors.ts";
 import { envelope } from "../events.ts";
 import { guardHostSettings } from "../host-settings.ts";
@@ -51,6 +54,7 @@ import {
 import { checkGit, checkImage } from "../probe.ts";
 import { readResourceProfiles } from "../resource-profiles.ts";
 import {
+	assertInstanceAdmin,
 	byParam,
 	check,
 	inOrganization,
@@ -61,6 +65,23 @@ import { hostPolicy } from "../ssrf.ts";
 import { ConfigContent, MountTarget } from "./files.ts";
 
 /** The service row plus what list views draw: observed state, last deployment, hostnames. */
+/** A git source names a provider of the actor's own organization; the build uses its token. */
+async function checkGitProvider(c: Context<Env>, spec: ServiceSpec) {
+	const id =
+		"source" in spec && spec.source.type === "git"
+			? spec.source.gitProviderId
+			: undefined;
+	if (!id) return;
+	const n = await c.var.deps.db.$count(
+		gitProvider,
+		and(
+			eq(gitProvider.id, id),
+			eq(gitProvider.organizationId, requireActor(c).organizationId),
+		),
+	);
+	if (!n) throw new Failure("bad_request", "unknown git provider");
+}
+
 export const ServiceListItem = Service.extend({
 	status: z.object({
 		observed: ObservedState,
@@ -265,6 +286,7 @@ export const services = router()
 					"bad_request",
 					"Counter-Strike 2 needs gameToken: a Steam Game Server Login Token for app 730",
 				);
+			await checkGitProvider(c, input.spec);
 			const { db, masterKey } = c.var.deps;
 			let spec: ServiceSpec;
 			try {
@@ -278,7 +300,9 @@ export const services = router()
 			}
 			const adopted = input.adoptedVolumes ?? [];
 			if (adopted.length) {
-				// Mounting a volume by name reaches data outside this organization's own objects.
+				// Mounting a volume by name reaches data outside this organization's own objects,
+				// including other tools' data on a shared node.
+				assertInstanceAdmin(c);
 				const resource = c.get("resource");
 				if (resource) check(c, "admin", resource);
 				const volumeTargets = new Set(
@@ -496,6 +520,7 @@ export const services = router()
 			}
 			let nodeId: string | null | undefined;
 			if (input.spec) {
+				await checkGitProvider(c, input.spec);
 				c.set("auditDiff", { before: current?.spec, after: input });
 				nodeId = await guardHostSettings(c, {
 					serviceId: id,

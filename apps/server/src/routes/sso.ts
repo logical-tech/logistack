@@ -1,7 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { account, ssoProvider } from "@logistack/db";
 import { APIError } from "better-auth";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { resolveRole } from "../access.ts";
 import { requireActor } from "../actor.ts";
@@ -11,7 +11,12 @@ import { Failure, notFound } from "../errors.ts";
 import { body, errors, json, router, security } from "../openapi.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
 import { clearDefaultRole, defaultRoles, setDefaultRole } from "../sso.ts";
-import { BlockedHostError, guardedFetch, hostPolicy } from "../ssrf.ts";
+import {
+	BlockedHostError,
+	guardedFetch,
+	hostPolicy,
+	resolvePublic,
+} from "../ssrf.ts";
 
 const MAX_METADATA = 100_000;
 
@@ -147,6 +152,29 @@ async function discover(c: Context<Env>, issuer: string) {
 			"bad_request",
 			`the discovery document names issuer ${doc.data.issuer}, not ${issuer}`,
 		);
+	// better-auth fetches these server-side with plain fetch: hold them to the same guard.
+	const policy = await hostPolicy(c.var.deps.db);
+	for (const endpoint of [
+		doc.data.token_endpoint,
+		doc.data.userinfo_endpoint,
+		doc.data.jwks_uri,
+	]) {
+		if (!endpoint) continue;
+		const { protocol, hostname } = new URL(endpoint);
+		if (protocol !== "https:")
+			throw new Failure(
+				"bad_request",
+				`the discovery document's ${endpoint} is not https`,
+			);
+		await resolvePublic(hostname, policy).catch((e: unknown) => {
+			throw new Failure(
+				"bad_request",
+				e instanceof BlockedHostError
+					? e.message
+					: `${hostname} is not allowed`,
+			);
+		});
+	}
 	return {
 		discoveryEndpoint: url,
 		issuer: doc.data.issuer,
@@ -209,6 +237,23 @@ async function register(
 		);
 	const { db, auth } = c.var.deps;
 	c.set("auditResourceId", input.providerId);
+	// Sign-in by email picks the first provider for the domain, whichever organization holds it.
+	// shortcut: first come, first served; DNS TXT domain verification is still missing.
+	const held = await db.$count(
+		ssoProvider,
+		and(
+			eq(sql`lower(${ssoProvider.domain})`, input.domain.toLowerCase()),
+			or(
+				isNull(ssoProvider.organizationId),
+				ne(ssoProvider.organizationId, actor.organizationId),
+			),
+		),
+	);
+	if (held > 0)
+		throw new Failure(
+			"conflict",
+			`${input.domain} is already used by another organization's SSO provider`,
+		);
 	try {
 		await auth.api.registerSSOProvider({
 			headers: c.req.raw.headers,

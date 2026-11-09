@@ -652,3 +652,35 @@ describe("web analytics", () => {
 		).toEqual(["static_response"]);
 	});
 });
+
+describe("placeholders in tenant text", () => {
+	test("error pages and maintenance messages cannot expand {env.*} or {file.*}", () => {
+		const page =
+			"<p>{env.REDIS_PASSWORD} {file./config/caddy/autosave.json}</p>";
+		const config = JSON.stringify(
+			compileProxy({
+				settings,
+				dashboard,
+				routes: [
+					{
+						...(routes[0] as ProxyRoute),
+						edge: { errorPage: page },
+						maintenance: { allowCidrs: [], page },
+					},
+				],
+			}),
+		);
+		expect(config).not.toContain('"<p>{env.');
+		expect(config).toContain("\\\\{env.REDIS_PASSWORD\\\\}");
+		expect(config).toContain('"persist":false');
+	});
+
+	test("the dashboard route names the client by its connection address", () => {
+		const config = JSON.stringify(
+			compileProxy({ settings, dashboard, routes: [] }),
+		);
+		expect(config).toContain(
+			'"X-Logistack-Client-Ip":["{http.request.remote.host}"]',
+		);
+	});
+});

@@ -24,7 +24,7 @@ import { pinnedFetch } from "@logistack/providers";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
 import { eq, notInArray } from "drizzle-orm";
-import { ensureStackNetwork } from "./apply.ts";
+import { ensureStackNetwork, reattachOrgNetworks } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { installEmulation, probeBuildkit } from "./build-platforms.ts";
 import { createBus, log, setLogLevel, withLock } from "./bus.ts";
@@ -514,6 +514,11 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		.where(notInArray(deployment.status, terminal));
 	for (const s of stranded) await enqueueDeploy(ctx.queues, s.serviceId);
 	await enqueueProxySync(ctx.queues, "boot");
+	await reattachOrgNetworks(ctx).catch((e) =>
+		log("error", "could not attach organization networks", {
+			error: e instanceof Error ? e.message : String(e),
+		}),
+	);
 	for (const name of [ctx.cfg.LS_DB_NETWORK, ctx.cfg.LS_GAME_NETWORK])
 		await ensureStackNetwork(ctx, name).catch((e) =>
 			log("error", "could not attach a shared network", {

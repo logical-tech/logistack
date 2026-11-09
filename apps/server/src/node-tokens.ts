@@ -21,14 +21,25 @@ const refuse = (
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-async function isRevoked(db: Db | Tx, nodeRowId: string) {
+async function hasToken(db: Db | Tx, nodeRowId: string, revoked: boolean) {
 	const [row] = await db
 		.select({ id: nodeToken.id })
 		.from(nodeToken)
-		.where(and(eq(nodeToken.nodeId, nodeRowId), isNotNull(nodeToken.revokedAt)))
+		.where(
+			and(
+				eq(nodeToken.nodeId, nodeRowId),
+				revoked ? isNotNull(nodeToken.revokedAt) : isNull(nodeToken.revokedAt),
+			),
+		)
 		.limit(1);
 	return Boolean(row);
 }
+const isRevoked = (db: Db | Tx, nodeRowId: string) =>
+	hasToken(db, nodeRowId, true);
+// The agent keeps its token on a per-node volume; enrolling over a live token would let any host
+// holding the shared enrollment token take over another node's identity.
+const isEnrolled = (db: Db | Tx, nodeRowId: string) =>
+	hasToken(db, nodeRowId, false);
 
 const nodeFields = (h: AgentHello) => ({
 	hostname: h.hostname,
@@ -42,7 +53,8 @@ const nodeFields = (h: AgentHello) => ({
 /**
  * Admits agents. The installer's enrollment token creates or links the `node` row (by Swarm node
  * id) on hello and returns a per-node token, stored hashed; a per-node token admits only its node.
- * A node with a revoked token is refused with either kind until its `node` row is deleted.
+ * A node with a revoked token is refused with either kind until its `node` row is deleted; a node
+ * that already holds a live token is refused the enrollment token (409) until then too.
  */
 export function nodeTokenAuth(
 	db: Db,
@@ -92,12 +104,16 @@ async function enroll(
 ): Promise<AgentAdmission | AgentRefusal> {
 	const revokedMessage =
 		"this node was revoked; delete it to let it enroll again";
+	const enrolledMessage =
+		"this node is already enrolled; delete it to let it enroll again";
 	const [existing] = await db
 		.select({ id: node.id, organizationId: node.organizationId })
 		.from(node)
 		.where(eq(node.swarmNodeId, swarmNodeId));
 	if (existing && (await isRevoked(db, existing.id)))
 		return refuse(403, "node_revoked", revokedMessage);
+	if (existing && (await isEnrolled(db, existing.id)))
+		return refuse(409, "node_enrolled", enrolledMessage);
 	// shortcut: a new node joins the oldest organization (the one setup created); pick it explicitly once nodes can be shared or moved.
 	const [first] = existing
 		? [existing]
@@ -126,12 +142,8 @@ async function enroll(
 					.returning({ id: node.id, organizationId: node.organizationId });
 				if (!row) throw new Error("node upsert returned no row");
 				if (await isRevoked(tx, row.id)) throw new Error(revokedMessage);
-				// The agent lost its token (or never had one): older tokens of this node stop working.
-				await tx
-					.delete(nodeToken)
-					.where(
-						and(eq(nodeToken.nodeId, row.id), isNull(nodeToken.revokedAt)),
-					);
+				// A concurrent enrollment of the same node won the race.
+				if (await isEnrolled(tx, row.id)) throw new Error(enrolledMessage);
 				const token = NODE_TOKEN_PREFIX + randomBytes(32).toString("base64url");
 				await tx.insert(nodeToken).values({
 					organizationId: row.organizationId,

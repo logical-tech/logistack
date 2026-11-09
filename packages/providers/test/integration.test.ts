@@ -200,13 +200,17 @@ describe.skipIf(!dockerUp)("against real servers", () => {
 	});
 
 	test("email over SMTP with nodemailer on Bun", async () => {
-		const ch = instantiate(notificationChannels.email, {
-			transport: "smtp",
-			host: "127.0.0.1",
-			port: smtpPort,
-			from: "LogiStack <ls@example.com>",
-			to: ["ops@example.com"],
-		});
+		const ch = instantiate(
+			notificationChannels.email,
+			{
+				transport: "smtp",
+				host: "127.0.0.1",
+				port: smtpPort,
+				from: "LogiStack <ls@example.com>",
+				to: ["ops@example.com"],
+			},
+			{ hostPolicy: { allowPrivateHosts: true } },
+		);
 		await ch.test();
 		const inbox = (await (
 			await fetch(`${mailApi}/api/v1/messages`)

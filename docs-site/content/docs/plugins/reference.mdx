@@ -130,10 +130,11 @@ Every request LogiStack sends carries:
 | --- | --- |
 | `x-logistack-install` | The install id, such as `plg_8d2kq4t1`. |
 | `x-logistack-timestamp` | Unix time in seconds. |
-| `x-logistack-signature` | `sha256=` followed by the hex HMAC-SHA256 of the signed string, keyed with `LOGISTACK_SIGNING_SECRET`. |
+| `x-logistack-signature-v2` | `sha256=` followed by the hex HMAC-SHA256 of the signed string, keyed with `LOGISTACK_SIGNING_SECRET`. |
+| `x-logistack-signature` | Deprecated: the older signature without method and path, kept for plugins built with SDK 0.1. Do not check it. |
 | `x-logistack-user` | Page backend requests only: the viewer's claims as JSON. |
 
-The signed string is `<timestamp>.<body>`, or `<timestamp>.<user>\n<body>` when `x-logistack-user` is present, where `<user>` is that header's exact value and `<body>` the raw request body (empty for `GET`). To verify:
+The signed string is `<timestamp>.<METHOD> <path>\n<user>\n<body>`, where `<METHOD>` is the uppercase request method, `<path>` the request path with its query string (such as `/v1/events` or `/ui/api/items?page=2`), `<user>` the exact value of `x-logistack-user` (empty when absent) and `<body>` the raw request body (empty for `GET`). To verify:
 
 1. Refuse the request when the timestamp is more than 300 seconds from your clock.
 2. Compute the HMAC over the exact bytes you received, before parsing JSON.
@@ -142,8 +143,9 @@ The signed string is `<timestamp>.<body>`, or `<timestamp>.<user>\n<body>` when 
 ```ts title="verify.ts"
 const ts = Number(headers.get("x-logistack-timestamp"));
 if (Math.abs(Date.now() / 1000 - ts) > 300) throw new Error("stale");
-const user = headers.get("x-logistack-user");
-const payload = `${ts}.${user ? `${user}\n${body}` : body}`;
+const user = headers.get("x-logistack-user") ?? "";
+const url = new URL(request.url);
+const payload = `${ts}.${request.method} ${url.pathname}${url.search}\n${user}\n${body}`;
 const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
 const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
 const expected = `sha256=${Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("")}`;

@@ -173,6 +173,51 @@ describe.skipIf(!hasDocker)("external secrets (Vault)", () => {
 		expect((await create("secret://vault-dev/secret/app")).status).toBe(400);
 	});
 
+	test("only an organization admin points a value at a provider path", async () => {
+		const dev = {
+			name: "Dana Dev",
+			email: "dana-ext@example.com",
+			password: "dana password 12",
+		};
+		const invite = await h.call("POST", "/api/invitations", {
+			...auth(),
+			body: { email: dev.email, role: "developer" },
+		});
+		await h.call("POST", "/api/auth/sign-up/email", { body: dev });
+		const devCookie = await h.signIn(dev.email, dev.password);
+		const asDev = { headers: { cookie: devCookie } };
+		expect(
+			(
+				await h.call("POST", "/api/auth/organization/accept-invitation", {
+					...asDev,
+					body: { invitationId: invite.json.id },
+				})
+			).status,
+		).toBe(200);
+		const ref = "secret://vault-dev/secret/app/db#password";
+		const env = await h.call("PUT", `/api/services/${serviceId}/env-vars`, {
+			...asDev,
+			body: {
+				variables: [
+					{ key: "DEV_PW", value: ref, isSecret: true, isBuildTime: false },
+				],
+			},
+		});
+		expect(env.status).toBe(403);
+		expect(env.json.error.message).toContain("admin on the organization");
+		const sec = await h.call("POST", "/api/secrets", {
+			...asDev,
+			body: {
+				scope: "service",
+				scopeId: serviceId,
+				key: "DEV_PW",
+				reference: ref,
+			},
+		});
+		expect(sec.status).toBe(403);
+		expect(sec.json.error.message).toContain("admin on the organization");
+	});
+
 	test("deploy-time resolution reads Vault and stores no value", async () => {
 		const sec = await h.call("POST", "/api/secrets", {
 			...auth(),

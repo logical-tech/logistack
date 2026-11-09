@@ -2,7 +2,7 @@
 // Reference: https://caddyserver.com/docs/json/
 
 export type CaddyConfig = {
-	admin: { listen: string };
+	admin: { listen: string; config?: { persist: boolean } };
 	logging: { logs: Record<string, CaddyLog> };
 	storage: CaddyRedisStorage;
 	apps: { http: CaddyHttpApp; tls: CaddyTlsApp };

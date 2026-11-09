@@ -157,9 +157,24 @@ export const envVars = router()
 			const { id } = c.req.valid("param");
 			const { value, ...input } = c.req.valid("json");
 			const [cur] = await c.var.deps.db
-				.select({ secretId: envVar.secretId })
+				.select({ secretId: envVar.secretId, isSecret: envVar.isSecret })
 				.from(envVar)
 				.where(eq(envVar.id, id));
+			// Unmarking a secret without replacing it would reveal the stored value.
+			if (
+				cur?.isSecret &&
+				input.isSecret === false &&
+				value === undefined &&
+				!actorCan(
+					c.get("actor") as Actor,
+					"read:secrets",
+					c.get("resource") as Resource,
+				)
+			)
+				throw new Failure(
+					"forbidden",
+					"unmarking a secret without a new value needs read:secrets",
+				);
 			if (cur?.secretId && (value !== undefined || input.isSecret === false))
 				throw new Failure(
 					"bad_request",

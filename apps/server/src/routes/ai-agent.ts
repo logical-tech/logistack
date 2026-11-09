@@ -6,7 +6,7 @@ import {
 } from "@logistack/contracts";
 import { aiAgentConversation, aiAgentMessage } from "@logistack/db";
 import { and, asc, desc, eq } from "drizzle-orm";
-import type { Context } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { requireActor } from "../actor.ts";
 import {
 	denyPending,
@@ -14,14 +14,27 @@ import {
 	publishAgent,
 	runAgent,
 } from "../ai/agent.ts";
-import { mutation } from "../audit.ts";
+import { mutation, redact } from "../audit.ts";
 import type { Env } from "../env.ts";
 import { Failure, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { inOrganization, requirePermission } from "../scope.ts";
 
 const tags = ["ai"];
-const ai = requirePermission("ai", inOrganization);
+const aiPermission = requirePermission("ai", inOrganization);
+/**
+ * Runs execute as the member with all of their grants, so only a signed-in member may start or
+ * read them: an API key (above all one narrowed to scopes) would otherwise widen to the owner's
+ * grants and read the owner's chats. A key can call the REST API directly instead.
+ */
+const ai: MiddlewareHandler<Env> = async (c, next) => {
+	if (requireActor(c).kind !== "user")
+		throw new Failure(
+			"forbidden",
+			"the Agent is available to signed-in members only",
+		);
+	return aiPermission(c, next);
+};
 
 const Model = z.string().trim().min(1).max(300);
 const Text = z.string().trim().min(1).max(32_000);
@@ -274,7 +287,8 @@ export const aiAgent = router()
 				.update(aiAgentMessage)
 				.set({ parts })
 				.where(eq(aiAgentMessage.id, msg.id));
-			c.set("auditDiff", { toolCallId, approved, input: part.input });
+			// Tool inputs can carry secret values (secret_update, env_var_create): redacted like any diff.
+			c.set("auditDiff", { toolCallId, approved, input: redact(part.input) });
 			// Other calls of the same answer may still wait; the run starts once all are answered.
 			const open = parts.some(
 				(p) =>
