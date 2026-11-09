@@ -27,10 +27,11 @@ import {
 	WORK_ME,
 	WORK_ORG,
 	type WorkTaskRow,
+	withViewsDemo,
 	workUsers,
 } from "./work-fixture";
 
-const w = createWorkFixture();
+const w = withViewsDemo(createWorkFixture());
 
 function delay<T>(value: T, ms = 120 + Math.random() * 220): Promise<T> {
 	return new Promise((resolve) =>
