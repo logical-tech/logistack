@@ -1,0 +1,112 @@
+---
+title: Task notifications and email
+description: Get task notifications in the Inbox and by email, set up instance mail over SMTP or Resend, subscribe to a calendar feed, and route task events to Slack.
+---
+
+Tasks notify you when someone assigns you, mentions you, comments on a task you watch or when a task is due. Notifications land in your **Inbox**, and by email once an instance admin sets up instance mail. Read this page to choose what reaches you, to set up email for the whole server, or to send task events to a team channel.
+
+## The Inbox
+
+{/* screenshot pending until the Work mock fixture lands: ![The Inbox: today's notifications, such as Sara assigned you SHOP-42 and Marco mentioned you on BLOG-7, with unread ones marked](/screens/work-inbox.webp) */}
+
+Open **Inbox** in the sidebar, or press `g i`. The sidebar shows a count of unread notifications.
+
+- Opening a notification marks it read. **Mark all read** clears the rest.
+- Filter by kind.
+- Several changes to the same task by the same person within 5 minutes show as one row, such as "Sara changed 3 things on SHOP-42".
+- Notifications are kept for 90 days.
+
+| Kind | Who gets it |
+| --- | --- |
+| Assigned, Unassigned | The person assigned or removed, unless they did it themselves |
+| Mentioned | Each person newly mentioned in a description or comment |
+| Commented | Watchers of the task, except the author |
+| Replied | The author of the comment and others in the thread |
+| Status changed | Watchers, when a task moves into or out of Done or Cancelled, and the creator on any status change |
+| Due soon | Assignees, 24 hours before the due time, or on the morning of the due date for tasks without a time |
+| Overdue | Assignees, once, the morning after the due date |
+| Checklist item assigned | The item's assignee |
+| Timer running | You, when your timer has run for more than 12 hours |
+
+## Email
+
+### Set up instance mail
+
+LogiStack sends task emails, and invitation emails, through one mail account for the whole server. You need to be an [instance admin](../team/instance-admins.mdx). Until it is set up, email options are disabled with the hint "Ask an admin to set up instance email", and invitations are shared as a link.
+
+<Steps>
+<Step>
+### Open Instance mail
+
+In the sidebar, under **Settings**, open **Instance mail** and start the wizard.
+</Step>
+<Step>
+### Pick the transport
+
+Choose **SMTP** or **Resend**.
+</Step>
+<Step>
+### Enter the credentials
+
+For SMTP, the host, port, user and password of your mail server, for example `smtp.example.com` on port `587`. For Resend, an API key. Credentials are stored encrypted.
+</Step>
+<Step>
+### Set the from address
+
+Type the sender, for example `LogiStack <tasks@example.com>`. Use an address your mail provider allows you to send from.
+</Step>
+<Step>
+### Send a test
+
+Select **Send test email**. Check that it arrives, including in the spam folder.
+</Step>
+<Step>
+### Save
+
+Check the summary and save. From now on, members can turn on email in their account.
+</Step>
+</Steps>
+
+### Choose what you get by email
+
+Open your avatar menu, then **Account › Notifications**.
+
+| Setting | Options |
+| --- | --- |
+| **Email** | **Off**, **Instant** or **Daily** |
+| Kinds | Which kinds to email. Assigned, Mentioned, Due soon and Overdue are on by default. |
+| **Daily hour** | When the daily digest arrives, 08:00 by default |
+| **Time zone** | Yours, or the organization's when empty |
+
+- **Instant** sends an email about 2 minutes after the notification. If you read it in LogiStack first, or it is bundled with later changes, no separate email goes out.
+- **Daily** sends one digest at your daily hour: due today, overdue, assigned since yesterday and mentions. No email when there is nothing.
+
+Every email links to the task and has a link to stop emails of that kind.
+
+## Calendar feed
+
+**Account › Notifications** also gives you a private calendar link (`.ics`) with the tasks assigned to you that have a due date. Add it to Google Calendar, Apple Calendar or Outlook as a subscribed calendar. Tasks with a due time become timed events; others are all-day events titled with the key and title, such as `SHOP-42 Checkout redesign`.
+
+The link is a secret. **Rotate** creates a new one and stops the old one.
+
+## Send task events to a team channel
+
+Tasks also publish events to [notification rules](../operations/alerts-and-notifications.mdx), so a team can route them to Slack, Discord, email or any other channel, for example "tasks completed in Shop" to the project's channel.
+
+| Event | Type |
+| --- | --- |
+| Task created | `task.created` |
+| Task assigned | `task.assigned` |
+| Task status changed | `task.status_changed` |
+| Task completed | `task.completed` |
+| Task commented | `task.commented` |
+| Task due soon | `task.due_soon` |
+| Task overdue | `task.overdue` |
+
+Each event carries the project, the task key and title, the actor, the status name or assignees when relevant, and a link to the task. Narrow a rule to a project to get only its tasks.
+
+## Common problems
+
+- **Email options are greyed out.** Instance mail is not set up. Ask an instance admin.
+- **The test email doesn't arrive.** Check the port (`587` for STARTTLS, `465` for TLS), the credentials, and that your provider lets the account send from the from address.
+- **No email for a notification you read.** Instant emails are skipped for notifications you already read in LogiStack.

@@ -1,0 +1,48 @@
+---
+title: Invite a client as a guest
+description: Invite a client to one project as a guest who reads tasks and comments, without access to other projects, the member list or anything about servers.
+---
+
+A guest is someone outside your team, usually a client, invited to **one project**. Guests read the project's tasks and comment on them. They don't see other projects, the member list, deployments or settings. Use a guest when the client should take part in the discussion; use a [share link](./share-links.mdx) when they only need to look.
+
+## Invite a guest
+
+You need `work:admin` on the project.
+
+<Steps>
+<Step>
+### Open the wizard
+
+Open the project's **⋯** menu and select **Invite guest**.
+</Step>
+<Step>
+### Enter the email
+
+Type the client's address, for example `anna@acme-retail.it`. The project is already filled in.
+</Step>
+<Step>
+### Pick the permissions
+
+Choose **Comment only**, or **Can create tasks**.
+</Step>
+<Step>
+### Send the invitation
+
+Check the summary and create the invitation. Copy the link and send it. If [instance mail](./notifications-and-email.mdx#set-up-instance-mail) is set up, LogiStack also emails it.
+</Step>
+</Steps>
+
+The client accepts like any [invitation](../team/members-and-invitations.mdx#accept-an-invitation). They join the organization with the **Guest** role on that project only, and no role on the organization.
+
+## What a guest sees
+
+- The Tasks dashboard with only their project: My tasks, Inbox and the project's views and [health](./service-health.mdx).
+- People pickers list only people on that project. Mentions, notifications and emails work as for members.
+- They can't be assigned unless the project turns on **Guests can be assigned**.
+- With **Can create tasks**, the project's **Guests can create tasks** setting is on. Their tasks land in the default list's backlog status with a "From guest" tag, for the team to triage.
+
+## Manage guests
+
+Guests appear in their own section on **Settings › Members**, with their project. Remove a guest there like any member. Guest invitations are recorded in the [audit log](../team/audit-log.mdx).
+
+The same mechanism can invite any role to one project, for example a freelance developer: see [Add access on one folder, project, environment or service](../team/members-and-invitations.mdx#add-access-on-one-folder-project-environment-or-service).

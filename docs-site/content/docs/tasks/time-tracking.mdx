@@ -1,0 +1,37 @@
+---
+title: Time tracking
+description: Track time on tasks with a timer or by hand, compare it with estimates, fill a weekly timesheet, and export reports by project, person or day as CSV.
+---
+
+Time tracking records how long people spend on tasks, with a timer or by hand. Use it to compare work with estimates, to fill weekly timesheets, or to export billable hours for a client. LogiStack does not handle rates or invoices: export the report and bill from your accounting tool.
+
+Time tracking is on for every project by default. A project manager can turn it off in the project's **Work** settings, which hides every time control on that project.
+
+## Start a timer
+
+Open a task and select ▶ in the **Time** row, or press `t`. The clock runs in the task and as a pill in the top bar, with the task key and a stop button, on every page.
+
+- You can run one timer at a time. Starting another stops the first.
+- Stop it from the pill, the task, or with `t` on the open task.
+- A timer that runs for more than 12 hours sends you a notification, "Still working on SHOP-42?". It is never stopped for you, so no time is lost.
+
+## Add time by hand
+
+In the task's **Time** row, select **Add time**. Type a duration such as `1h30`, `90m` or `1.5h`, the date, an optional note, and whether it is **Billable** (on by default).
+
+The **Time** row shows the total tracked against the estimate as a thin bar.
+
+- You can edit and delete your own entries. Someone with `work:admin` can edit anyone's.
+- Entries of the same person can't overlap. LogiStack names the entry that clashes.
+- A project can lock time before a date, for example after you invoice a month. Entries before it are read-only.
+
+## The Time page
+
+{/* screenshot pending until the Work mock fixture lands: ![The Time page: a week grid for the current person with tasks as rows, days as columns and daily totals](/screens/work-time.webp) */}
+
+Open **Time** in the sidebar, or press `g t`.
+
+- **Week**: your week as a grid, with tasks as rows and days as columns. Edit a cell to change the time for that task and day.
+- **Report**: filter by project, person, date range and billable, group by project, person, task, day or week, and read the totals. **Export CSV** downloads the same rows.
+
+Entries that cross midnight are split between the two days in reports. A running timer counts up to now.

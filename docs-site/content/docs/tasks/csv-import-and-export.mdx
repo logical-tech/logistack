@@ -1,0 +1,60 @@
+---
+title: CSV import and export
+description: Export a table view of tasks to CSV, and import tasks from a CSV file with column mapping, a preview of the first rows and a report.
+---
+
+CSV moves tasks in and out of LogiStack through spreadsheets and other tools. Export a table view to share it or analyse it; import a CSV to bring in tasks from a tool LogiStack has no importer for. For ClickUp, use the [ClickUp import](./import-from-clickup.mdx) instead: it keeps comments, attachments and history.
+
+## Export a view
+
+In a [table view](./views.mdx#table), open the export menu and select **Export CSV**. The file has:
+
+- the visible columns, in their order, with the current filters and sort,
+- subtasks as the view shows them (nested, flat or hidden),
+- dates in your locale's format, and several values in one cell joined with `; `.
+
+```csv title="shop-list.csv"
+Key,Title,Status,Assignees,Priority,Due,Client
+SHOP-42,Checkout redesign,In progress,Sara Conti; Marco Ricci,High,2026-11-20,Acme
+SHOP-51,Cart rounding error,Review,Marco Ricci,Urgent,2026-11-12,Acme
+```
+
+To export through the API, add `format=csv` to `GET /api/work/tasks`. See [API and MCP](./api-and-mcp.mdx).
+
+## Import a CSV
+
+You need `work:admin` on the project.
+
+<Steps>
+<Step>
+### Open the wizard
+
+Open **Tasks**, then **Import**, and select **CSV**.
+</Step>
+<Step>
+### Upload the file
+
+Upload a file of up to 10 MB. The delimiter and encoding are detected; change them if the preview looks wrong.
+</Step>
+<Step>
+### Map the columns
+
+For each column, pick what it fills: title, description, status, assignee, priority, start or due date, tags, a custom field, or the parent task. Then:
+
+- map the values of the status column to project statuses,
+- match assignees by email or name,
+- pick the date format, with a preview of how the first values read,
+- choose to create a missing custom field, or skip the column,
+- for the parent, match by title or by an ID column.
+</Step>
+<Step>
+### Preview
+
+Check the first 20 rows. Rows with errors are highlighted with the reason.
+</Step>
+<Step>
+### Import
+
+Pick the target list and start. A progress bar shows the import, and the report lists what was created and skipped.
+</Step>
+</Steps>

@@ -45,6 +45,13 @@ const rows: {
 		ramp: "indigo",
 	},
 	{
+		title: "Tasks",
+		body: "Lists, boards, timelines and custom fields on the same projects you deploy. A Project manager role sees whether each service is up, never its deployments.",
+		note: "Imports from ClickUp",
+		shape: "rings",
+		ramp: "green",
+	},
+	{
 		title: "Plugins",
 		body: "Event hooks, deploy gates, agent tools, pages and providers from a signed marketplace, each in its own locked-down container with only the permissions you approve.",
 		note: "Free plugins only",

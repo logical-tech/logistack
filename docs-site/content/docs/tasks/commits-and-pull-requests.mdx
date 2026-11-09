@@ -1,0 +1,63 @@
+---
+title: Connect commits and pull requests to tasks
+description: Mention a task key such as SHOP-42 in a commit, branch or pull request to link it, and close the task with "Fixes SHOP-42" when it reaches the default branch.
+---
+
+Commits, branches and pull requests that mention a task key, such as `SHOP-42`, link to that task, and "Fixes SHOP-42" closes it when the change lands. Developers see the links on the task; project managers see that work is in progress without reading commit details. It works with the [Git providers](../deploy/from-git.mdx) you already connected, through the same [webhooks](../automation/git-webhooks.mdx) that deploy your services. Nothing to install.
+
+## Which repositories count
+
+A push or pull request links to tasks of the projects that use its repository:
+
+- the repositories your project's services build from, and
+- any extra repositories listed in **Repositories** in the project's **Work** settings, for example a design-system repository with no service.
+
+Only keys of those projects link. `ACME-3` in a Shop repository does nothing unless `ACME` is linked to it too.
+
+## Mention a task
+
+LogiStack reads every commit message in a push, the title and description of a pull request, and the branch name.
+
+```bash
+git checkout -b feature/shop-42-checkout-form
+git commit -m "SHOP-42: validate the card number on blur"
+git commit -m "Fix rounding in the cart total, see SHOP-42 and SHOP-51"
+```
+
+- Keys in messages and pull requests are matched in uppercase: `SHOP-42`.
+- Branch names match in any case: `feature/shop-42-checkout-form` links to `SHOP-42`.
+- Old keys still resolve after a key rename or a task move.
+- If the provider redelivers a webhook, the links are updated, not duplicated.
+
+## Close a task from a commit
+
+Write a closing word followed by the key:
+
+```bash
+git commit -m "Fixes SHOP-42: handle expired cards"
+```
+
+The closing words are `fix`, `fixes`, `fixed`, `close`, `closes`, `closed`, `resolve`, `resolves` and `resolved`, in any case.
+
+The task closes when the commit lands on the repository's default branch, by a direct push or when a pull request that mentions it is merged. Pushes to other branches only link. Closing sets the project's **Closing status**, or its first Done status, and does nothing when the task is already Done or Cancelled. The task's watchers are notified and its history records the repository, ref and author.
+
+## What each person sees
+
+| Who | On the task |
+| --- | --- |
+| People with `read` on the project, such as Developers | A **Development** section with each commit, branch and pull request: title, link, author and state (pushed, open, merged, closed). When a deployment containing a linked commit succeeds, a line such as "In production since 14:20" links to it. |
+| Project managers and guests | A summary only, such as "Development: 1 change in review · 2 merged". No titles, links or commit text. |
+
+## Developer helpers
+
+People who can see services find two buttons in the task's **⋯** menu and **Development** section:
+
+- **Copy branch name**: `shop-42-checkout-redesign`
+- **Copy commit message**: `SHOP-42: Checkout redesign`
+
+## Common problems
+
+- **A commit doesn't link.** Check that the repository belongs to a service of the project or is listed in **Repositories**, and that the key is written in uppercase in the message.
+- **"Fixes SHOP-42" didn't close the task.** The commit is not on the default branch yet, or the task was already Done or Cancelled.
+- **GitHub pushes with many commits.** GitHub sends up to 20 commits per push in its webhook. Keys in older commits of a larger push are not read.
+- **A generic Git source.** Repositories added by URL have no webhook, so they can't link commits.

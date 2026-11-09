@@ -1,0 +1,45 @@
+---
+title: Read-only share links
+description: Share one list or view of tasks with a client who has no account, read-only, with an optional password and expiry, and revoke it at any time.
+---
+
+A share link shows one list or one view to someone without a LogiStack account, such as a client who wants to follow progress. The page is read-only and shows only what you choose. If the person should comment, invite them as a [guest](./guests.mdx) instead.
+
+Share links are off by default. A project manager turns them on with **Share links** in the project's **Work** settings. Then anyone with `work` on the project can create one.
+
+## Create a share link
+
+<Steps>
+<Step>
+### Open the wizard
+
+Open the **⋯** menu of a list or view and select **Share link…**.
+</Step>
+<Step>
+### Choose what to show
+
+Give the link an internal name, such as `Acme weekly`. Choose whether to show assignees (on by default), comments (off by default), and which custom fields.
+</Step>
+<Step>
+### Protect it
+
+Optionally set a password and an expiry date.
+</Step>
+<Step>
+### Copy the link
+
+Check the summary and create the link. The link is shown once. Copy it now and send it to the client.
+</Step>
+</Steps>
+
+## What the client sees
+
+The link opens `https://<your dashboard>/share/<token>`: the tasks grouped by status, or as a board when the view is a board. Selecting a task shows its description, checklist progress, the fields you allowed, and comments if you turned them on.
+
+- The page works without JavaScript and without an account.
+- Search engines are told not to index it, and it sends no referrer to other sites.
+- With a password, the client types it once and stays signed in to that link for 12 hours.
+
+## Manage and revoke links
+
+Open the project's **Work** settings and the **Share links** list. Each link shows its name, views and last access. Select **Revoke** to stop a link at once. Creating and revoking links are recorded in the [audit log](../team/audit-log.mdx).

@@ -1,0 +1,116 @@
+---
+title: Import from ClickUp
+description: Move ClickUp spaces, folders and lists into LogiStack with tasks, subtasks, statuses, custom fields, comments, attachments and time entries, in one wizard.
+---
+
+The ClickUp import brings your ClickUp spaces, folders and lists into LogiStack projects, with their tasks, subtasks, checklists, statuses, custom fields, tags, assignees, comments, attachments, dependencies and time entries. Running it again updates what it imported before instead of creating duplicates, so you can import once to try LogiStack and again on the day you switch.
+
+You need `work:admin` on each target project, or on the organization or folder to create new projects.
+
+## Before you start
+
+- In ClickUp, open **Settings › Apps** and copy your personal API token. It starts with `pk_`. The import sees what your ClickUp user sees.
+- Invite your team to LogiStack first. People are matched by email address.
+- Attachments count against the organization's attachment quota. The wizard shows the total before anything is written.
+
+## Run the import
+
+<Steps>
+<Step>
+### Open the wizard
+
+Open **Tasks**, then **Import**, and select **ClickUp**.
+</Step>
+<Step>
+### Connect
+
+Paste the token and select **Test connection**. LogiStack lists the workspaces the token can read. The token is stored encrypted and wiped when the import ends.
+</Step>
+<Step>
+### Choose what to import
+
+Check spaces, folders and lists in the tree; each shows its task count. For each space or folder, pick the target: **New project** (name prefilled, with a folder picker) or an existing project. ClickUp lists become lists.
+</Step>
+<Step>
+### Map the statuses
+
+ClickUp statuses are proposed as project statuses:
+
+| ClickUp status type | LogiStack category |
+| --- | --- |
+| Open | Backlog |
+| Custom | Active, with the same name |
+| Done | Done |
+| Closed | Done, or Cancelled when the name looks like "Cancelled" or "Won't do" |
+
+Colors map to the nearest palette color. Change any mapping in the dropdowns.
+</Step>
+<Step>
+### Map the fields
+
+Each custom field shows the proposed kind. Choose **Import**, **Skip**, or map it onto an existing field of the same kind.
+
+| ClickUp field | LogiStack field |
+| --- | --- |
+| Text, Short text | Long text, Text |
+| Number, Currency | Number, Currency |
+| Drop down | Select, with option colors |
+| Labels | Multi-select |
+| Date | Date, with time when the value has one |
+| Checkbox, URL, Email, Phone | The same kind |
+| Emoji (rating) | Rating |
+| Users, People | User |
+| Progress (manual) | Percent |
+| Formula, Rollup, Tasks, Relationship, Location, Files, Button, Signature, Voting | Skipped, or imported as a text snapshot |
+</Step>
+<Step>
+### Match the people
+
+ClickUp members are matched to LogiStack members by email. For each one without a match, choose to leave their tasks unassigned, with "Originally assigned to Jane (jane@example.com)" added to the description, or to invite them.
+</Step>
+<Step>
+### Choose the options
+
+| Option | Default |
+| --- | --- |
+| Closed tasks | On |
+| Comments | On |
+| Attachments | On, with a per-file cap |
+| Time entries | On when time tracking is on |
+| Archived lists | Off |
+| Keep ClickUp task links | On |
+</Step>
+<Step>
+### Review the dry run
+
+LogiStack reads everything without writing and shows what it will create in each project, with warnings: skipped fields, unmatched people, attachments over the cap, and the attachment total against your quota.
+</Step>
+<Step>
+### Import
+
+Start the import. A progress bar shows each phase. You can cancel it. At the end, the report lists what was created, updated and skipped, with links.
+</Step>
+</Steps>
+
+## How data is converted
+
+- **Priorities**: Urgent, High, Normal, Low; tasks without one get None.
+- **Dates** are converted with the ClickUp workspace's time zone. Due times are kept.
+- **Descriptions** in Markdown and **comments** keep headings, lists, emphasis, code and links. Mentions become mentions of the matched member. Images hosted by ClickUp become attachments.
+- **Dependencies** of the "waiting on" kind become [dependencies](./views.mdx#dependencies). Linked tasks become a "Related" line in the description.
+- **Task types** become a select field "Type", and **sprints** a select field "Sprint", when used.
+- Each task records that it was imported, with its creator when matched.
+
+## What is not imported
+
+Docs, whiteboards, chat, goals, automations, dashboards and views. Each project gets the four default views.
+
+## Import again
+
+Run the wizard again with the same workspace. Tasks, lists and comments that were imported before are updated with ClickUp's current values. Changes you made in LogiStack to anything ClickUp doesn't have, such as a field you added, are kept.
+
+## Common problems
+
+- **"Test connection" fails.** Check that the token is complete and still valid in ClickUp.
+- **The import is slow.** ClickUp allows about 100 requests a minute. LogiStack stays under that and waits when ClickUp asks it to.
+- **Over quota.** Turn off attachments, lower the per-file cap, or ask an admin to move attachments to an S3 destination.
