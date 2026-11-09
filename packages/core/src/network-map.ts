@@ -14,6 +14,7 @@ type Scope = {
 	projectName: string;
 	environmentId: string;
 	environmentName: string;
+	folders?: { id: string; name: string }[];
 };
 
 export type NetworkMapInput = {
@@ -54,8 +55,9 @@ export type NetworkMapInput = {
 
 export const INTERNET = "internet";
 export const PROXY = "proxy";
+export const MESH = "mesh";
 
-/** Internet → proxy or tunnel → domain → service → task, plus published ports straight to the service. */
+/** Internet → proxy or tunnel → domain → service → task, plus published ports through the routing mesh. */
 export function networkMap(input: NetworkMapInput): NetworkMap {
 	const nodes: MapNode[] = [];
 	const edges: MapEdge[] = [];
@@ -79,6 +81,7 @@ export function networkMap(input: NetworkMapInput): NetworkMap {
 			projectName: s.projectName,
 			environmentId: s.environmentId,
 			environmentName: s.environmentName,
+			folders: s.folders ?? [],
 		};
 		const ports =
 			s.spec.kind === "application"
@@ -110,7 +113,7 @@ export function networkMap(input: NetworkMapInput): NetworkMap {
 		});
 		if (ports.length) {
 			exposed.add(s.id);
-			edge(INTERNET, `service:${s.id}`, "port");
+			edge(MESH, `service:${s.id}`, "port");
 		}
 		for (const t of s.tasks) {
 			const host = t.nodeId ? hosts.get(t.nodeId) : undefined;
@@ -149,6 +152,7 @@ export function networkMap(input: NetworkMapInput): NetworkMap {
 			projectName: s.projectName,
 			environmentId: s.environmentId,
 			environmentName: s.environmentName,
+			folders: s.folders ?? [],
 		});
 		const via = d.tunnel ? "tunnel" : "proxy";
 		if (d.tunnel) {
@@ -174,6 +178,15 @@ export function networkMap(input: NetworkMapInput): NetworkMap {
 			via: "proxy",
 		});
 	}
+	if (exposed.size) {
+		edgeNodes.push({ type: "mesh", id: MESH });
+		edges.unshift({
+			id: `${INTERNET}->${MESH}`,
+			source: INTERNET,
+			target: MESH,
+			via: "port",
+		});
+	}
 	for (const p of tunnels) {
 		const id = `tunnel:${p}`;
 		edgeNodes.push({
@@ -195,7 +208,7 @@ export function networkMap(input: NetworkMapInput): NetworkMap {
 export type MapFilter = {
 	projectId?: string;
 	environmentId?: string;
-	/** Matches service, project and environment names, domain hostnames and node hostnames. */
+	/** Matches service, project, environment and folder names, domain hostnames and node hostnames. */
 	query?: string;
 };
 
@@ -217,7 +230,12 @@ export function filterNetworkMap(map: NetworkMap, f: MapFilter): NetworkMap {
 					: n.type === "task"
 						? (n.hostname ?? "")
 						: "";
-		const text = `${own}\n${n.projectName}\n${n.environmentName}`;
+		const text = [
+			own,
+			n.projectName,
+			n.environmentName,
+			...n.folders.map((f) => f.name),
+		].join("\n");
 		if (!q || text.toLowerCase().includes(q)) services.add(n.serviceId);
 	}
 	const keep = new Set(
@@ -227,7 +245,7 @@ export function filterNetworkMap(map: NetworkMap, f: MapFilter): NetworkMap {
 	);
 	// Edge nodes stay when they lead somewhere kept: tunnels and proxy first, then the internet.
 	for (const pass of [
-		["tunnel", "proxy"],
+		["tunnel", "proxy", "mesh"],
 		["internet"],
 	] as MapNode["type"][][]) {
 		const ids = new Set(

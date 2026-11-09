@@ -12,6 +12,12 @@ export async function mockNetworkMap(): Promise<NetworkMap> {
 	const db = createMockDb();
 	const env = new Map(db.environments.map((e) => [e.id, e]));
 	const prj = new Map(db.projects.map((p) => [p.id, p]));
+	const fld = new Map(db.folders.map((f) => [f.id, f]));
+	const path = (id: string | null) => {
+		const f = id ? fld.get(id) : undefined;
+		const up = f?.parentId ? fld.get(f.parentId) : undefined;
+		return [up, f].flatMap((x) => (x ? [{ id: x.id, name: x.name }] : []));
+	};
 	let n = 0;
 	const services = db.services.flatMap((s) => {
 		const e = env.get(s.environmentId);
@@ -36,6 +42,7 @@ export async function mockNetworkMap(): Promise<NetworkMap> {
 				projectName: p.name,
 				environmentId: e.id,
 				environmentName: e.name,
+				folders: path(p.folderId),
 			},
 		];
 	});
