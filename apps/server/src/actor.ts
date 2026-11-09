@@ -169,10 +169,15 @@ export async function grantsFor(
 			),
 		);
 	return toGrants(db, organizationId, subjectId, [
-		...m.role.split(",").map((name) => ({
-			role: name.trim(),
-			scope: { kind: "organization" as const, id: organizationId },
-		})),
+		// A guest member holds nothing organization-wide: only its project grants count.
+		...m.role
+			.split(",")
+			.map((name) => name.trim())
+			.filter((name) => name !== "guest")
+			.map((name) => ({
+				role: name,
+				scope: { kind: "organization" as const, id: organizationId },
+			})),
 		...scoped.map((g) => ({ role: g.role, scope: { kind: g.kind, id: g.id } })),
 	]);
 }
