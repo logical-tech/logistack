@@ -62,7 +62,7 @@ const LABELS: Record<string, string> = {
 const labelOf = (s: Scope) =>
 	s.kind === "organization" ? "Organization" : (LABELS[s.id] ?? s.id);
 
-const people = [
+export const mockPeople = [
 	["usr_simone", "Simone Maddiona", "simone@logical.it", "owner", true, 400],
 	["usr_giulia", "Giulia Ferri", "giulia@logical.it", "admin", true, 320],
 	["usr_marco", "Marco Bassi", "marco@logical.it", "viewer", false, 120],
@@ -71,7 +71,7 @@ const people = [
 ] as const;
 
 const state = {
-	members: people.map(
+	members: mockPeople.map(
 		([userId, name, email, role, twoFactorEnabled, days]): Member => ({
 			id: `mem_${userId.slice(4)}`,
 			userId,
@@ -367,7 +367,7 @@ const actorNames: Record<string, string> = {
 	key_claude: "claude-code",
 	key_ci: "storefront-ci",
 	usr_sa_gha: "GitHub Actions",
-	...Object.fromEntries(people.map(([id, name]) => [id, name])),
+	...Object.fromEntries(mockPeople.map(([id, name]) => [id, name])),
 };
 for (let i = 0; i < 3; i++)
 	for (const [
@@ -420,14 +420,26 @@ const roles = (): Role[] => {
 		{
 			name: "developer",
 			builtin: true,
-			actions: ["read", "deploy", "write"],
+			actions: ["read", "deploy", "write", "read:work", "comment:work", "work"],
 			usage: usage("developer"),
 		},
 		{
 			name: "viewer",
 			builtin: true,
-			actions: ["read"],
+			actions: ["read", "read:work", "comment:work"],
 			usage: usage("viewer"),
+		},
+		{
+			name: "manager",
+			builtin: true,
+			actions: ["read:work", "comment:work", "work", "work:admin"],
+			usage: usage("manager"),
+		},
+		{
+			name: "guest",
+			builtin: true,
+			actions: ["read:work", "comment:work"],
+			usage: usage("guest"),
 		},
 		...state.customRoles.map((r) => ({
 			...r,
@@ -448,6 +460,20 @@ function remove<T extends { id: string }>(list: T[], id: string) {
 	list.splice(i, 1);
 }
 
+/**
+ * `localStorage["logistack.mock.role"] = "manager"` signs the mock user in as a project manager,
+ * which opens the Work-only shell (for design work and screenshots).
+ */
+const mockRole = (): "owner" | "manager" => {
+	try {
+		return globalThis.localStorage?.getItem("logistack.mock.role") === "manager"
+			? "manager"
+			: "owner";
+	} catch {
+		return "owner";
+	}
+};
+
 export const mockAccess: AccessAdapter = {
 	me: () =>
 		delay({
@@ -455,9 +481,10 @@ export const mockAccess: AccessAdapter = {
 			id: "usr_simone",
 			userId: "usr_simone",
 			organizationId: ORG,
-			roles: ["owner"],
-			grants: [{ role: "owner", scope: { kind: "organization", id: ORG } }],
+			roles: [mockRole()],
+			grants: [{ role: mockRole(), scope: { kind: "organization", id: ORG } }],
 			keyScopes: null,
+			surfaces: mockRole() === "manager" ? ["work"] : ["ops", "work"],
 			twoFactor: null,
 			instanceAdmin: true,
 		}),
@@ -682,6 +709,7 @@ export const mockAccess: AccessAdapter = {
 				generatedDomainBase: "sslip",
 				localRegistryEnabled: true,
 				allowPrivateHosts: state.allowPrivateHosts,
+				workAttachmentMaxMb: 25,
 			}),
 		setAllowPrivateHosts: async (allow) => {
 			state.allowPrivateHosts = allow;

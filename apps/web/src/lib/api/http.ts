@@ -9,6 +9,7 @@ import { ssoHttp } from "./sso";
 import { stacksHttp } from "./stacks";
 import { templatesHttp } from "./templates";
 import { variablesHttp } from "./variables";
+import { workHttp } from "./work";
 
 const api = client.api;
 
@@ -220,4 +221,5 @@ export const httpAdapter: ApiAdapter = {
 	stacks: stacksHttp,
 	templates: templatesHttp,
 	variables: variablesHttp,
+	work: workHttp,
 };

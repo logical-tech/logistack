@@ -7,7 +7,11 @@ export const githubPush = {
 	created: false,
 	deleted: false,
 	forced: false,
-	repository: { id: 186853002, full_name: "Codertocat/Hello-World" },
+	repository: {
+		id: 186853002,
+		full_name: "Codertocat/Hello-World",
+		default_branch: "main",
+	},
 	pusher: {
 		name: "Codertocat",
 		email: "21031067+Codertocat@users.noreply.github.com",
@@ -24,6 +28,8 @@ export const githubPush = {
 		{
 			id: "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
 			message: "Update README.md",
+			url: "https://github.com/Codertocat/Hello-World/commit/0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+			author: { name: "Codertocat", username: "Codertocat" },
 			added: ["apps/web/new.ts"],
 			removed: [],
 			modified: ["README.md"],
@@ -37,7 +43,9 @@ export const githubPullRequest = {
 	pull_request: {
 		number: 2,
 		state: "open",
+		merged: false,
 		title: "Update the README with new information.",
+		body: "This is a pretty simple change that we need to pull into master.",
 		user: { login: "Codertocat" },
 		html_url: "https://github.com/Codertocat/Hello-World/pull/2",
 		head: {
@@ -71,6 +79,7 @@ export const gitlabPush = {
 		{
 			id: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
 			message: "fixed readme",
+			url: "http://example.com/mike/diaspora/commit/da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
 			author: { name: "GitLab dev user" },
 			added: [],
 			modified: ["README.md"],
@@ -94,6 +103,8 @@ export const gitlabMergeRequest = {
 		source_project_id: 1,
 		target_project_id: 1,
 		url: "https://gitlab.example.com/gitlabhq/gitlab-test/-/merge_requests/1",
+		description: "Fixes GT-12",
+		state: "opened",
 		oldrev: "b83d6e391c22777fca1ed3012fce84f633d7fed0",
 		last_commit: {
 			id: "da1560886d4f094c3e6c9ef40349f7d38b5d27d7",
@@ -173,7 +184,11 @@ export const bitbucketPullRequest = {
 	pullrequest: {
 		id: 12,
 		title: "Preview environments",
+		description: "Closes TEAM-3",
 		state: "OPEN",
+		links: {
+			html: { href: "https://bitbucket.org/team/repo/pull-requests/12" },
+		},
 		author: { display_name: "Emma" },
 		source: {
 			branch: { name: "feature/x" },

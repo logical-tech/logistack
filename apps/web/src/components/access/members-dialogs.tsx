@@ -196,7 +196,7 @@ export function InviteDialog({
 			<Field
 				id="invite-role"
 				label="Role"
-				hint="Viewer reads everything; developer also deploys and edits."
+				hint="Viewer reads everything; developer also deploys and edits; project manager runs tasks only."
 			>
 				<RoleSelect
 					id="invite-role"
@@ -276,6 +276,7 @@ export function AddAccessDialog({
 					value={role}
 					onChange={setRole}
 					exclude={["owner"]}
+					allowGuest={scope?.kind === "project"}
 					className="w-full"
 				/>
 			</Field>

@@ -21,11 +21,13 @@ import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppProjectsRouteRouteImport } from './routes/_app/projects/route'
 import { Route as AppSchedulesRouteImport } from './routes/_app/schedules'
 import { Route as AppStorageRouteImport } from './routes/_app/storage'
+import { Route as AppWorkRouteRouteImport } from './routes/_app/work/route'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth/forgot-password'
 import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthSsoTestRouteImport } from './routes/_auth/sso-test'
 import { Route as AuthTwoFactorRouteImport } from './routes/_auth/two-factor'
+import { Route as AppAccountNotificationsRouteImport } from './routes/_app/account/notifications'
 import { Route as AppAccountSecurityRouteImport } from './routes/_app/account/security'
 import { Route as AppAiIndexRouteImport } from './routes/_app/ai/index'
 import { Route as AppAiAgentRouteImport } from './routes/_app/ai/agent'
@@ -62,6 +64,7 @@ import { Route as AppSettingsBuildsRouteImport } from './routes/_app/settings/bu
 import { Route as AppSettingsCertificatesRouteImport } from './routes/_app/settings/certificates'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsInstanceAdminsRouteImport } from './routes/_app/settings/instance-admins'
+import { Route as AppSettingsInstanceMailRouteImport } from './routes/_app/settings/instance-mail'
 import { Route as AppSettingsMembersRouteImport } from './routes/_app/settings/members'
 import { Route as AppSettingsMigrateRouteImport } from './routes/_app/settings/migrate'
 import { Route as AppSettingsPluginsRouteImport } from './routes/_app/settings/plugins'
@@ -70,6 +73,10 @@ import { Route as AppSettingsSponsorRouteImport } from './routes/_app/settings/s
 import { Route as AppSettingsSshKeysRouteImport } from './routes/_app/settings/ssh-keys'
 import { Route as AppSettingsUpdatesRouteImport } from './routes/_app/settings/updates'
 import { Route as AppSettingsVariablesRouteImport } from './routes/_app/settings/variables'
+import { Route as AppWorkIndexRouteImport } from './routes/_app/work/index'
+import { Route as AppWorkInboxRouteImport } from './routes/_app/work/inbox'
+import { Route as AppWorkTimeRouteImport } from './routes/_app/work/time'
+import { Route as AppWorkWorkloadRouteImport } from './routes/_app/work/workload'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
 import { Route as AppAiProvidersNewRouteImport } from './routes/_app/ai/providers_.new'
 import { Route as AppBackupsServiceIdIndexRouteImport } from './routes/_app/backups/$serviceId/index'
@@ -104,8 +111,16 @@ import { Route as AppSettingsAuthenticationSamlRouteImport } from './routes/_app
 import { Route as AppSettingsBuildsEmulationRouteImport } from './routes/_app/settings/builds_.emulation'
 import { Route as AppSettingsCertificatesNewRouteImport } from './routes/_app/settings/certificates_.new'
 import { Route as AppSettingsCertificatesOriginRouteImport } from './routes/_app/settings/certificates_.origin'
+import { Route as AppSettingsInstanceMailSetupRouteImport } from './routes/_app/settings/instance-mail_.setup'
 import { Route as AppSettingsPluginsInstallIdRouteImport } from './routes/_app/settings/plugins_.$installId'
 import { Route as AppSettingsPluginsNewRouteImport } from './routes/_app/settings/plugins_.new'
+import { Route as AppWorkImportIndexRouteImport } from './routes/_app/work/import/index'
+import { Route as AppWorkImportImportIdRouteImport } from './routes/_app/work/import/$importId'
+import { Route as AppWorkImportClickupRouteImport } from './routes/_app/work/import/clickup'
+import { Route as AppWorkImportCsvRouteImport } from './routes/_app/work/import/csv'
+import { Route as AppWorkProjectsIndexRouteImport } from './routes/_app/work/projects/index'
+import { Route as AppWorkProjectsProjectIdRouteRouteImport } from './routes/_app/work/projects/$projectId/route'
+import { Route as AppWorkTKeyRouteImport } from './routes/_app/work/t/$key'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppMonitoringStatusPagesPageIdEditRouteImport } from './routes/_app/monitoring/status-pages_.$pageId_.edit'
 import { Route as AppMonitoringUptimeMonitorIdEditRouteImport } from './routes/_app/monitoring/uptime_.$monitorId_.edit'
@@ -113,8 +128,12 @@ import { Route as AppPluginInstallIdPageIdSplatRouteImport } from './routes/_app
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
 import { Route as AppProjectsProjectIdServicesNewRouteImport } from './routes/_app/projects/$projectId/services/new'
 import { Route as AppProjectsProjectIdStacksStackIdRouteRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/route'
+import { Route as AppProjectsProjectIdTasksIndexRouteImport } from './routes/_app/projects/$projectId/tasks/index'
+import { Route as AppProjectsProjectIdTasksSettingsRouteImport } from './routes/_app/projects/$projectId/tasks/settings'
 import { Route as AppProjectsProjectIdTemplatesIndexRouteImport } from './routes/_app/projects/$projectId/templates/index'
 import { Route as AppProjectsProjectIdTemplatesTemplateIdRouteImport } from './routes/_app/projects/$projectId/templates/$templateId'
+import { Route as AppWorkProjectsProjectIdIndexRouteImport } from './routes/_app/work/projects/$projectId/index'
+import { Route as AppWorkProjectsProjectIdSettingsRouteImport } from './routes/_app/work/projects/$projectId/settings'
 import { Route as AppProjectsProjectIdServicesServiceIdIndexRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/index'
 import { Route as AppProjectsProjectIdServicesServiceIdAnalyticsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/analytics'
 import { Route as AppProjectsProjectIdServicesServiceIdBackupsRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/backups'
@@ -134,6 +153,8 @@ import { Route as AppProjectsProjectIdServicesServiceIdTerminalRouteImport } fro
 import { Route as AppProjectsProjectIdStacksStackIdIndexRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/index'
 import { Route as AppProjectsProjectIdStacksStackIdComposeRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/compose'
 import { Route as AppProjectsProjectIdStacksStackIdLogsRouteImport } from './routes/_app/projects/$projectId/stacks/$stackId/logs'
+import { Route as AppProjectsProjectIdTasksVViewIdRouteImport } from './routes/_app/projects/$projectId/tasks/v/$viewId'
+import { Route as AppWorkProjectsProjectIdVViewIdRouteImport } from './routes/_app/work/projects/$projectId/v/$viewId'
 import { Route as AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport } from './routes/_app/projects/$projectId/plugin.$installId.$pageId.$'
 import { Route as AppProjectsProjectIdServicesServiceIdPluginInstallIdPageIdSplatRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/plugin.$installId.$pageId.$'
 
@@ -195,6 +216,11 @@ const AppStorageRoute = AppStorageRouteImport.update({
   path: '/storage',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWorkRouteRoute = AppWorkRouteRouteImport.update({
+  id: '/work',
+  path: '/work',
+  getParentRoute: () => AppRoute,
+} as any)
 const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -219,6 +245,11 @@ const AuthTwoFactorRoute = AuthTwoFactorRouteImport.update({
   id: '/two-factor',
   path: '/two-factor',
   getParentRoute: () => AuthRoute,
+} as any)
+const AppAccountNotificationsRoute = AppAccountNotificationsRouteImport.update({
+  id: '/account/notifications',
+  path: '/account/notifications',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppAccountSecurityRoute = AppAccountSecurityRouteImport.update({
   id: '/account/security',
@@ -409,6 +440,11 @@ const AppSettingsInstanceAdminsRoute =
     path: '/settings/instance-admins',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSettingsInstanceMailRoute = AppSettingsInstanceMailRouteImport.update({
+  id: '/settings/instance-mail',
+  path: '/settings/instance-mail',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsMembersRoute = AppSettingsMembersRouteImport.update({
   id: '/settings/members',
   path: '/settings/members',
@@ -448,6 +484,26 @@ const AppSettingsVariablesRoute = AppSettingsVariablesRouteImport.update({
   id: '/settings/variables',
   path: '/settings/variables',
   getParentRoute: () => AppRoute,
+} as any)
+const AppWorkIndexRoute = AppWorkIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkInboxRoute = AppWorkInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkTimeRoute = AppWorkTimeRouteImport.update({
+  id: '/time',
+  path: '/time',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkWorkloadRoute = AppWorkWorkloadRouteImport.update({
+  id: '/workload',
+  path: '/workload',
+  getParentRoute: () => AppWorkRouteRoute,
 } as any)
 const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
   id: '/accept-invitation/$id',
@@ -643,6 +699,12 @@ const AppSettingsCertificatesOriginRoute =
     path: '/settings/certificates/origin',
     getParentRoute: () => AppRoute,
   } as any)
+const AppSettingsInstanceMailSetupRoute =
+  AppSettingsInstanceMailSetupRouteImport.update({
+    id: '/settings/instance-mail_/setup',
+    path: '/settings/instance-mail/setup',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppSettingsPluginsInstallIdRoute =
   AppSettingsPluginsInstallIdRouteImport.update({
     id: '/settings/plugins_/$installId',
@@ -653,6 +715,42 @@ const AppSettingsPluginsNewRoute = AppSettingsPluginsNewRouteImport.update({
   id: '/settings/plugins_/new',
   path: '/settings/plugins/new',
   getParentRoute: () => AppRoute,
+} as any)
+const AppWorkImportIndexRoute = AppWorkImportIndexRouteImport.update({
+  id: '/import/',
+  path: '/import/',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkImportImportIdRoute = AppWorkImportImportIdRouteImport.update({
+  id: '/import/$importId',
+  path: '/import/$importId',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkImportClickupRoute = AppWorkImportClickupRouteImport.update({
+  id: '/import/clickup',
+  path: '/import/clickup',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkImportCsvRoute = AppWorkImportCsvRouteImport.update({
+  id: '/import/csv',
+  path: '/import/csv',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkProjectsIndexRoute = AppWorkProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => AppWorkRouteRoute,
+} as any)
+const AppWorkProjectsProjectIdRouteRoute =
+  AppWorkProjectsProjectIdRouteRouteImport.update({
+    id: '/projects/$projectId',
+    path: '/projects/$projectId',
+    getParentRoute: () => AppWorkRouteRoute,
+  } as any)
+const AppWorkTKeyRoute = AppWorkTKeyRouteImport.update({
+  id: '/t/$key',
+  path: '/t/$key',
+  getParentRoute: () => AppWorkRouteRoute,
 } as any)
 const AppIntegrationsDnsProviderIdZoneIdRoute =
   AppIntegrationsDnsProviderIdZoneIdRouteImport.update({
@@ -696,6 +794,18 @@ const AppProjectsProjectIdStacksStackIdRouteRoute =
     path: '/stacks/$stackId',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
   } as any)
+const AppProjectsProjectIdTasksIndexRoute =
+  AppProjectsProjectIdTasksIndexRouteImport.update({
+    id: '/tasks/',
+    path: '/tasks/',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
+const AppProjectsProjectIdTasksSettingsRoute =
+  AppProjectsProjectIdTasksSettingsRouteImport.update({
+    id: '/tasks/settings',
+    path: '/tasks/settings',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdTemplatesIndexRoute =
   AppProjectsProjectIdTemplatesIndexRouteImport.update({
     id: '/templates/',
@@ -707,6 +817,18 @@ const AppProjectsProjectIdTemplatesTemplateIdRoute =
     id: '/templates/$templateId',
     path: '/templates/$templateId',
     getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
+const AppWorkProjectsProjectIdIndexRoute =
+  AppWorkProjectsProjectIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppWorkProjectsProjectIdRouteRoute,
+  } as any)
+const AppWorkProjectsProjectIdSettingsRoute =
+  AppWorkProjectsProjectIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppWorkProjectsProjectIdRouteRoute,
   } as any)
 const AppProjectsProjectIdServicesServiceIdIndexRoute =
   AppProjectsProjectIdServicesServiceIdIndexRouteImport.update({
@@ -822,6 +944,18 @@ const AppProjectsProjectIdStacksStackIdLogsRoute =
     path: '/logs',
     getParentRoute: () => AppProjectsProjectIdStacksStackIdRouteRoute,
   } as any)
+const AppProjectsProjectIdTasksVViewIdRoute =
+  AppProjectsProjectIdTasksVViewIdRouteImport.update({
+    id: '/tasks/v/$viewId',
+    path: '/tasks/v/$viewId',
+    getParentRoute: () => AppProjectsProjectIdRouteRoute,
+  } as any)
+const AppWorkProjectsProjectIdVViewIdRoute =
+  AppWorkProjectsProjectIdVViewIdRouteImport.update({
+    id: '/v/$viewId',
+    path: '/v/$viewId',
+    getParentRoute: () => AppWorkProjectsProjectIdRouteRoute,
+  } as any)
 const AppProjectsProjectIdPluginInstallIdPageIdSplatRoute =
   AppProjectsProjectIdPluginInstallIdPageIdSplatRouteImport.update({
     id: '/plugin/$installId/$pageId/$',
@@ -843,6 +977,7 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AppAiRouteRouteWithChildren
   '/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/projects': typeof AppProjectsRouteRouteWithChildren
+  '/work': typeof AppWorkRouteRouteWithChildren
   '/agent': typeof AppAgentRoute
   '/domains': typeof AppDomainsRoute
   '/network': typeof AppNetworkRoute
@@ -854,6 +989,7 @@ export interface FileRoutesByFullPath {
   '/sso-test': typeof AuthSsoTestRoute
   '/two-factor': typeof AuthTwoFactorRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
+  '/account/notifications': typeof AppAccountNotificationsRoute
   '/account/security': typeof AppAccountSecurityRoute
   '/ai/agent': typeof AppAiAgentRoute
   '/ai/budgets': typeof AppAiBudgetsRoute
@@ -886,6 +1022,7 @@ export interface FileRoutesByFullPath {
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
+  '/settings/instance-mail': typeof AppSettingsInstanceMailRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/plugins': typeof AppSettingsPluginsRoute
@@ -894,10 +1031,15 @@ export interface FileRoutesByFullPath {
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/settings/variables': typeof AppSettingsVariablesRoute
+  '/work/inbox': typeof AppWorkInboxRoute
+  '/work/time': typeof AppWorkTimeRoute
+  '/work/workload': typeof AppWorkWorkloadRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/ai/': typeof AppAiIndexRoute
   '/monitoring/': typeof AppMonitoringIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
+  '/work/': typeof AppWorkIndexRoute
+  '/work/projects/$projectId': typeof AppWorkProjectsProjectIdRouteRouteWithChildren
   '/ai/providers/new': typeof AppAiProvidersNewRoute
   '/backups/$serviceId/new': typeof AppBackupsServiceIdNewRoute
   '/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
@@ -928,11 +1070,18 @@ export interface FileRoutesByFullPath {
   '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
+  '/settings/instance-mail/setup': typeof AppSettingsInstanceMailSetupRoute
   '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
+  '/work/import/$importId': typeof AppWorkImportImportIdRoute
+  '/work/import/clickup': typeof AppWorkImportClickupRoute
+  '/work/import/csv': typeof AppWorkImportCsvRoute
+  '/work/t/$key': typeof AppWorkTKeyRoute
   '/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/work/import/': typeof AppWorkImportIndexRoute
+  '/work/projects/': typeof AppWorkProjectsIndexRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
@@ -940,8 +1089,12 @@ export interface FileRoutesByFullPath {
   '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
   '/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
+  '/projects/$projectId/tasks/settings': typeof AppProjectsProjectIdTasksSettingsRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
+  '/work/projects/$projectId/settings': typeof AppWorkProjectsProjectIdSettingsRoute
+  '/projects/$projectId/tasks/': typeof AppProjectsProjectIdTasksIndexRoute
   '/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/work/projects/$projectId/': typeof AppWorkProjectsProjectIdIndexRoute
   '/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
@@ -959,6 +1112,8 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/stacks/$stackId/compose': typeof AppProjectsProjectIdStacksStackIdComposeRoute
   '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
+  '/projects/$projectId/tasks/v/$viewId': typeof AppProjectsProjectIdTasksVViewIdRoute
+  '/work/projects/$projectId/v/$viewId': typeof AppWorkProjectsProjectIdVViewIdRoute
   '/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
   '/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
@@ -977,6 +1132,7 @@ export interface FileRoutesByTo {
   '/sign-up': typeof AuthSignUpRoute
   '/sso-test': typeof AuthSsoTestRoute
   '/two-factor': typeof AuthTwoFactorRoute
+  '/account/notifications': typeof AppAccountNotificationsRoute
   '/account/security': typeof AppAccountSecurityRoute
   '/ai/agent': typeof AppAiAgentRoute
   '/ai/budgets': typeof AppAiBudgetsRoute
@@ -1009,6 +1165,7 @@ export interface FileRoutesByTo {
   '/settings/certificates': typeof AppSettingsCertificatesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
+  '/settings/instance-mail': typeof AppSettingsInstanceMailRoute
   '/settings/members': typeof AppSettingsMembersRoute
   '/settings/migrate': typeof AppSettingsMigrateRoute
   '/settings/plugins': typeof AppSettingsPluginsRoute
@@ -1017,10 +1174,14 @@ export interface FileRoutesByTo {
   '/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/settings/updates': typeof AppSettingsUpdatesRoute
   '/settings/variables': typeof AppSettingsVariablesRoute
+  '/work/inbox': typeof AppWorkInboxRoute
+  '/work/time': typeof AppWorkTimeRoute
+  '/work/workload': typeof AppWorkWorkloadRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/ai': typeof AppAiIndexRoute
   '/monitoring': typeof AppMonitoringIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/work': typeof AppWorkIndexRoute
   '/ai/providers/new': typeof AppAiProvidersNewRoute
   '/backups/$serviceId/new': typeof AppBackupsServiceIdNewRoute
   '/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
@@ -1051,18 +1212,29 @@ export interface FileRoutesByTo {
   '/settings/builds/emulation': typeof AppSettingsBuildsEmulationRoute
   '/settings/certificates/new': typeof AppSettingsCertificatesNewRoute
   '/settings/certificates/origin': typeof AppSettingsCertificatesOriginRoute
+  '/settings/instance-mail/setup': typeof AppSettingsInstanceMailSetupRoute
   '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
+  '/work/import/$importId': typeof AppWorkImportImportIdRoute
+  '/work/import/clickup': typeof AppWorkImportClickupRoute
+  '/work/import/csv': typeof AppWorkImportCsvRoute
+  '/work/t/$key': typeof AppWorkTKeyRoute
   '/backups/$serviceId': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
+  '/work/import': typeof AppWorkImportIndexRoute
+  '/work/projects': typeof AppWorkProjectsIndexRoute
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
   '/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
+  '/projects/$projectId/tasks/settings': typeof AppProjectsProjectIdTasksSettingsRoute
   '/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
+  '/work/projects/$projectId/settings': typeof AppWorkProjectsProjectIdSettingsRoute
+  '/projects/$projectId/tasks': typeof AppProjectsProjectIdTasksIndexRoute
   '/projects/$projectId/templates': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/work/projects/$projectId': typeof AppWorkProjectsProjectIdIndexRoute
   '/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
@@ -1080,6 +1252,8 @@ export interface FileRoutesByTo {
   '/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   '/projects/$projectId/stacks/$stackId/compose': typeof AppProjectsProjectIdStacksStackIdComposeRoute
   '/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
+  '/projects/$projectId/tasks/v/$viewId': typeof AppProjectsProjectIdTasksVViewIdRoute
+  '/work/projects/$projectId/v/$viewId': typeof AppWorkProjectsProjectIdVViewIdRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdIndexRoute
   '/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
@@ -1093,6 +1267,7 @@ export interface FileRoutesById {
   '/_app/ai': typeof AppAiRouteRouteWithChildren
   '/_app/monitoring': typeof AppMonitoringRouteRouteWithChildren
   '/_app/projects': typeof AppProjectsRouteRouteWithChildren
+  '/_app/work': typeof AppWorkRouteRouteWithChildren
   '/_app/agent': typeof AppAgentRoute
   '/_app/domains': typeof AppDomainsRoute
   '/_app/network': typeof AppNetworkRoute
@@ -1105,6 +1280,7 @@ export interface FileRoutesById {
   '/_auth/two-factor': typeof AuthTwoFactorRoute
   '/_app/': typeof AppIndexRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteRouteWithChildren
+  '/_app/account/notifications': typeof AppAccountNotificationsRoute
   '/_app/account/security': typeof AppAccountSecurityRoute
   '/_app/ai/agent': typeof AppAiAgentRoute
   '/_app/ai/budgets': typeof AppAiBudgetsRoute
@@ -1137,6 +1313,7 @@ export interface FileRoutesById {
   '/_app/settings/certificates': typeof AppSettingsCertificatesRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/instance-admins': typeof AppSettingsInstanceAdminsRoute
+  '/_app/settings/instance-mail': typeof AppSettingsInstanceMailRoute
   '/_app/settings/members': typeof AppSettingsMembersRoute
   '/_app/settings/migrate': typeof AppSettingsMigrateRoute
   '/_app/settings/plugins': typeof AppSettingsPluginsRoute
@@ -1145,10 +1322,15 @@ export interface FileRoutesById {
   '/_app/settings/ssh-keys': typeof AppSettingsSshKeysRoute
   '/_app/settings/updates': typeof AppSettingsUpdatesRoute
   '/_app/settings/variables': typeof AppSettingsVariablesRoute
+  '/_app/work/inbox': typeof AppWorkInboxRoute
+  '/_app/work/time': typeof AppWorkTimeRoute
+  '/_app/work/workload': typeof AppWorkWorkloadRoute
   '/_auth/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/_app/ai/': typeof AppAiIndexRoute
   '/_app/monitoring/': typeof AppMonitoringIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/_app/work/': typeof AppWorkIndexRoute
+  '/_app/work/projects/$projectId': typeof AppWorkProjectsProjectIdRouteRouteWithChildren
   '/_app/ai/providers_/new': typeof AppAiProvidersNewRoute
   '/_app/backups/$serviceId/new': typeof AppBackupsServiceIdNewRoute
   '/_app/backups/$serviceId/restore': typeof AppBackupsServiceIdRestoreRoute
@@ -1179,11 +1361,18 @@ export interface FileRoutesById {
   '/_app/settings/builds_/emulation': typeof AppSettingsBuildsEmulationRoute
   '/_app/settings/certificates_/new': typeof AppSettingsCertificatesNewRoute
   '/_app/settings/certificates_/origin': typeof AppSettingsCertificatesOriginRoute
+  '/_app/settings/instance-mail_/setup': typeof AppSettingsInstanceMailSetupRoute
   '/_app/settings/plugins_/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/_app/settings/plugins_/new': typeof AppSettingsPluginsNewRoute
+  '/_app/work/import/$importId': typeof AppWorkImportImportIdRoute
+  '/_app/work/import/clickup': typeof AppWorkImportClickupRoute
+  '/_app/work/import/csv': typeof AppWorkImportCsvRoute
+  '/_app/work/t/$key': typeof AppWorkTKeyRoute
   '/_app/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/_app/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/_app/work/import/': typeof AppWorkImportIndexRoute
+  '/_app/work/projects/': typeof AppWorkProjectsIndexRoute
   '/_app/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   '/_app/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/_app/integrations/dns_/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
@@ -1191,8 +1380,12 @@ export interface FileRoutesById {
   '/_app/monitoring/uptime_/$monitorId_/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
   '/_app/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
+  '/_app/projects/$projectId/tasks/settings': typeof AppProjectsProjectIdTasksSettingsRoute
   '/_app/projects/$projectId/templates/$templateId': typeof AppProjectsProjectIdTemplatesTemplateIdRoute
+  '/_app/work/projects/$projectId/settings': typeof AppWorkProjectsProjectIdSettingsRoute
+  '/_app/projects/$projectId/tasks/': typeof AppProjectsProjectIdTasksIndexRoute
   '/_app/projects/$projectId/templates/': typeof AppProjectsProjectIdTemplatesIndexRoute
+  '/_app/work/projects/$projectId/': typeof AppWorkProjectsProjectIdIndexRoute
   '/_app/projects/$projectId/services/$serviceId/analytics': typeof AppProjectsProjectIdServicesServiceIdAnalyticsRoute
   '/_app/projects/$projectId/services/$serviceId/backups': typeof AppProjectsProjectIdServicesServiceIdBackupsRoute
   '/_app/projects/$projectId/services/$serviceId/database': typeof AppProjectsProjectIdServicesServiceIdDatabaseRoute
@@ -1210,6 +1403,8 @@ export interface FileRoutesById {
   '/_app/projects/$projectId/services/$serviceId/terminal': typeof AppProjectsProjectIdServicesServiceIdTerminalRoute
   '/_app/projects/$projectId/stacks/$stackId/compose': typeof AppProjectsProjectIdStacksStackIdComposeRoute
   '/_app/projects/$projectId/stacks/$stackId/logs': typeof AppProjectsProjectIdStacksStackIdLogsRoute
+  '/_app/projects/$projectId/tasks/v/$viewId': typeof AppProjectsProjectIdTasksVViewIdRoute
+  '/_app/work/projects/$projectId/v/$viewId': typeof AppWorkProjectsProjectIdVViewIdRoute
   '/_app/projects/$projectId/services/$serviceId/': typeof AppProjectsProjectIdServicesServiceIdIndexRoute
   '/_app/projects/$projectId/stacks/$stackId/': typeof AppProjectsProjectIdStacksStackIdIndexRoute
   '/_app/projects/$projectId/plugin/$installId/$pageId/$': typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
@@ -1223,6 +1418,7 @@ export interface FileRouteTypes {
     | '/ai'
     | '/monitoring'
     | '/projects'
+    | '/work'
     | '/agent'
     | '/domains'
     | '/network'
@@ -1234,6 +1430,7 @@ export interface FileRouteTypes {
     | '/sso-test'
     | '/two-factor'
     | '/projects/$projectId'
+    | '/account/notifications'
     | '/account/security'
     | '/ai/agent'
     | '/ai/budgets'
@@ -1266,6 +1463,7 @@ export interface FileRouteTypes {
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/instance-admins'
+    | '/settings/instance-mail'
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/plugins'
@@ -1274,10 +1472,15 @@ export interface FileRouteTypes {
     | '/settings/ssh-keys'
     | '/settings/updates'
     | '/settings/variables'
+    | '/work/inbox'
+    | '/work/time'
+    | '/work/workload'
     | '/accept-invitation/$id'
     | '/ai/'
     | '/monitoring/'
     | '/projects/'
+    | '/work/'
+    | '/work/projects/$projectId'
     | '/ai/providers/new'
     | '/backups/$serviceId/new'
     | '/backups/$serviceId/restore'
@@ -1308,11 +1511,18 @@ export interface FileRouteTypes {
     | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/settings/certificates/origin'
+    | '/settings/instance-mail/setup'
     | '/settings/plugins/$installId'
     | '/settings/plugins/new'
+    | '/work/import/$importId'
+    | '/work/import/clickup'
+    | '/work/import/csv'
+    | '/work/t/$key'
     | '/backups/$serviceId/'
     | '/monitoring/nodes/'
     | '/projects/$projectId/'
+    | '/work/import/'
+    | '/work/projects/'
     | '/projects/$projectId/services/$serviceId'
     | '/projects/$projectId/stacks/$stackId'
     | '/integrations/dns/$providerId/$zoneId'
@@ -1320,8 +1530,12 @@ export interface FileRouteTypes {
     | '/monitoring/uptime/$monitorId/edit'
     | '/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/new'
+    | '/projects/$projectId/tasks/settings'
     | '/projects/$projectId/templates/$templateId'
+    | '/work/projects/$projectId/settings'
+    | '/projects/$projectId/tasks/'
     | '/projects/$projectId/templates/'
+    | '/work/projects/$projectId/'
     | '/projects/$projectId/services/$serviceId/analytics'
     | '/projects/$projectId/services/$serviceId/backups'
     | '/projects/$projectId/services/$serviceId/database'
@@ -1339,6 +1553,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/stacks/$stackId/compose'
     | '/projects/$projectId/stacks/$stackId/logs'
+    | '/projects/$projectId/tasks/v/$viewId'
+    | '/work/projects/$projectId/v/$viewId'
     | '/projects/$projectId/services/$serviceId/'
     | '/projects/$projectId/stacks/$stackId/'
     | '/projects/$projectId/plugin/$installId/$pageId/$'
@@ -1357,6 +1573,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/sso-test'
     | '/two-factor'
+    | '/account/notifications'
     | '/account/security'
     | '/ai/agent'
     | '/ai/budgets'
@@ -1389,6 +1606,7 @@ export interface FileRouteTypes {
     | '/settings/certificates'
     | '/settings/general'
     | '/settings/instance-admins'
+    | '/settings/instance-mail'
     | '/settings/members'
     | '/settings/migrate'
     | '/settings/plugins'
@@ -1397,10 +1615,14 @@ export interface FileRouteTypes {
     | '/settings/ssh-keys'
     | '/settings/updates'
     | '/settings/variables'
+    | '/work/inbox'
+    | '/work/time'
+    | '/work/workload'
     | '/accept-invitation/$id'
     | '/ai'
     | '/monitoring'
     | '/projects'
+    | '/work'
     | '/ai/providers/new'
     | '/backups/$serviceId/new'
     | '/backups/$serviceId/restore'
@@ -1431,18 +1653,29 @@ export interface FileRouteTypes {
     | '/settings/builds/emulation'
     | '/settings/certificates/new'
     | '/settings/certificates/origin'
+    | '/settings/instance-mail/setup'
     | '/settings/plugins/$installId'
     | '/settings/plugins/new'
+    | '/work/import/$importId'
+    | '/work/import/clickup'
+    | '/work/import/csv'
+    | '/work/t/$key'
     | '/backups/$serviceId'
     | '/monitoring/nodes'
     | '/projects/$projectId'
+    | '/work/import'
+    | '/work/projects'
     | '/integrations/dns/$providerId/$zoneId'
     | '/monitoring/status-pages/$pageId/edit'
     | '/monitoring/uptime/$monitorId/edit'
     | '/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/new'
+    | '/projects/$projectId/tasks/settings'
     | '/projects/$projectId/templates/$templateId'
+    | '/work/projects/$projectId/settings'
+    | '/projects/$projectId/tasks'
     | '/projects/$projectId/templates'
+    | '/work/projects/$projectId'
     | '/projects/$projectId/services/$serviceId/analytics'
     | '/projects/$projectId/services/$serviceId/backups'
     | '/projects/$projectId/services/$serviceId/database'
@@ -1460,6 +1693,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/services/$serviceId/terminal'
     | '/projects/$projectId/stacks/$stackId/compose'
     | '/projects/$projectId/stacks/$stackId/logs'
+    | '/projects/$projectId/tasks/v/$viewId'
+    | '/work/projects/$projectId/v/$viewId'
     | '/projects/$projectId/services/$serviceId'
     | '/projects/$projectId/stacks/$stackId'
     | '/projects/$projectId/plugin/$installId/$pageId/$'
@@ -1472,6 +1707,7 @@ export interface FileRouteTypes {
     | '/_app/ai'
     | '/_app/monitoring'
     | '/_app/projects'
+    | '/_app/work'
     | '/_app/agent'
     | '/_app/domains'
     | '/_app/network'
@@ -1484,6 +1720,7 @@ export interface FileRouteTypes {
     | '/_auth/two-factor'
     | '/_app/'
     | '/_app/projects/$projectId'
+    | '/_app/account/notifications'
     | '/_app/account/security'
     | '/_app/ai/agent'
     | '/_app/ai/budgets'
@@ -1516,6 +1753,7 @@ export interface FileRouteTypes {
     | '/_app/settings/certificates'
     | '/_app/settings/general'
     | '/_app/settings/instance-admins'
+    | '/_app/settings/instance-mail'
     | '/_app/settings/members'
     | '/_app/settings/migrate'
     | '/_app/settings/plugins'
@@ -1524,10 +1762,15 @@ export interface FileRouteTypes {
     | '/_app/settings/ssh-keys'
     | '/_app/settings/updates'
     | '/_app/settings/variables'
+    | '/_app/work/inbox'
+    | '/_app/work/time'
+    | '/_app/work/workload'
     | '/_auth/accept-invitation/$id'
     | '/_app/ai/'
     | '/_app/monitoring/'
     | '/_app/projects/'
+    | '/_app/work/'
+    | '/_app/work/projects/$projectId'
     | '/_app/ai/providers_/new'
     | '/_app/backups/$serviceId/new'
     | '/_app/backups/$serviceId/restore'
@@ -1558,11 +1801,18 @@ export interface FileRouteTypes {
     | '/_app/settings/builds_/emulation'
     | '/_app/settings/certificates_/new'
     | '/_app/settings/certificates_/origin'
+    | '/_app/settings/instance-mail_/setup'
     | '/_app/settings/plugins_/$installId'
     | '/_app/settings/plugins_/new'
+    | '/_app/work/import/$importId'
+    | '/_app/work/import/clickup'
+    | '/_app/work/import/csv'
+    | '/_app/work/t/$key'
     | '/_app/backups/$serviceId/'
     | '/_app/monitoring/nodes/'
     | '/_app/projects/$projectId/'
+    | '/_app/work/import/'
+    | '/_app/work/projects/'
     | '/_app/projects/$projectId/services/$serviceId'
     | '/_app/projects/$projectId/stacks/$stackId'
     | '/_app/integrations/dns_/$providerId/$zoneId'
@@ -1570,8 +1820,12 @@ export interface FileRouteTypes {
     | '/_app/monitoring/uptime_/$monitorId_/edit'
     | '/_app/plugin/$installId/$pageId/$'
     | '/_app/projects/$projectId/services/new'
+    | '/_app/projects/$projectId/tasks/settings'
     | '/_app/projects/$projectId/templates/$templateId'
+    | '/_app/work/projects/$projectId/settings'
+    | '/_app/projects/$projectId/tasks/'
     | '/_app/projects/$projectId/templates/'
+    | '/_app/work/projects/$projectId/'
     | '/_app/projects/$projectId/services/$serviceId/analytics'
     | '/_app/projects/$projectId/services/$serviceId/backups'
     | '/_app/projects/$projectId/services/$serviceId/database'
@@ -1589,6 +1843,8 @@ export interface FileRouteTypes {
     | '/_app/projects/$projectId/services/$serviceId/terminal'
     | '/_app/projects/$projectId/stacks/$stackId/compose'
     | '/_app/projects/$projectId/stacks/$stackId/logs'
+    | '/_app/projects/$projectId/tasks/v/$viewId'
+    | '/_app/work/projects/$projectId/v/$viewId'
     | '/_app/projects/$projectId/services/$serviceId/'
     | '/_app/projects/$projectId/stacks/$stackId/'
     | '/_app/projects/$projectId/plugin/$installId/$pageId/$'
@@ -1687,6 +1943,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStorageRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/work': {
+      id: '/_app/work'
+      path: '/work'
+      fullPath: '/work'
+      preLoaderRoute: typeof AppWorkRouteRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_auth/forgot-password': {
       id: '/_auth/forgot-password'
       path: '/forgot-password'
@@ -1721,6 +1984,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/two-factor'
       preLoaderRoute: typeof AuthTwoFactorRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_app/account/notifications': {
+      id: '/_app/account/notifications'
+      path: '/account/notifications'
+      fullPath: '/account/notifications'
+      preLoaderRoute: typeof AppAccountNotificationsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/account/security': {
       id: '/_app/account/security'
@@ -1974,6 +2244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsInstanceAdminsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/instance-mail': {
+      id: '/_app/settings/instance-mail'
+      path: '/settings/instance-mail'
+      fullPath: '/settings/instance-mail'
+      preLoaderRoute: typeof AppSettingsInstanceMailRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/members': {
       id: '/_app/settings/members'
       path: '/settings/members'
@@ -2029,6 +2306,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/variables'
       preLoaderRoute: typeof AppSettingsVariablesRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/work/': {
+      id: '/_app/work/'
+      path: '/'
+      fullPath: '/work/'
+      preLoaderRoute: typeof AppWorkIndexRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/inbox': {
+      id: '/_app/work/inbox'
+      path: '/inbox'
+      fullPath: '/work/inbox'
+      preLoaderRoute: typeof AppWorkInboxRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/time': {
+      id: '/_app/work/time'
+      path: '/time'
+      fullPath: '/work/time'
+      preLoaderRoute: typeof AppWorkTimeRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/workload': {
+      id: '/_app/work/workload'
+      path: '/workload'
+      fullPath: '/work/workload'
+      preLoaderRoute: typeof AppWorkWorkloadRouteImport
+      parentRoute: typeof AppWorkRouteRoute
     }
     '/_auth/accept-invitation/$id': {
       id: '/_auth/accept-invitation/$id'
@@ -2268,6 +2573,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsCertificatesOriginRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/instance-mail_/setup': {
+      id: '/_app/settings/instance-mail_/setup'
+      path: '/settings/instance-mail/setup'
+      fullPath: '/settings/instance-mail/setup'
+      preLoaderRoute: typeof AppSettingsInstanceMailSetupRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/plugins_/$installId': {
       id: '/_app/settings/plugins_/$installId'
       path: '/settings/plugins/$installId'
@@ -2281,6 +2593,55 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/plugins/new'
       preLoaderRoute: typeof AppSettingsPluginsNewRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/work/import/': {
+      id: '/_app/work/import/'
+      path: '/import'
+      fullPath: '/work/import/'
+      preLoaderRoute: typeof AppWorkImportIndexRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/import/$importId': {
+      id: '/_app/work/import/$importId'
+      path: '/import/$importId'
+      fullPath: '/work/import/$importId'
+      preLoaderRoute: typeof AppWorkImportImportIdRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/import/clickup': {
+      id: '/_app/work/import/clickup'
+      path: '/import/clickup'
+      fullPath: '/work/import/clickup'
+      preLoaderRoute: typeof AppWorkImportClickupRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/import/csv': {
+      id: '/_app/work/import/csv'
+      path: '/import/csv'
+      fullPath: '/work/import/csv'
+      preLoaderRoute: typeof AppWorkImportCsvRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/projects/': {
+      id: '/_app/work/projects/'
+      path: '/projects'
+      fullPath: '/work/projects/'
+      preLoaderRoute: typeof AppWorkProjectsIndexRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/projects/$projectId': {
+      id: '/_app/work/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/work/projects/$projectId'
+      preLoaderRoute: typeof AppWorkProjectsProjectIdRouteRouteImport
+      parentRoute: typeof AppWorkRouteRoute
+    }
+    '/_app/work/t/$key': {
+      id: '/_app/work/t/$key'
+      path: '/t/$key'
+      fullPath: '/work/t/$key'
+      preLoaderRoute: typeof AppWorkTKeyRouteImport
+      parentRoute: typeof AppWorkRouteRoute
     }
     '/_app/integrations/dns_/$providerId/$zoneId': {
       id: '/_app/integrations/dns_/$providerId/$zoneId'
@@ -2331,6 +2692,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdRouteRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
     }
+    '/_app/projects/$projectId/tasks/': {
+      id: '/_app/projects/$projectId/tasks/'
+      path: '/tasks'
+      fullPath: '/projects/$projectId/tasks/'
+      preLoaderRoute: typeof AppProjectsProjectIdTasksIndexRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
+    '/_app/projects/$projectId/tasks/settings': {
+      id: '/_app/projects/$projectId/tasks/settings'
+      path: '/tasks/settings'
+      fullPath: '/projects/$projectId/tasks/settings'
+      preLoaderRoute: typeof AppProjectsProjectIdTasksSettingsRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
     '/_app/projects/$projectId/templates/': {
       id: '/_app/projects/$projectId/templates/'
       path: '/templates'
@@ -2344,6 +2719,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId/templates/$templateId'
       preLoaderRoute: typeof AppProjectsProjectIdTemplatesTemplateIdRouteImport
       parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
+    '/_app/work/projects/$projectId/': {
+      id: '/_app/work/projects/$projectId/'
+      path: '/'
+      fullPath: '/work/projects/$projectId/'
+      preLoaderRoute: typeof AppWorkProjectsProjectIdIndexRouteImport
+      parentRoute: typeof AppWorkProjectsProjectIdRouteRoute
+    }
+    '/_app/work/projects/$projectId/settings': {
+      id: '/_app/work/projects/$projectId/settings'
+      path: '/settings'
+      fullPath: '/work/projects/$projectId/settings'
+      preLoaderRoute: typeof AppWorkProjectsProjectIdSettingsRouteImport
+      parentRoute: typeof AppWorkProjectsProjectIdRouteRoute
     }
     '/_app/projects/$projectId/services/$serviceId/': {
       id: '/_app/projects/$projectId/services/$serviceId/'
@@ -2477,6 +2866,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId/stacks/$stackId/logs'
       preLoaderRoute: typeof AppProjectsProjectIdStacksStackIdLogsRouteImport
       parentRoute: typeof AppProjectsProjectIdStacksStackIdRouteRoute
+    }
+    '/_app/projects/$projectId/tasks/v/$viewId': {
+      id: '/_app/projects/$projectId/tasks/v/$viewId'
+      path: '/tasks/v/$viewId'
+      fullPath: '/projects/$projectId/tasks/v/$viewId'
+      preLoaderRoute: typeof AppProjectsProjectIdTasksVViewIdRouteImport
+      parentRoute: typeof AppProjectsProjectIdRouteRoute
+    }
+    '/_app/work/projects/$projectId/v/$viewId': {
+      id: '/_app/work/projects/$projectId/v/$viewId'
+      path: '/v/$viewId'
+      fullPath: '/work/projects/$projectId/v/$viewId'
+      preLoaderRoute: typeof AppWorkProjectsProjectIdVViewIdRouteImport
+      parentRoute: typeof AppWorkProjectsProjectIdRouteRoute
     }
     '/_app/projects/$projectId/plugin/$installId/$pageId/$': {
       id: '/_app/projects/$projectId/plugin/$installId/$pageId/$'
@@ -2654,8 +3057,11 @@ interface AppProjectsProjectIdRouteRouteChildren {
   AppProjectsProjectIdServicesServiceIdRouteRoute: typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   AppProjectsProjectIdStacksStackIdRouteRoute: typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   AppProjectsProjectIdServicesNewRoute: typeof AppProjectsProjectIdServicesNewRoute
+  AppProjectsProjectIdTasksSettingsRoute: typeof AppProjectsProjectIdTasksSettingsRoute
   AppProjectsProjectIdTemplatesTemplateIdRoute: typeof AppProjectsProjectIdTemplatesTemplateIdRoute
+  AppProjectsProjectIdTasksIndexRoute: typeof AppProjectsProjectIdTasksIndexRoute
   AppProjectsProjectIdTemplatesIndexRoute: typeof AppProjectsProjectIdTemplatesIndexRoute
+  AppProjectsProjectIdTasksVViewIdRoute: typeof AppProjectsProjectIdTasksVViewIdRoute
   AppProjectsProjectIdPluginInstallIdPageIdSplatRoute: typeof AppProjectsProjectIdPluginInstallIdPageIdSplatRoute
 }
 
@@ -2673,10 +3079,15 @@ const AppProjectsProjectIdRouteRouteChildren: AppProjectsProjectIdRouteRouteChil
     AppProjectsProjectIdStacksStackIdRouteRoute:
       AppProjectsProjectIdStacksStackIdRouteRouteWithChildren,
     AppProjectsProjectIdServicesNewRoute: AppProjectsProjectIdServicesNewRoute,
+    AppProjectsProjectIdTasksSettingsRoute:
+      AppProjectsProjectIdTasksSettingsRoute,
     AppProjectsProjectIdTemplatesTemplateIdRoute:
       AppProjectsProjectIdTemplatesTemplateIdRoute,
+    AppProjectsProjectIdTasksIndexRoute: AppProjectsProjectIdTasksIndexRoute,
     AppProjectsProjectIdTemplatesIndexRoute:
       AppProjectsProjectIdTemplatesIndexRoute,
+    AppProjectsProjectIdTasksVViewIdRoute:
+      AppProjectsProjectIdTasksVViewIdRoute,
     AppProjectsProjectIdPluginInstallIdPageIdSplatRoute:
       AppProjectsProjectIdPluginInstallIdPageIdSplatRoute,
   }
@@ -2699,16 +3110,70 @@ const AppProjectsRouteRouteChildren: AppProjectsRouteRouteChildren = {
 const AppProjectsRouteRouteWithChildren =
   AppProjectsRouteRoute._addFileChildren(AppProjectsRouteRouteChildren)
 
+interface AppWorkProjectsProjectIdRouteRouteChildren {
+  AppWorkProjectsProjectIdSettingsRoute: typeof AppWorkProjectsProjectIdSettingsRoute
+  AppWorkProjectsProjectIdIndexRoute: typeof AppWorkProjectsProjectIdIndexRoute
+  AppWorkProjectsProjectIdVViewIdRoute: typeof AppWorkProjectsProjectIdVViewIdRoute
+}
+
+const AppWorkProjectsProjectIdRouteRouteChildren: AppWorkProjectsProjectIdRouteRouteChildren =
+  {
+    AppWorkProjectsProjectIdSettingsRoute:
+      AppWorkProjectsProjectIdSettingsRoute,
+    AppWorkProjectsProjectIdIndexRoute: AppWorkProjectsProjectIdIndexRoute,
+    AppWorkProjectsProjectIdVViewIdRoute: AppWorkProjectsProjectIdVViewIdRoute,
+  }
+
+const AppWorkProjectsProjectIdRouteRouteWithChildren =
+  AppWorkProjectsProjectIdRouteRoute._addFileChildren(
+    AppWorkProjectsProjectIdRouteRouteChildren,
+  )
+
+interface AppWorkRouteRouteChildren {
+  AppWorkInboxRoute: typeof AppWorkInboxRoute
+  AppWorkTimeRoute: typeof AppWorkTimeRoute
+  AppWorkWorkloadRoute: typeof AppWorkWorkloadRoute
+  AppWorkIndexRoute: typeof AppWorkIndexRoute
+  AppWorkProjectsProjectIdRouteRoute: typeof AppWorkProjectsProjectIdRouteRouteWithChildren
+  AppWorkImportImportIdRoute: typeof AppWorkImportImportIdRoute
+  AppWorkImportClickupRoute: typeof AppWorkImportClickupRoute
+  AppWorkImportCsvRoute: typeof AppWorkImportCsvRoute
+  AppWorkTKeyRoute: typeof AppWorkTKeyRoute
+  AppWorkImportIndexRoute: typeof AppWorkImportIndexRoute
+  AppWorkProjectsIndexRoute: typeof AppWorkProjectsIndexRoute
+}
+
+const AppWorkRouteRouteChildren: AppWorkRouteRouteChildren = {
+  AppWorkInboxRoute: AppWorkInboxRoute,
+  AppWorkTimeRoute: AppWorkTimeRoute,
+  AppWorkWorkloadRoute: AppWorkWorkloadRoute,
+  AppWorkIndexRoute: AppWorkIndexRoute,
+  AppWorkProjectsProjectIdRouteRoute:
+    AppWorkProjectsProjectIdRouteRouteWithChildren,
+  AppWorkImportImportIdRoute: AppWorkImportImportIdRoute,
+  AppWorkImportClickupRoute: AppWorkImportClickupRoute,
+  AppWorkImportCsvRoute: AppWorkImportCsvRoute,
+  AppWorkTKeyRoute: AppWorkTKeyRoute,
+  AppWorkImportIndexRoute: AppWorkImportIndexRoute,
+  AppWorkProjectsIndexRoute: AppWorkProjectsIndexRoute,
+}
+
+const AppWorkRouteRouteWithChildren = AppWorkRouteRoute._addFileChildren(
+  AppWorkRouteRouteChildren,
+)
+
 interface AppRouteChildren {
   AppAiRouteRoute: typeof AppAiRouteRouteWithChildren
   AppMonitoringRouteRoute: typeof AppMonitoringRouteRouteWithChildren
   AppProjectsRouteRoute: typeof AppProjectsRouteRouteWithChildren
+  AppWorkRouteRoute: typeof AppWorkRouteRouteWithChildren
   AppAgentRoute: typeof AppAgentRoute
   AppDomainsRoute: typeof AppDomainsRoute
   AppNetworkRoute: typeof AppNetworkRoute
   AppSchedulesRoute: typeof AppSchedulesRoute
   AppStorageRoute: typeof AppStorageRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAccountNotificationsRoute: typeof AppAccountNotificationsRoute
   AppAccountSecurityRoute: typeof AppAccountSecurityRoute
   AppDomainsNewRoute: typeof AppDomainsNewRoute
   AppIntegrationsDnsRoute: typeof AppIntegrationsDnsRoute
@@ -2730,6 +3195,7 @@ interface AppRouteChildren {
   AppSettingsCertificatesRoute: typeof AppSettingsCertificatesRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsInstanceAdminsRoute: typeof AppSettingsInstanceAdminsRoute
+  AppSettingsInstanceMailRoute: typeof AppSettingsInstanceMailRoute
   AppSettingsMembersRoute: typeof AppSettingsMembersRoute
   AppSettingsMigrateRoute: typeof AppSettingsMigrateRoute
   AppSettingsPluginsRoute: typeof AppSettingsPluginsRoute
@@ -2756,6 +3222,7 @@ interface AppRouteChildren {
   AppSettingsBuildsEmulationRoute: typeof AppSettingsBuildsEmulationRoute
   AppSettingsCertificatesNewRoute: typeof AppSettingsCertificatesNewRoute
   AppSettingsCertificatesOriginRoute: typeof AppSettingsCertificatesOriginRoute
+  AppSettingsInstanceMailSetupRoute: typeof AppSettingsInstanceMailSetupRoute
   AppSettingsPluginsInstallIdRoute: typeof AppSettingsPluginsInstallIdRoute
   AppSettingsPluginsNewRoute: typeof AppSettingsPluginsNewRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
@@ -2767,12 +3234,14 @@ const AppRouteChildren: AppRouteChildren = {
   AppAiRouteRoute: AppAiRouteRouteWithChildren,
   AppMonitoringRouteRoute: AppMonitoringRouteRouteWithChildren,
   AppProjectsRouteRoute: AppProjectsRouteRouteWithChildren,
+  AppWorkRouteRoute: AppWorkRouteRouteWithChildren,
   AppAgentRoute: AppAgentRoute,
   AppDomainsRoute: AppDomainsRoute,
   AppNetworkRoute: AppNetworkRoute,
   AppSchedulesRoute: AppSchedulesRoute,
   AppStorageRoute: AppStorageRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAccountNotificationsRoute: AppAccountNotificationsRoute,
   AppAccountSecurityRoute: AppAccountSecurityRoute,
   AppDomainsNewRoute: AppDomainsNewRoute,
   AppIntegrationsDnsRoute: AppIntegrationsDnsRoute,
@@ -2794,6 +3263,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsCertificatesRoute: AppSettingsCertificatesRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsInstanceAdminsRoute: AppSettingsInstanceAdminsRoute,
+  AppSettingsInstanceMailRoute: AppSettingsInstanceMailRoute,
   AppSettingsMembersRoute: AppSettingsMembersRoute,
   AppSettingsMigrateRoute: AppSettingsMigrateRoute,
   AppSettingsPluginsRoute: AppSettingsPluginsRoute,
@@ -2821,6 +3291,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsBuildsEmulationRoute: AppSettingsBuildsEmulationRoute,
   AppSettingsCertificatesNewRoute: AppSettingsCertificatesNewRoute,
   AppSettingsCertificatesOriginRoute: AppSettingsCertificatesOriginRoute,
+  AppSettingsInstanceMailSetupRoute: AppSettingsInstanceMailSetupRoute,
   AppSettingsPluginsInstallIdRoute: AppSettingsPluginsInstallIdRoute,
   AppSettingsPluginsNewRoute: AppSettingsPluginsNewRoute,
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,

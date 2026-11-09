@@ -20,6 +20,7 @@ import {
 	KeyRound,
 	LockKeyhole,
 	type LucideIcon,
+	Mail,
 	Network,
 	Orbit,
 	Palette,
@@ -364,7 +365,7 @@ export const NAV: NavGroup[] = [
 				title: "Roles",
 				icon: ShieldCheck,
 				description:
-					"Owner, admin, developer and viewer, plus custom roles scoped from folder to service.",
+					"Owner, admin, developer, viewer, project manager and guest, plus custom roles scoped from folder to service.",
 				empty: {
 					title: "Four built-in roles cover most teams",
 					body: "Create a custom role when someone needs deploy rights on one project without seeing secrets.",
@@ -436,6 +437,14 @@ export const NAV: NavGroup[] = [
 				description:
 					"Who may update LogiStack, manage servers and change instance-wide settings.",
 				keywords: ["superuser", "root", "server admin", "instance"],
+			},
+			{
+				to: "/settings/instance-mail",
+				title: "Instance mail",
+				icon: Mail,
+				description:
+					"SMTP or Resend for task notifications, digests and invitation emails.",
+				keywords: ["email", "smtp", "resend", "notifications", "invitations"],
 			},
 			{
 				to: "/settings/updates",

@@ -1,0 +1,103 @@
+---
+title: "Task details: subtasks, comments and attachments"
+description: Edit a task's status, dates and fields, add subtasks, checklists and dependencies, attach screenshots, and discuss it in comments with mentions.
+---
+
+Selecting a task anywhere opens it in a side panel over the current page, full screen on a phone. Everything about the task is on that panel. Read this page to learn what each part does and how comments, mentions and attachments behave.
+
+![A task panel for SHOP-42 Product page redesign: status In progress, two assignees, dates with Doesn't repeat, priority, tags, estimate, the Time row, custom fields, the AI buttons and the description](/screens/work-task.webp)
+
+The task's address is the page you were on plus `?task=<id>`, so you can share it. `/work/t/SHOP-42` also opens it by key.
+
+## The header
+
+The header shows where the task lives (project, list and parent task), its key with a button that copies the link, a watch button (the eye), and a **⋯** menu with:
+
+- **Duplicate**: copy the task and open the copy.
+- **Move to list**, to another list of the same project.
+- **Make it a top-level task**, for a subtask.
+- **Save as template…**, for project managers. See [Templates](./templates.mdx).
+- **Copy branch name**, for people who can see services. See [Connect commits and pull requests](./commits-and-pull-requests.mdx).
+- **Archive** and **Delete**.
+
+Edits save as you make them. "Saving…" and then "Saved" appear in the header.
+
+## Properties
+
+| Property | Shortcut | Notes |
+| --- | --- | --- |
+| Status | `s` | Moving to a Done status sets the completion time. Required fields must be filled first. |
+| Assignees | `a` | Up to 20 people who hold `work` on the project. |
+| Dates | `d` | Start date, due date and an optional due time, in the organization's time zone. Type dates such as `next fri` or `in 2 weeks`. **Doesn't repeat**, next to the dates, makes the task recur. See [Recurring tasks](./recurring-tasks.mdx). |
+| Priority | `p` | Urgent, High, Normal, Low or None. |
+| Tags | `l` | Project tags. You can create one here. |
+| List | | Moves the task to another list of the project. |
+| Estimate | | A duration, such as `3h`. |
+| Time | `t` | With time tracking on: start or stop the timer, tracked time against the estimate, and **Add time** for a manual entry. See [Time tracking](./time-tracking.mdx). |
+| Milestone | | Shows the task as a diamond on the timeline, with one date. |
+
+Custom fields follow. Empty fields are hidden behind **Show N empty fields**.
+
+People who can use AI see three buttons under the properties. Each one writes a draft and saves nothing on its own:
+
+- **Summarise thread** puts a summary of the comments in the comment box, for you to edit and send.
+- **Break into subtasks** proposes subtasks with estimates. Untick what you don't need, edit the titles, and create them.
+- **Write description** writes a description into the editor. An existing description stays, with the draft below it.
+
+## Description
+
+The description is a rich-text editor with headings, bold, italic, strikethrough, code, code blocks, quotes, lists, to-do items, links and images. Markdown shortcuts work: `#` for a heading, `-` for a list, `[]` for a to-do, `>` for a quote. Pasting Markdown converts it.
+
+- Type `@` to mention someone. They get a notification.
+- Type a task key such as `SHOP-12` and it becomes a link showing that task's title and status. Only keys of projects you can read are linked.
+- Paste or drop an image to upload it inline.
+
+The description saves about a second after you stop typing. If someone else changed the task meanwhile, LogiStack shows both versions and asks whether to reload or overwrite.
+
+## Subtasks and checklists
+
+- **Subtasks** are full tasks with their own status, assignees, dates and comments, one level deep. Add them from the subtask table; `Enter` adds the next one. Drag to reorder.
+- **Checklist** items are lighter: a line of text, a tick, an optional assignee. Someone assigned to a checklist item can tick it even with comment-only access. **Convert to subtask** turns an item into a subtask.
+
+## Dependencies
+
+**Blocked by** lists the tasks that must finish before this one starts, and **Blocking** the tasks waiting on it. A task blocked by an unfinished task shows a blocked icon in every view. Add dependencies with the search picker here or by dragging on the [timeline](./views.mdx#dependencies).
+
+## Development
+
+The **Development** section lists the commits, branches and pull requests that mention the task's key. See [Connect commits and pull requests](./commits-and-pull-requests.mdx).
+
+## Attachments
+
+Drop files anywhere on the panel, or use the attachment button. Images show as thumbnails and open in a viewer with `←` and `→`; other files show as chips you download.
+
+- Files up to 25 MB by default. An instance admin can raise the limit to 100 MB.
+- Images have their location data (EXIF) removed on upload.
+- SVG, HTML and text files always download instead of opening in the browser.
+- Attachments are stored in the LogiStack database by default, and count against the organization's attachment quota. An admin can move them to an [S3 destination](../data/s3-destinations.mdx) instead.
+- Deleting an attachment keeps it recoverable for 30 days.
+
+## Comments and activity
+
+The bottom of the panel merges comments and the task's history. **Comments only** hides the history.
+
+- Write in the composer with the same editor as the description. `⌘Enter` sends.
+- Reply to a comment to start a thread, one level deep.
+- React with one of eight emoji: 👍 👎 🎉 ❤️ 😄 😕 👀 🚀.
+- The comment's **⋯** menu has **Edit**, **Delete**, **Copy link** and **Resolve thread**. Edited comments are marked. A deleted comment leaves a placeholder so the thread keeps its shape.
+- Comments of people who left the organization show as "Former member".
+
+History records status, assignee, date, priority, list, field, tag, dependency, attachment and checklist changes. Several edits of the same field by the same person within two minutes show as one entry. History never stores the text of a description, only that it was edited.
+
+## Watchers
+
+You watch a task when you create it, are assigned to it, are mentioned or comment on it. Watchers get notified of comments and of moves into or out of Done and Cancelled. Turn **Watch** off to stop; LogiStack won't add you back automatically.
+
+## Archive and delete
+
+- **Archive** hides a task from views. Archived tasks stay searchable, and you can restore them.
+- **Delete** removes the task with its subtasks, comments and history. Only someone with `work:admin` can delete a task, or its creator within 15 minutes of creating it. Everyone else archives.
+
+<Callout type="warn">
+Deleting a task can't be undone. Its attachments are kept for 30 days and then removed.
+</Callout>

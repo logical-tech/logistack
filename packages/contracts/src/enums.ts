@@ -248,6 +248,14 @@ export const permissionActions = [
 	"ai",
 	/** Install, configure, disable and uninstall plugins, within the instance policy. Not in `developer`. */
 	"plugins",
+	/** Work: see lists, tasks, comments, attachments and the project's simplified health. */
+	"read:work",
+	/** Work: comment, react, tick checklist items assigned to you. Implies `read:work`. */
+	"comment:work",
+	/** Work: create, edit, move and assign tasks. Implies `comment:work`. */
+	"work",
+	/** Work: lists, statuses, fields, tags, shared views, templates, project Work settings, imports. */
+	"work:admin",
 ] as const;
 export const PermissionAction = z.enum(permissionActions);
 export type PermissionAction = z.infer<typeof PermissionAction>;

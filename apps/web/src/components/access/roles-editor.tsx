@@ -24,7 +24,15 @@ import type { PermissionAction, Role } from "@/lib/api/access-types";
 import { cn } from "@/lib/utils";
 
 const NAME = /^[a-z][a-z0-9-]{0,31}$/;
-const RESERVED = ["owner", "admin", "developer", "viewer", "member"];
+const RESERVED = [
+	"owner",
+	"admin",
+	"developer",
+	"viewer",
+	"manager",
+	"guest",
+	"member",
+];
 
 /** Which custom role the sheet works on; null keeps it closed. */
 export type EditorState = { mode: "create" } | { mode: "edit"; role: Role };

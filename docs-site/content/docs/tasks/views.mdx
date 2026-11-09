@@ -1,0 +1,98 @@
+---
+title: "Views: table, board, timeline and calendar"
+description: Work with tasks in table, board, timeline and calendar views, filter and group them, plan dependencies, and save shared or personal views.
+---
+
+A view shows a project's tasks, or one list's tasks, in one of four layouts: table, board, timeline or calendar. Each view keeps its own filters, sorting, grouping and columns. Read this page to pick the right layout, to plan a launch on the timeline, or to save a view your team can open every morning.
+
+Every project starts with four shared views: **List** (a table grouped by status), **Board** (a board by status), **Timeline** and **Calendar**. The views appear as tabs at the top of the project. Press `1` to `4` to switch between the first four.
+
+## Filter, sort and group
+
+The bar above every view has the same controls:
+
+- **+ Filter** adds a condition: pick a property (status, assignee, priority, list, tag, dates, created by, milestone, blocked, or a custom field), an operator and a value. Group conditions with **and** and **or**, two levels deep, up to 30 conditions. Assignee and user fields accept **Me**.
+- Date filters accept fixed dates or relative ranges: today, yesterday, tomorrow, this week, last week, next week, this month, next 7 days, last 7 days, next 30 days, overdue and no date. Relative ranges use your time zone.
+- **Sort** by up to three properties.
+- **Group** by status, priority, assignee, list, tag, due date (Overdue, Today, Tomorrow, This week, Next week, Later) or a select field.
+- **Show closed** includes tasks in Done and Cancelled statuses.
+- **Subtasks**: nested under their parent, flat, or hidden.
+- The search box filters by words in the title and description.
+
+Filters you add without saving live in the page URL, so you can send a filtered view as a link.
+
+## Table
+
+![The List view of project Shop: tasks grouped by status with key, title, status, assignees, priority, due date and tags](/screens/work-table.webp)
+
+- Columns: key, title, status, assignees, priority, start, due, tags, list, estimate, tracked time, created, updated, and every custom field. Resize and reorder columns by dragging. The title column stays pinned.
+- Click a cell or press `Enter` to edit it, `Esc` to cancel, `Tab` to move to the next cell.
+- Each group has a **+ Add task** row. Press `c` to add a task to the current group.
+- Check rows, or press `x`, to select them. Shift-click selects a range. A bar appears for bulk changes: status, assignee, priority, dates (set them or shift them by a number of days), tags, list, archive and delete. One bulk edit changes up to 500 tasks.
+- With manual sorting, `⌘↑` and `⌘↓` move the focused task.
+- **Export CSV** downloads the visible columns with the current filters and sort. See [CSV import and export](./csv-import-and-export.mdx).
+
+## Board
+
+![The Board view of project Shop with Backlog, To do, In progress and Review columns, cards showing key, title, assignee initials, due date and checklist progress, and In progress marked over its limit](/screens/work-board.webp)
+
+- Columns come from the grouping: status (the default), priority, assignee, list, tag, a select field or due date. Dragging a card into a column sets that value. Dropping a card in **Tomorrow** sets its due date to tomorrow.
+- A task with two assignees appears in both assignee columns. Dropping it in a third person's column replaces the assignee of the column it came from.
+- You can't drag between tag or multi-select columns, because the change would be ambiguous. The cursor shows it.
+- Cards show the key, title, assignees, due date (red when overdue), priority, up to six fields you choose, subtask and checklist progress, comment count and a blocked icon. A view can show the first image attachment as a cover.
+- Column headers show the count, a **+** to add a task, and turn amber over the status's WIP limit.
+- **Swimlanes** split the board into rows by assignee, priority, list or a select field.
+
+To move a card with the keyboard, focus it, press `Space` to lift it, use the arrow keys, and press `Space` to drop it or `Esc` to cancel. Every card's **⋯** menu also has **Move to…**.
+
+## Timeline
+
+![The Timeline view at week zoom: tasks as bars grouped by list, with dependency arrows between them](/screens/work-timeline.webp)
+
+The timeline shows tasks as bars from their start date to their due date, with the task tree on the left.
+
+- **Zoom**: day, week, month or quarter. Hold `⌘` or `Ctrl` and scroll to zoom around the pointer. **Today** scrolls back to today.
+- **Rows** by list, by assignee or flat. Subtasks are indented.
+- **Move a task**: drag its bar. **Change its dates**: drag either end. With a bar focused, `←` and `→` move it one day and `Shift+←` and `Shift+→` change its end.
+- **Milestones** show as diamonds and have one date.
+- A task with only a due date shows as a short dashed bar ending on that date.
+- **Unscheduled** lists tasks without dates. Drag one onto the grid to set its start on that day and its due date from its estimate (one working day when it has none).
+- Weekends and other non-working days are shaded, from the project's **Working days** setting.
+
+### Dependencies
+
+A dependency says a task can't start until another one finishes. Drag the dot at the end of a bar onto another bar to create one, or press `⌘D` on a focused bar. Select an arrow and press `Delete` to remove it. A dependency can have a lag in days.
+
+- Dependencies are finish-to-start and stay within one project.
+- LogiStack refuses a dependency that would create a loop, and names the tasks in it.
+- When you move a task past the start of a task that depends on it, a prompt offers **Also move 3 dependent tasks**, with a preview. Dependent tasks move by working days. A dependent task that is already late is never moved earlier.
+- Arrows of dependencies that are not respected turn red.
+
+Below 768 pixels wide the timeline is read-only. **List equivalent** opens the same rows as a table, for screen readers and keyboards.
+
+## Calendar
+
+![The Calendar view in month mode: tasks on their due dates, and unscheduled tasks in a tray on the right](/screens/work-calendar.webp)
+
+- **Month** shows six weeks. **Week** shows a column per day, with timed tasks placed at their due time and all-day tasks on top.
+- Pick the date the calendar uses: the due date, the span from start to due, or a custom date field.
+- Drag a task to another day to reschedule it. A span keeps its length. Drag the ends of a span to change its dates.
+- Busy days show **+N more**. The unscheduled sidebar works like the timeline's.
+- With the keyboard: arrows move between days, `Enter` lists the day's tasks, `n` creates a task due that day.
+
+## Save a view
+
+When you change a view's filters, sorting, grouping or columns, the bar shows **Save view**:
+
+- **Save** updates the view for everyone who sees it.
+- **Save as new** creates another view.
+- **Reset** goes back to the saved settings.
+
+To add a view, select **+ View**. The wizard asks for the layout, a name, whether it is **Shared** or **Personal**, and a starting filter.
+
+| View | Who sees it | Who can change it |
+| --- | --- | --- |
+| Shared | Everyone with `read:work` on the project | `work:admin` |
+| Personal | Only you | You, with `work` |
+
+A project holds up to 50 shared views, and each person up to 20 personal views. A view can cover the whole project or one list.

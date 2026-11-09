@@ -1,5 +1,5 @@
 import { Link, useMatches, useNavigate } from "@tanstack/react-router";
-import { LogOut, Search, UserRound } from "lucide-react";
+import { Bell, LogOut, Search, UserRound } from "lucide-react";
 import { Fragment } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useSurfaces } from "@/components/work/shell/work-nav";
+import { RunningTimerPill } from "@/components/work/time/running-timer-pill";
 import { auth, useSessionUser } from "@/lib/auth";
 import { useCommandMenu } from "./command-menu";
 
@@ -111,6 +113,11 @@ function UserMenu() {
 					>
 						<UserRound /> Account and security
 					</DropdownMenuItem>
+					<DropdownMenuItem
+						onSelect={() => navigate({ to: "/account/notifications" })}
+					>
+						<Bell /> Notifications
+					</DropdownMenuItem>
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
@@ -128,11 +135,13 @@ function UserMenu() {
 
 export function TopBar() {
 	const openMenu = useCommandMenu();
+	const { work } = useSurfaces();
 	return (
 		<header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 sm:px-4">
 			<SidebarTrigger className="-ml-1 text-muted-foreground" />
 			<Crumbs />
 			<div className="ml-auto flex items-center gap-1">
+				{work && <RunningTimerPill className="mr-1" />}
 				<Button
 					variant="outline"
 					onClick={() => openMenu(true)}

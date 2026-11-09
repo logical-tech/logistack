@@ -200,6 +200,24 @@ export const ACTION_LABELS: Record<
 		description:
 			"Install, configure and remove plugins, within the instance policy.",
 	},
+	"read:work": {
+		label: "Read tasks",
+		description:
+			"See lists, tasks, comments and attachments, and whether the project's services are up.",
+	},
+	"comment:work": {
+		label: "Comment on tasks",
+		description: "Comment, react and tick checklist items assigned to them.",
+	},
+	work: {
+		label: "Work on tasks",
+		description: "Create, edit, move and assign tasks, and upload attachments.",
+	},
+	"work:admin": {
+		label: "Manage tasks",
+		description:
+			"Lists, statuses, custom fields, tags, shared views, templates and imports.",
+	},
 };
 
 export const PERMISSION_ACTIONS = Object.keys(

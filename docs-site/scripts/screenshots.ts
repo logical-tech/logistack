@@ -17,10 +17,15 @@ const P = "/projects/prj_storefront";
 const SVC = `${P}/services/svc_storefront_production_web`;
 const PG = `${P}/services/svc_storefront_production_postgres`;
 const REDIS = `${P}/services/svc_storefront_production_redis`;
+// Work mock fixture: project "Shop" (prj_shop) with views wvw_shop_<kind>; "Blog relaunch" is degraded.
+const W = "/work/projects/prj_shop";
 const AUTOSCALE = `${P}/services/svc_storefront_production_api/settings?scaling=setup&step=`;
 
-/** A path, or a path plus the buttons/links to click (by accessible name, in order) before the shot. */
-type Shot = string | { path: string; click: string[] };
+/**
+ * A path, or a path plus the buttons/links to click (by accessible name, in order) before the shot.
+ * `role: "manager"` signs the mock in as a project manager, which opens the Work-only shell.
+ */
+type Shot = string | { path: string; click?: string[]; role?: "manager" };
 
 /** name → shot. Names are what MDX pages reference: /screens/<name>.webp */
 export const shots: Record<string, Shot> = {
@@ -162,6 +167,16 @@ export const shots: Record<string, Shot> = {
 		click: ["Check for updates"],
 	},
 	"plugin-page": "/plugin/plg_deployalerts/failures",
+	"work-projects": { path: "/work/projects", role: "manager" },
+	"work-project": "/work/projects/prj_blog",
+	"work-table": `${W}/v/wvw_shop_list`,
+	"work-board": `${W}/v/wvw_shop_board`,
+	"work-timeline": `${W}/v/wvw_shop_timeline`,
+	"work-calendar": `${W}/v/wvw_shop_calendar`,
+	"work-task": `${W}/v/wvw_shop_board?task=tsk_shop_42`,
+	"work-my-tasks": { path: "/work", role: "manager" },
+	"work-inbox": "/work/inbox",
+	"work-time": "/work/time?tab=report",
 };
 
 // The mock has no plugin container behind /plugins/<id>/ui/*: serve a stand-in page that speaks
@@ -203,9 +218,18 @@ const page = await ctx.newPage();
 const failed: string[] = [];
 for (const [name, shot] of Object.entries(shots)) {
 	if (only && !name.includes(only)) continue;
-	const { path, click } =
-		typeof shot === "string" ? { path: shot, click: [] } : shot;
+	const {
+		path,
+		click = [],
+		role,
+	} = typeof shot === "string" ? { path: shot } : shot;
 	try {
+		// The mock reads the role on each /me; set it on this origin before the page loads.
+		await page.goto(`${base}/sign-in`);
+		await page.evaluate((r) => {
+			if (r) localStorage.setItem("logistack.mock.role", r);
+			else localStorage.removeItem("logistack.mock.role");
+		}, role ?? null);
 		await page.goto(base + path, { waitUntil: "networkidle" });
 		// The mock API answers after a short simulated latency; let skeletons settle.
 		await page.waitForTimeout(1200);

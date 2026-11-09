@@ -1,0 +1,90 @@
+---
+title: Task, list and project templates
+description: Save a task, a list or a project's whole Tasks setup as a template, and create new work from it with dates scheduled from a start or finish date.
+---
+
+A template saves work you repeat, such as the steps of a website launch or a client onboarding, so the next project starts from it instead of from an empty list. Read this page to save a template, to create tasks from one with the right dates and people, or to start a new project from one.
+
+## What a template can hold
+
+| Kind | Holds | Saved from |
+| --- | --- | --- |
+| Task | A task with its subtasks, checklist, field values, tags, assignees, description and attachments | The task's **⋯** menu |
+| List | A list with all its tasks | The list's **⋯** menu, in **Lists** on the project's **Overview** |
+| Project | Statuses, custom fields, tags, views and lists with their tasks | The project's **⋯** menu, next to **Settings** |
+
+Dates are stored as offsets in working days from the earliest start date, so they shift with the date you pick when you use the template. Dependencies between the template's tasks are kept.
+
+A template belongs to one project, or to the whole organization. Organization templates need `work:admin` on the organization.
+
+### Built-in templates
+
+Every install comes with three read-only templates. Duplicate one to change it.
+
+- **Website launch**: discovery, design, build, content, QA and a launch milestone.
+- **Client onboarding**
+- **Bug triage**
+
+## Save a template
+
+<Steps>
+<Step>
+### Start from the menu
+
+Open the **⋯** menu of a task, a list or the project and select **Save as template…**. Saving needs `work:admin`.
+</Step>
+<Step>
+### Name it and pick the scope
+
+Type a name such as `Website launch` and a description. Choose **This project** or **Whole organization**.
+</Step>
+<Step>
+### Choose what to include
+
+Check subtasks, checklist, field values, descriptions and attachments. For assignees, choose to keep the same people or to turn them into placeholders such as "Designer", filled in each time you use the template.
+</Step>
+<Step>
+### Save
+
+Check the summary and save. Attachments are not copied: the template refers to the same files.
+</Step>
+</Steps>
+
+## Create from a template
+
+<Steps>
+<Step>
+### Open the template picker
+
+In a project view, open **New** and select **From template…**. Search the templates and preview their tasks.
+</Step>
+<Step>
+### Pick the target
+
+For a task or list template, pick the list or project the tasks go to. A project template applies to a project.
+</Step>
+<Step>
+### Set the anchor date
+
+Choose **Start on** to schedule forward from a date, or **Finish by** to schedule backwards so the last task ends on that date. Non-working days are skipped.
+</Step>
+<Step>
+### Assign the placeholders
+
+Pick a person for each placeholder, such as Sara for "Designer".
+</Step>
+<Step>
+### Map the fields
+
+If the target project lacks a field the template uses, create it (with `work:admin`) or drop its values. Dropped fields are listed.
+</Step>
+<Step>
+### Create
+
+Check the counts in the summary and create. Everything is created in one step, or nothing is.
+</Step>
+</Steps>
+
+## Start a new project from a template
+
+The **New project** wizard has an optional step, **Start from a Work template**. Pick a project template there to create the project with its statuses, fields, views and lists ready.

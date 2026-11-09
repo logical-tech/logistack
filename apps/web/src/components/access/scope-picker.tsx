@@ -135,11 +135,17 @@ export function ScopePicker({
 }
 
 /** Built-in and custom roles; `exclude` hides e.g. owner where it can't apply. */
+/** Built-in role names whose UI name differs from the identifier. */
+export const ROLE_LABELS: Record<string, string> = {
+	manager: "Project manager",
+};
+
 export function RoleSelect({
 	id,
 	value,
 	onChange,
 	exclude = [],
+	allowGuest = false,
 	className,
 	"aria-label": ariaLabel,
 }: {
@@ -147,11 +153,17 @@ export function RoleSelect({
 	value: string;
 	onChange: (role: string) => void;
 	exclude?: string[];
+	/** The guest role exists only on a project scope. */
+	allowGuest?: boolean;
 	className?: string;
 	"aria-label"?: string;
 }) {
 	const { data: roles = [] } = useRoles();
-	const shown = roles.filter((r: Role) => !exclude.includes(r.name));
+	const shown = roles.filter(
+		(r: Role) =>
+			!exclude.includes(r.name) &&
+			(allowGuest || !(r.builtin && r.name === "guest")),
+	);
 	return (
 		<Select value={value} onValueChange={onChange}>
 			<SelectTrigger id={id} aria-label={ariaLabel} className={className}>
@@ -160,7 +172,9 @@ export function RoleSelect({
 			<SelectContent>
 				{shown.map((r) => (
 					<SelectItem key={r.name} value={r.name}>
-						<span className="capitalize">{r.name}</span>
+						<span className="capitalize">
+							{(r.builtin && ROLE_LABELS[r.name]) || r.name}
+						</span>
 						{!r.builtin && (
 							<span className="text-muted-foreground">Custom</span>
 						)}

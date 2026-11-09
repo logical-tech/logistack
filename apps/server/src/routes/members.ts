@@ -3,7 +3,9 @@ import { PermissionAction, permissionActions } from "@logistack/contracts";
 import {
 	instanceSettings,
 	invitation,
+	invitationGrant,
 	member,
+	organization,
 	organizationRole,
 	passkey,
 	roleGrant,
@@ -13,6 +15,7 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import {
 	actionsOf,
+	assertGuestScope,
 	assertOwnershipChange,
 	builtinRoleNames,
 	customRoleRow,
@@ -26,6 +29,7 @@ import type { Env } from "../env.ts";
 import { Failure, notFound, one } from "../errors.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { check, inOrganization, requirePermission } from "../scope.ts";
+import { sendInstanceMail } from "../work/notify.ts";
 
 const Role = z
 	.object({
@@ -112,6 +116,24 @@ async function invitationUrl(c: Context<Env>, id: string) {
 	return new URL(`/accept-invitation/${id}`, base).href;
 }
 
+/** Emails the link when instance mail is set up; otherwise the inviter shares it by hand. */
+async function sendInvitationEmail(c: Context<Env>, to: string, url: string) {
+	const { db } = c.var.deps;
+	const actor = requireActor(c);
+	const [who] = await db
+		.select({ name: user.name, org: organization.name })
+		.from(user)
+		.innerJoin(organization, eq(organization.id, actor.organizationId))
+		.where(eq(user.id, actor.userId));
+	const inviter = who?.name ?? "Someone";
+	const org = who?.org ?? "LogiStack";
+	await sendInstanceMail(c.var.deps, {
+		to,
+		subject: `${inviter} invited you to ${org} on LogiStack`,
+		text: `${inviter} invited you to join ${org} on LogiStack.\n\nAccept the invitation: ${url}\n\nThe link expires in ${INVITATION_DAYS} days.`,
+	});
+}
+
 export const members = router()
 	.openapi(
 		createRoute({
@@ -165,6 +187,7 @@ export const members = router()
 			const input = c.req.valid("json");
 			const { db } = c.var.deps;
 			const orgId = requireActor(c).organizationId;
+			assertGuestScope(input.role, "organization");
 			await resolveRole(c, input.role);
 			await assertOwnershipChange(c, undefined, input.role);
 			const u = one(
@@ -235,6 +258,7 @@ export const members = router()
 			const { role } = c.req.valid("json");
 			c.set("auditResourceId", id);
 			const current = await memberRow(c, id);
+			assertGuestScope(role, "organization");
 			await resolveRole(c, role);
 			await assertOwnershipChange(c, current.role, role);
 			await c.var.deps.db.transaction(async (tx) => {
@@ -328,9 +352,18 @@ export const members = router()
 				tags: ["members"],
 				security,
 				summary: "Invite someone by email",
-				description: `Creates a better-auth invitation valid for ${INVITATION_DAYS} days. LogiStack sends no email: share the returned \`url\`. The invitee accepts with better-auth's \`organization/accept-invitation\`.`,
+				description: `Creates a better-auth invitation valid for ${INVITATION_DAYS} days. LogiStack emails the link when instance mail is set up; otherwise share the returned \`url\`. The invitee accepts with better-auth's \`organization/accept-invitation\`.`,
 				middleware: [requirePermission("admin", inOrganization)],
-				request: body(RoleInput.extend({ email: z.email().toLowerCase() })),
+				request: body(
+					RoleInput.extend({
+						email: z.email().toLowerCase(),
+						/**
+						 * Scoped grants created on acceptance. With `role: "guest"` the invitee gets no
+						 * organization-wide access, only these (a guest on one project).
+						 */
+						grants: z.array(KeyScope).max(20).optional(),
+					}),
+				),
 				responses: { 201: json(Invitation, "Invited"), ...errors },
 			}),
 		),
@@ -338,8 +371,19 @@ export const members = router()
 			const input = c.req.valid("json");
 			const actor = requireActor(c);
 			const { db } = c.var.deps;
+			const grants = input.grants ?? [];
+			// A guest member holds nothing organization-wide, so it needs at least one scoped grant.
+			if (input.role !== "guest" || !grants.length)
+				assertGuestScope(input.role, "organization");
 			await resolveRole(c, input.role);
 			await assertOwnershipChange(c, undefined, input.role);
+			for (const g of grants) {
+				if (g.role === "owner")
+					throw new Failure("bad_request", "ownership is organization-wide");
+				assertGuestScope(g.role, g.scope.kind);
+				await resolveRole(c, g.role);
+				await scopeResource(c, g.scope);
+			}
 			const already = await db
 				.select({ id: member.id })
 				.from(member)
@@ -366,7 +410,7 @@ export const members = router()
 								eq(invitation.status, "pending"),
 							),
 						);
-					return tx
+					const rows = await tx
 						.insert(invitation)
 						.values({
 							id,
@@ -378,8 +422,23 @@ export const members = router()
 							inviterId: actor.userId,
 						})
 						.returning();
+					if (grants.length)
+						await tx
+							.insert(invitationGrant)
+							.values(
+								grants.map((g) => ({
+									invitationId: id,
+									role: g.role,
+									scopeKind: g.scope.kind,
+									scopeId: g.scope.id,
+								})),
+							)
+							.onConflictDoNothing();
+					return rows;
 				}),
 			);
+			const url = await invitationUrl(c, id);
+			await sendInvitationEmail(c, input.email, url);
 			return c.json(
 				{
 					id,
@@ -388,7 +447,7 @@ export const members = router()
 					status: row.status,
 					expiresAt: row.expiresAt.toISOString(),
 					createdAt: row.createdAt.toISOString(),
-					url: await invitationUrl(c, id),
+					url,
 				},
 				201,
 			);
@@ -496,6 +555,7 @@ export const members = router()
 					"bad_request",
 					"ownership is organization-wide; change the member's role instead",
 				);
+			assertGuestScope(input.role, input.scope.kind);
 			await resolveRole(c, input.role);
 			const isMember = await db.$count(
 				member,

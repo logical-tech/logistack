@@ -6,7 +6,7 @@ import {
 	TwoFactorPolicy,
 	twoFactorAccessKinds,
 } from "@logistack/contracts";
-import type { Grant } from "@logistack/core";
+import { type Grant, roleAllows } from "@logistack/core";
 import {
 	type Db,
 	deployment,
@@ -69,6 +69,16 @@ async function readProfile(db: Db, id: string) {
 	return row;
 }
 
+/** A surface needs the action on some grant, and on some key scope when the key is scoped. */
+function surfacesOf(grants: Grant[], keyScopes: Grant[] | undefined) {
+	const has = (action: "read" | "read:work") =>
+		grants.some((g) => roleAllows(g.role, action)) &&
+		(!keyScopes || keyScopes.some((g) => roleAllows(g.role, action)));
+	return (["ops", "work"] as const).filter((s) =>
+		has(s === "ops" ? "read" : "read:work"),
+	);
+}
+
 const roleName = (g: Grant) =>
 	typeof g.role === "string" ? g.role : g.role.id;
 
@@ -105,6 +115,8 @@ export const organizationRoutes = router()
 							.nullable(),
 						/** May change the instance itself: updates, nodes, instance settings. */
 						instanceAdmin: z.boolean(),
+						/** Shells the actor may use: `ops` with `read` somewhere, `work` with `read:work` somewhere. */
+						surfaces: z.array(z.enum(["ops", "work"])),
 						/** Set when the credential is a scoped API key: it may act only within these. */
 						keyScopes: z
 							.array(
@@ -139,6 +151,7 @@ export const organizationRoutes = router()
 						.filter((g) => g.scope.kind === "organization")
 						.map(roleName),
 					grants: bindings(grants),
+					surfaces: surfacesOf(grants, keyScopes),
 					keyScopes: keyScopes ? bindings(keyScopes) : null,
 					twoFactor:
 						twoFactor && twoFactor.kind !== "allow"

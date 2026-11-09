@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm";
 import {
 	boolean,
 	check,
+	integer,
 	jsonb,
 	pgTable,
 	text,
@@ -64,6 +65,12 @@ export const instanceSettings = pgTable(
 			.default("any"),
 		/** Opt-in: tell the index a plugin was installed (plugin id and version, nothing else). */
 		pluginInstallPing: boolean("plugin_install_ping").notNull().default(false),
+		/** Upload cap for Work attachments, in MB (max 100). */
+		workAttachmentMaxMb: integer("work_attachment_max_mb")
+			.notNull()
+			.default(25),
+		/** v1 ciphertext of the instance mailer (`instanceMailConfig` JSON); null: no instance email. */
+		mailEncrypted: text("mail_encrypted"),
 		...timestamps,
 	},
 	(t) => [

@@ -57,6 +57,22 @@ export const idPrefixes = {
 	patchRun: "pat",
 	pluginInstall: "plg",
 	pluginIndex: "pidx",
+	workStatus: "wst",
+	workList: "wls",
+	workTag: "wtg",
+	workTask: "tsk",
+	workChecklistItem: "wci",
+	workField: "wfd",
+	workComment: "wcm",
+	workActivity: "wac",
+	workAttachment: "wat",
+	workView: "wvw",
+	workNotification: "wnt",
+	workTemplate: "wtp",
+	workTimeEntry: "wte",
+	workGitLink: "wgl",
+	workImport: "wim",
+	workShare: "wsh",
 } as const;
 
 export type IdPrefix = (typeof idPrefixes)[keyof typeof idPrefixes];

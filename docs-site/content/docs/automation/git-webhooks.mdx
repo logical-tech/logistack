@@ -32,6 +32,8 @@ If registration fails, the service wizard says **Add the push webhook by hand**.
 
 On GitHub, LogiStack also reports each deployment as a `LogiStack` commit status: pending while it deploys, then success or failure.
 
+The same webhook links commits, branches and pull requests that mention a task key such as `SHOP-42` to that task, and closes it on "Fixes SHOP-42". See [Connect commits and pull requests](../tasks/commits-and-pull-requests.mdx).
+
 ## Choose what deploys a service
 
 <Steps>

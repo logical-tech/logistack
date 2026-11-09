@@ -1,0 +1,105 @@
+---
+title: Tasks and project management
+description: Plan client work in LogiStack with lists, tasks, custom fields and board, table, timeline and calendar views on the same projects you deploy.
+---
+
+Tasks add project management to the projects you already deploy: lists, tasks, subtasks, checklists, comments, attachments, custom fields, and table, board, timeline and calendar views. Use them when your team tracks client work in ClickUp, Linear or a spreadsheet and you want it next to the services it is about. A **Project manager** role runs the work and sees whether the client's services are up, without seeing deployments, logs or settings.
+
+![The Tasks projects grid in the project manager's dashboard: Shop is Operational, Blog relaunch is Degraded, Brand book has No services, each with open, overdue, mine and done-this-week counts](/screens/work-projects.webp)
+
+## How it fits together
+
+There is no second hierarchy. A task lives in a list, and a list lives in an existing LogiStack project:
+
+```text
+Folder "Clients"
+└── Project "Shop"            ← the project you deploy, key SHOP
+    ├── List "Launch"
+    │   ├── SHOP-41  Product page copy
+    │   └── SHOP-42  Checkout redesign
+    │       └── SHOP-43  Payment form (subtask)
+    └── List "Bugs"
+```
+
+- **Project.** Every project gets Tasks the first time someone opens them. A project with no services is valid, for design work or client onboarding.
+- **Key.** Each project has a short key, such as `SHOP`, unique in the organization. Tasks are numbered `SHOP-1`, `SHOP-2` and so on. If you rename the key or move a task to another project, old links such as `SHOP-42` keep working.
+- **List.** A group of tasks inside a project, such as "Launch" or "Bugs".
+- **Task and subtask.** A task can have subtasks, one level deep. A task can also have a checklist for small steps that need no status or date.
+- **Statuses, fields and tags** belong to the project and apply to all its lists. See [Lists, statuses and custom fields](./lists-statuses-and-fields.mdx).
+
+Task data lives in the LogiStack Postgres database, so platform backups cover it. It is not part of [project manifests](../automation/project-manifests.mdx) or GitOps: tasks are shared working state, not infrastructure.
+
+## Who sees what
+
+Tasks are permission actions in the same [role model](../team/roles-and-permissions.mdx) as everything else. What each person sees depends on what they can do, not on the name of their role.
+
+| Who | What they see |
+| --- | --- |
+| Owner, Admin, Developer | The full dashboard. The sidebar gains **Tasks** (My tasks, Inbox, Time, Workload, Import for owners and admins, then projects with their open-task counts), and every project page gains a **Tasks** tab next to its environments. |
+| Viewer | The full dashboard, read-only. Viewers read tasks and comment on them. |
+| Project manager | The **Tasks** dashboard only: My tasks, Inbox, Time, Workload, Import, and Projects with a health dot each. No deployments, logs, variables, nodes, domains, monitoring or settings. |
+| Guest | The Tasks dashboard for the one project they were invited to. They read and comment. |
+
+A Project manager who opens a link to a deployment or a service is sent to **Tasks** instead of an error page that names the resource. See [Project manager and guest roles](./roles.mdx).
+
+## Where to find it
+
+| Page | Path | What it shows |
+| --- | --- | --- |
+| **My tasks** | `/work` | Tasks assigned to you across projects, grouped by due date: Overdue, Today, Tomorrow, This week, Next week, Later, No date. |
+| **Inbox** | `/work/inbox` | Your notifications. See [Notifications and email](./notifications-and-email.mdx). |
+| **Projects** | `/work/projects` | Every project you can read, with its health and task counts. |
+| Project overview | `/work/projects/<id>` | Health of the project's services, progress (done, open, overdue and tasks completed per week), lists and recently updated tasks. |
+| A view | `/work/projects/<id>/v/<view-id>` | A table, board, timeline or calendar. See [Views](./views.mdx). |
+| **Time** | `/work/time` | Your week of tracked time and reports. See [Time tracking](./time-tracking.mdx). |
+| **Workload** | `/work/workload` | Estimated hours of open tasks per person for the next six weeks, with weeks over capacity highlighted. |
+| **Import** | `/work/import` | Import from ClickUp or a CSV file. See [Import from ClickUp](./import-from-clickup.mdx). |
+
+`/work/t/SHOP-42` opens a task by its key. Adding `?task=<id>` to any page opens the task over it.
+
+![My tasks: tasks assigned to the viewer grouped into Overdue, Today, Tomorrow and Later, with project, priority and due date on each row](/screens/work-my-tasks.webp)
+
+## Keyboard shortcuts
+
+Press `?` to see every shortcut. They are off while you type in a text field.
+
+| Key | Action |
+| --- | --- |
+| `c` | New task |
+| `/` | Focus search |
+| `⌘K` | Command menu: new task, go to a task by key, search tasks |
+| `g m`, `g i`, `g p`, `g t` | My tasks, Inbox, Projects, Time |
+| `1` to `4` | Switch to the view in that tab position |
+| `j`, `k` | Next or previous task |
+| `Enter`, `Esc` | Open or close a task |
+| `s`, `a`, `d`, `p`, `l` | Status, assignees, dates, priority, tags of the open task |
+| `x` | Select the focused row |
+| `t` | Start or stop the timer on the open task |
+| `⌘Enter` | Send a comment |
+| `⌘.` | Copy the task link |
+
+## Limits
+
+| Thing | Limit |
+| --- | --- |
+| Lists per project | 200 |
+| Statuses per project | 30 |
+| Custom fields per project | 100 |
+| Options in a select field | 200 |
+| Subtasks per task, checklist items per task | 200 each |
+| Assignees per task | 20 |
+| Attachments per task | 100 |
+| Attachment size | 25 MB by default, up to 100 MB set by an instance admin |
+| Views per project | 50 shared, plus 20 personal per person |
+| Tasks changed by one bulk edit | 500 |
+
+Every feature on these pages ships in the open build, with no licence or paid edition.
+
+## Next steps
+
+<Cards>
+  <Card title="Project manager and guest roles" href="/tasks/roles" description="The four Tasks actions, the built-in roles that hold them, and what a Project manager can never see." />
+  <Card title="Views" href="/tasks/views" description="Table, board, timeline and calendar, with filters, grouping and saved views." />
+  <Card title="Service health" href="/tasks/service-health" description="The six health states a Project manager sees for each project and service." />
+  <Card title="Import from ClickUp" href="/tasks/import-from-clickup" description="Bring spaces, lists, tasks, fields, comments and attachments over in one wizard." />
+</Cards>

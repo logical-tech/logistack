@@ -101,7 +101,7 @@ function entries(c: Context<Env>, q: Filters, after?: SQL) {
 		.orderBy(desc(auditLog.at), desc(auditLog.id));
 }
 
-const csvCell = (v: unknown) => {
+export const csvCell = (v: unknown) => {
 	const s =
 		v === null || v === undefined
 			? ""

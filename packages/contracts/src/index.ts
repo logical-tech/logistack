@@ -34,3 +34,4 @@ export * from "./two-factor.ts";
 export * from "./updates.ts";
 export * from "./uptime.ts";
 export * from "./vulnscan.ts";
+export * from "./work.ts";

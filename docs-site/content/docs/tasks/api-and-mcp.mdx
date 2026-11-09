@@ -1,0 +1,133 @@
+---
+title: Tasks from the API and MCP
+description: Create, update, filter and export LogiStack tasks with the REST API, and let an AI agent manage them through MCP tools such as work_task_create.
+---
+
+Every Tasks operation in the dashboard is a REST route under `/api/work`, documented in the OpenAPI reference, and an [MCP](../automation/mcp-server.mdx) tool. Use them to create tasks from a script or CI job, to sync with another tool, or to let an AI agent triage and summarize work. The same [actions](./roles.mdx) apply: a key needs `work` to create tasks and `read:work` to read them.
+
+The examples read the URL and key from environment variables, as in the [REST API](../automation/rest-api.mdx) page:
+
+```sh
+export LOGISTACK_URL=https://logistack.example.com
+export LOGISTACK_API_KEY=lsk_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+For a key that only handles tasks, give it the **Project manager** role on the projects it needs. It can't deploy or read logs.
+
+## REST examples
+
+### List projects with their health
+
+```sh
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/work/projects" | jq
+```
+
+```json title="Response (abridged)"
+[
+  {
+    "id": "prj_shop",
+    "name": "Shop",
+    "key": "SHOP",
+    "health": "operational",
+    "since": "2026-11-02T08:14:00Z",
+    "counts": { "open": 34, "overdue": 3, "mine": 5, "doneThisWeek": 9 },
+    "archived": false
+  }
+]
+```
+
+### Create a task
+
+```sh
+curl -fsS -X POST "$LOGISTACK_URL/api/work/tasks" \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "listId": "wls_launch",
+    "title": "Update the privacy policy page",
+    "priority": "high",
+    "dueDate": "2026-11-20",
+    "assignees": ["usr_8f2k1"]
+  }' | jq '{id, number}'
+```
+
+The task number is allocated when the task is created. Other optional fields: `parentId`, `statusId`, `startDate`, `dueTime`, `description`, `fields` and `tags`.
+
+### Open a task by key
+
+```sh
+curl -fsS -H "x-api-key: $LOGISTACK_API_KEY" "$LOGISTACK_URL/api/work/tasks/by-key/SHOP-42" | jq
+```
+
+It returns the task id, also for old keys after a rename or move. `GET /api/work/tasks/{id}` returns the full task.
+
+### Update a task safely
+
+`PATCH /api/work/tasks/{id}` changes only the fields you send. Send the `updatedAt` you read as `expectedUpdatedAt`: if someone changed the task since, the API answers `409` with the current task instead of overwriting it.
+
+```sh
+curl -fsS -X PATCH "$LOGISTACK_URL/api/work/tasks/tsk_9x2m4q" \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "statusId": "wst_review", "expectedUpdatedAt": "2026-11-09T10:42:07.120Z" }'
+```
+
+### Filter tasks
+
+`GET /api/work/tasks` takes a `filter` as JSON. This lists open, overdue tasks assigned to the key's owner in one project:
+
+```sh
+filter='{"and":[{"key":"assignee","op":"is","value":"me"},{"key":"dueDate","op":"relative","value":"overdue"},{"key":"statusCategory","op":"none_of","value":["done","cancelled"]}]}'
+curl -fsS -G "$LOGISTACK_URL/api/work/tasks" \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  --data-urlencode "projectId=prj_shop" \
+  --data-urlencode "filter=$filter" | jq '.items[] | {key, title, dueDate}'
+```
+
+Pages hold up to 200 tasks. Pass `nextCursor` back as `cursor` for the next page. Add `format=csv` to get CSV instead.
+
+### Change many tasks at once
+
+`POST /api/work/tasks/bulk` changes up to 500 tasks in one transaction and reports errors per task:
+
+```json title="Push every task of a release by a week"
+{
+  "taskIds": ["tsk_9x2m4q", "tsk_4k7p1n", "tsk_2b8v6c"],
+  "set": { "shiftDays": 7 }
+}
+```
+
+### Comment on a task
+
+```sh
+curl -fsS -X POST "$LOGISTACK_URL/api/work/tasks/tsk_9x2m4q/comments" \
+  -H "x-api-key: $LOGISTACK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"body":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Deployed to staging, ready for review."}]}]}}'
+```
+
+Rich text is a ProseMirror document. LogiStack removes anything outside the editor's elements.
+
+## MCP tools
+
+Tools follow the [MCP server's naming](../automation/mcp-server.mdx#how-it-works): changes are named after the operation, reads after the method and path.
+
+| Task | Tool | REST route |
+| --- | --- | --- |
+| List projects with health | `get_work_projects` | `GET /api/work/projects` |
+| List or filter tasks | `get_work_tasks` | `GET /api/work/tasks` |
+| Read a task | `get_work_tasks_by_id` | `GET /api/work/tasks/{id}` |
+| Create a task | `work_task_create` | `POST /api/work/tasks` |
+| Update a task | `work_task_update` | `PATCH /api/work/tasks/{id}` |
+| Change many tasks | `work_task_bulk` | `POST /api/work/tasks/bulk` |
+| Delete a task (destructive) | `work_task_delete` | `DELETE /api/work/tasks/{id}` |
+
+Ask your client to list the tools for the rest, such as comments, lists, fields and time entries.
+
+Prompts that work well:
+
+- "Create tasks in Shop's Launch list for each step of this checklist, due before 20 November, and assign them to Sara."
+- "Summarize what is overdue in Shop and who owns it."
+- "Move every Review task in Blog relaunch assigned to Marco to Done."
+
+The built-in [Agent](../automation/agent.mdx) has the same tools.
