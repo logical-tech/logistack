@@ -42,6 +42,7 @@ const input: NetworkMapInput = {
 				},
 			],
 			...scope("shop", "production"),
+			folders: [{ id: "fld_clients", name: "Clients" }],
 		},
 		{
 			id: "svc_mqtt",
@@ -110,6 +111,7 @@ describe("networkMap", () => {
 			[
 				"internet",
 				"proxy",
+				"mesh",
 				"tunnel:dns_cf",
 				"domain:dom_web",
 				"domain:dom_admin",
@@ -126,7 +128,8 @@ describe("networkMap", () => {
 		expect(e("internet", "tunnel:dns_cf")).toBe("tunnel");
 		expect(e("tunnel:dns_cf", "domain:dom_admin")).toBe("tunnel");
 		expect(e("domain:dom_admin", "service:svc_admin")).toBe("tunnel");
-		expect(e("internet", "service:svc_mqtt")).toBe("port");
+		expect(e("internet", "mesh")).toBe("port");
+		expect(e("mesh", "service:svc_mqtt")).toBe("port");
 		expect(e("service:svc_web", "task:t1")).toBe("internal");
 	});
 
@@ -182,7 +185,10 @@ describe("filterNetworkMap", () => {
 			"service:svc_web",
 		);
 		expect(ids(filterNetworkMap(map, { query: "iot" }))).toEqual(
-			["internet", "service:svc_mqtt"].sort(),
+			["internet", "mesh", "service:svc_mqtt"].sort(),
+		);
+		expect(ids(filterNetworkMap(map, { query: "clients" }))).toContain(
+			"service:svc_web",
 		);
 	});
 
