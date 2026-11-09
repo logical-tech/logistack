@@ -28,6 +28,7 @@ export type BitbucketConfig = z.infer<typeof bitbucketConfig>;
 const commit = z.object({
 	hash: z.string(),
 	message: z.string().optional(),
+	links: z.object({ html: z.object({ href: z.string() }) }).optional(),
 	author: z
 		.object({
 			raw: z.string().optional(),
@@ -45,6 +46,7 @@ const pushPayload = z.object({
 				new: z
 					.object({ type: z.string(), name: z.string(), target: commit })
 					.nullable(),
+				commits: z.array(commit).optional(),
 			}),
 		),
 	}),
@@ -55,6 +57,10 @@ const prPayload = z.object({
 	pullrequest: z.object({
 		id: z.number(),
 		title: z.string(),
+		description: z.string().nullish(),
+		/** OPEN, MERGED, DECLINED, SUPERSEDED. */
+		state: z.string().optional(),
+		links: z.object({ html: z.object({ href: z.string() }) }).optional(),
 		author: z.object({ display_name: z.string() }).optional(),
 		source: z.object({
 			branch: z.object({ name: z.string() }),
@@ -84,10 +90,13 @@ function normalize(event: string | null, body: unknown): GitEvent | null {
 	if (event === "repo:push") {
 		const p = pushPayload.parse(body);
 		// shortcut: a push touching several refs reports only the first, enough for one-ref deploy rules.
-		const change = p.push.changes.find(
+		const found = p.push.changes.find(
 			(c) => c.new?.type === "branch" || c.new?.type === "tag",
-		)?.new;
+		);
+		const change = found?.new;
 		if (!change) return null;
+		const authorOf = (c: z.infer<typeof commit>) =>
+			c.author?.user?.display_name ?? c.author?.raw ?? "";
 		return {
 			kind: "push",
 			repo: p.repository.full_name,
@@ -104,6 +113,15 @@ function normalize(event: string | null, body: unknown): GitEvent | null {
 				"",
 			// Push payloads list no files.
 			changedPaths: undefined,
+			// Bitbucket lists up to 5 commits per change; the target alone when it lists none.
+			commits: (found.commits?.length ? found.commits : [change.target]).map(
+				(c) => ({
+					sha: c.hash,
+					message: c.message ?? "",
+					...(c.links && { url: c.links.html.href }),
+					author: authorOf(c),
+				}),
+			),
 		};
 	}
 	const action = event ? prActions[event] : undefined;
@@ -123,6 +141,15 @@ function normalize(event: string | null, body: unknown): GitEvent | null {
 				fromFork:
 					pr.source.repository?.full_name.toLowerCase() !==
 					repository.full_name.toLowerCase(),
+				...(pr.links && { url: pr.links.html.href }),
+				...(pr.description && { body: pr.description }),
+				merged: pr.state === "MERGED",
+				state:
+					pr.state === "MERGED"
+						? "merged"
+						: pr.state === "DECLINED" || pr.state === "SUPERSEDED"
+							? "closed"
+							: "open",
 			},
 		};
 	}

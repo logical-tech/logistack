@@ -27,7 +27,7 @@ export type RunQueues = {
 	migration: Queue<MigrationJob>;
 	scan: Queue<ScanJob & { force?: boolean }>;
 	dbops: Queue<DbOpsJob>;
-	/** Work: instant emails, digests, attachment migrations (apps/worker/src/work-mail.ts). */
+	/** Work: instant emails, digests, attachment migrations, imports. */
 	work: Queue;
 };
 

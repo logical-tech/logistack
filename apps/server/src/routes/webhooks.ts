@@ -21,6 +21,7 @@ import { client, loadProvider, providerState } from "../git/providers.ts";
 import { syncGitopsForPush } from "../gitops.ts";
 import { json, router } from "../openapi.ts";
 import { handlePullRequest } from "../previews.ts";
+import { linkGitEventInBackground } from "../work/git-links.ts";
 import { syncGitStacks } from "./stacks.ts";
 
 const Outcome = z
@@ -127,6 +128,8 @@ export const webhooks = router().openapi(
 			);
 		}
 		if (!event) return c.json(ignored("event not used by LogiStack"), 202);
+		// Work task links run beside the deploy handling and never change its response.
+		linkGitEventInBackground(c.var.deps, row, event);
 		if (event.kind === "pull_request") {
 			const previews = await handlePullRequest(
 				c.var.deps,

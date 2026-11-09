@@ -923,6 +923,11 @@ export const useClickUpTree = () =>
 		mutationFn: (input: Parameters<WorkApi["imports"]["clickupTree"]>[0]) =>
 			work().imports.clickupTree(input),
 	});
+export const useClickUpInspect = () =>
+	useMutation({
+		mutationFn: (input: Parameters<WorkApi["imports"]["clickupInspect"]>[0]) =>
+			work().imports.clickupInspect(input),
+	});
 export const useWorkCsvUpload = () =>
 	useMutation({ mutationFn: (file: File) => work().imports.csvUpload(file) });
 

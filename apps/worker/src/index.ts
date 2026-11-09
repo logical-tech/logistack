@@ -20,6 +20,7 @@ import {
 	schedule,
 } from "@logistack/db";
 import { createDockerClient, type DockerEvent } from "@logistack/docker";
+import { pinnedFetch } from "@logistack/providers";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
 import { eq, notInArray } from "drizzle-orm";
@@ -71,6 +72,7 @@ import {
 } from "./schedulers.ts";
 import { createScheduleRunner } from "./schedules.ts";
 import { convertLegacySecrets } from "./secrets.ts";
+import { hostPolicy } from "./ssrf.ts";
 import { syncTailscale } from "./tailscale.ts";
 import { syncTunnels } from "./tunnels.ts";
 import {
@@ -80,6 +82,11 @@ import {
 } from "./uptime.ts";
 import { processScanJob } from "./vulnscan.ts";
 import { migrateBlobs, orgDestinationId, workGc } from "./work-blobs.ts";
+import {
+	processWorkImportJob,
+	WORK_IMPORT_JOB,
+	type WorkImportJob,
+} from "./work-import/index.ts";
 import {
 	processDigest,
 	processMail,
@@ -283,10 +290,24 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			{ connection, concurrency: 1 },
 		),
 		uptimeWorker(ctx, connection, cfg.LS_UPTIME_CONCURRENCY),
-		new Worker<WorkJob>(
+		// One Worker per queue: two on "work" would take each other's jobs.
+		new Worker<WorkJob | WorkImportJob>(
 			WORK_QUEUE,
 			async (job) => {
-				const d = job.data;
+				if (job.name === WORK_IMPORT_JOB)
+					return processWorkImportJob(
+						{
+							db: ctx.db,
+							masterKey: ctx.masterKey,
+							publish: (m) =>
+								void ctx.bus.redis
+									.publish(WORK_CHANNEL, JSON.stringify({ type: "work", ...m }))
+									.catch(() => {}),
+							attachmentFetch: pinnedFetch(await hostPolicy(ctx.db)),
+						},
+						job.data as WorkImportJob,
+					);
+				const d = job.data as WorkJob;
 				if (d.name === "mail") await processMail(workMail, d.notificationId);
 				else if (d.name === "digest") await processDigest(workMail, d);
 				else {

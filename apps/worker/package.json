@@ -19,7 +19,8 @@
 		"./work-mail": "./src/work-mail.ts",
 		"./traffic-store": "./src/traffic-store.ts",
 		"./metrics-consumer": "./src/metrics-consumer.ts",
-		"./work-recurrence": "./src/work-recurrence.ts"
+		"./work-recurrence": "./src/work-recurrence.ts",
+		"./work-import": "./src/work-import/index.ts"
 	},
 	"scripts": {
 		"dev": "bun --watch src/index.ts",

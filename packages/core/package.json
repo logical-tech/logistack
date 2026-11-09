@@ -13,7 +13,8 @@
 		"./ai-providers": "./src/ai-providers.ts",
 		"./traffic": "./src/traffic.ts",
 		"./version": "./src/version.ts",
-		"./work": "./src/work/index.ts"
+		"./work": "./src/work/index.ts",
+		"./work-csv": "./src/work/csv-parse.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc -p ."

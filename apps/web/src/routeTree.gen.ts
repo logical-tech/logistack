@@ -111,6 +111,10 @@ import { Route as AppSettingsCertificatesOriginRouteImport } from './routes/_app
 import { Route as AppSettingsInstanceMailSetupRouteImport } from './routes/_app/settings/instance-mail_.setup'
 import { Route as AppSettingsPluginsInstallIdRouteImport } from './routes/_app/settings/plugins_.$installId'
 import { Route as AppSettingsPluginsNewRouteImport } from './routes/_app/settings/plugins_.new'
+import { Route as AppWorkImportIndexRouteImport } from './routes/_app/work/import/index'
+import { Route as AppWorkImportImportIdRouteImport } from './routes/_app/work/import/$importId'
+import { Route as AppWorkImportClickupRouteImport } from './routes/_app/work/import/clickup'
+import { Route as AppWorkImportCsvRouteImport } from './routes/_app/work/import/csv'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppMonitoringStatusPagesPageIdEditRouteImport } from './routes/_app/monitoring/status-pages_.$pageId_.edit'
 import { Route as AppMonitoringUptimeMonitorIdEditRouteImport } from './routes/_app/monitoring/uptime_.$monitorId_.edit'
@@ -685,6 +689,26 @@ const AppSettingsPluginsNewRoute = AppSettingsPluginsNewRouteImport.update({
   path: '/settings/plugins/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWorkImportIndexRoute = AppWorkImportIndexRouteImport.update({
+  id: '/work/import/',
+  path: '/work/import/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkImportImportIdRoute = AppWorkImportImportIdRouteImport.update({
+  id: '/work/import/$importId',
+  path: '/work/import/$importId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkImportClickupRoute = AppWorkImportClickupRouteImport.update({
+  id: '/work/import/clickup',
+  path: '/work/import/clickup',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkImportCsvRoute = AppWorkImportCsvRouteImport.update({
+  id: '/work/import/csv',
+  path: '/work/import/csv',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppIntegrationsDnsProviderIdZoneIdRoute =
   AppIntegrationsDnsProviderIdZoneIdRouteImport.update({
     id: '/integrations/dns_/$providerId/$zoneId',
@@ -966,9 +990,13 @@ export interface FileRoutesByFullPath {
   '/settings/instance-mail/setup': typeof AppSettingsInstanceMailSetupRoute
   '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
+  '/work/import/$importId': typeof AppWorkImportImportIdRoute
+  '/work/import/clickup': typeof AppWorkImportClickupRoute
+  '/work/import/csv': typeof AppWorkImportCsvRoute
   '/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/work/import/': typeof AppWorkImportIndexRoute
   '/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   '/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
@@ -1094,9 +1122,13 @@ export interface FileRoutesByTo {
   '/settings/instance-mail/setup': typeof AppSettingsInstanceMailSetupRoute
   '/settings/plugins/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/settings/plugins/new': typeof AppSettingsPluginsNewRoute
+  '/work/import/$importId': typeof AppWorkImportImportIdRoute
+  '/work/import/clickup': typeof AppWorkImportClickupRoute
+  '/work/import/csv': typeof AppWorkImportCsvRoute
   '/backups/$serviceId': typeof AppBackupsServiceIdIndexRoute
   '/monitoring/nodes': typeof AppMonitoringNodesIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdIndexRoute
+  '/work/import': typeof AppWorkImportIndexRoute
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
@@ -1227,9 +1259,13 @@ export interface FileRoutesById {
   '/_app/settings/instance-mail_/setup': typeof AppSettingsInstanceMailSetupRoute
   '/_app/settings/plugins_/$installId': typeof AppSettingsPluginsInstallIdRoute
   '/_app/settings/plugins_/new': typeof AppSettingsPluginsNewRoute
+  '/_app/work/import/$importId': typeof AppWorkImportImportIdRoute
+  '/_app/work/import/clickup': typeof AppWorkImportClickupRoute
+  '/_app/work/import/csv': typeof AppWorkImportCsvRoute
   '/_app/backups/$serviceId/': typeof AppBackupsServiceIdIndexRoute
   '/_app/monitoring/nodes/': typeof AppMonitoringNodesIndexRoute
   '/_app/projects/$projectId/': typeof AppProjectsProjectIdIndexRoute
+  '/_app/work/import/': typeof AppWorkImportIndexRoute
   '/_app/projects/$projectId/services/$serviceId': typeof AppProjectsProjectIdServicesServiceIdRouteRouteWithChildren
   '/_app/projects/$projectId/stacks/$stackId': typeof AppProjectsProjectIdStacksStackIdRouteRouteWithChildren
   '/_app/integrations/dns_/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
@@ -1361,9 +1397,13 @@ export interface FileRouteTypes {
     | '/settings/instance-mail/setup'
     | '/settings/plugins/$installId'
     | '/settings/plugins/new'
+    | '/work/import/$importId'
+    | '/work/import/clickup'
+    | '/work/import/csv'
     | '/backups/$serviceId/'
     | '/monitoring/nodes/'
     | '/projects/$projectId/'
+    | '/work/import/'
     | '/projects/$projectId/services/$serviceId'
     | '/projects/$projectId/stacks/$stackId'
     | '/integrations/dns/$providerId/$zoneId'
@@ -1489,9 +1529,13 @@ export interface FileRouteTypes {
     | '/settings/instance-mail/setup'
     | '/settings/plugins/$installId'
     | '/settings/plugins/new'
+    | '/work/import/$importId'
+    | '/work/import/clickup'
+    | '/work/import/csv'
     | '/backups/$serviceId'
     | '/monitoring/nodes'
     | '/projects/$projectId'
+    | '/work/import'
     | '/integrations/dns/$providerId/$zoneId'
     | '/monitoring/status-pages/$pageId/edit'
     | '/monitoring/uptime/$monitorId/edit'
@@ -1621,9 +1665,13 @@ export interface FileRouteTypes {
     | '/_app/settings/instance-mail_/setup'
     | '/_app/settings/plugins_/$installId'
     | '/_app/settings/plugins_/new'
+    | '/_app/work/import/$importId'
+    | '/_app/work/import/clickup'
+    | '/_app/work/import/csv'
     | '/_app/backups/$serviceId/'
     | '/_app/monitoring/nodes/'
     | '/_app/projects/$projectId/'
+    | '/_app/work/import/'
     | '/_app/projects/$projectId/services/$serviceId'
     | '/_app/projects/$projectId/stacks/$stackId'
     | '/_app/integrations/dns_/$providerId/$zoneId'
@@ -2378,6 +2426,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsPluginsNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/work/import/': {
+      id: '/_app/work/import/'
+      path: '/work/import'
+      fullPath: '/work/import/'
+      preLoaderRoute: typeof AppWorkImportIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/work/import/$importId': {
+      id: '/_app/work/import/$importId'
+      path: '/work/import/$importId'
+      fullPath: '/work/import/$importId'
+      preLoaderRoute: typeof AppWorkImportImportIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/work/import/clickup': {
+      id: '/_app/work/import/clickup'
+      path: '/work/import/clickup'
+      fullPath: '/work/import/clickup'
+      preLoaderRoute: typeof AppWorkImportClickupRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/work/import/csv': {
+      id: '/_app/work/import/csv'
+      path: '/work/import/csv'
+      fullPath: '/work/import/csv'
+      preLoaderRoute: typeof AppWorkImportCsvRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/integrations/dns_/$providerId/$zoneId': {
       id: '/_app/integrations/dns_/$providerId/$zoneId'
       path: '/integrations/dns/$providerId/$zoneId'
@@ -2859,7 +2935,11 @@ interface AppRouteChildren {
   AppSettingsInstanceMailSetupRoute: typeof AppSettingsInstanceMailSetupRoute
   AppSettingsPluginsInstallIdRoute: typeof AppSettingsPluginsInstallIdRoute
   AppSettingsPluginsNewRoute: typeof AppSettingsPluginsNewRoute
+  AppWorkImportImportIdRoute: typeof AppWorkImportImportIdRoute
+  AppWorkImportClickupRoute: typeof AppWorkImportClickupRoute
+  AppWorkImportCsvRoute: typeof AppWorkImportCsvRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
+  AppWorkImportIndexRoute: typeof AppWorkImportIndexRoute
   AppIntegrationsDnsProviderIdZoneIdRoute: typeof AppIntegrationsDnsProviderIdZoneIdRoute
   AppPluginInstallIdPageIdSplatRoute: typeof AppPluginInstallIdPageIdSplatRoute
 }
@@ -2929,7 +3009,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsInstanceMailSetupRoute: AppSettingsInstanceMailSetupRoute,
   AppSettingsPluginsInstallIdRoute: AppSettingsPluginsInstallIdRoute,
   AppSettingsPluginsNewRoute: AppSettingsPluginsNewRoute,
+  AppWorkImportImportIdRoute: AppWorkImportImportIdRoute,
+  AppWorkImportClickupRoute: AppWorkImportClickupRoute,
+  AppWorkImportCsvRoute: AppWorkImportCsvRoute,
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,
+  AppWorkImportIndexRoute: AppWorkImportIndexRoute,
   AppIntegrationsDnsProviderIdZoneIdRoute:
     AppIntegrationsDnsProviderIdZoneIdRoute,
   AppPluginInstallIdPageIdSplatRoute: AppPluginInstallIdPageIdSplatRoute,

@@ -82,6 +82,7 @@ import { vulnerabilities } from "./routes/vulnerabilities.ts";
 import { webhooks } from "./routes/webhooks.ts";
 import { workCollab } from "./routes/work/collab.ts";
 import { workExtrasA } from "./routes/work/extras-a.ts";
+import { workImportsSharesGuests } from "./routes/work/imports-shares-guests.ts";
 import { workRoutes } from "./routes/work/index.ts";
 import { push, statusBySlug, statusHostRouter } from "./status-pages.ts";
 import { realtime } from "./ws.ts";
@@ -237,6 +238,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", uptime)
 		.route("/api", plugins)
 		.route("/api", workRoutes)
+		.route("/", workImportsSharesGuests)
 		.route("/", realtime)
 		.route("/", terminal);
 

@@ -4,6 +4,8 @@
  */
 import {
 	type ClickUpConnection,
+	type ClickUpInspection,
+	type ClickUpInspectRequest,
 	type ClickUpToken,
 	type ClickUpTreeNode,
 	type ClickUpTreeRequest,
@@ -284,6 +286,7 @@ export type WorkApi = {
 		cancel(id: string): Promise<WorkImport>;
 		clickupTest(input: ClickUpToken): Promise<ClickUpConnection>;
 		clickupTree(input: ClickUpTreeRequest): Promise<ClickUpTreeNode[]>;
+		clickupInspect(input: ClickUpInspectRequest): Promise<ClickUpInspection>;
 		csvUpload(file: File): Promise<CsvUpload>;
 	};
 	shares: {
@@ -553,6 +556,7 @@ export const workHttp: WorkApi = {
 		cancel: (v) => call("importCancel", { params: id(v) }),
 		clickupTest: (json) => call("clickupTest", { json }),
 		clickupTree: (json) => call("clickupTree", { json }),
+		clickupInspect: (json) => call("clickupInspect", { json }),
 		csvUpload: (file) => {
 			const form = new FormData();
 			form.set("file", file);

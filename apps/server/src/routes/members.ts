@@ -3,6 +3,7 @@ import { PermissionAction, permissionActions } from "@logistack/contracts";
 import {
 	instanceSettings,
 	invitation,
+	invitationGrant,
 	member,
 	organization,
 	organizationRole,
@@ -353,7 +354,16 @@ export const members = router()
 				summary: "Invite someone by email",
 				description: `Creates a better-auth invitation valid for ${INVITATION_DAYS} days. LogiStack emails the link when instance mail is set up; otherwise share the returned \`url\`. The invitee accepts with better-auth's \`organization/accept-invitation\`.`,
 				middleware: [requirePermission("admin", inOrganization)],
-				request: body(RoleInput.extend({ email: z.email().toLowerCase() })),
+				request: body(
+					RoleInput.extend({
+						email: z.email().toLowerCase(),
+						/**
+						 * Scoped grants created on acceptance. With `role: "guest"` the invitee gets no
+						 * organization-wide access, only these (a guest on one project).
+						 */
+						grants: z.array(KeyScope).max(20).optional(),
+					}),
+				),
 				responses: { 201: json(Invitation, "Invited"), ...errors },
 			}),
 		),
@@ -361,9 +371,19 @@ export const members = router()
 			const input = c.req.valid("json");
 			const actor = requireActor(c);
 			const { db } = c.var.deps;
-			assertGuestScope(input.role, "organization");
+			const grants = input.grants ?? [];
+			// A guest member holds nothing organization-wide, so it needs at least one scoped grant.
+			if (input.role !== "guest" || !grants.length)
+				assertGuestScope(input.role, "organization");
 			await resolveRole(c, input.role);
 			await assertOwnershipChange(c, undefined, input.role);
+			for (const g of grants) {
+				if (g.role === "owner")
+					throw new Failure("bad_request", "ownership is organization-wide");
+				assertGuestScope(g.role, g.scope.kind);
+				await resolveRole(c, g.role);
+				await scopeResource(c, g.scope);
+			}
 			const already = await db
 				.select({ id: member.id })
 				.from(member)
@@ -390,7 +410,7 @@ export const members = router()
 								eq(invitation.status, "pending"),
 							),
 						);
-					return tx
+					const rows = await tx
 						.insert(invitation)
 						.values({
 							id,
@@ -402,6 +422,19 @@ export const members = router()
 							inviterId: actor.userId,
 						})
 						.returning();
+					if (grants.length)
+						await tx
+							.insert(invitationGrant)
+							.values(
+								grants.map((g) => ({
+									invitationId: id,
+									role: g.role,
+									scopeKind: g.scope.kind,
+									scopeId: g.scope.id,
+								})),
+							)
+							.onConflictDoNothing();
+					return rows;
 				}),
 			);
 			const url = await invitationUrl(c, id);

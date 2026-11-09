@@ -6,7 +6,10 @@ const pushPayload = z.object({
 	ref: z.string(),
 	after: z.string(),
 	deleted: z.boolean().optional(),
-	repository: z.object({ full_name: z.string() }),
+	repository: z.object({
+		full_name: z.string(),
+		default_branch: z.string().optional(),
+	}),
 	head_commit: z
 		.object({
 			id: z.string(),
@@ -24,6 +27,15 @@ const pushPayload = z.object({
 	commits: z
 		.array(
 			z.object({
+				id: z.string().optional(),
+				message: z.string().optional(),
+				url: z.string().optional(),
+				author: z
+					.object({
+						name: z.string().optional(),
+						username: z.string().optional(),
+					})
+					.optional(),
 				added: z.array(z.string()).optional(),
 				modified: z.array(z.string()).optional(),
 				removed: z.array(z.string()).optional(),
@@ -46,10 +58,16 @@ const releasePayload = z.object({
 const prPayload = z.object({
 	action: z.string(),
 	number: z.number(),
-	repository: z.object({ full_name: z.string() }),
+	repository: z.object({
+		full_name: z.string(),
+		default_branch: z.string().optional(),
+	}),
 	pull_request: z.object({
 		title: z.string(),
 		html_url: z.string().optional(),
+		body: z.string().nullish(),
+		state: z.string().optional(),
+		merged: z.boolean().nullish(),
 		// `head.repo` is null once a fork is deleted.
 		head: z.object({
 			ref: z.string(),
@@ -98,6 +116,21 @@ export function normalizeGitHubStyle(
 				ref.kind === "branch"
 					? changedPaths(p.commits, p.commits.length >= COMMIT_LIST_CAP)
 					: undefined,
+			commits: p.commits.flatMap((c) =>
+				c.id
+					? [
+							{
+								sha: c.id,
+								message: c.message ?? "",
+								...(c.url && { url: c.url }),
+								author: c.author?.name ?? c.author?.username ?? "",
+							},
+						]
+					: [],
+			),
+			...(p.repository.default_branch && {
+				defaultBranch: p.repository.default_branch,
+			}),
 		};
 	}
 	if (event === "release") {
@@ -130,7 +163,18 @@ export function normalizeGitHubStyle(
 					p.pull_request.head.repo?.full_name.toLowerCase() !==
 					p.repository.full_name.toLowerCase(),
 				...(p.pull_request.html_url && { url: p.pull_request.html_url }),
+				...(p.pull_request.body && { body: p.pull_request.body }),
+				merged: p.pull_request.merged === true,
+				state:
+					p.pull_request.merged === true
+						? "merged"
+						: p.pull_request.state === "closed"
+							? "closed"
+							: "open",
 			},
+			...(p.repository.default_branch && {
+				defaultBranch: p.repository.default_branch,
+			}),
 		};
 	}
 	return null;
