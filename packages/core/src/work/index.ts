@@ -1,4 +1,5 @@
 export * from "./clickup-map.ts";
+export * from "./csv-parse.ts";
 export * from "./dates.ts";
 export * from "./deps.ts";
 export * from "./fields.ts";
