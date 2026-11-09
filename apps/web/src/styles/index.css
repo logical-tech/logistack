@@ -4,6 +4,7 @@
 @import "@fontsource-variable/mona-sans/wdth.css";
 @import "@fontsource/monaspace-neon/400.css";
 @import "./motion.css";
+@import "./work.css";
 
 /* Streamdown (the Agent's Markdown renderer) ships Tailwind classes in its build. */
 @source "../../node_modules/streamdown/dist/*.js";

@@ -1,0 +1,43 @@
+/*
+ * Work palette: the eight colour tokens statuses, tags, lists and select options use
+ * (`WorkColor` in contracts). Each has a solid (dots, bars, ≥3:1 on the surface) and a text
+ * variant (pills, ≥4.5:1). Never raw hex in components: themes stay coherent.
+ */
+:root,
+.theme-default {
+	--wc-gray: oklch(0.66 0.01 262);
+	--wc-gray-text: oklch(0.45 0.012 262);
+	--wc-blue: oklch(0.6 0.17 255);
+	--wc-blue-text: oklch(0.47 0.17 258);
+	--wc-amber: oklch(0.74 0.15 70);
+	--wc-amber-text: oklch(0.5 0.12 60);
+	--wc-green: oklch(0.64 0.15 152);
+	--wc-green-text: oklch(0.46 0.12 152);
+	--wc-red: oklch(0.6 0.2 25);
+	--wc-red-text: oklch(0.5 0.19 25);
+	--wc-violet: oklch(0.6 0.17 295);
+	--wc-violet-text: oklch(0.48 0.17 295);
+	--wc-pink: oklch(0.64 0.18 350);
+	--wc-pink-text: oklch(0.5 0.17 350);
+	--wc-teal: oklch(0.64 0.11 195);
+	--wc-teal-text: oklch(0.46 0.09 195);
+}
+
+.dark {
+	--wc-gray: oklch(0.6 0.01 262);
+	--wc-gray-text: oklch(0.76 0.01 262);
+	--wc-blue: oklch(0.66 0.15 255);
+	--wc-blue-text: oklch(0.78 0.12 255);
+	--wc-amber: oklch(0.78 0.14 75);
+	--wc-amber-text: oklch(0.84 0.12 78);
+	--wc-green: oklch(0.7 0.15 152);
+	--wc-green-text: oklch(0.8 0.13 152);
+	--wc-red: oklch(0.66 0.19 25);
+	--wc-red-text: oklch(0.76 0.15 25);
+	--wc-violet: oklch(0.68 0.15 295);
+	--wc-violet-text: oklch(0.8 0.11 295);
+	--wc-pink: oklch(0.7 0.16 350);
+	--wc-pink-text: oklch(0.8 0.12 350);
+	--wc-teal: oklch(0.7 0.1 195);
+	--wc-teal-text: oklch(0.8 0.08 195);
+}

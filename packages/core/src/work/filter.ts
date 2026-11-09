@@ -22,7 +22,8 @@ const DATE_OPS: FilterOp[] = [
 ];
 const ID_OPS: FilterOp[] = ["is", "is_not", "any_of", "none_of"];
 
-const BUILTIN_OPS: Record<string, FilterOp[]> = {
+/** Operators each built-in filter key supports (section 7). */
+export const BUILTIN_OPS: Record<string, FilterOp[]> = {
 	status: ID_OPS,
 	statusCategory: ID_OPS,
 	priority: ID_OPS,
