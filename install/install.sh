@@ -911,6 +911,7 @@ deploy() {
 	local replicas=${API_REPLICAS:-$(running_api_replicas)}
 	[[ $replicas =~ ^[1-9]$ ]] || replicas=1
 	local files=(-c "$CONF_DIR/stack.yml")
+	if org_networks_override "$CONF_DIR/org-networks.yml"; then files+=(-c "$CONF_DIR/org-networks.yml"); fi
 	[ "$DOKPLOY" = 0 ] || files+=(-c "$CONF_DIR/$DOKPLOY_STACK")
 	[ "$COOLIFY" = 0 ] || files+=(-c "$CONF_DIR/$COOLIFY_STACK")
 	act "Deploy stack $STACK_NAME $IMAGE_TAG ($replicas api replica$([ "$replicas" = 1 ] || echo s))" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" LOGISTACK_API_REPLICAS="$replicas" \
@@ -919,6 +920,32 @@ deploy() {
 		LOGISTACK_DOKPLOY_PG_SECRET="$DOKPLOY_PG_SECRET" LOGISTACK_DOKPLOY_PG_USER="$DOKPLOY_PG_USER" \
 		LOGISTACK_DOKPLOY_PG_DB="$DOKPLOY_PG_DB" LOGISTACK_DOKPLOY_KEY_SECRET="${DOKPLOY_KEY_SECRET:-}" \
 		LOGISTACK_COOLIFY_DB_USER="$COOLIFY_DB_USER" LOGISTACK_COOLIFY_DB_NAME="$COOLIFY_DB_NAME" docker stack deploy "${flags[@]}" --detach=true "${files[@]}" "$STACK_NAME"
+}
+
+# The worker attaches caddy, the api and the worker to each organization's own networks
+# (ls-ingress-<hash>, ls-storage-<hash>, ...). A redeploy whose files left them out would detach
+# them and restart those services, so the override names what is attached now. Returns 1 when
+# nothing is.
+org_networks_override() {
+	local out=$1 svc id name nets all=""
+	printf 'services:\n' >"$out"
+	for svc in caddy logistack-api logistack-worker; do
+		nets=""
+		for id in $(docker service inspect "${STACK_NAME}_$svc" --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}} {{end}}' 2>/dev/null); do
+			name=$(docker network inspect -f '{{.Name}}' "$id" 2>/dev/null) || continue
+			[[ $name =~ ^ls-(ingress|storage|game|db)-[0-9a-f]{12}$ ]] || continue
+			nets+="${nets:+, }$name" all+="$name "
+		done
+		[ -z "$nets" ] || printf '  %s:\n    networks: [%s]\n' "$svc" "$nets" >>"$out"
+	done
+	if [ -z "$all" ]; then
+		rm -f "$out"
+		return 1
+	fi
+	printf 'networks:\n' >>"$out"
+	for name in $(tr ' ' '\n' <<<"$all" | sort -u); do
+		printf '  %s: { external: true }\n' "$name" >>"$out"
+	done
 }
 
 # The SSH tunnel's target: without Caddy, or unless setup is public. Loopback only, never public.

@@ -146,6 +146,8 @@ describe.skipIf(!hasDocker)("multi-architecture builds on this swarm", () => {
 				LOGISTACK_MASTER_KEY: "unused",
 				LS_NAME_PREFIX: PREFIX,
 				LS_CONTROL_NETWORK: NET,
+				// buildctl runs on NET, so BuildKit must be there too, not on a real ls-build.
+				LS_BUILD_NETWORK: NET,
 				LS_SCOPE_LABELS: JSON.stringify(LABELS),
 				LS_BUILDCTL: JSON.stringify([
 					"docker",
