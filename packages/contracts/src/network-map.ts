@@ -7,6 +7,8 @@ const Scope = z.object({
 	projectName: z.string(),
 	environmentId: z.string(),
 	environmentName: z.string(),
+	/** The project's folders, outermost first; empty at the root. */
+	folders: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
 });
 
 export const TlsMode = z.enum(["http-01", "dns-01", "custom", "none"]);
@@ -15,6 +17,8 @@ export type TlsMode = z.infer<typeof TlsMode>;
 export const MapNode = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("internet"), id: z.string() }),
 	z.object({ type: z.literal("proxy"), id: z.string() }),
+	/** Swarm's ingress routing mesh, which carries published ports to any replica. */
+	z.object({ type: z.literal("mesh"), id: z.string() }),
 	z.object({
 		type: z.literal("tunnel"),
 		id: z.string(),

@@ -13,6 +13,7 @@ import {
 	serviceStatus,
 } from "@logistack/db";
 import { eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { requireActor } from "../actor.ts";
 import { errors, json, router, security } from "../openapi.ts";
 import { actorCan } from "../scope.ts";
@@ -37,6 +38,8 @@ export const networkMapRoutes = router().openapi(
 	async (c) => {
 		const actor = requireActor(c);
 		const { db } = c.var.deps;
+		// Folders nest at most two deep, so the project's folder and its parent are the whole path.
+		const parent = alias(folder, "parent_folder");
 		const rows = await db
 			.select({
 				service,
@@ -47,20 +50,22 @@ export const networkMapRoutes = router().openapi(
 					name: project.name,
 					folderId: project.folderId,
 				},
-				parentFolderId: folder.parentId,
+				folder: { id: folder.id, name: folder.name },
+				parent: { id: parent.id, name: parent.name },
 			})
 			.from(service)
 			.innerJoin(environment, eq(environment.id, service.environmentId))
 			.innerJoin(project, eq(project.id, environment.projectId))
 			.leftJoin(folder, eq(folder.id, project.folderId))
+			.leftJoin(parent, eq(parent.id, folder.parentId))
 			.leftJoin(serviceStatus, eq(serviceStatus.serviceId, service.id))
 			.where(eq(project.organizationId, actor.organizationId));
 		const visible = rows.filter((r) =>
 			actorCan(actor, "read", {
 				type: "service",
 				organizationId: actor.organizationId,
-				folderIds: [r.parentFolderId, r.project.folderId].filter(
-					(id): id is string => id !== null,
+				folderIds: [r.parent?.id, r.project.folderId].filter(
+					(id): id is string => !!id,
 				),
 				projectId: r.project.id,
 				environmentId: r.environment.id,
@@ -109,6 +114,7 @@ export const networkMapRoutes = router().openapi(
 				projectName: r.project.name,
 				environmentId: r.environment.id,
 				environmentName: r.environment.name,
+				folders: [r.parent, r.folder].filter((f) => f !== null),
 			})),
 			domains: domains.map((d) => ({ ...d, tls: tlsMode(d) })),
 			providers: new Map(providers.map((p) => [p.id, p.name])),
