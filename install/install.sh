@@ -910,8 +910,8 @@ deploy() {
 	if tunnel_wanted; then tunnel_origin="http://localhost:$TUNNEL_PORT"; fi
 	local replicas=${API_REPLICAS:-$(running_api_replicas)}
 	[[ $replicas =~ ^[1-9]$ ]] || replicas=1
-	local files=(-c "$CONF_DIR/stack.yml")
-	if org_networks_override "$CONF_DIR/org-networks.yml"; then files+=(-c "$CONF_DIR/org-networks.yml"); fi
+	with_org_networks "$CONF_DIR/stack.yml" "$CONF_DIR/stack.deploy.yml"
+	local files=(-c "$CONF_DIR/stack.deploy.yml")
 	[ "$DOKPLOY" = 0 ] || files+=(-c "$CONF_DIR/$DOKPLOY_STACK")
 	[ "$COOLIFY" = 0 ] || files+=(-c "$CONF_DIR/$COOLIFY_STACK")
 	act "Deploy stack $STACK_NAME $IMAGE_TAG ($replicas api replica$([ "$replicas" = 1 ] || echo s))" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" LOGISTACK_API_REPLICAS="$replicas" \
@@ -923,30 +923,32 @@ deploy() {
 }
 
 # The worker attaches caddy, the api and the worker to each organization's own networks
-# (ls-ingress-<hash>, ls-storage-<hash>, ...). A redeploy whose files left them out would detach
-# them and restart those services, so the override names what is attached now. Returns 1 when
-# nothing is.
-org_networks_override() {
-	local out=$1 svc id name nets all=""
-	# docker stack deploy refuses files of different compose versions.
-	{ grep -m1 '^version:' "$CONF_DIR/stack.yml" || true; printf 'services:\n'; } >"$out"
+# (ls-ingress-<hash>, ls-storage-<hash>, ...). A redeploy that left them out would detach them and
+# restart those services, so the deployed file is the stack file with the attached ones added. Not
+# a second -c file: merging two files that both name caddy collapses its tcp and udp 443 ports.
+with_org_networks() {
+	local in=$1 out=$2 svc id name extra=""
 	for svc in caddy logistack-api logistack-worker; do
-		nets=""
 		for id in $(docker service inspect "${STACK_NAME}_$svc" --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}} {{end}}' 2>/dev/null); do
 			name=$(docker network inspect -f '{{.Name}}' "$id" 2>/dev/null) || continue
-			[[ $name =~ ^ls-(ingress|storage|game|db)-[0-9a-f]{12}$ ]] || continue
-			nets+="${nets:+, }$name" all+="$name "
+			[[ $name =~ ^ls-(ingress|storage|game|db)-[0-9a-f]{12}$ ]] && extra+="$svc=$name "
 		done
-		[ -z "$nets" ] || printf '  %s:\n    networks: [%s]\n' "$svc" "$nets" >>"$out"
 	done
-	if [ -z "$all" ]; then
-		rm -f "$out"
-		return 1
-	fi
-	printf 'networks:\n' >>"$out"
-	for name in $(tr ' ' '\n' <<<"$all" | sort -u); do
-		printf '  %s: { external: true }\n' "$name" >>"$out"
-	done
+	awk -v extra="$extra" '
+		BEGIN {
+			n = split(extra, pairs, " ")
+			for (i = 1; i <= n; i++) {
+				split(pairs[i], kv, "=")
+				nets[kv[1]] = nets[kv[1]] ", " kv[2]
+				if (!(kv[2] in seen)) { seen[kv[2]] = 1; order[++m] = kv[2] }
+			}
+		}
+		/^[a-z]/ { section = $0 }
+		section == "services:" && /^  [a-z0-9-]+:$/ { svc = substr($1, 1, length($1) - 1) }
+		section == "services:" && /^    networks: \[.*\]$/ && (svc in nets) { sub(/\]$/, nets[svc] "]") }
+		{ print }
+		$0 == "networks:" { for (i = 1; i <= m; i++) printf "  %s:\n    external: true\n", order[i] }
+	' "$in" >"$out"
 }
 
 # The SSH tunnel's target: without Caddy, or unless setup is public. Loopback only, never public.
