@@ -1,4 +1,8 @@
-import type { EventEnvelope, LiveMessage } from "@logistack/contracts";
+import type {
+	EventEnvelope,
+	LiveMessage,
+	WorkRealtimeMessage,
+} from "@logistack/contracts";
 
 /** Log stream frames, mirroring `StreamMessage` in `apps/server/src/streams.ts`. */
 export type StreamFrame =
@@ -116,3 +120,16 @@ export const subscribeStream = (
 		},
 		opts,
 	);
+
+/**
+ * Work changes for one project (`work:<projectId>`, section 9). The hub may send them as `data`
+ * frames or bare messages; both are accepted so the client doesn't depend on the framing.
+ */
+export const subscribeWork = (
+	projectId: string,
+	fn: (msg: WorkRealtimeMessage) => void,
+) =>
+	listen(`work:${projectId}`, (m) => {
+		const msg = (m.data ?? m) as unknown as WorkRealtimeMessage;
+		if (msg && (msg as { type?: string }).type === "work") fn(msg);
+	});

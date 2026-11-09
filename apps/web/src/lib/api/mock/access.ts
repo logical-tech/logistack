@@ -460,6 +460,20 @@ function remove<T extends { id: string }>(list: T[], id: string) {
 	list.splice(i, 1);
 }
 
+/**
+ * `localStorage["logistack.mock.role"] = "manager"` signs the mock user in as a project manager,
+ * which opens the Work-only shell (for design work and screenshots).
+ */
+const mockRole = (): "owner" | "manager" => {
+	try {
+		return globalThis.localStorage?.getItem("logistack.mock.role") === "manager"
+			? "manager"
+			: "owner";
+	} catch {
+		return "owner";
+	}
+};
+
 export const mockAccess: AccessAdapter = {
 	me: () =>
 		delay({
@@ -467,10 +481,10 @@ export const mockAccess: AccessAdapter = {
 			id: "usr_simone",
 			userId: "usr_simone",
 			organizationId: ORG,
-			roles: ["owner"],
-			grants: [{ role: "owner", scope: { kind: "organization", id: ORG } }],
+			roles: [mockRole()],
+			grants: [{ role: mockRole(), scope: { kind: "organization", id: ORG } }],
 			keyScopes: null,
-			surfaces: ["ops", "work"],
+			surfaces: mockRole() === "manager" ? ["work"] : ["ops", "work"],
 			twoFactor: null,
 			instanceAdmin: true,
 		}),

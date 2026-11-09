@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SlidingTabs } from "@/components/sliding-tabs";
+import { useSurfaces } from "@/components/work/shell/work-nav";
 import { pluginContributionsQuery } from "@/lib/api/plugins";
 import type { ProjectId } from "@/lib/api/types";
 
@@ -19,6 +20,13 @@ export function useProjectPluginTabs() {
 	);
 }
 
+/** Whether the section tabs show: a plugin adds a tab, or the actor uses Work (the Tasks tab). */
+export function useSectionsShown(
+	tabs: ReturnType<typeof useProjectPluginTabs>,
+) {
+	return useSurfaces().work || tabs.length > 0;
+}
+
 /** Panel attributes for the content under the section tabs; none when there are no tabs. */
 export const sectionPanel = (show: boolean, tab: string) =>
 	show
@@ -30,8 +38,8 @@ export const sectionPanel = (show: boolean, tab: string) =>
 		: {};
 
 /**
- * The project's sections: its services, then the tabs plugins add. Rendered only when a plugin
- * adds one, so a project without plugins looks as it always did.
+ * The project's sections: its services, its tasks (Work), then the tabs plugins add. Rendered only
+ * when there is more than Services, so a project without them looks as it always did.
  */
 export function ProjectSections({
 	projectId,
@@ -39,12 +47,13 @@ export function ProjectSections({
 	tabs,
 }: {
 	projectId: ProjectId;
-	/** `services`, or `plugin:<installId>:<pageId>`. */
+	/** `services`, `tasks`, or `plugin:<installId>:<pageId>`. */
 	value: string;
 	tabs: ReturnType<typeof useProjectPluginTabs>;
 }) {
 	const navigate = useNavigate();
-	if (!tabs.length) return null;
+	const { work } = useSurfaces();
+	if (!useSectionsShown(tabs)) return null;
 	return (
 		<div className="mb-6 border-b">
 			<SlidingTabs
@@ -52,6 +61,13 @@ export function ProjectSections({
 				idPrefix="project"
 				value={value}
 				onChange={(id) => {
+					if (id === "tasks") {
+						navigate({
+							to: "/projects/$projectId/tasks",
+							params: { projectId },
+						});
+						return;
+					}
 					const plugin = tabs.find((t) => t.id === id);
 					if (!plugin) {
 						navigate({ to: "/projects/$projectId", params: { projectId } });
@@ -69,6 +85,7 @@ export function ProjectSections({
 				}}
 				items={[
 					{ id: "services", label: "Services" },
+					...(work ? [{ id: "tasks", label: "Tasks" }] : []),
 					...tabs.map((t) => ({ id: t.id, label: t.label })),
 				]}
 			/>

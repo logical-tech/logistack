@@ -8,6 +8,7 @@ import {
 	ProjectSections,
 	sectionPanel,
 	useProjectPluginTabs,
+	useSectionsShown,
 } from "@/components/projects/project-sections";
 import { pluginContributionsQuery } from "@/lib/api/plugins";
 import { projectQuery } from "@/lib/api/projects";
@@ -23,6 +24,7 @@ function ProjectPluginTab() {
 	const { data: project } = useQuery(projectQuery(projectId));
 	const { data } = useQuery(pluginContributionsQuery);
 	const tabs = useProjectPluginTabs();
+	const shown = useSectionsShown(tabs);
 	const contribution = data?.find((c) => c.installId === installId);
 	const page = contribution?.pages.find(
 		(p) => p.id === pageId && p.location === "project-tab",
@@ -36,7 +38,7 @@ function ProjectPluginTab() {
 				description={project.description || undefined}
 			/>
 			<ProjectSections projectId={projectId} value={tab} tabs={tabs} />
-			<div {...sectionPanel(tabs.length > 0, tab)}>
+			<div {...sectionPanel(shown, tab)}>
 				{contribution && page ? (
 					<PluginFrame
 						contribution={contribution}
