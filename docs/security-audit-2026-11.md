@@ -81,8 +81,8 @@ with limits"). After this release, rotate the secrets listed under "After deploy
   private hosts are allowed; IPv6 `::/96` and SIIT ranges are covered; plugin manifests are read through
   the guard; the egress proxy always blocks link-local addresses.
 - Security headers on every response (nosniff, SAMEORIGIN, Referrer-Policy, HSTS over https), a CSP on
-  the app shell with the inline script hashed, and `__Secure-` session cookies in production
-  (`SECURE_COOKIES`).
+  the app shell with the inline script hashed, and `__Secure-` session cookies when `BETTER_AUTH_URL` is
+  https (`SECURE_COOKIES`).
 - Smaller fixes: status pages leaking monitors or dashboard hosts; managed certificate names visible
   across organizations; CR not escaped in the iCal feed; ClickUp import leaking the member directory;
   log-drain tests runnable on another organization's node; folders moved to the top level; the TeamSpeak

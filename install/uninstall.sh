@@ -64,9 +64,7 @@ for svc in $(docker service ls -q --filter label=logistack.managed=true --filter
 	name=$(docker service inspect "$svc" --format '{{.Spec.Name}}')
 	docker service rm "$svc" >/dev/null && ok "Service $name removed"
 done
-for network in ls-build; do
-	docker network rm "$network" >/dev/null 2>&1 && ok "Network $network removed"
-done
+docker network rm ls-build >/dev/null 2>&1 && ok "Network ls-build removed"
 # install.sh runs the loopback API tunnel as a plain container on ls-control.
 if [ "$(docker inspect logistack-api-tunnel --format '{{index .Config.Labels "logistack.managed"}}' 2>/dev/null)" = true ]; then
 	docker rm -f logistack-api-tunnel >/dev/null && ok "Container logistack-api-tunnel removed"
