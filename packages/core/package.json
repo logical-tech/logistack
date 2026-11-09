@@ -10,6 +10,7 @@
 		"./db-scripts": "./src/db-scripts.ts",
 		"./drains": "./src/drains.ts",
 		"./network-map": "./src/network-map.ts",
+		"./work": "./src/work/index.ts",
 		"./ai-providers": "./src/ai-providers.ts",
 		"./traffic": "./src/traffic.ts",
 		"./version": "./src/version.ts",

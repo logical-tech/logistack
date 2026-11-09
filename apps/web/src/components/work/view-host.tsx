@@ -413,6 +413,7 @@ function ViewBody({
 					onOpenTask={openTask}
 					onConfigChange={patch}
 					onCreateTask={create}
+					listId={listId ?? view.listId ?? undefined}
 				/>
 			</Suspense>
 			{!result.isLoading &&

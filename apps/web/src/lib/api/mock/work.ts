@@ -30,11 +30,12 @@ import {
 	WORK_ME,
 	WORK_ORG,
 	type WorkTaskRow,
+	withViewsDemo,
 	workUsers,
 } from "./work-fixture";
 import { workImportsMock } from "./work-imports";
 
-const w = createWorkFixture();
+const w = withViewsDemo(createWorkFixture());
 
 const noMail: InstanceMail = {
 	configured: false,

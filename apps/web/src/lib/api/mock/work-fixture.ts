@@ -1639,3 +1639,275 @@ export function createWorkFixture() {
 		prefs,
 	};
 }
+
+// ---------------------------------------------------------------------------
+// Views demo: a fuller Shop plan so the board, timeline and calendar look lived in
+// (dependency chains, one late link, milestones, timed tasks this week, a cover
+// image, an in-progress column over its WIP limit). Its own section to merge cleanly.
+// ---------------------------------------------------------------------------
+
+const coverSvg = `data:image/svg+xml;utf8,${encodeURIComponent(
+	`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160"><rect width="320" height="160" fill="#e9edf5"/><rect x="24" y="22" width="176" height="116" rx="8" fill="#fff"/><rect x="40" y="40" width="96" height="10" rx="5" fill="#c8d0de"/><rect x="40" y="62" width="144" height="16" rx="4" fill="#eef1f6"/><rect x="40" y="86" width="144" height="16" rx="4" fill="#eef1f6"/><rect x="40" y="112" width="64" height="14" rx="7" fill="#2f5bd3"/><rect x="216" y="22" width="80" height="116" rx="8" fill="#fff"/><rect x="230" y="40" width="52" height="40" rx="4" fill="#dfe5f0"/><rect x="230" y="92" width="40" height="8" rx="4" fill="#c8d0de"/><rect x="230" y="108" width="52" height="8" rx="4" fill="#c8d0de"/></svg>`,
+)}`;
+
+type DemoSeed = {
+	list: "launch" | "backlog" | "bugs";
+	title: string;
+	status: keyof typeof S;
+	priority: WorkPriority;
+	who: number[];
+	start: number | null;
+	due: number | null;
+	/** Index of the parent in `demoSeeds`. */
+	parent?: number;
+	milestone?: boolean;
+	time?: string;
+	estimate?: number;
+	tags?: string[];
+};
+
+const demoSeeds: DemoSeed[] = [
+	{
+		list: "launch",
+		title: "Launch campaign plan",
+		status: "todo",
+		priority: "high",
+		who: [0],
+		start: 10,
+		due: 24,
+		estimate: 960,
+		tags: ["frontend"],
+	},
+	{
+		list: "launch",
+		title: "Landing page copy",
+		status: "todo",
+		priority: "normal",
+		who: [3],
+		start: 18,
+		due: 28,
+	},
+	{
+		list: "launch",
+		title: "Email announcement",
+		status: "backlog",
+		priority: "normal",
+		who: [1],
+		start: 31,
+		due: 35,
+	},
+	{
+		list: "launch",
+		title: "Press kit",
+		status: "backlog",
+		priority: "low",
+		who: [3],
+		start: 38,
+		due: 46,
+	},
+	{
+		list: "launch",
+		title: "Holiday promo live",
+		status: "backlog",
+		priority: "high",
+		who: [0],
+		start: null,
+		due: 47,
+		milestone: true,
+	},
+	{
+		list: "launch",
+		title: "Analytics dashboards",
+		status: "doing",
+		priority: "normal",
+		who: [2],
+		start: -2,
+		due: 9,
+		estimate: 720,
+	},
+	{
+		list: "launch",
+		title: "Client demo call",
+		status: "todo",
+		priority: "high",
+		who: [0, 1],
+		start: null,
+		due: 1,
+		time: "10:30",
+		estimate: 60,
+	},
+	{
+		list: "launch",
+		title: "Standup with Acme",
+		status: "todo",
+		priority: "normal",
+		who: [0],
+		start: null,
+		due: 0,
+		time: "09:15",
+		estimate: 30,
+	},
+	{
+		list: "bugs",
+		title: "Review payment logs",
+		status: "todo",
+		priority: "normal",
+		who: [2],
+		start: null,
+		due: 2,
+		time: "14:00",
+		estimate: 90,
+	},
+	{
+		list: "backlog",
+		title: "Q1 roadmap draft",
+		status: "backlog",
+		priority: "normal",
+		who: [0],
+		start: 55,
+		due: 75,
+	},
+	{
+		list: "backlog",
+		title: "Performance budget",
+		status: "todo",
+		priority: "high",
+		who: [2],
+		start: 3,
+		due: 16,
+		tags: ["frontend"],
+	},
+	{
+		list: "backlog",
+		title: "Serve images from a CDN",
+		status: "todo",
+		priority: "normal",
+		who: [2],
+		start: 3,
+		due: 8,
+		parent: 10,
+	},
+	{
+		list: "backlog",
+		title: "Subset the web fonts",
+		status: "done",
+		priority: "low",
+		who: [1],
+		start: 9,
+		due: 12,
+		parent: 10,
+	},
+	{
+		list: "backlog",
+		title: "Gift card artwork",
+		status: "backlog",
+		priority: "low",
+		who: [1],
+		start: null,
+		due: null,
+		estimate: 960,
+	},
+	{
+		list: "bugs",
+		title: "Checkout fails on iOS 18",
+		status: "doing",
+		priority: "urgent",
+		who: [1],
+		start: -3,
+		due: -1,
+		tags: ["frontend", "payments"],
+	},
+	{
+		list: "launch",
+		title: "Soft launch to staff",
+		status: "todo",
+		priority: "high",
+		who: [0],
+		start: null,
+		due: 25,
+		milestone: true,
+	},
+];
+
+/** Adds the views demo to Shop; returns the same fixture. */
+export function withViewsDemo(f: WorkFixture): WorkFixture {
+	const shop = f.projects.find((p) => p.projectId === "prj_shop");
+	if (!shop) return f;
+	const first = shop.nextNumber;
+	const id = (n: number) => `tsk_shop_${n}`;
+	demoSeeds.forEach((s, i) => {
+		const number = shop.nextNumber++;
+		const status = f.statuses.filter((x) => x.projectId === "prj_shop")[
+			S[s.status]
+		];
+		const assigneeIds = s.who.map((w) => U[w] as string);
+		f.tasks.push({
+			id: id(number),
+			projectId: "prj_shop",
+			listId: `wls_shop_${s.list}`,
+			parentId: s.parent !== undefined ? id(first + s.parent) : null,
+			number,
+			title: s.title,
+			description: null,
+			statusId: status?.id ?? "",
+			priority: s.priority,
+			startDate: s.start === null ? null : dayOf(s.start),
+			dueDate: s.due === null ? null : dayOf(s.due),
+			dueTime: s.time ?? null,
+			isMilestone: s.milestone ?? false,
+			estimateMinutes: s.estimate ?? null,
+			position: rankAt(number),
+			recurrence: null,
+			recurrenceSeriesId: null,
+			source: null,
+			createdBy: U[0] as string,
+			completedAt:
+				status?.category === "done"
+					? `${dayOf(s.due ?? 0)}T16:00:00.000Z`
+					: null,
+			archivedAt: null,
+			createdAt: isoAgo((20 + i) * 24 * 60),
+			updatedAt: isoAgo((3 + i) * 60),
+			assigneeIds,
+			tagIds: (s.tags ?? []).map((t) => `wtg_shop_${t}`),
+			fields: {},
+			watchers: assigneeIds.map((userId) => ({
+				userId,
+				reason: "assignee" as const,
+				muted: false,
+			})),
+		});
+	});
+	// first = "Launch campaign plan"; offsets below follow demoSeeds order.
+	const n = (i: number) => id(first + i);
+	const deps: [string, string, number][] = [
+		[n(1), n(0), 0], // landing copy starts before the plan is done: drawn red
+		[n(2), n(1), 0],
+		[n(3), n(1), 2],
+		[n(4), n(2), 0],
+		[n(15), id(8), 0],
+		[id(7), n(15), 0],
+		[id(8), id(4), 0],
+	];
+	for (const [taskId, blockedById, lagDays] of deps)
+		f.dependencies.push({ taskId, blockedById, lagDays });
+	const inProgress = f.statuses.find((s) => s.id === "wst_shop_2");
+	if (inProgress) inProgress.wipLimit = 3;
+	f.attachments.push({
+		id: "wat_views_cover",
+		projectId: "prj_shop",
+		taskId: id(3),
+		commentId: null,
+		inlineIn: "none",
+		uploaderId: U[1] as string,
+		name: "checkout-wireframe.svg",
+		contentType: "image/svg+xml",
+		size: 1840,
+		width: 320,
+		height: 160,
+		url: coverSvg,
+		thumbUrl: coverSvg,
+		createdAt: isoAgo(3 * 24 * 60),
+	});
+	return f;
+}

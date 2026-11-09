@@ -69,4 +69,6 @@ export type ViewProps = {
 	/** An unsaved change (collapse a group, zoom, resize a column); ViewHost offers "Save view". */
 	onConfigChange: (patch: Partial<WorkViewConfig>) => void;
 	onCreateTask: (input: NewTaskInput) => Promise<WorkTask>;
+	/** The list picked in the view bar, when not the whole project. */
+	listId?: string;
 };
