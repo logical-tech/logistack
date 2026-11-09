@@ -114,6 +114,18 @@ export async function ensureStackNetwork(
 	await attachServices(ctx, net.Id, name, names);
 }
 
+/**
+ * The alias `docker stack deploy` gives a stack service on each of its networks (its name in the
+ * stack file). With it, a redeploy that names the same network (install.sh keeps them) changes
+ * nothing and restarts no task.
+ */
+const stackAlias = (ctx: Ctx, svcName: string) => {
+	const prefix = `${ctx.cfg.LS_STACK_NAME}_`;
+	return svcName.startsWith(prefix)
+		? { Aliases: [svcName.slice(prefix.length)] }
+		: {};
+};
+
 /** Adds the network to each named Swarm service that lacks it; a rolling update of each. */
 export async function attachServices(
 	ctx: Ctx,
@@ -136,7 +148,7 @@ export async function attachServices(
 				...current.Spec.TaskTemplate,
 				Networks: [
 					...(current.Spec.TaskTemplate.Networks ?? []),
-					{ Target: netId },
+					{ Target: netId, ...stackAlias(ctx, svcName) },
 				],
 			},
 		}));

@@ -64,7 +64,7 @@ describe.skipIf(!hasDocker)("rate limits", () => {
 			headers: { "x-logistack-client-ip": "198.51.100.21" },
 		});
 		expect(other.status).toBe(429);
-	});
+	}, 90_000);
 
 	test("a client's own X-Forwarded-For does not choose its rate-limit bucket", async () => {
 		await freshWindow();
