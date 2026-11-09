@@ -9,6 +9,8 @@ import {
 	Database,
 	Gauge,
 	Globe,
+	Hand,
+	Heart,
 	KeyRound,
 	LayoutDashboard,
 	ListChecks,
@@ -19,6 +21,8 @@ import {
 	ScrollText,
 	Settings2,
 	Shield,
+	Smile,
+	Sparkles,
 	Wallet,
 } from "lucide-react";
 
@@ -43,6 +47,10 @@ const ICONS: Record<string, LucideIcon> = {
 	settings: Settings2,
 	shield: Shield,
 	wallet: Wallet,
+	sparkles: Sparkles,
+	heart: Heart,
+	smile: Smile,
+	hand: Hand,
 };
 
 /** A page's manifest icon name, or the puzzle piece every plugin falls back to. */

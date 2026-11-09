@@ -4,6 +4,7 @@ import type {
 } from "@logistack/contracts";
 import {
 	PLUGIN_INDEX_KEYS,
+	PLUGIN_INDEX_SANDBOX_KEYS,
 	PLUGIN_INDEX_URL,
 	readPluginDetail,
 	readPluginIndex,
@@ -45,16 +46,18 @@ const keyList = (v: string) =>
 
 /**
  * The official index as this server's config defines it. Its keys are `PLUGIN_INDEX_KEYS`
- * (empty until a release bundles the production key) plus LS_PLUGIN_INDEX_PUBLIC_KEY.
+ * (or the sandbox keys in sandbox mode) plus LS_PLUGIN_INDEX_PUBLIC_KEY.
  */
 export function officialIndex(config: Config) {
 	const sandbox = config.LOGISTACK_PLUGIN_INDEX_SANDBOX;
 	return {
-		url: sandbox ? PLUGIN_INDEX_SANDBOX_URL : PLUGIN_INDEX_URL,
+		url:
+			config.LS_PLUGIN_INDEX_URL ??
+			(sandbox ? PLUGIN_INDEX_SANDBOX_URL : PLUGIN_INDEX_URL),
 		name: sandbox ? "LogiStack (sandbox)" : "LogiStack",
 		publicKeys: [
 			...new Set([
-				...PLUGIN_INDEX_KEYS,
+				...(sandbox ? PLUGIN_INDEX_SANDBOX_KEYS : PLUGIN_INDEX_KEYS),
 				...keyList(config.LS_PLUGIN_INDEX_PUBLIC_KEY ?? ""),
 			]),
 		],
