@@ -11,6 +11,7 @@ import {
 	type Db,
 	environment,
 	logDrain,
+	node,
 	project,
 	service,
 } from "@logistack/db";
@@ -182,11 +183,22 @@ async function view(
 async function sendTest(
 	deps: Deps,
 	config: LogDrainConfig,
+	organizationId: string,
 	nodeId?: string,
 ): Promise<z.infer<typeof TestResult>> {
 	const redis = redisFor(deps.config.REDIS_URL);
+	const own = new Set(
+		(
+			await deps.db
+				.select({ id: node.id })
+				.from(node)
+				.where(eq(node.organizationId, organizationId))
+		).map((n) => n.id),
+	);
+	if (nodeId && !own.has(nodeId)) throw notFound("node");
 	const candidates = nodeId ? [nodeId] : await redis.smembers(NODES_KNOWN);
 	for (const id of candidates) {
+		if (!own.has(id)) continue;
 		if (!nodeId && !(await redis.exists(NODE_KEY(id)))) continue;
 		try {
 			return { ...(await deps.nodes.testDrain(id, config)), nodeId: id };
@@ -256,7 +268,15 @@ export const logDrains = router()
 			const input = c.req.valid("json");
 			const deps = c.var.deps;
 			const config = await parseConfig(deps.db, input.config);
-			return c.json(await sendTest(deps, config, input.nodeId), 200);
+			return c.json(
+				await sendTest(
+					deps,
+					config,
+					requireActor(c).organizationId,
+					input.nodeId,
+				),
+				200,
+			);
 		},
 	)
 	.openapi(
@@ -423,7 +443,12 @@ export const logDrains = router()
 			await checkHost(deps.db, config);
 			c.set("auditResourceId", row.id);
 			return c.json(
-				await sendTest(deps, config, c.req.valid("query").nodeId),
+				await sendTest(
+					deps,
+					config,
+					requireActor(c).organizationId,
+					c.req.valid("query").nodeId,
+				),
 				200,
 			);
 		},

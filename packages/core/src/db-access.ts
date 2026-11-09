@@ -133,7 +133,19 @@ export type DbGatewayInput = {
  * id because better-auth ids are mixed case and of no fixed shape.
  */
 export const orgDbNetworkName = (organizationId: string, prefix = "") =>
-	`${prefix}ls-db-${new Bun.CryptoHasher("sha256").update(organizationId).digest("hex").slice(0, 12)}`;
+	orgNetworkName("db", organizationId, prefix);
+
+/**
+ * One organization's network of a kind: `ingress` (its public services and the proxy), `storage`
+ * and `game` (its services and the api). Tenants never share one, so a container of one
+ * organization cannot dial another's services around the proxy's access rules.
+ */
+export const orgNetworkName = (
+	kind: "db" | "ingress" | "storage" | "game",
+	organizationId: string,
+	prefix = "",
+) =>
+	`${prefix}ls-${kind}-${new Bun.CryptoHasher("sha256").update(organizationId).digest("hex").slice(0, 12)}`;
 
 /** Docker name of an access row's gateway: `ls-gw-<id body>`. */
 export const gatewayName = (accessId: string, prefix = "") =>

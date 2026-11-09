@@ -61,10 +61,14 @@ async function findShare(db: Db, token: string): Promise<Share | undefined> {
 	return row.share;
 }
 
-// Password cookie: `<expiry ms>.<hex HMAC(secret, shareId.expiry)>`, scoped to the share's path.
+// Password cookie: `<expiry ms>.<hex HMAC(k, shareId.expiry.passwordHash)>`, scoped to the share's path.
+// k is derived from the auth secret for this use only; the password hash makes a new password end old cookies.
 const cookieName = (shareId: string) => `ls_share_${shareId}`;
-const cookieMac = (secret: string, shareId: string, exp: number) =>
-	hmacSha256(secret, `${shareId}.${exp}`).then((b) => b.toHex());
+const cookieMac = async (secret: string, share: Share, exp: number) =>
+	hmacSha256(
+		await hmacSha256(secret, "logistack/work-share-cookie/v1"),
+		`${share.id}.${exp}.${share.passwordHash ?? ""}`,
+	).then((b) => b.toHex());
 
 async function unlocked(c: Context<Env>, share: Share) {
 	if (!share.passwordHash) return true;
@@ -73,7 +77,7 @@ async function unlocked(c: Context<Env>, share: Share) {
 	if (!exp || !mac || Number(exp) < Date.now()) return false;
 	const want = await cookieMac(
 		c.var.deps.config.BETTER_AUTH_SECRET,
-		share.id,
+		share,
 		Number(exp),
 	);
 	return safeEqual(mac, want);
@@ -429,7 +433,7 @@ sharePages.post("/:token", async (c) => {
 	setCookie(
 		c,
 		cookieName(share.id),
-		`${exp}.${await cookieMac(c.var.deps.config.BETTER_AUTH_SECRET, share.id, exp)}`,
+		`${exp}.${await cookieMac(c.var.deps.config.BETTER_AUTH_SECRET, share, exp)}`,
 		{
 			path: `/share/${token}`,
 			httpOnly: true,

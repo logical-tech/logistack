@@ -3,6 +3,8 @@
  * pull it back. Token auth (GHCR, Docker Hub) and plain basic auth (Zot, distribution) both work.
  */
 
+import type { Fetch } from "@logistack/providers";
+
 export type RegistryCredentials = { username: string; password: string };
 
 /** `docker.io/acme` → API host `registry-1.docker.io`, repository prefix `acme`. */
@@ -31,7 +33,7 @@ export class Registry {
 	constructor(
 		readonly host: string,
 		private readonly creds: RegistryCredentials | undefined,
-		private readonly fetchFn: typeof fetch = fetch,
+		private readonly fetchFn: Fetch = fetch,
 	) {
 		this.base = `${scheme(host)}://${host}/v2`;
 	}
@@ -57,11 +59,15 @@ export class Registry {
 		);
 		if (!params.realm) throw new RegistryError("token realm missing");
 		const url = new URL(params.realm);
+		// The realm gets the credentials: plain http only for a loopback registry. Its host is checked by the guarded fetchFn.
+		if (url.protocol !== "https:" && !this.base.startsWith("http:"))
+			throw new RegistryError("token realm must be https");
 		if (params.service) url.searchParams.set("service", params.service);
 		url.searchParams.set("scope", scope);
 		const basic = this.basic();
-		const res = await this.fetchFn(url, {
+		const res = await this.fetchFn(url.href, {
 			headers: basic ? { authorization: basic } : {},
+			redirect: "manual",
 			signal: AbortSignal.timeout(15_000),
 		});
 		if (!res.ok)
@@ -92,6 +98,8 @@ export class Registry {
 					...(rest.headers as Record<string, string>),
 					...(this.auth ? { authorization: this.auth } : {}),
 				},
+				// A redirect target was never checked, and would get the credentials.
+				redirect: "manual",
 				signal: AbortSignal.timeout(30_000),
 			});
 		let res = await send();
@@ -117,7 +125,7 @@ export class Registry {
 		const location = start.headers.get("location");
 		if (start.status !== 202 || !location)
 			throw await failure("starting an upload", start);
-		const target = new URL(location, `${scheme(this.host)}://${this.host}`);
+		const target = new URL(location, this.base);
 		target.searchParams.set("digest", digest);
 		const put = await this.request(target.href, {
 			method: "PUT",
@@ -152,7 +160,7 @@ export type RegistryCheck = { ok: boolean; message: string; detail?: string };
 export async function checkRegistry(
 	url: string,
 	creds: RegistryCredentials | undefined,
-	fetchFn: typeof fetch = fetch,
+	fetchFn: Fetch = fetch,
 ): Promise<RegistryCheck> {
 	const { host, prefix } = splitRegistryUrl(url);
 	if (!host) return { ok: false, message: "Enter a registry host" };

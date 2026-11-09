@@ -49,7 +49,7 @@ export type AgentAdmission = {
 
 /** A refused upgrade request, answered as `{ error: { code, message } }` with `status`. */
 export type AgentRefusal = {
-	status: 401 | 403 | 503;
+	status: 401 | 403 | 409 | 503;
 	code: string;
 	message: string;
 };

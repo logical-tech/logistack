@@ -5,16 +5,16 @@ import {
 } from "@logistack/contracts";
 import { z } from "zod";
 import type { DnsProvider } from "./dns/types.ts";
-import { type Fetch, ProviderError } from "./http.ts";
+import { type Fetch, ProviderError, safeEqual } from "./http.ts";
 import {
 	signWebhook,
-	verifyWebhookSignature,
+	WEBHOOK_REPLAY_WINDOW_S,
 } from "./notify/channels/webhook.ts";
 import type { NotificationChannel } from "./notify/types.ts";
 import type { SecretSource } from "./secrets/types.ts";
 
 // Requests LogiStack sends a plugin (docs/plans/plugins.md, "Runtime"): signed like the webhook
-// channel, over `<timestamp>.<body>`, with the install's own HMAC key.
+// channel, over `<timestamp>.<payload>`, with the install's own HMAC key.
 
 export type PluginTarget = {
 	/** `http://ls-plg-…:8080` or a dev URL, without a trailing slash. */
@@ -23,8 +23,18 @@ export type PluginTarget = {
 	signingSecret: string;
 };
 
-/** What is signed: the user claims (when a page made the request) and the raw body. */
-const signedPayload = (body: string, user: string | null | undefined) =>
+/** The request a signature is for: method and path with its query, as the plugin receives it. */
+export type SignedRoute = { method: string; path: string };
+
+/** v2 signs `<METHOD> <path>\n<user claims>\n<body>`, so a signature does not replay to another route. */
+const signedPayload = (
+	route: SignedRoute,
+	body: string,
+	user: string | null | undefined,
+) => `${route.method.toUpperCase()} ${route.path}\n${user ?? ""}\n${body}`;
+
+/** v1, `<user claims>\n<body>` (claims only on page requests): what SDK 0.1 plugins check. */
+const signedPayloadV1 = (body: string, user: string | null | undefined) =>
 	user ? `${user}\n${body}` : body;
 
 /**
@@ -33,6 +43,7 @@ const signedPayload = (body: string, user: string | null | undefined) =>
  */
 export async function pluginHeaders(
 	t: Pick<PluginTarget, "installId" | "signingSecret">,
+	route: SignedRoute,
 	body: string,
 	user?: string,
 	nowS = Math.floor(Date.now() / 1000),
@@ -40,28 +51,42 @@ export async function pluginHeaders(
 	return {
 		[PLUGIN_HEADERS.install]: t.installId,
 		[PLUGIN_HEADERS.timestamp]: String(nowS),
+		// shortcut: v1 keeps plugins built with SDK 0.1 working; drop it in the next release.
 		[PLUGIN_HEADERS.signature]: await signWebhook(
 			t.signingSecret,
 			nowS,
-			signedPayload(body, user),
+			signedPayloadV1(body, user),
+		),
+		[PLUGIN_HEADERS.signatureV2]: await signWebhook(
+			t.signingSecret,
+			nowS,
+			signedPayload(route, body, user),
 		),
 		...(user ? { [PLUGIN_HEADERS.user]: user } : {}),
 	};
 }
 
-/** The plugin side's check of a request from LogiStack; the SDK does the same. */
-export const verifyPluginRequest = (
+/** The plugin side's check of a request from LogiStack (v2 only); the SDK does the same. */
+export async function verifyPluginRequest(
 	secret: string,
 	headers: Headers,
+	route: SignedRoute,
 	body: string,
-	nowS?: number,
-) =>
-	verifyWebhookSignature(
-		secret,
-		headers,
-		signedPayload(body, headers.get(PLUGIN_HEADERS.user)),
-		nowS,
+	nowS = Math.floor(Date.now() / 1000),
+): Promise<boolean> {
+	const sig = headers.get(PLUGIN_HEADERS.signatureV2);
+	const ts = Number(headers.get(PLUGIN_HEADERS.timestamp));
+	if (!sig || !Number.isInteger(ts)) return false;
+	if (Math.abs(nowS - ts) > WEBHOOK_REPLAY_WINDOW_S) return false;
+	return safeEqual(
+		sig,
+		await signWebhook(
+			secret,
+			ts,
+			signedPayload(route, body, headers.get(PLUGIN_HEADERS.user)),
+		),
 	);
+}
 
 /**
  * POSTs JSON to a contract path (`/v1/events`, `/v1/config/validate`, …) and returns the parsed
@@ -81,7 +106,7 @@ export async function callPlugin<T = unknown>(
 		headers: {
 			"content-type": "application/json",
 			"user-agent": "LogiStack-Plugin",
-			...(await pluginHeaders(t, body)),
+			...(await pluginHeaders(t, { method, path }, body)),
 		},
 		signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000),
 		redirect: "manual",

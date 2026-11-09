@@ -638,7 +638,7 @@ export const backups = router()
 				security,
 				summary: "Restore a backup into its service or a new one",
 				description:
-					"`same` overwrites the service's data (a database restore runs `pg_restore --clean`, a volume is emptied first). `new` creates a service beside it with the same engine, version and credentials, deploys it and restores there. `confirm` must be the target service's name.",
+					"`same` overwrites the service's data (a database restore runs `pg_restore --clean`, a volume is emptied first). `new` creates a service beside it with the same engine, version and credentials, deploys it and restores there. `confirm` must be the target service's name. `same` needs `admin` on the service.",
 				middleware: [requirePermission("write", viaPolicy("run"))],
 				request: {
 					params: IdParam,
@@ -676,6 +676,13 @@ export const backups = router()
 					"retention already deleted this backup",
 				);
 			const svc = await serviceRow(c, policy.serviceId);
+			// Overwriting live data is an admin action, like POST /databases/{id}/restore.
+			if (target.kind === "same")
+				check(
+					c,
+					"admin",
+					await locate(db, actor.organizationId, "service", svc.id),
+				);
 			if (
 				policy.target === "database" &&
 				svc.spec.kind === "database" &&

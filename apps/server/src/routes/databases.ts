@@ -165,7 +165,7 @@ export const databases = router()
 			summary: "One page of a table's or view's rows, sorted and filtered",
 			description:
 				"Pass `nextCursor` back as `cursor` for the next page, with the same sort and filter.",
-			middleware: [requirePermission("read", svc)],
+			middleware: [requirePermission("read:secrets", svc)],
 			request: { params: TableParams, query: RowsParams },
 			responses: { 200: json(RowsPage, "Rows"), ...errors },
 		}),
@@ -221,7 +221,7 @@ export const databases = router()
 			summary: "One page of a MongoDB collection's documents",
 			description:
 				"Documents come back as canonical Extended JSON v2, so ObjectId, dates, int32/long/double, Decimal128 and binary keep their exact type. `filter`, `sort` and `projection` are Extended JSON objects given to `find`, never shell code: `$where`, `$function` and `$accumulator` are rejected with 400 wherever they appear. `_id` is always returned. Pass `nextCursor` back as `cursor` with the same filter and sort. Each find runs under a 30 s maxTimeMS.",
-			middleware: [requirePermission("read", svc)],
+			middleware: [requirePermission("read:secrets", svc)],
 			request: { params: CollectionParams, query: DocumentsParams },
 			responses: { 200: json(DocumentsPage, "Documents"), ...errors },
 		}),
@@ -532,7 +532,7 @@ export const databases = router()
 			summary: "One SCAN batch of a Redis logical database's keys",
 			description:
 				'Walks `SCAN` with `MATCH`, never `KEYS`, for up to about `count` keys, each with its type, TTL (`PTTL`) and `MEMORY USAGE`. Keys that are valid UTF-8 come back as strings, others as `{type: "base64", value}`. Pass `cursor` back with the same `match` for more; null means the scan is done. SCAN can repeat a key across batches.',
-			middleware: [requirePermission("read", svc)],
+			middleware: [requirePermission("read:secrets", svc)],
 			request: { params: Id, query: KeysParams },
 			responses: { 200: json(RedisKeysPage, "Keys"), ...errors },
 		}),
@@ -553,7 +553,7 @@ export const databases = router()
 			summary: "One page of a Redis key's value, by type",
 			description:
 				"A string returns its first MiB with `truncated`. A hash pages with `HSCAN`, a set with `SSCAN`, a list with `LRANGE` windows, a sorted set with `ZRANGE` windows in score order, a stream with `XRANGE`. Pass `cursor` back for the next page. 404 when the key is gone.",
-			middleware: [requirePermission("read", svc)],
+			middleware: [requirePermission("read:secrets", svc)],
 			request: { params: Id, query: ValueParams },
 			responses: { 200: json(RedisValue, "Value"), ...errors },
 		}),

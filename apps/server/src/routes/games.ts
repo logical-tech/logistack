@@ -39,6 +39,7 @@ import { portHolders } from "../host-settings.ts";
 import { log } from "../log.ts";
 import { body, errors, IdParam, json, router, security } from "../openapi.ts";
 import { byParam, inOrganization, requirePermission } from "../scope.ts";
+import { assertRecordName } from "./domains.ts";
 
 const tags = ["games"];
 const svc = byParam("service");
@@ -358,7 +359,7 @@ export const games = router()
 				summary: "Create a TeamSpeak Server Admin privilege key",
 				description:
 					"Through ServerQuery as serveradmin. The key is shown once; using it in the client grants Server Admin.",
-				middleware: [requirePermission("write", svc)],
+				middleware: [requirePermission("exec", svc)],
 				request: { params: IdParam },
 				responses: {
 					201: json(z.object({ key: z.string() }), "Created"),
@@ -499,12 +500,24 @@ export const games = router()
 			const g = await openGame(c, c.req.valid("param").id);
 			const input = c.req.valid("json");
 			const { db } = c.var.deps;
-			if (input.dnsProviderId)
-				await providerRow(
+			if (input.dnsProviderId) {
+				const p = await providerRow(
 					db,
 					requireActor(c).organizationId,
 					input.dnsProviderId,
 				);
+				const zone = findZoneForHostname(input.hostname, managedZones(p));
+				await assertRecordName(c, g.id, input.hostname, async () =>
+					zone
+						? viaProvider(async () =>
+								(await openProvider(c.var.deps, p)).listRecords(
+									zone.id,
+									input.hostname,
+								),
+							)
+						: [],
+				);
+			}
 			const [taken] = await db
 				.select({ id: gameEndpoint.id })
 				.from(gameEndpoint)

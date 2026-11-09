@@ -2,7 +2,6 @@ import type { EventEnvelope } from "@logistack/contracts";
 import { overallStatus, totalUptime, windowActive } from "@logistack/core";
 import {
 	type Db,
-	instanceSettings,
 	maintenanceWindow,
 	monitor,
 	monitorDaily,
@@ -13,6 +12,7 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import { Hono, type MiddlewareHandler } from "hono";
 import type { Deps, Env } from "./env.ts";
 import { envelope } from "./events.ts";
+import { dashboardHosts } from "./routes/domains.ts";
 import { pushTokenHash } from "./routes/uptime.ts";
 import {
 	type PageData,
@@ -256,27 +256,26 @@ export const statusByHost = pageRoutes((c, db) =>
 	pageBy(db, eq(statusPage.hostname, hostOf(c.req.header("host")))),
 );
 
-let hosts: { at: number; set: Set<string>; dashboard?: string } = {
+let hosts: { at: number; set: Set<string>; dashboard: Set<string> } = {
 	at: 0,
 	set: new Set(),
+	dashboard: new Set(),
 };
 
 /** Status page hostnames, refreshed every 15 s (a new page's route waits on Caddy anyway). */
-async function statusHosts(db: Db) {
+async function statusHosts(deps: Deps) {
 	if (Date.now() - hosts.at > 15_000) {
-		const [rows, [s]] = await Promise.all([
-			db
+		const [rows, dashboard] = await Promise.all([
+			deps.db
 				.select({ hostname: statusPage.hostname })
 				.from(statusPage)
 				.where(eq(statusPage.published, true)),
-			db.select().from(instanceSettings),
+			dashboardHosts(deps),
 		]);
 		hosts = {
 			at: Date.now(),
 			set: new Set(rows.flatMap((r) => (r.hostname ? [r.hostname] : []))),
-			dashboard:
-				s?.primaryDomain ??
-				(s?.publicUrl ? new URL(s.publicUrl).hostname : undefined),
+			dashboard: new Set(dashboard),
 		};
 	}
 	return hosts;
@@ -284,7 +283,7 @@ async function statusHosts(db: Db) {
 
 /** Test hook: forget cached hostnames. */
 export const resetStatusHosts = () => {
-	hosts = { at: 0, set: new Set() };
+	hosts = { at: 0, set: new Set(), dashboard: new Set() };
 };
 
 /**
@@ -300,8 +299,8 @@ export function statusHostRouter(deps: Deps): MiddlewareHandler<Env> {
 		.route("/", statusByHost);
 	return async (c, next) => {
 		const host = hostOf(c.req.header("host"));
-		const h = await statusHosts(deps.db).catch(() => undefined);
-		if (!h?.set.has(host) || host === h.dashboard) return next();
+		const h = await statusHosts(deps).catch(() => undefined);
+		if (!h?.set.has(host) || h.dashboard.has(host)) return next();
 		const path = new URL(c.req.url).pathname;
 		if (c.req.method !== "GET" && c.req.method !== "HEAD")
 			return c.text("method not allowed", 405);

@@ -1,9 +1,15 @@
 import { z } from "zod";
+import type { HostPolicy } from "./ssrf.ts";
 
 /** The subset of `fetch` providers use, so tests can inject a plain function. */
 export type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-export type Deps = { fetch?: Fetch; timeoutMs?: number };
+/** `hostPolicy` guards connections that are not `fetch` (SMTP); absent, private hosts are refused. */
+export type Deps = {
+	fetch?: Fetch;
+	timeoutMs?: number;
+	hostPolicy?: HostPolicy;
+};
 
 export const DEFAULT_TIMEOUT_MS = 15_000;
 

@@ -27,7 +27,7 @@ import { DEFAULT_KINDS, icalHash } from "./inbox.ts";
 const icsText = (s: string) =>
 	s
 		.replace(/\\/g, "\\\\")
-		.replace(/\n/g, "\\n")
+		.replace(/\r\n?|\n/g, "\\n")
 		.replace(/[,;]/g, (m) => `\\${m}`);
 
 function fold(line: string) {

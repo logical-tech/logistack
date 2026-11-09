@@ -28,6 +28,7 @@ const DROP_REQUEST = new Set([
 	PLUGIN_HEADERS.session,
 	PLUGIN_HEADERS.user,
 	PLUGIN_HEADERS.signature,
+	PLUGIN_HEADERS.signatureV2,
 	PLUGIN_HEADERS.timestamp,
 	PLUGIN_HEADERS.install,
 ]);
@@ -45,6 +46,9 @@ const DROP_RESPONSE = new Set([
 	"content-length",
 	"transfer-encoding",
 	"connection",
+	// Would wipe or navigate our origin's state from a plugin's response.
+	"clear-site-data",
+	"refresh",
 ]);
 
 const MAX_BODY = 1024 * 1024;
@@ -113,7 +117,12 @@ export const pluginProxy = new Hono<Env>().all(
 		for (const [k, v] of c.req.raw.headers)
 			if (!DROP_REQUEST.has(k.toLowerCase())) headers.set(k, v);
 		for (const [k, v] of Object.entries(
-			await pluginHeaders(target, body, user),
+			await pluginHeaders(
+				target,
+				{ method: c.req.method, path: `${rest}${url.search}` },
+				body,
+				user,
+			),
 		))
 			headers.set(k, v);
 

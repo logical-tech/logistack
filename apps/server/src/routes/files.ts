@@ -28,7 +28,7 @@ import {
 	router,
 	security,
 } from "../openapi.ts";
-import { byParam, check, requirePermission } from "../scope.ts";
+import { actorCan, byParam, check, requirePermission } from "../scope.ts";
 import { actorTrigger, queueDeployment, runningTask } from "./service-ops.ts";
 
 const tags = ["services"];
@@ -54,7 +54,8 @@ const ConfigFile = z
 	.object({
 		id: z.string(),
 		target: z.string(),
-		content: z.string(),
+		/** Null without `read:secrets`: config files often hold credentials. */
+		content: z.string().nullable(),
 		updatedAt: z.string(),
 	})
 	.openapi("ServiceConfigFile");
@@ -185,6 +186,11 @@ export const files = router()
 		}),
 		async (c) => {
 			const { db, masterKey } = c.var.deps;
+			const reveal = actorCan(
+				requireActor(c),
+				"read:secrets",
+				c.get("resource") as Resource,
+			);
 			const rows = await db
 				.select()
 				.from(mount)
@@ -196,7 +202,9 @@ export const files = router()
 					.map(async (m) => ({
 						id: m.id,
 						target: m.target,
-						content: await decrypt(masterKey, m.contentEncrypted ?? ""),
+						content: reveal
+							? await decrypt(masterKey, m.contentEncrypted ?? "")
+							: null,
 						updatedAt: m.updatedAt.toISOString(),
 					})),
 			);

@@ -46,7 +46,8 @@ export async function gitopsActor(
 	const grants: Grant[] = [
 		{ subjectId: id, scope: { kind: "project", id: projectId }, role: "admin" },
 	];
-	return { ...owner, grants };
+	// Never the owner's instance role: a pushed manifest must not reach the host (bind mounts, capabilities).
+	return { ...owner, grants, instanceAdmin: false };
 }
 
 type Source = Pick<

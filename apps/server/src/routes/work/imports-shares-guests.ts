@@ -51,6 +51,7 @@ import {
 } from "@logistack/worker/work-import";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
+import { scopeResource } from "../../access.ts";
 import { type Actor, requireActor } from "../../actor.ts";
 import { auditInTx, mutation } from "../../audit.ts";
 import type { Env } from "../../env.ts";
@@ -112,15 +113,19 @@ const CSV_TTL_SEC = 24 * 3600;
 const csvKey = (orgId: string, uploadId: string) =>
 	`ls:work:csv:${orgId}:${uploadId}`;
 
-/** Holds `action` on some scope: the org-level gate of cross-project routes. */
-function requireSomewhere(c: Context<Env>, action: "work:admin" | "work") {
+/** Holds `action` on some scope, a scoped key's own scopes included: the org-level gate of cross-project routes. */
+async function requireSomewhere(
+	c: Context<Env>,
+	action: "work:admin" | "work",
+) {
 	const actor = requireActor(c);
-	const ok =
-		actor.grants.some((g) => roleAllows(g.role, action)) &&
-		(!actor.keyScopes ||
-			actor.keyScopes.some((g) => roleAllows(g.role, action)));
-	if (!ok) throw new Failure("forbidden", `missing permission '${action}'`);
-	return actor;
+	// Where both the grants and the key allow it, the key's scopes (each within a grant) witness it.
+	for (const g of actor.keyScopes ?? actor.grants) {
+		if (!roleAllows(g.role, action)) continue;
+		const resource = await scopeResource(c, g.scope).catch(() => null);
+		if (resource && actorCan(actor, action, resource)) return actor;
+	}
+	throw new Failure("forbidden", `missing permission '${action}'`);
 }
 
 const orgAdmin = (actor: Actor) =>
@@ -155,7 +160,7 @@ const importDto = (r: ImportRow): WorkImport => ({
 
 /** The import, visible to its creator and to org-wide Work admins. */
 async function loadImport(c: Context<Env>, id: string) {
-	const actor = requireSomewhere(c, "work:admin");
+	const actor = await requireSomewhere(c, "work:admin");
 	const [row] = await c.var.deps.db
 		.select()
 		.from(workImport)
@@ -368,7 +373,7 @@ export const workImportsSharesGuests = router()
 			responses: { 200: json(z.array(WorkImport), "Imports"), ...errors },
 		}),
 		async (c) => {
-			const actor = requireSomewhere(c, "work:admin");
+			const actor = await requireSomewhere(c, "work:admin");
 			const rows = await c.var.deps.db
 				.select()
 				.from(workImport)
@@ -409,7 +414,7 @@ export const workImportsSharesGuests = router()
 		),
 		async (c) => {
 			const input = c.req.valid("json");
-			const actor = requireSomewhere(c, "work:admin");
+			const actor = await requireSomewhere(c, "work:admin");
 			await checkTargets(c, input);
 			const { db, masterKey } = c.var.deps;
 			let config: unknown = input.config;
@@ -552,7 +557,7 @@ export const workImportsSharesGuests = router()
 			}),
 		),
 		async (c) => {
-			requireSomewhere(c, "work:admin");
+			await requireSomewhere(c, "work:admin");
 			const { token } = c.req.valid("json");
 			return c.json(await clickUp(() => testClickUp(clickUpApi(token))), 200);
 		},
@@ -569,7 +574,7 @@ export const workImportsSharesGuests = router()
 			}),
 		),
 		async (c) => {
-			requireSomewhere(c, "work:admin");
+			await requireSomewhere(c, "work:admin");
 			const { token, teamId } = c.req.valid("json");
 			return c.json(
 				await clickUp(() => clickUpTree(clickUpApi(token), teamId)),
@@ -590,16 +595,19 @@ export const workImportsSharesGuests = router()
 			}),
 		),
 		async (c) => {
-			const actor = requireSomewhere(c, "work:admin");
+			const actor = await requireSomewhere(c, "work:admin");
 			const { token, teamId, listIds } = c.req.valid("json");
 			const found = await clickUp(() =>
 				clickUpInspect(clickUpApi(token), teamId, listIds),
 			);
-			const orgMembers = await c.var.deps.db
-				.select({ userId: user.id, name: user.name, email: user.email })
-				.from(member)
-				.innerJoin(user, eq(user.id, member.userId))
-				.where(eq(member.organizationId, actor.organizationId));
+			// The org's directory is for org-wide Work admins; a project admin maps people by hand.
+			const orgMembers = orgAdmin(actor)
+				? await c.var.deps.db
+						.select({ userId: user.id, name: user.name, email: user.email })
+						.from(member)
+						.innerJoin(user, eq(user.id, member.userId))
+						.where(eq(member.organizationId, actor.organizationId))
+				: [];
 			const byEmail = new Map(
 				orgMembers.map((m) => [m.email.toLowerCase(), m.userId]),
 			);
@@ -632,7 +640,7 @@ export const workImportsSharesGuests = router()
 			}),
 		),
 		async (c) => {
-			const actor = requireSomewhere(c, "work:admin");
+			const actor = await requireSomewhere(c, "work:admin");
 			const form = await c.req.parseBody();
 			const file = form.file;
 			if (!(file instanceof File))

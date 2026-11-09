@@ -26,10 +26,31 @@ test("gates.deploy answers signed POST /v1/gates/deploy and refuses unsigned one
 		headers: {
 			"content-type": "application/json",
 			[PLUGIN_HEADERS.timestamp]: String(ts),
-			[PLUGIN_HEADERS.signature]: await sign("s", ts, body),
+			[PLUGIN_HEADERS.signatureV2]: await sign(
+				"s",
+				ts,
+				{ method: "POST", path: "/v1/gates/deploy" },
+				body,
+			),
 		},
 	});
 	expect(await res.json()).toEqual({ allow: false, reason: "frozen" });
+	// A signature for another route does not replay here.
+	const replayed = await app.request("/v1/gates/deploy", {
+		method: "POST",
+		body,
+		headers: {
+			"content-type": "application/json",
+			[PLUGIN_HEADERS.timestamp]: String(ts),
+			[PLUGIN_HEADERS.signatureV2]: await sign(
+				"s",
+				ts,
+				{ method: "POST", path: "/v1/events" },
+				body,
+			),
+		},
+	});
+	expect(replayed.status).toBe(401);
 	const unsigned = await app.request("/v1/gates/deploy", {
 		method: "POST",
 		body,

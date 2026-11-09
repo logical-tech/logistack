@@ -15,6 +15,7 @@ import {
 	notificationChannels,
 	ProviderError,
 	renderEvent,
+	sendMail,
 	signWebhook,
 	verifyWebhookSignature,
 } from "../src/index.ts";
@@ -257,5 +258,36 @@ describe("outgoing webhook signature", () => {
 		expect(
 			await verifyWebhookSignature(key, new Headers(c?.headers), c?.body ?? ""),
 		).toBe(true);
+	});
+});
+
+describe("SMTP host guard", () => {
+	const smtp = {
+		transport: "smtp" as const,
+		host: "127.0.0.1",
+		port: 1,
+		secure: false,
+		from: "ls@example.com",
+	};
+
+	test("a private SMTP host is refused before dialling, for channels and the instance mailer", async () => {
+		const ch = instantiate(notificationChannels.email, {
+			...smtp,
+			to: ["ops@example.com"],
+		});
+		await expect(ch.test()).rejects.toThrow("private address");
+		await expect(
+			sendMail(smtp, { to: "a@example.com", subject: "s", text: "t" }),
+		).rejects.toBeInstanceOf(ProviderError);
+	});
+
+	test("the control network is refused even with private hosts allowed", async () => {
+		await expect(
+			sendMail(
+				{ ...smtp, host: "10.247.0.9" },
+				{ to: "a@example.com", subject: "s", text: "t" },
+				{ hostPolicy: { allowPrivateHosts: true } },
+			),
+		).rejects.toThrow("control network");
 	});
 });

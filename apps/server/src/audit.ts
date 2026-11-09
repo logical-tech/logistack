@@ -12,7 +12,7 @@ export type AuditAction = `${string}.${string}`;
 
 // `config` holds a whole channel config (webhook URLs carry tokens), so it goes wholesale.
 const SECRET_KEY =
-	/password|secret|token|credential|private|authkey|^value$|^config$/i;
+	/password|secret|token|credential|private|authkey|apikey|api_key|accesskey|^headers$|webhookurl|dsn|connectionstring|^uri$|^value$|^config$/i;
 
 /** Replaces every value under a secret-looking key with "[redacted]", at any depth. */
 export function redact(value: unknown): unknown {
@@ -45,15 +45,33 @@ function ownId(resource: Resource | undefined, type: string) {
 	}
 }
 
+/**
+ * The client's address. A peer that is one of the trusted proxies (Caddy) passes it in
+ * `X-Logistack-Client-Ip`, which Caddy overwrites; behind another trusted proxy, the last
+ * X-Forwarded-For hop it appended. The leftmost X-Forwarded-For entry is the client's own claim.
+ */
 export function clientIp(c: Context<Env>): string | null {
-	const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
-	if (forwarded && isIP(forwarded)) return forwarded;
+	let peer: string | undefined;
 	try {
-		const addr = c.env?.requestIP?.(c.req.raw)?.address;
-		return addr && isIP(addr) ? addr : null;
+		peer = c.env?.requestIP?.(c.req.raw)?.address;
 	} catch {
-		return null;
+		peer = undefined;
 	}
+	const valid = (ip: string | undefined) => (ip && isIP(ip) ? ip : undefined);
+	const bare = peer?.replace(/^::ffff:/, "");
+	// No socket at all is an in-process call (MCP replay, the Agent, tests), which names its own client.
+	const inProcess = typeof c.env?.requestIP !== "function";
+	const trusted =
+		inProcess ||
+		(bare !== undefined &&
+			c.var.deps.config.TRUSTED_PROXY_PREFIXES.some((p) => bare.startsWith(p)));
+	if (trusted) {
+		const named =
+			valid(c.req.header("x-logistack-client-ip")?.trim()) ??
+			valid(c.req.header("x-forwarded-for")?.split(",").at(-1)?.trim());
+		if (named) return named;
+	}
+	return valid(bare) ?? null;
 }
 
 async function requestInput(c: Context<Env>): Promise<unknown> {

@@ -13,6 +13,11 @@ async function freshWindow() {
 	if (s > 45) await Bun.sleep((61 - s) * 1000);
 }
 
+/** The start of the next one-minute window, so earlier sign-ins (setup's) no longer count. */
+async function newWindow() {
+	await Bun.sleep((60 - ((Date.now() / 1000) % 60)) * 1000 + 50);
+}
+
 describe.skipIf(!hasDocker)("rate limits", () => {
 	let h: Harness;
 	let key: string;
@@ -23,6 +28,8 @@ describe.skipIf(!hasDocker)("rate limits", () => {
 			label: "rlim",
 			env: {
 				RATE_LIMIT_LOGIN_PER_MINUTE: "4",
+				// The test client stands in for Caddy, which names the client in x-logistack-client-ip.
+				TRUSTED_PROXY_PREFIXES: "127.,::1",
 				RATE_LIMIT_API_KEY_PER_MINUTE: "5",
 			},
 		});
@@ -38,11 +45,11 @@ describe.skipIf(!hasDocker)("rate limits", () => {
 	afterAll(() => h?.close());
 
 	test("sign-in answers 429 above the threshold, for right and wrong passwords alike", async () => {
-		await freshWindow();
+		await newWindow();
 		const attempt = (password: string) =>
 			h.call("POST", "/api/auth/sign-in/email", {
 				body: { email: owner.email, password },
-				headers: { "x-forwarded-for": "198.51.100.20" },
+				headers: { "x-logistack-client-ip": "198.51.100.20" },
 			});
 		const statuses: number[] = [];
 		for (let i = 0; i < 4; i++) statuses.push((await attempt("wrong")).status);
@@ -51,12 +58,28 @@ describe.skipIf(!hasDocker)("rate limits", () => {
 		expect(over.status).toBe(429);
 		expect(over.json.error.code).toBe("rate_limited");
 		expect(Number(over.headers.get("retry-after"))).toBeGreaterThan(0);
-		// Another address has its own count.
+		// Another address shares the account's count, so rotating addresses does not help.
 		const other = await h.call("POST", "/api/auth/sign-in/email", {
 			body: { email: owner.email, password: owner.password },
-			headers: { "x-forwarded-for": "198.51.100.21" },
+			headers: { "x-logistack-client-ip": "198.51.100.21" },
 		});
-		expect(other.status).toBe(200);
+		expect(other.status).toBe(429);
+	});
+
+	test("a client's own X-Forwarded-For does not choose its rate-limit bucket", async () => {
+		await freshWindow();
+		const statuses: number[] = [];
+		for (let i = 0; i < 5; i++)
+			statuses.push(
+				(
+					await h.call("POST", "/api/auth/sign-in/email", {
+						body: { email: `nobody${i}@example.com`, password: "x" },
+						headers: { "x-forwarded-for": `203.0.113.${i}, 198.51.100.30` },
+					})
+				).status,
+			);
+		// Same trusted peer, same last hop: one bucket, the fifth attempt is refused.
+		expect(statuses.at(-1)).toBe(429);
 	});
 
 	test("an API key answers 429 above the threshold, even when the calls race", async () => {

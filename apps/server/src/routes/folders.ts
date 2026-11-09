@@ -167,9 +167,19 @@ export const folders = router()
 			const input = c.req.valid("json");
 			const { db } = c.var.deps;
 			const orgId = requireActor(c).organizationId;
-			if (input.parentId !== undefined) {
-				if (input.parentId)
-					check(c, "write", await locate(db, orgId, "folder", input.parentId));
+			const [cur] = await db
+				.select({ parentId: folder.parentId })
+				.from(folder)
+				.where(eq(folder.id, id));
+			if (input.parentId !== undefined && input.parentId !== cur?.parentId) {
+				// Placing at the top level is an organization-wide change.
+				check(
+					c,
+					"write",
+					input.parentId
+						? await locate(db, orgId, "folder", input.parentId)
+						: organizationResource(orgId),
+				);
 				await assertPlacement(db, orgId, id, input.parentId);
 			}
 			const row = one(

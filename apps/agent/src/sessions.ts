@@ -429,6 +429,10 @@ async function createJobContainer(
 				ReadOnly: m.readOnly,
 			})),
 			NetworkMode: job.network,
+			...(job.limits && {
+				Memory: job.limits.memoryBytes,
+				NanoCpus: job.limits.nanoCpus,
+			}),
 			...(job.host && { Privileged: true, PidMode: "host" }),
 		},
 	});

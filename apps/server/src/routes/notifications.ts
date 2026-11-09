@@ -135,6 +135,7 @@ async function openChannel(
 	const policy = await hostPolicy(deps.db);
 	return instantiate(notificationChannels[spec.kind], config, {
 		fetch: (url, init) => guardedFetch(url, init ?? {}, policy),
+		hostPolicy: policy,
 	});
 }
 

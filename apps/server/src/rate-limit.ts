@@ -50,6 +50,26 @@ export const limitCredentials: MiddlewareHandler<Env> = async (c, next) => {
 			config.RATE_LIMIT_LOGIN_PER_MINUTE,
 		);
 		if (wait !== undefined) refuse(c, wait, "sign-in attempts");
+		// Per account too: guessing one person's password from many addresses stays slow.
+		const email = await c.req.raw
+			.clone()
+			.json()
+			.then((b: unknown) => {
+				const email = (b as { email?: unknown } | null)?.email;
+				return typeof email === "string"
+					? email.trim().toLowerCase()
+					: undefined;
+			})
+			.catch(() => undefined);
+		if (email) {
+			const byAccount = await overLimit(
+				config.REDIS_URL,
+				`login-account:${Bun.hash(email).toString(16)}`,
+				config.RATE_LIMIT_LOGIN_PER_MINUTE,
+			);
+			if (byAccount !== undefined)
+				refuse(c, byAccount, "sign-in attempts for this account");
+		}
 	}
 	await next();
 };

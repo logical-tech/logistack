@@ -445,6 +445,14 @@ async function runTool(c: Context<Env>, destructive: boolean) {
 	};
 	c.set("auditResourceId", row.id);
 	if (!row.enabled) throw new Failure("conflict", "the plugin is disabled");
+	// The tool runs with the plugin's key: the caller must hold all it was granted.
+	const missing = missingPermissions(c, row.manifest);
+	if (missing.length)
+		throw new Failure(
+			"forbidden",
+			`${row.manifest.name} holds ${missing.join(", ")}, which you do not`,
+			{ missing },
+		);
 	const tool = row.manifest.contributes.tools.find((t) => t.name === name);
 	if (!tool)
 		throw new Failure(

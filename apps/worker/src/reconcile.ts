@@ -27,6 +27,7 @@ import {
 	desiredSpec,
 	ensureEnvNetwork,
 	inspectService,
+	sharedNetworkMoves,
 	upsertService,
 } from "./apply.ts";
 import { pausedServices } from "./backups.ts";
@@ -249,6 +250,30 @@ async function reconcileService(
 						serviceId: row.id,
 						labelDrift,
 						replicaDrift,
+					});
+					svc = await inspectService(ctx, name);
+				}
+				// A security move, so it rolls the service once: off a network other tenants share.
+				const nets = svc?.Spec.TaskTemplate.Networks ?? [];
+				const moves = await sharedNetworkMoves(
+					ctx,
+					organizationId,
+					nets.map((n) => n.Target),
+				);
+				if (svc && moves.size) {
+					await upsertService(ctx, sc.registry?.auth, svc.Spec, (current) => ({
+						...current.Spec,
+						TaskTemplate: {
+							...current.Spec.TaskTemplate,
+							Networks: (current.Spec.TaskTemplate.Networks ?? []).map((n) => ({
+								...n,
+								Target: moves.get(n.Target) ?? n.Target,
+							})),
+						},
+					}));
+					log("warn", "moved service off a shared network", {
+						serviceId: row.id,
+						name,
 					});
 					svc = await inspectService(ctx, name);
 				}

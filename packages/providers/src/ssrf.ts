@@ -26,8 +26,8 @@ for (const [net, prefix] of [
 ] as const)
 	blocked.addSubnet(net, prefix, "ipv4");
 for (const [net, prefix] of [
-	["::", 128], // unspecified
-	["::1", 128],
+	["::", 96], // unspecified, loopback and IPv4-compatible (::127.0.0.1)
+	["::ffff:0:0:0", 96], // SIIT IPv4-translated; IPv4-mapped is checked as IPv4 by BlockList
 	["64:ff9b::", 96], // NAT64 can reach any IPv4, private ones included
 	["100::", 64], // discard
 	["2001:db8::", 32], // documentation
@@ -43,6 +43,20 @@ export function isPrivateAddress(address: string): boolean {
 	const family = isIP(address);
 	if (family === 0) return true;
 	return blocked.check(address, family === 4 ? "ipv4" : "ipv6");
+}
+
+/**
+ * ls-control (fixed by install/stack.yml): the control plane, Caddy's admin API included. Refused
+ * even when private hosts are allowed, since that opens the LAN, not LogiStack itself.
+ */
+export const CONTROL_SUBNET = ["10.247.0.0", 16] as const;
+const control = new BlockList();
+control.addSubnet(...CONTROL_SUBNET, "ipv4");
+
+/** True for ls-control addresses (IPv4-mapped IPv6 included), which no user-chosen host may reach. */
+export function isControlAddress(address: string): boolean {
+	const family = isIP(address);
+	return family !== 0 && control.check(address, family === 4 ? "ipv4" : "ipv6");
 }
 
 export class BlockedHostError extends Error {}
@@ -71,6 +85,11 @@ export async function resolvePublic(
 			});
 	const first = addresses[0];
 	if (!first) throw new BlockedHostError(`${hostname} does not resolve`);
+	const internal = addresses.find(isControlAddress);
+	if (internal)
+		throw new BlockedHostError(
+			`${hostname} resolves to LogiStack's control network (${internal})`,
+		);
 	if (!policy.allowPrivateHosts) {
 		const bad = addresses.find(isPrivateAddress);
 		if (bad)

@@ -90,7 +90,8 @@ describe.skipIf(!hasDocker)("domain access rules", () => {
 			{ type: "ip_allow", cidrs: ["203.0.113.0/24", "2001:db8::/32"] },
 			{
 				type: "forward_auth",
-				url: "https://auth.example.com/verify",
+				// An address literal: the stored URL passes the same address check as the probe.
+				url: "https://1.1.1.1/verify",
 				copyHeaders: ["Remote-User"],
 			},
 		]);
@@ -153,6 +154,14 @@ describe.skipIf(!hasDocker)("domain access rules", () => {
 					type: "forward_auth",
 					url: "https://a.example.com",
 					copyHeaders: ["Bad Header"],
+				},
+			],
+			[{ type: "forward_auth", url: "http://caddy:2019/", copyHeaders: [] }],
+			[
+				{
+					type: "forward_auth",
+					url: "http://127.0.0.1:9091/verify",
+					copyHeaders: [],
 				},
 			],
 			[

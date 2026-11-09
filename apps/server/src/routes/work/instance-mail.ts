@@ -19,6 +19,7 @@ import type { Env } from "../../env.ts";
 import { Failure } from "../../errors.ts";
 import { body, errors, json, router, security } from "../../openapi.ts";
 import { requireInstanceAdmin } from "../../scope.ts";
+import { hostPolicy } from "../../ssrf.ts";
 import { mailer } from "../../work/notify.ts";
 
 /**
@@ -168,11 +169,15 @@ export const instanceMail = router()
 			const config = input.config ? merge(input.config, current) : current;
 			if (!config) throw new Failure("conflict", "instance mail is not set up");
 			try {
-				await mailer.send(config, {
-					to: input.to,
-					subject: "LogiStack test email",
-					text: "Instance mail works. LogiStack will use this transport for notifications and invitations.",
-				});
+				await mailer.send(
+					config,
+					{
+						to: input.to,
+						subject: "LogiStack test email",
+						text: "Instance mail works. LogiStack will use this transport for notifications and invitations.",
+					},
+					{ hostPolicy: await hostPolicy(c.var.deps.db) },
+				);
 				return c.json({ ok: true, error: null }, 200);
 			} catch (error) {
 				return c.json(

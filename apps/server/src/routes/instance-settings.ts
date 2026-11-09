@@ -2,6 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { type Db, instanceSettings, organization, user } from "@logistack/db";
 import { eq, sql } from "drizzle-orm";
 import type { Context } from "hono";
+import { assertEmailVouched } from "../access.ts";
 import { isInstanceAdminRole, requireActor } from "../actor.ts";
 import { auditInTx, mutation } from "../audit.ts";
 import type { Env } from "../env.ts";
@@ -149,7 +150,7 @@ export const instance = router()
 				security,
 				summary: "Make a user an instance admin",
 				description:
-					"The user must already have an account on this instance. Instance admins update the server, manage nodes and change instance-wide settings.",
+					"The user must already have an account on this instance, with a verified email or a sign-in through one of your organization's SSO providers. Instance admins update the server, manage nodes and change instance-wide settings.",
 				middleware: [requireInstanceAdmin],
 				request: body(z.object({ email: z.string().trim().min(1) })),
 				responses: { 200: json(z.array(InstanceAdmin), "Admins"), ...errors },
@@ -164,6 +165,7 @@ export const instance = router()
 					.from(user)
 					.where(sql`lower(${user.email}) = lower(${email})`);
 				if (!target || target.kind !== "human") throw notFound("user");
+				await assertEmailVouched(c, target.id);
 				if (!isInstanceAdminRole(target.role))
 					await tx
 						.update(user)

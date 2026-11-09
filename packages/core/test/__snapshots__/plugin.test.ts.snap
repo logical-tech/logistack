@@ -61,6 +61,9 @@ exports[`compilePlugin snapshot 1`] = `
           },
         },
       ],
+      "Privileges": {
+        "NoNewPrivileges": true,
+      },
       "ReadOnly": true,
       "StopGracePeriod": 10000000000,
     },

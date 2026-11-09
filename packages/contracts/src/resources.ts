@@ -10,7 +10,10 @@ export const Hostname = z
 		"invalid hostname",
 	);
 
-const PathPrefix = z.string().startsWith("/");
+// No braces: Caddy would read them as placeholders. No whitespace either.
+const PathPrefix = z
+	.string()
+	.regex(/^\/[^\s{}]*$/, "a path starting with /, without spaces or braces");
 
 export const Domain = z.object({
 	id: z.string(),

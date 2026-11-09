@@ -13,7 +13,13 @@ import {
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { inspectService, upsertService } from "./apply.ts";
-import { buildkitAddr, buildkitName, ensureBuildkit, run } from "./build.ts";
+import {
+	buildkitAddr,
+	buildkitName,
+	buildkitServices,
+	ensureBuildkit,
+	run,
+} from "./build.ts";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
 
@@ -80,15 +86,17 @@ async function saveState(ctx: Ctx, patch: Partial<BuildkitState>) {
 export async function probeBuildkit(
 	ctx: Ctx,
 	signal = AbortSignal.timeout(120_000),
+	/** The organization whose BuildKit a build is about to use; none probes the instance's. */
+	org?: string,
 ): Promise<string[]> {
 	const checkedAt = new Date().toISOString();
 	try {
-		await ensureBuildkit(ctx);
+		await ensureBuildkit(ctx, org);
 		const out = await run(
 			[
 				...ctx.cfg.LS_BUILDCTL,
 				"--addr",
-				buildkitAddr(ctx),
+				buildkitAddr(ctx, org),
 				"debug",
 				"workers",
 				"--format",
@@ -229,6 +237,10 @@ export async function installEmulation(ctx: Ctx): Promise<BuildkitState> {
 					t.Status.State === "running",
 				120_000,
 			);
+			// Organizations' BuildKits read the emulators at start too; the next build recreates them.
+			for (const other of await buildkitServices(ctx))
+				if (other.Spec.Name !== bk)
+					await ctx.docker.services.remove(other.ID).catch(() => {});
 		}
 		let platforms: string[] | undefined;
 		// The restarted BuildKit takes a moment to listen.

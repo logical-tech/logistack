@@ -7,14 +7,17 @@ import {
 	type Scope,
 } from "@logistack/core";
 import {
+	account,
 	environment,
 	folder,
 	member,
 	organizationRole,
 	project,
 	service,
+	ssoProvider,
+	user,
 } from "@logistack/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { type Actor, requireActor, roleFor } from "./actor.ts";
 import type { Env } from "./env.ts";
@@ -62,7 +65,7 @@ export async function resolveRole(
 		requireActor(c).organizationId,
 		name,
 	);
-	if (!role || name === "member")
+	if (!role || name === "member" || name.includes(","))
 		throw new Failure("bad_request", `unknown role '${name}'`);
 	return role;
 }
@@ -130,10 +133,13 @@ export async function assertOwnershipChange(
 	to: string | undefined,
 ) {
 	const actor = requireActor(c);
-	if (from !== "owner" && to !== "owner") return;
+	// Member roles are comma lists to better-auth and grantsFor: "x,owner" is an owner.
+	const owns = (role: string | undefined) =>
+		role?.split(",").some((r) => r.trim() === "owner") ?? false;
+	if (!owns(from) && !owns(to)) return;
 	if (!isOwner(actor))
 		throw new Failure("forbidden", "only an owner can change ownership");
-	if (from === "owner" && to !== "owner") {
+	if (owns(from) && !owns(to)) {
 		const owners = await c.var.deps.db.$count(
 			member,
 			and(
@@ -158,4 +164,38 @@ export async function customRoleRow(c: Context<Env>, name: string) {
 		);
 	if (!row) throw notFound("role");
 	return row;
+}
+
+/**
+ * Adding an existing account by email trusts that its owner holds the address: anyone can sign
+ * up with someone else's email first. Only a verified email, or a sign-in through one of this
+ * organization's SSO providers, vouches for it; everyone else gets an invitation.
+ */
+export async function assertEmailVouched(c: Context<Env>, userId: string) {
+	const { db } = c.var.deps;
+	const [u] = await db
+		.select({ verified: user.emailVerified })
+		.from(user)
+		.where(eq(user.id, userId));
+	if (u?.verified) return;
+	const viaSso = await db.$count(
+		account,
+		and(
+			eq(account.userId, userId),
+			inArray(
+				account.providerId,
+				db
+					.select({ id: ssoProvider.providerId })
+					.from(ssoProvider)
+					.where(
+						eq(ssoProvider.organizationId, requireActor(c).organizationId),
+					),
+			),
+		),
+	);
+	if (viaSso === 0)
+		throw new Failure(
+			"conflict",
+			"this account's email is not verified, so it may not belong to that person: send an invitation instead",
+		);
 }

@@ -111,7 +111,7 @@ export async function guardHostSettings(
 	const resource = c.get("resource");
 	if (hostKey(o.spec) !== hostKey(o.before)) {
 		// A git push has no one to authorize it: an admin applies host-level changes by hand.
-		if (!resource)
+		if (!resource || requireActor(c).id.startsWith("gitops-"))
 			throw new Failure(
 				"forbidden",
 				"bind mounts and extra capabilities need an admin to apply them",
