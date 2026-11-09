@@ -1077,8 +1077,18 @@ export const WorkGitSummary = z.object({
 });
 export type WorkGitSummary = z.infer<typeof WorkGitSummary>;
 /** Full links only for actors that also hold `read` on the project (12.4). */
+/** The first succeeded deployment that shipped one of the task's linked commits (ops readers only). */
+export const WorkGitReleased = z.object({
+	deploymentId: Id,
+	serviceId: Id,
+	at: Timestamp,
+});
+export type WorkGitReleased = z.infer<typeof WorkGitReleased>;
 export const WorkTaskGit = z.union([
-	z.object({ links: z.array(WorkGitLink) }),
+	z.object({
+		links: z.array(WorkGitLink),
+		released: WorkGitReleased.nullable().optional(),
+	}),
 	z.object({ summary: WorkGitSummary }),
 ]);
 export type WorkTaskGit = z.infer<typeof WorkTaskGit>;
