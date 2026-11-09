@@ -928,7 +928,8 @@ deploy() {
 # nothing is.
 org_networks_override() {
 	local out=$1 svc id name nets all=""
-	printf 'services:\n' >"$out"
+	# docker stack deploy refuses files of different compose versions.
+	{ grep -m1 '^version:' "$CONF_DIR/stack.yml" || true; printf 'services:\n'; } >"$out"
 	for svc in caddy logistack-api logistack-worker; do
 		nets=""
 		for id in $(docker service inspect "${STACK_NAME}_$svc" --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}} {{end}}' 2>/dev/null); do
