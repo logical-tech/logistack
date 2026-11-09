@@ -101,6 +101,7 @@ export const SHORTCUTS: { keys: string[][]; label: string }[] = [
 	{ keys: [["1"], ["4"]], label: "Switch to the view in that tab" },
 	{ keys: [["j"], ["k"]], label: "Next / previous task" },
 	{ keys: [["Enter"], ["Esc"]], label: "Open / close task" },
+	{ keys: [["f"]], label: "Open the task as a full page" },
 	{
 		keys: [["s"], ["a"], ["d"], ["p"], ["l"]],
 		label: "Status, assignee, dates, priority, tags",
