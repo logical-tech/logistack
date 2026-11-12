@@ -4,6 +4,8 @@ import {
 	type CaddyRoute,
 	compileProxy,
 	maintenancePage,
+	movedPage,
+	PRIVATE_RANGES,
 	type ProxyRoute,
 	routeId,
 	unavailablePage,
@@ -93,6 +95,7 @@ test("http to https redirect covers every https host, http-only routes stay on :
 	expect(ids(http)).toEqual([
 		"ls-https-redirect",
 		"ls-domain-d6",
+		"ls-moved-http",
 		"ls-not-found-http",
 	]);
 	expect(http[0]?.match?.[0]?.host).toEqual([
@@ -582,6 +585,34 @@ describe("edge rules", () => {
 
 	test("no error pages means no errors block", () => {
 		expect(compile([base]).apps.http.servers.https?.errors).toBeUndefined();
+	});
+});
+
+describe("moved page on :80", () => {
+	test("after every http route, before the 404, only for private client addresses", () => {
+		const rs = httpRoutes(routes);
+		expect(ids(rs).slice(-2)).toEqual(["ls-moved-http", "ls-not-found-http"]);
+		const moved = byId(rs, "ls-moved-http");
+		expect(moved?.match).toEqual([{ remote_ip: { ranges: PRIVATE_RANGES } }]);
+		for (const range of ["192.168.0.0/16", "10.0.0.0/8", "100.64.0.0/10"])
+			expect(PRIVATE_RANGES).toContain(range);
+		expect(PRIVATE_RANGES.some((r) => r === "0.0.0.0/0" || r === "::/0")).toBe(
+			false,
+		);
+		// The 404 has no matcher, so a public client falls through to it.
+		expect(byId(rs, "ls-not-found-http")?.match).toBeUndefined();
+		expect(ids(httpsRoutes(routes))).not.toContain("ls-moved-http");
+	});
+
+	test("links the dashboard and escapes its hostname", () => {
+		const body = byId(httpRoutes(routes), "ls-moved-http")?.handle?.[0];
+		expect(body).toMatchObject({ status_code: 200 });
+		expect(JSON.stringify(body)).toContain(
+			`href=\\"https://${dashboard.hostname}/\\"`,
+		);
+		const html = movedPage('x"><script>');
+		expect(html).not.toContain("<script>");
+		expect(html).toContain("&quot;&gt;&lt;script&gt;");
 	});
 });
 
