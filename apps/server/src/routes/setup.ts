@@ -438,6 +438,17 @@ export const setup = router()
 							organizationId: z.string(),
 							/** The records created through `dnsProvider`; empty without one. */
 							dnsRecords: z.array(SetupRecord),
+							/**
+							 * Where the wizard moves the browser. `resolvesTo` is the public DNS answer right
+							 * after the records were written, empty when the name does not resolve (yet).
+							 */
+							dashboard: z.object({
+								url: z.string(),
+								hostname: z.string(),
+								resolvesTo: z.array(z.string()),
+							}),
+							/** The address the server reaches the internet from; null when undetectable. */
+							publicIp: z.string().nullable(),
 						}),
 						"Setup completed",
 					),
@@ -480,6 +491,8 @@ export const setup = router()
 					: [];
 			if (dns)
 				await requestProxySync(config.REDIS_URL, "setup").catch(() => {});
+			const { hostname } = new URL(input.instance.publicUrl);
+			const resolvesTo = await resolveHost(hostname).catch(() => []);
 			// The new owner is the actor of the audit row.
 			c.set("actor", {
 				kind: "user",
@@ -489,6 +502,15 @@ export const setup = router()
 				grants: [],
 			});
 			c.set("auditResourceId", organizationId);
-			return c.json({ userId, organizationId, dnsRecords }, 201);
+			return c.json(
+				{
+					userId,
+					organizationId,
+					dnsRecords,
+					dashboard: { url: input.instance.publicUrl, hostname, resolvesTo },
+					publicIp: ip,
+				},
+				201,
+			);
 		},
 	);

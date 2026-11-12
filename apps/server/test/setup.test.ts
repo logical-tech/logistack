@@ -49,6 +49,14 @@ describe.skipIf(!hasDocker)("first-run setup", () => {
 		const statuses = results.map((r) => r.status);
 		expect(statuses.filter((s) => s === 201)).toHaveLength(1);
 		expect(statuses.filter((s) => s === 409)).toHaveLength(8);
+		// The wizard moves the browser here and diagnoses a name that does not answer.
+		const won = results.find((r) => r.status === 201);
+		expect(won?.json).toMatchObject({
+			dnsRecords: [],
+			dashboard: { url: "https://ls.example.com", hostname: "ls.example.com" },
+			publicIp: "203.0.113.7",
+		});
+		expect(Array.isArray(won?.json.dashboard.resolvesTo)).toBe(true);
 		expect(
 			(await h.call("POST", "/api/setup", { body: setupBody })).status,
 		).toBe(409);
