@@ -385,7 +385,8 @@ fi
 
 redirect=""
 for _ in $(seq 1 30); do
-	redirect=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $HOST" http://127.0.0.1/api/health)
+	# Caddy drops port 80 for a moment while it loads the config; a refused curl is one more try.
+	redirect=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $HOST" http://127.0.0.1/api/health || true)
 	[[ $redirect == 308* ]] && break
 	sleep 2
 done
