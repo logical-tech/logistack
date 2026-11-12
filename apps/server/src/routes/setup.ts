@@ -57,6 +57,10 @@ const SetupStatus = z
 		setupTokenRequired: z.boolean(),
 		/** Seeds generated sslip.io / nip.io hostnames in the wizard; null when undetectable. */
 		publicIp: z.string().nullable(),
+		/** The server's own address from install.sh; the wizard offers it for the records when it differs from `publicIp` (NAT). */
+		lanAddress: z.string().nullable(),
+		/** The dashboard URL once setup is done; null before. install.sh prints it on re-runs. */
+		publicUrl: z.string().nullable(),
 		/** Social sign-in providers with credentials configured; the sign-in screen shows only these. */
 		authProviders: z.object({ github: z.boolean(), google: z.boolean() }),
 	})
@@ -97,6 +101,11 @@ export const SetupInput = z
 				 * the `*.base` and `base` records and to issue one wildcard certificate over DNS-01.
 				 */
 				dnsProvider: DnsProviderInput.optional(),
+				/**
+				 * Where the records created through `dnsProvider` point: `lan` at the server's own
+				 * address (reachable only inside its network), `internet` at the public IP.
+				 */
+				reachFrom: z.enum(["lan", "internet"]).default("internet"),
 			})
 			.refine(
 				(i) =>
@@ -180,12 +189,16 @@ const SETUP_LOCK = 0x4c535355;
 async function isSetUp(db: Pick<Db, "select">) {
 	const [anyUser] = await db.select({ id: user.id }).from(user).limit(1);
 	const [settings] = await db
-		.select({ done: instanceSettings.setupCompleted })
+		.select({
+			done: instanceSettings.setupCompleted,
+			publicUrl: instanceSettings.publicUrl,
+		})
 		.from(instanceSettings)
 		.where(eq(instanceSettings.id, "singleton"));
 	return {
 		setupCompleted: settings?.done ?? false,
 		hasUsers: Boolean(anyUser),
+		publicUrl: settings?.done ? settings.publicUrl : null,
 	};
 }
 
@@ -338,6 +351,7 @@ export const setup = router()
 							undefined,
 						) === "token_missing",
 					publicIp: ip,
+					lanAddress: config.LAN_ADDRESS ?? null,
 					authProviders: {
 						github: Boolean(
 							config.GITHUB_CLIENT_ID && config.GITHUB_CLIENT_SECRET,
@@ -438,6 +452,17 @@ export const setup = router()
 							organizationId: z.string(),
 							/** The records created through `dnsProvider`; empty without one. */
 							dnsRecords: z.array(SetupRecord),
+							/**
+							 * Where the wizard moves the browser. `resolvesTo` is the public DNS answer right
+							 * after the records were written, empty when the name does not resolve (yet).
+							 */
+							dashboard: z.object({
+								url: z.string(),
+								hostname: z.string(),
+								resolvesTo: z.array(z.string()),
+							}),
+							/** The address the server reaches the internet from; null when undetectable. */
+							publicIp: z.string().nullable(),
 						}),
 						"Setup completed",
 					),
@@ -451,6 +476,12 @@ export const setup = router()
 			const input = c.req.valid("json");
 			const { db, auth, masterKey, config } = c.var.deps;
 			const base = input.instance.customWildcard?.slice(2);
+			const lan = input.instance.reachFrom === "lan";
+			if (lan && !config.LAN_ADDRESS)
+				throw new Failure(
+					"bad_request",
+					"This server's LAN address is unknown; re-run install.sh, or choose the internet",
+				);
 			const dns =
 				input.instance.dnsProvider && base
 					? await prepareDnsProvider(input.instance.dnsProvider, base)
@@ -474,12 +505,15 @@ export const setup = router()
 					: undefined,
 			);
 			const ip = await publicIp(config);
+			const target = lan ? config.LAN_ADDRESS : ip;
 			const dnsRecords =
-				dns && base && ip
-					? await createBaseRecords(dns.provider, dns.zone, base, ip)
+				dns && base && target
+					? await createBaseRecords(dns.provider, dns.zone, base, target)
 					: [];
 			if (dns)
 				await requestProxySync(config.REDIS_URL, "setup").catch(() => {});
+			const { hostname } = new URL(input.instance.publicUrl);
+			const resolvesTo = await resolveHost(hostname).catch(() => []);
 			// The new owner is the actor of the audit row.
 			c.set("actor", {
 				kind: "user",
@@ -489,6 +523,15 @@ export const setup = router()
 				grants: [],
 			});
 			c.set("auditResourceId", organizationId);
-			return c.json({ userId, organizationId, dnsRecords }, 201);
+			return c.json(
+				{
+					userId,
+					organizationId,
+					dnsRecords,
+					dashboard: { url: input.instance.publicUrl, hostname, resolvesTo },
+					publicIp: ip,
+				},
+				201,
+			);
 		},
 	);

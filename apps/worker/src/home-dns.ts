@@ -14,7 +14,12 @@ import {
 	type HomeDnsEvent,
 	homeDnsAlert,
 } from "@logistack/core";
-import { homeNetwork, node, organization } from "@logistack/db";
+import {
+	homeNetwork,
+	instanceSettings,
+	node,
+	organization,
+} from "@logistack/db";
 import {
 	type Labels,
 	managedLabels,
@@ -22,6 +27,7 @@ import {
 } from "@logistack/docker";
 import {
 	type Fetch,
+	isPrivateAddress,
 	QUERY_LOG_APP,
 	TechnitiumError,
 	technitium,
@@ -247,6 +253,13 @@ export async function syncHomeDns(
 			if (zone && !(await api.zones()).some((z) => z.name === zone))
 				await api.createZone(zone);
 
+			const [instance] = await ctx.db
+				.select({ wildcard: instanceSettings.customWildcard })
+				.from(instanceSettings);
+			const base = instance?.wildcard?.slice(2);
+			if (base && isPrivateAddress(row.lanAddress))
+				await ensureSplitHorizon(api, base, row.lanAddress);
+
 			message = await ensureQueryLogApp(row.id, api);
 
 			try {
@@ -347,6 +360,53 @@ async function adoptRequest(ctx: Ctx) {
 		await ctx.docker.nodes.update(l.ID, l.Version.Index, { ...l.Spec, Labels });
 	}
 	return rows;
+}
+
+type RecordKey = { name: string; type: string; content: string };
+
+/**
+ * Pure: what makes the base and its subdomains answer with the node's LAN address inside the
+ * house, so the dashboard opens on the LAN even when the public records point at the router.
+ * Other A records for those names (an older address) go, so clients never get both.
+ */
+export function splitHorizonPlan<R extends RecordKey>(
+	existing: R[],
+	base: string,
+	lanAddress: string,
+) {
+	const names = [`*.${base}`, base];
+	const isOurs = (r: RecordKey) => r.type === "A" && names.includes(r.name);
+	return {
+		add: names
+			.filter(
+				(name) =>
+					!existing.some(
+						(e) => isOurs(e) && e.name === name && e.content === lanAddress,
+					),
+			)
+			.map((name) => ({
+				name,
+				type: "A" as const,
+				content: lanAddress,
+				ttl: 300,
+				comment: "LogiStack: the instance's base on the LAN",
+			})),
+		remove: existing.filter((e) => isOurs(e) && e.content !== lanAddress),
+	};
+}
+
+/** A Forwarder zone, not a Primary one: names under the base without a record here still resolve publicly. */
+// shortcut: the home DNS node's address stands for Caddy's; with ingress on other nodes, point the records there.
+async function ensureSplitHorizon(
+	api: ReturnType<typeof technitium>,
+	base: string,
+	lanAddress: string,
+) {
+	if (!(await api.zones()).some((z) => z.name === base))
+		await api.createForwarderZone(base);
+	const plan = splitHorizonPlan(await api.records(base), base, lanAddress);
+	for (const r of plan.remove) await api.deleteRecord(base, r);
+	for (const r of plan.add) await api.addRecord(base, r);
 }
 
 class Waiting extends Error {}

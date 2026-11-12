@@ -10,6 +10,7 @@ import type {
 	CaddyRoute,
 	CaddyServer,
 } from "./caddy.ts";
+import { movedPage } from "./pages.ts";
 import { WEB_ANALYTICS_SCRIPT } from "./web-analytics.ts";
 
 export type Upstream = { host: string; port: number };
@@ -129,6 +130,40 @@ const notFound = (server: string): CaddyRoute => ({
 	terminal: true,
 });
 
+/**
+ * Connection addresses on the server's own networks. Spelled out rather than Caddy's
+ * `private_ranges` shortcut, which only the Caddyfile adapter expands.
+ */
+export const PRIVATE_RANGES = [
+	"127.0.0.0/8",
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+	"100.64.0.0/10",
+	"169.254.0.0/16",
+	"::1/128",
+	"fc00::/7",
+	"fe80::/10",
+];
+
+// Public clients keep the plain 404, so scanners hitting the IP never learn the admin hostname.
+const movedRoute = (dashboardHostname: string): CaddyRoute => ({
+	"@id": "ls-moved-http",
+	match: [{ remote_ip: { ranges: PRIVATE_RANGES } }],
+	handle: [
+		{
+			handler: "static_response",
+			status_code: 200,
+			headers: {
+				"Content-Type": ["text/html; charset=utf-8"],
+				"Cache-Control": ["no-store"],
+			},
+			body: literal(movedPage(dashboardHostname)),
+		},
+	],
+	terminal: true,
+});
+
 export const routeId = (domainId: string) => `ls-domain-${domainId}`;
 
 export function compileProxy(input: ProxyInput): CaddyConfig {
@@ -213,6 +248,7 @@ export function compileProxy(input: ProxyInput): CaddyConfig {
 								terminal: true,
 							},
 							...httpRoutes.map(compileRoute),
+							movedRoute(input.dashboard.hostname),
 							notFound("http"),
 						],
 						logs: { default_logger_name: ACCESS_LOGGER },

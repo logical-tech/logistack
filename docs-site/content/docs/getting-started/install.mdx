@@ -72,6 +72,16 @@ LogiStack 0.2.0 is running.
 
 It also writes a login banner (`/etc/update-motd.d/99-logistack`) that repeats these instructions on every SSH login until setup is done.
 
+If the server sits behind a router, for example at home, the checks also print a note like this:
+
+```text
+  ! This server is behind NAT: LAN 192.168.1.39, public 81.57.58.142.
+    Internet visitors reach it only if the router forwards ports 80 and 443 to 192.168.1.39.
+    Setup can point your domain at the LAN address instead.
+```
+
+The setup wizard then offers to point your domain at the LAN address. See [Choose the instance URL and domain](./setup-wizard.mdx#choose-the-instance-url-and-domain).
+
 </Step>
 <Step>
 
@@ -127,9 +137,13 @@ The installer generates a one-time setup token and prints a link like this:
 http://203-0-113-7.sslip.io/setup#token=Qm9yZWQ...
 ```
 
+Behind NAT the link uses the LAN address, such as `http://192-168-1-39.sslip.io/setup#token=...`, because the public one answers only when the router forwards port 80. The installer prints the public link as the one to use from outside your network.
+
 Open the link. The token sits in the URL fragment, so your browser never sends it to a server or its logs. The wizard fills it in for you; if you open the page without it, the first step asks for the **Setup token**. Anyone who holds the token can claim the server until setup is done, and it stops working afterwards.
 
 The token is also stored as `LOGISTACK_SETUP_TOKEN` in `/etc/logistack/credentials`. `--public-setup` is not remembered: a later run without it makes setup private again.
+
+The SSH tunnel on `127.0.0.1:3000` exists with `--public-setup` too. Keep the tunnel command the installer prints: it is your way back in if the dashboard's domain does not open after setup.
 
 </Tab>
 </Tabs>
@@ -153,6 +167,7 @@ curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0
 | `--public-setup` | Serve the setup wizard on the server's public address before setup, protected by a one-time token. Not remembered between runs. Cannot be combined with `--no-ingress`. |
 | `--no-ingress` | Leave LogiStack's proxy (Caddy) off and ports 80 and 443 to another proxy. Setup is then reachable only through the SSH tunnel. Kept on re-runs until you pass `--enable-ingress`. |
 | `--enable-ingress` | Turn Caddy on after an install with `--no-ingress`. Ports 80 and 443 must be free by then. |
+| `--public-url URL` | The dashboard URL used for sign-in and links, such as `https://logistack.example.com`. An origin only, without a path. Defaults to the value the running install has, else `http://<public IP>.sslip.io`. Kept on re-runs. |
 | `--api-replicas N` | Run `N` api replicas behind Caddy, from 1 to 9, so a crashed or restarting api interrupts nothing. Kept on re-runs and by in-app updates. |
 | `--local-build` | Build the images from a LogiStack checkout instead of pulling them. For development; single node only. |
 | `--help`, `-h` | Show the usage text. |
@@ -215,14 +230,20 @@ Docker publishes ports through iptables, which bypasses UFW and firewalld. A por
 | `/etc/logistack/credentials` | The generated secret values, readable only by root. |
 | `/etc/logistack/stack.yml` | The deployed stack file. |
 | `/var/log/logistack-install.log` | Full output of every command the installer ran, readable only by root. |
-| `logistack-api-tunnel` container | The API on `127.0.0.1:3000` only, for the SSH tunnel. Absent with `--public-setup`. |
+| `logistack-api-tunnel` container | The API on `127.0.0.1:3000` only, for the SSH tunnel. Created in every mode, so you can always get back in. |
 | Service `ls-buildkit` | Rootless BuildKit for Git builds, created by the worker on the first build. |
 
 On Ubuntu 23.10 and later the installer also writes `/etc/sysctl.d/60-logistack-userns.conf`, because rootless BuildKit needs unprivileged user namespaces.
 
 ## Run it again
 
-The installer is safe to re-run. It repairs a broken install, restarts nothing that already matches, and never rotates existing secrets. Re-running it also re-creates the `127.0.0.1:3000` tunnel, which is how you get back in if the dashboard's domain stops working.
+The installer is safe to re-run. It repairs a broken install, restarts nothing that already matches, and never rotates existing secrets. Re-running it also re-creates the `127.0.0.1:3000` tunnel, which is how you get back in if the dashboard's domain stops working. Once setup is done, a re-run prints the dashboard URL instead of the setup instructions.
+
+A re-run keeps the dashboard URL you set with `--public-url`. To change it, pass `--public-url` again:
+
+```bash
+curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --public-url https://logistack.home.example.com
+```
 
 To upgrade from the command line, re-run it with a version:
 
@@ -241,6 +262,8 @@ Run the same command on a Dokploy or Coolify server. The installer detects the o
 **`Unknown option: ...`.** The flag is misspelled or does not exist. Check it against `--help`. When you pipe the installer into bash, put flags after `bash -s --`.
 
 **`No terminal to confirm on; re-run with --yes`.** The installer was started without a terminal, for example from cloud-init or a CI job. Add `--yes`.
+
+**The dashboard's domain does not open after setup.** From the server's own network, open `http://<server LAN address>`, for example `http://192.168.1.39`. The page names the address the dashboard moved to. If the domain points at your router's public address, the router may not forward or loop back ports 80 and 443. Point the record at the server's LAN address, forward the ports, or add a local DNS record. Until then, use the SSH tunnel the installer printed: `ssh -L 3000:127.0.0.1:3000 root@192.168.1.39`, then open `http://localhost:3000`.
 
 **`Could not detect this server's address; pass --advertise-addr <ip>`.** The server has no default route, or the detected address is a loopback address. Pass the server's IPv4 address with `--advertise-addr`.
 

@@ -26,6 +26,11 @@ const ConfigSchema = z.object({
 	PORT: z.coerce.number().int().min(0).max(65535).default(3000),
 	/** Server IP used for generated sslip/nip hostnames. */
 	PUBLIC_IP: z.union([z.ipv4(), z.ipv6()]).optional(),
+	/** The server's own address from install.sh; behind NAT it differs from the public IP. Empty means unknown. */
+	LAN_ADDRESS: z
+		.union([z.ipv4(), z.ipv6(), z.literal("")])
+		.optional()
+		.transform((v) => v || undefined),
 	LOG_LEVEL: z.enum(["info", "silent"]).default("info"),
 	/** Largest object the storage browser accepts in one upload. */
 	MAX_UPLOAD_BYTES: z.coerce
