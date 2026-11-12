@@ -49,6 +49,7 @@ ENABLE_INGRESS=0
 PUBLIC_SETUP=0
 ENABLE_DNS=0
 API_REPLICAS=""
+PUBLIC_URL_FLAG=""
 REGISTRY="ghcr.io/logical-tech"
 CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
@@ -81,6 +82,10 @@ DOCKER_READY=0
 SWARM_STATE="inactive"
 PUBLIC_IP=""
 PUBLIC_URL=""
+# Behind NAT the bootstrap name of the LAN address: the public one answers only with port forwarding.
+LAN_URL=""
+SETUP_DONE=0
+DASHBOARD_URL=""
 IMAGE_TAG=""
 DOKPLOY=0
 DOKPLOY_PG_SECRET=""
@@ -130,6 +135,8 @@ Usage: install.sh [options]
                        defaults you can change in the dashboard. Works on a new or a running install
   --api-replicas N     API replicas behind Caddy, 1 to 9 (default: the running count, else 1).
                        Kept on re-runs and by in-app updates
+  --public-url URL     The dashboard's URL for sign-in and links, such as https://logistack.example.com
+                       (default: the running value, else http://<public-ip>.sslip.io). Kept on re-runs
   --help, -h           Show this help
 EOF
 }
@@ -181,6 +188,8 @@ parse_args() {
 		--enable-dns | --with-dns) ENABLE_DNS=1 ;;
 		--api-replicas) API_REPLICAS=${2:?--api-replicas needs a value}; shift ;;
 		--api-replicas=*) API_REPLICAS=${1#*=} ;;
+		--public-url) PUBLIC_URL_FLAG=${2:?--public-url needs a value}; shift ;;
+		--public-url=*) PUBLIC_URL_FLAG=${1#*=} ;;
 		--help | -h) usage; exit 0 ;;
 		*) usage >&2; fail "Unknown option: $1" ;;
 		esac
@@ -189,6 +198,9 @@ parse_args() {
 	[ "$NO_INGRESS" = 0 ] || [ "$ENABLE_INGRESS" = 0 ] || fail "--no-ingress and --enable-ingress are mutually exclusive"
 	[[ $VERSION =~ ^v[0-9] ]] && VERSION=${VERSION#v}
 	[ -z "$API_REPLICAS" ] || [[ $API_REPLICAS =~ ^[1-9]$ ]] || fail "--api-replicas must be a number from 1 to 9"
+	PUBLIC_URL_FLAG=${PUBLIC_URL_FLAG%/}
+	[ -z "$PUBLIC_URL_FLAG" ] || [[ $PUBLIC_URL_FLAG =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] ||
+		fail "--public-url must be an origin such as https://logistack.example.com, without a path"
 	if [ -n "$VERSION" ] && [[ ! $VERSION =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
 		fail "--version must be a release such as 0.2.0, or latest"
 	fi
@@ -566,11 +578,34 @@ detect_addresses() {
 		seen=$(http_get https://api.ipify.org 2>/dev/null || true)
 		if is_ipv4 "$seen"; then PUBLIC_IP=$seen; fi
 	fi
-	PUBLIC_URL="http://${PUBLIC_IP//./-}.sslip.io"
-	# Without Caddy the dashboard is reached through the SSH tunnel, so that is the origin to trust.
-	[ "$NO_INGRESS" = 0 ] || PUBLIC_URL="http://localhost:$TUNNEL_PORT"
 	ok "Swarm address $ADVERTISE_ADDR"
-	ok "Public address $PUBLIC_IP"
+	if [ "$PUBLIC_IP" = "$ADVERTISE_ADDR" ]; then
+		ok "Public address $PUBLIC_IP"
+	else
+		LAN_URL="http://${ADVERTISE_ADDR//./-}.sslip.io"
+		warn "This server is behind NAT: LAN $ADVERTISE_ADDR, public $PUBLIC_IP."
+		note "Internet visitors reach it only if the router forwards ports 80 and 443 to $ADVERTISE_ADDR."
+		note "Setup can point your domain at the LAN address instead."
+	fi
+
+	local running
+	running=$(running_api_env LOGISTACK_PUBLIC_URL)
+	if [ -n "$PUBLIC_URL_FLAG" ]; then
+		PUBLIC_URL=$PUBLIC_URL_FLAG
+	elif [ -n "$running" ] && ! generated_url "$running"; then
+		PUBLIC_URL=$running
+	elif [ "$NO_INGRESS" = 1 ]; then
+		# Without Caddy the dashboard is reached through the SSH tunnel, so that is the origin to trust.
+		PUBLIC_URL="http://localhost:$TUNNEL_PORT"
+	else
+		PUBLIC_URL="http://${PUBLIC_IP//./-}.sslip.io"
+	fi
+	ok "Dashboard URL for sign-in $PUBLIC_URL"
+}
+
+# What the installer derives on its own; anything else was set with --public-url and is kept.
+generated_url() {
+	[[ $1 =~ ^http://([0-9]{1,3}-){3}[0-9]{1,3}\.sslip\.io$ ]] || [ "$1" = "http://localhost:$TUNNEL_PORT" ]
 }
 
 # The release the api runs, from its image tag: ghcr.io/.../logistack:0.2.0@sha256:... or
@@ -590,6 +625,13 @@ running_api_replicas() {
 	have docker || return 0
 	docker service inspect "${STACK_NAME}_logistack-api" \
 		--format '{{.Spec.Mode.Replicated.Replicas}}' 2>/dev/null || true
+}
+
+running_api_env() {
+	have docker || return 0
+	docker service inspect "${STACK_NAME}_logistack-api" \
+		--format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null |
+		sed -n "s|^$1=||p" | head -n1
 }
 
 # Unauthenticated: GitHub allows 60 requests an hour per IP. `releases/latest` skips prereleases.
@@ -963,7 +1005,8 @@ deploy() {
 	[ "$DOKPLOY" = 0 ] || files+=(-c "$CONF_DIR/$DOKPLOY_STACK")
 	[ "$COOLIFY" = 0 ] || files+=(-c "$CONF_DIR/$COOLIFY_STACK")
 	act "Deploy stack $STACK_NAME $IMAGE_TAG ($replicas api replica$([ "$replicas" = 1 ] || echo s))" env LOGISTACK_VERSION="$VERSION" LOGISTACK_IMAGE_TAG="$IMAGE_TAG" LOGISTACK_API_REPLICAS="$replicas" \
-		LOGISTACK_REGISTRY="$REGISTRY" LOGISTACK_PUBLIC_URL="$PUBLIC_URL" LOGISTACK_WEB_ORIGIN="https://${PUBLIC_URL#http://}" \
+		LOGISTACK_REGISTRY="$REGISTRY" LOGISTACK_PUBLIC_URL="$PUBLIC_URL" LOGISTACK_WEB_ORIGIN="https://${PUBLIC_URL#*://}" \
+		LOGISTACK_LAN_ADDRESS="$ADVERTISE_ADDR" \
 		LOGISTACK_PUBLIC_SETUP="$public" LOGISTACK_SETUP_TOKEN_FILE="$token_file" LOGISTACK_TUNNEL_ORIGIN="$tunnel_origin" \
 		LOGISTACK_DOKPLOY_PG_SECRET="$DOKPLOY_PG_SECRET" LOGISTACK_DOKPLOY_PG_USER="$DOKPLOY_PG_USER" \
 		LOGISTACK_DOKPLOY_PG_DB="$DOKPLOY_PG_DB" LOGISTACK_DOKPLOY_KEY_SECRET="${DOKPLOY_KEY_SECRET:-}" \
@@ -1045,7 +1088,7 @@ EOF
 		cat >>"$MOTD_FILE" <<EOF
 token=\$(sed -n 's/^LOGISTACK_SETUP_TOKEN=//p' "$CREDENTIALS_FILE" 2>/dev/null | head -n1)
 [ -n "\$token" ] || exit 0
-printf '  $PUBLIC_URL/setup#token=%s\n' "\$token"
+printf '  $(setup_url)/setup#token=%s\n' "\$token"
 printf '  Until setup is done, anyone holding this link can claim the server.\n\n'
 EOF
 	else
@@ -1055,6 +1098,19 @@ printf '  then open http://localhost:$TUNNEL_PORT\n\n'
 EOF
 	fi
 	chmod 0755 "$MOTD_FILE"
+}
+
+# Where to open the setup wizard with --public-setup: behind NAT the public name answers only with
+# port forwarding, so the LAN one first. Caddy's bootstrap catch-all serves setup on any host.
+setup_url() { printf '%s' "${LAN_URL:-$PUBLIC_URL}"; }
+
+# Sets SETUP_DONE and DASHBOARD_URL (from the instance settings) once setup is done.
+read_setup_status() {
+	local status
+	status=$(curl -fsS --max-time 5 "http://127.0.0.1:$TUNNEL_PORT/api/setup/status" 2>/dev/null) || return 0
+	[[ $status == *'"setupCompleted":true'* ]] || return 0
+	SETUP_DONE=1
+	DASHBOARD_URL=$(sed -n 's/.*"publicUrl":"\([^"]*\)".*/\1/p' <<<"$status")
 }
 
 tunnel_ready() {
@@ -1170,10 +1226,14 @@ main() {
 		return
 	fi
 	printf '\n%sLogiStack %s is running.%s\n' "$BOLD" "$VERSION" "$RESET"
-	if [ "$PUBLIC_SETUP" = 1 ]; then
+	read_setup_status
+	if [ "$SETUP_DONE" = 1 ]; then
+		printf '  Setup is done. Open the dashboard at %s%s%s\n' "$BOLD" "${DASHBOARD_URL:-$PUBLIC_URL}" "$RESET"
+	elif [ "$PUBLIC_SETUP" = 1 ]; then
 		local token
 		token=$(credential_get LOGISTACK_SETUP_TOKEN)
-		printf '  Open %s%s/setup#token=%s%s to finish the guided setup in your browser.\n' "$BOLD" "$PUBLIC_URL" "$token" "$RESET"
+		printf '  Open %s%s/setup#token=%s%s to finish the guided setup in your browser.\n' "$BOLD" "$(setup_url)" "$token" "$RESET"
+		[ -z "$LAN_URL" ] || note "From outside this network, once the router forwards port 80: $PUBLIC_URL/setup#token=$token"
 		printf '  Setup token: %s%s%s\n' "$BOLD" "${token:-(missing from $CREDENTIALS_FILE)}" "$RESET"
 		note "Until setup is done, anyone holding this token can claim the server; it stops working after."
 	else
@@ -1192,7 +1252,15 @@ main() {
 		fi
 	fi
 	note "If you ever lose the dashboard: $(ssh_tunnel_command), then open http://localhost:$TUNNEL_PORT"
-	[ "$ENABLE_DNS" = 0 ] || note "Home network DNS starts on this node with defaults. Review them under Network, then set $ADVERTISE_ADDR as the DNS server on your router."
+	if [ "$ENABLE_DNS" = 1 ]; then
+		if [ "$SETUP_DONE" = 1 ]; then
+			note "Home network DNS starts on this node with defaults within a minute. Review them under Network."
+		else
+			note "Home network DNS starts on this node once setup creates the first organization. Review it under Network."
+		fi
+		note "Before you set $ADVERTISE_ADDR as the DNS server on your router, reserve that address for this"
+		note "server in the router's DHCP settings, and keep a second DNS server there while you test."
+	fi
 	note "Back up $CREDENTIALS_FILE: it holds the master key that encrypts your secrets."
 }
 
