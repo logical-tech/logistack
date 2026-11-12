@@ -108,7 +108,9 @@ Enter **Email for certificate notices**. Let's Encrypt writes here only about ex
 
 The last step summarizes your answers: owner, organization, instance URL, service hostnames (`*.srv1.example.com`), certificates, Let's Encrypt email and registry. Select **Edit** next to a section to go back to it.
 
-Select **Finish setup**. LogiStack creates the owner and organization, saves the instance settings, creates DNS records if you chose a provider, and signs you in. A "LogiStack is ready" notice appears and the Home page opens.
+Select **Finish setup**. LogiStack creates the owner and organization, saves the instance settings and creates DNS records if you chose a provider. The page then waits until your browser can reach the instance URL, which can take a minute or two while the certificate is issued. Select **Open dashboard** and sign in there with the owner email and password.
+
+If the instance URL does not answer within about three minutes, the page explains why and what to change, for example that the name points at your router's public address. Select **Check again** after you fix it. The SSH tunnel stays available as a way back in.
 
 </Step>
 </Steps>
@@ -135,6 +137,8 @@ See [Members and invitations](../team/members-and-invitations.mdx) and [Single s
 **The wizard is not reachable on `http://localhost:3000`.** Check that the SSH session with `-L 3000:127.0.0.1:3000` is still open, and that nothing else on your computer uses port 3000. Use another local port if needed: `ssh -L 8080:127.0.0.1:3000 root@203.0.113.7`, then open `http://localhost:8080`.
 
 **"Enter the setup token install.sh printed."** The server was installed with `--public-setup`. Paste `LOGISTACK_SETUP_TOKEN` from `/etc/logistack/credentials`.
+
+**The instance URL does not open from your network.** Your browser reached setup on a private address, and the name resolves to your router's public address. Most home routers do not send that traffic back inside. Point the A records at the server's LAN address, forward ports 80 and 443 to the server, or add a local DNS record for the name. Opening `http://<server LAN address>` on the same network shows where the dashboard lives.
 
 **The DNS check fails with "doesn't resolve to ... yet".** The A records are missing or point elsewhere. The message lists what the name resolves to. Fix the records and select **Test again** after a few minutes.
 

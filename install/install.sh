@@ -8,6 +8,8 @@
 # Caddy's bootstrap catch-all answers 404 instead of proxying to the api; after setup the worker
 # routes the dashboard's own domain over https. --public-setup keeps the catch-all proxy and
 # requires a one-time setup token instead. It is not persisted: a re-run without it is private.
+# The loopback tunnel stays in every mode: it is the way back in when the dashboard's domain does
+# not answer (DNS at the router's public address behind NAT, a certificate that never issued).
 #
 # Ingress off (--no-ingress): Caddy is a global service constrained to node.labels.logistack.ingress
 # == true, so labelling the node logistack.ingress=pending leaves it at 0 tasks and 80/443 free for
@@ -952,9 +954,8 @@ deploy() {
 	[ "$LOCAL_BUILD" = 0 ] || flags=(--resolve-image never)
 	# After setup Caddy serves the dashboard over https, so browsers send an https Origin;
 	# BETTER_AUTH_URL keeps the http bootstrap URL and better-auth trusts both.
-	local public=false token_file="" tunnel_origin=""
+	local public=false token_file="" tunnel_origin="http://localhost:$TUNNEL_PORT"
 	if [ "$PUBLIC_SETUP" = 1 ]; then public=true token_file=/run/secrets/setup_token; fi
-	if tunnel_wanted; then tunnel_origin="http://localhost:$TUNNEL_PORT"; fi
 	local replicas=${API_REPLICAS:-$(running_api_replicas)}
 	[[ $replicas =~ ^[1-9]$ ]] || replicas=1
 	with_org_networks "$CONF_DIR/stack.yml" "$CONF_DIR/stack.deploy.yml"
@@ -998,13 +999,9 @@ with_org_networks() {
 	' "$in" >"$out"
 }
 
-# The SSH tunnel's target: without Caddy, or unless setup is public. Loopback only, never public.
-tunnel_wanted() { [ "$NO_INGRESS" = 1 ] || [ "$PUBLIC_SETUP" = 0 ]; }
-
-# A container on ls-control forwards 127.0.0.1:$TUNNEL_PORT on the host to the API. It reuses the
-# Caddy image, so no extra image is pulled; with --public-setup, remove_tunnel drops it.
+# A container on ls-control forwards 127.0.0.1:$TUNNEL_PORT on the host to the API, the SSH
+# tunnel's target. Loopback only, never public. It reuses the Caddy image, so no extra image is pulled.
 ensure_tunnel() {
-	tunnel_wanted || return 0
 	local image="$REGISTRY/logistack-caddy:$IMAGE_TAG" current
 	current=$(docker inspect -f '{{.Config.Image}} {{.State.Running}} {{.Config.Cmd}}' "$TUNNEL_NAME" 2>/dev/null || true)
 	if [ "$current" = "$image true [reverse-proxy --from :$TUNNEL_PORT --to logistack-api:3000]" ]; then
@@ -1020,10 +1017,11 @@ ensure_tunnel() {
 		reverse-proxy --from ":$TUNNEL_PORT" --to logistack-api:3000
 }
 
-# Runs only after wait_healthy saw Caddy answer, so a failed --public-setup keeps the way in.
-remove_tunnel() {
-	! tunnel_wanted && docker inspect "$TUNNEL_NAME" >/dev/null 2>&1 || return 0
-	act "Remove the API tunnel $TUNNEL_NAME" docker rm -f "$TUNNEL_NAME"
+# The command that reaches the tunnel from another machine. Behind NAT the LAN address works from
+# the same network and the router's public one from outside (when it forwards SSH).
+ssh_tunnel_command() {
+	printf 'ssh -L %s:127.0.0.1:%s root@%s' "$TUNNEL_PORT" "$TUNNEL_PORT" "$ADVERTISE_ADDR"
+	[ "$PUBLIC_IP" = "$ADVERTISE_ADDR" ] || printf ' (from outside this network: root@%s)' "$PUBLIC_IP"
 }
 
 # SSH login banner with the way into the setup wizard, for installs nobody watched (cloud-init,
@@ -1052,7 +1050,7 @@ printf '  Until setup is done, anyone holding this link can claim the server.\n\
 EOF
 	else
 		cat >>"$MOTD_FILE" <<EOF
-printf '  From your machine: ssh -L $TUNNEL_PORT:127.0.0.1:$TUNNEL_PORT root@$PUBLIC_IP\n'
+printf '  From your machine: $(ssh_tunnel_command)\n'
 printf '  then open http://localhost:$TUNNEL_PORT\n\n'
 EOF
 	fi
@@ -1097,8 +1095,8 @@ wait_healthy() {
 				pending+=("$name")
 			fi
 		done < <(docker stack services "$STACK_NAME" --format '{{.Name}} {{.Replicas}}' | sort)
-		if [ ${#pending[@]} -eq 0 ] && { ! tunnel_wanted || tunnel_ready; } && { [ "$NO_INGRESS" = 1 ] || ingress_ready; }; then
-			if tunnel_wanted; then ok "API healthy through the tunnel on 127.0.0.1:$TUNNEL_PORT"; else ok "API healthy through Caddy"; fi
+		if [ ${#pending[@]} -eq 0 ] && tunnel_ready && { [ "$NO_INGRESS" = 1 ] || ingress_ready; }; then
+			ok "API healthy through the tunnel on 127.0.0.1:$TUNNEL_PORT"
 			[ "$NO_INGRESS" = 1 ] || ok "Caddy answering on port 80"
 			return 0
 		fi
@@ -1165,7 +1163,6 @@ main() {
 	deploy
 	ensure_tunnel
 	wait_healthy
-	remove_tunnel
 	[ ! -d /etc/update-motd.d ] || act "Write the login banner $MOTD_FILE" write_motd
 
 	if [ "$DRY_RUN" = 1 ]; then
@@ -1180,7 +1177,7 @@ main() {
 		printf '  Setup token: %s%s%s\n' "$BOLD" "${token:-(missing from $CREDENTIALS_FILE)}" "$RESET"
 		note "Until setup is done, anyone holding this token can claim the server; it stops working after."
 	else
-		printf '  Until setup is done the dashboard is reachable only on 127.0.0.1:%s. From your machine: %sssh -L %s:127.0.0.1:%s root@%s%s\n' "$TUNNEL_PORT" "$BOLD" "$TUNNEL_PORT" "$TUNNEL_PORT" "$PUBLIC_IP" "$RESET"
+		printf '  Until setup is done the dashboard is reachable only on 127.0.0.1:%s. From your machine: %s%s%s\n' "$TUNNEL_PORT" "$BOLD" "$(ssh_tunnel_command)" "$RESET"
 		printf '  then open %shttp://localhost:%s%s to finish the guided setup.\n' "$BOLD" "$TUNNEL_PORT" "$RESET"
 		if [ "$NO_INGRESS" = 1 ]; then
 			if [ "$DOKPLOY" = 1 ]; then
@@ -1194,6 +1191,7 @@ main() {
 			note "After setup the dashboard is served over https on the domain you choose there."
 		fi
 	fi
+	note "If you ever lose the dashboard: $(ssh_tunnel_command), then open http://localhost:$TUNNEL_PORT"
 	[ "$ENABLE_DNS" = 0 ] || note "Home network DNS starts on this node with defaults. Review them under Network, then set $ADVERTISE_ADDR as the DNS server on your router."
 	note "Back up $CREDENTIALS_FILE: it holds the master key that encrypts your secrets."
 }
