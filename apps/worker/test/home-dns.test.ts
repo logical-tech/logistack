@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { HomeDnsSettings } from "@logistack/contracts";
-import { compileHomeDns, settingsHash } from "../src/home-dns.ts";
+import {
+	compileHomeDns,
+	settingsHash,
+	splitHorizonPlan,
+} from "../src/home-dns.ts";
 
 const input = {
 	name: "ls-hdn-abc",
@@ -38,4 +42,37 @@ test("settings hash changes with any setting", () => {
 	expect(settingsHash({ ...base, dnssecValidation: false })).not.toBe(
 		settingsHash(base),
 	);
+});
+
+test("split horizon adds the base records once and drops an older address", () => {
+	const fresh = splitHorizonPlan([], "home.example.com", "192.168.1.39");
+	expect(fresh.add.map((r) => [r.name, r.type, r.content])).toEqual([
+		["*.home.example.com", "A", "192.168.1.39"],
+		["home.example.com", "A", "192.168.1.39"],
+	]);
+	expect(fresh.remove).toEqual([]);
+
+	const applied = fresh.add;
+	expect(splitHorizonPlan(applied, "home.example.com", "192.168.1.39")).toEqual(
+		{ add: [], remove: [] },
+	);
+
+	const other = {
+		name: "nas.home.example.com",
+		type: "A",
+		content: "192.168.1.5",
+	};
+	const moved = splitHorizonPlan(
+		[...applied, other],
+		"home.example.com",
+		"192.168.1.40",
+	);
+	expect(moved.add.map((r) => r.content)).toEqual([
+		"192.168.1.40",
+		"192.168.1.40",
+	]);
+	expect(moved.remove.map((r) => r.content)).toEqual([
+		"192.168.1.39",
+		"192.168.1.39",
+	]);
 });
