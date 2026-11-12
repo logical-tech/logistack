@@ -120,9 +120,29 @@ export const mockAdapter: ApiAdapter = {
 				900,
 			);
 		},
-		completeSetup: () => {
+		completeSetup: (input) => {
 			db.setupCompleted = true;
-			return delay(undefined, 1200);
+			const url = input.instance.publicUrl;
+			const hostname = new URL(url).hostname;
+			const base = input.instance.customWildcard?.slice(2);
+			return delay(
+				{
+					userId: "usr_mock",
+					organizationId: "org_mock",
+					dnsRecords:
+						base && input.instance.dnsProvider
+							? [`*.${base}`, base].map((name) => ({
+									name,
+									type: "A" as const,
+									content: db.publicIp,
+									error: null,
+								}))
+							: [],
+					dashboard: { url, hostname, resolvesTo: [db.publicIp] },
+					publicIp: db.publicIp,
+				},
+				1200,
+			);
 		},
 		version: () => delay({ version: "0.1.0", commit: "98edb6e" }, 120),
 	},

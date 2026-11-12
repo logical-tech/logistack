@@ -41,6 +41,7 @@ type Body<F> = InferRequestType<F> extends { json: infer J } ? J : never;
 
 export type InstanceStatus = Ok<Api["setup"]["status"]["$get"]>;
 export type SetupInput = Body<Api["setup"]["$post"]>;
+export type SetupResult = InferResponseType<Api["setup"]["$post"], 201>;
 export type DnsCheck = Ok<Api["setup"]["dns-check"]["$post"]>;
 
 export type Folder = Omit<Ok<Api["folders"]["$get"]>[number], "children">;

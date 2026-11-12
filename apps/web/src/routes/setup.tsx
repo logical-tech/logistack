@@ -10,7 +10,6 @@ import {
 	Zap,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { z } from "zod";
 import { Wordmark } from "@/components/brand";
 import { Field } from "@/components/field";
@@ -22,6 +21,7 @@ import {
 	missingFields,
 	toConfig,
 } from "@/components/integrations/config-form";
+import { MoveScreen } from "@/components/setup/move-screen";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,12 +45,17 @@ import {
 	useCompleteSetup,
 } from "@/lib/api/instance";
 import { type DnsKind, schemasQuery } from "@/lib/api/networking";
-import { auth } from "@/lib/auth";
+import type { SetupResult } from "@/lib/api/types";
 import { DNS_KINDS } from "@/lib/integrations";
 import { stepParam } from "@/lib/search";
+import type { Move } from "@/lib/setup-move";
 
 export const Route = createFileRoute("/setup")({
-	validateSearch: z.object({ step: stepParam }),
+	validateSearch: z.object({
+		step: stepParam,
+		/** Mock only: preview the screen that follows setup in one of its states. */
+		move: z.enum(["checking", "reachable", "nat", "unresolved"]).optional(),
+	}),
 	beforeLoad: async ({ context }) => {
 		const status =
 			await context.queryClient.ensureQueryData(instanceStatusQuery);
@@ -682,8 +687,57 @@ function buildSteps(
 	];
 }
 
+/** Fixed states of the screen after setup, for design work on the mock (`/setup?move=nat`). */
+function movePreview(move: "checking" | "reachable" | "nat" | "unresolved"): {
+	result: SetupResult;
+	initial: Move;
+} {
+	const result: SetupResult = {
+		userId: "usr_mock",
+		organizationId: "org_mock",
+		dnsRecords: [
+			{
+				name: "*.home.example.com",
+				type: "A",
+				content: "81.57.58.142",
+				error: null,
+			},
+			{
+				name: "home.example.com",
+				type: "A",
+				content: "81.57.58.142",
+				error: null,
+			},
+		],
+		dashboard: {
+			url: "https://logistack.home.example.com",
+			hostname: "logistack.home.example.com",
+			resolvesTo: move === "unresolved" ? [] : ["81.57.58.142"],
+		},
+		publicIp: "81.57.58.142",
+	};
+	const initial: Move =
+		move === "checking"
+			? { kind: "checking", since: Date.now() }
+			: move === "reachable"
+				? { kind: "reachable" }
+				: move === "nat"
+					? {
+							kind: "unreachable",
+							diagnosis: {
+								kind: "nat",
+								publicIp: "81.57.58.142",
+								lanIp: "192.168.1.39",
+							},
+						}
+					: { kind: "unreachable", diagnosis: { kind: "unresolved" } };
+	return { result, initial };
+}
+
 function SetupPage() {
-	const { step } = Route.useSearch();
+	const { step, move } = Route.useSearch();
+	const [done, setDone] = useState<{ result: SetupResult; email: string }>();
+	const preview = isMock && move ? movePreview(move) : undefined;
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data: status } = useQuery(instanceStatusQuery);
 	const complete = useCompleteSetup();
@@ -714,74 +768,74 @@ function SetupPage() {
 				<ThemeToggle />
 			</header>
 			<main className="mx-auto w-full max-w-5xl px-4 pt-4 pb-20 sm:px-6 lg:pt-10">
-				<div className="mb-8 lg:mb-12 lg:pl-[calc(13.5rem+3rem)]">
-					<h1 className="flex items-center gap-2 text-2xl font-semibold">
-						Set up LogiStack
-					</h1>
-					<p className="mt-1.5 max-w-[60ch] text-sm text-muted-foreground">
-						A few answers and this server is ready for its first project. It
-						takes about two minutes.
-					</p>
-				</div>
-				<Wizard
-					id="setup"
-					steps={steps}
-					defaultValues={defaults}
-					secretKeys={["setupToken", "ownerPassword", "dnsCredentials"]}
-					step={step}
-					onStepChange={onStepChange}
-					finishLabel="Finish setup"
-					onComplete={async (v) => {
-						await complete.mutateAsync({
-							setupToken: v.setupToken.trim(),
-							input: {
-								owner: {
-									name: v.ownerName,
-									email: v.ownerEmail,
-									password: v.ownerPassword,
-								},
-								organization: { name: v.orgName.trim() },
-								instance: {
-									publicUrl: publicUrl(v, ip),
-									generatedDomainBase: v.domainBase,
-									customWildcard:
-										v.domainBase === "custom"
-											? `*.${domainBase(v, ip)}`
-											: undefined,
-									letsencryptEmail: v.leEmail,
-									localRegistryEnabled: v.registry,
-									dnsProvider:
-										v.domainBase === "custom" && v.dnsProvider !== "manual"
-											? {
-													kind: v.dnsProvider,
-													credentials: toConfig(
-														schemas?.dns[v.dnsProvider] as ConfigSchema,
-														v.dnsCredentials,
-													),
-												}
-											: undefined,
-								},
-							},
-						});
-						// Setup creates the owner but no session; sign in as them.
-						const signedIn = await auth.signInEmail({
-							email: v.ownerEmail,
-							password: v.ownerPassword,
-							remember: true,
-						});
-						if (signedIn.kind !== "signed-in") {
-							toast.success("LogiStack is ready", {
-								description: "Sign in with the owner account.",
-							});
-							await navigate({ to: "/sign-in" });
-							return;
-						}
-						toast.success("LogiStack is ready", {
-							description: `Signed in as ${v.ownerEmail}.`,
-						});
-						await navigate({ to: "/" });
-					}}
-				/>
+				{preview ? (
+					<MoveScreen
+						result={preview.result}
+						email="owner@example.com"
+						initial={preview.initial}
+						autoOpen={false}
+						browserHostname="192-168-1-39.sslip.io"
+					/>
+				) : done ? (
+					<MoveScreen result={done.result} email={done.email} />
+				) : (
+					<>
+						<div className="mb-8 lg:mb-12 lg:pl-[calc(13.5rem+3rem)]">
+							<h1 className="flex items-center gap-2 text-2xl font-semibold">
+								Set up LogiStack
+							</h1>
+							<p className="mt-1.5 max-w-[60ch] text-sm text-muted-foreground">
+								A few answers and this server is ready for its first project. It
+								takes about two minutes.
+							</p>
+						</div>
+						<Wizard
+							id="setup"
+							steps={steps}
+							defaultValues={defaults}
+							secretKeys={["setupToken", "ownerPassword", "dnsCredentials"]}
+							step={step}
+							onStepChange={onStepChange}
+							finishLabel="Finish setup"
+							onComplete={async (v) => {
+								const result = await complete.mutateAsync({
+									setupToken: v.setupToken.trim(),
+									input: {
+										owner: {
+											name: v.ownerName,
+											email: v.ownerEmail,
+											password: v.ownerPassword,
+										},
+										organization: { name: v.orgName.trim() },
+										instance: {
+											publicUrl: publicUrl(v, ip),
+											generatedDomainBase: v.domainBase,
+											customWildcard:
+												v.domainBase === "custom"
+													? `*.${domainBase(v, ip)}`
+													: undefined,
+											letsencryptEmail: v.leEmail,
+											localRegistryEnabled: v.registry,
+											dnsProvider:
+												v.domainBase === "custom" && v.dnsProvider !== "manual"
+													? {
+															kind: v.dnsProvider,
+															credentials: toConfig(
+																schemas?.dns[v.dnsProvider] as ConfigSchema,
+																v.dnsCredentials,
+															),
+														}
+													: undefined,
+										},
+									},
+								});
+								// No sign-in here: the session would belong to this bootstrap origin, which Caddy
+								// stops serving once it switches to the dashboard's own address.
+								setDone({ result, email: v.ownerEmail });
+							}}
+						/>
+					</>
+				)}
 			</main>
 		</div>
 	);

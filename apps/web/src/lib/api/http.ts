@@ -56,11 +56,8 @@ export const httpAdapter: ApiAdapter = {
 					header: setupHeader(setupToken),
 				}),
 			),
-		completeSetup: async (input, setupToken) => {
-			await ok(
-				api.setup.$post({ json: input, header: setupHeader(setupToken) }),
-			);
-		},
+		completeSetup: (input, setupToken) =>
+			ok(api.setup.$post({ json: input, header: setupHeader(setupToken) })),
 		version: () => ok(api.version.$get()),
 	},
 	overview: {
