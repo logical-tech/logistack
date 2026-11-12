@@ -17,3 +17,4 @@ export * from "./s3/storage.ts";
 export * from "./secrets/index.ts";
 export * from "./sigv4.ts";
 export * from "./ssrf.ts";
+export * from "./technitium/index.ts";

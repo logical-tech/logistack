@@ -64,6 +64,10 @@ for svc in $(docker service ls -q --filter label=logistack.managed=true --filter
 	name=$(docker service inspect "$svc" --format '{{.Spec.Name}}')
 	docker service rm "$svc" >/dev/null && ok "Service $name removed"
 done
+# The worker also creates the home network DNS (Technitium) on the host network.
+for svc in $(docker service ls -q --filter label=logistack.managed=true --filter label=logistack.home-dns=true); do
+	docker service rm "$svc" >/dev/null && ok "Home DNS service removed"
+done
 docker network rm ls-build >/dev/null 2>&1 && ok "Network ls-build removed"
 # install.sh runs the loopback API tunnel as a plain container on ls-control.
 if [ "$(docker inspect logistack-api-tunnel --format '{{index .Config.Labels "logistack.managed"}}' 2>/dev/null)" = true ]; then
@@ -72,6 +76,12 @@ fi
 # install.sh writes an SSH login banner pointing at the setup wizard.
 if [ -f /etc/update-motd.d/99-logistack ]; then
 	rm -f /etc/update-motd.d/99-logistack && ok "Login banner removed"
+fi
+# install.sh --enable-dns turns the systemd-resolved stub off to free port 53.
+if [ -f /etc/systemd/resolved.conf.d/logistack-dns.conf ]; then
+	rm -f /etc/systemd/resolved.conf.d/logistack-dns.conf
+	systemctl restart systemd-resolved >/dev/null 2>&1 || true
+	ok "systemd-resolved stub listener restored"
 fi
 for network in ls-control ls-ingress; do
 	if docker network inspect "$network" >/dev/null 2>&1; then
@@ -94,6 +104,9 @@ for volume in "${VOLUMES[@]}"; do
 		docker volume rm "$volume" >/dev/null && ok "Volume $volume deleted"
 	fi
 done
+for volume in $(docker volume ls -q --filter label=logistack.managed=true --filter label=logistack.home-dns=true); do
+	docker volume rm "$volume" >/dev/null && ok "Volume $volume deleted"
+done
 # Each organization's BuildKit cache.
 for volume in $(docker volume ls -q --filter label=logistack.managed=true --filter label=logistack.resource=buildkit); do
 	docker volume rm "$volume" >/dev/null && ok "Volume $volume deleted"
@@ -104,7 +117,7 @@ for secret in "${SECRETS[@]}"; do
 	fi
 done
 if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" = active ]; then
-	docker node update --label-rm logistack.ingress --label-rm logistack.data \
+	docker node update --label-rm logistack.ingress --label-rm logistack.data --label-rm logistack.dns \
 		"$(docker info --format '{{.Swarm.NodeID}}')" >/dev/null 2>&1 || true
 	ok "Node labels removed"
 fi

@@ -10,6 +10,7 @@ import {
 	LogOut,
 	Moon,
 	Plus,
+	ShieldBan,
 	SquarePen,
 	Sun,
 	UserRoundCheck,
@@ -28,10 +29,11 @@ import {
 import { TaskKey } from "@/components/work/parts";
 import { useSurfaces } from "@/components/work/shell/work-nav";
 import { useOpenTask } from "@/components/work/task-sheet/open-task";
+import { useHomeDns } from "@/lib/api/home-dns";
 import { projectsQuery } from "@/lib/api/projects";
 import { useWorkSearch } from "@/lib/api/work-queries";
 import { auth } from "@/lib/auth";
-import { NAV } from "@/lib/nav";
+import { navGroups } from "@/lib/nav";
 import { useTheme } from "@/lib/theme";
 
 const CommandMenuContext = createContext<(open: boolean) => void>(() => {});
@@ -49,6 +51,7 @@ export function CommandMenuProvider({ children }: { children: ReactNode }) {
 	const [query, setQuery] = useState("");
 	const { data: hits } = useWorkSearch(work && open ? query.trim() : "");
 	const openTask = useOpenTask();
+	const homeDns = useHomeDns();
 	const taskKey = /^[a-z][a-z0-9]{1,9}-\d+$/i.test(query.trim())
 		? query.trim().toUpperCase()
 		: null;
@@ -195,6 +198,20 @@ export function CommandMenuProvider({ children }: { children: ReactNode }) {
 									</CommandItem>
 								</>
 							)}
+							{ops && homeDns.admin && homeDns.data?.enabled === false && (
+								<CommandItem
+									keywords={[
+										"dns",
+										"home",
+										"ad blocking",
+										"technitium",
+										"pihole",
+									]}
+									onSelect={run(() => navigate({ to: "/network/dns/new" }))}
+								>
+									<ShieldBan /> Turn on home network DNS
+								</CommandItem>
+							)}
 							<CommandItem
 								keywords={["theme", "dark", "light"]}
 								onSelect={run(() =>
@@ -228,7 +245,7 @@ export function CommandMenuProvider({ children }: { children: ReactNode }) {
 							</CommandGroup>
 						)}
 						{ops &&
-							NAV.map((g) => (
+							navGroups(homeDns.on).map((g) => (
 								<CommandGroup
 									key={g.label ?? "go"}
 									heading={g.label ?? "Go to"}

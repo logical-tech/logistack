@@ -13,6 +13,7 @@ export * from "./errors.ts";
 export * from "./events.ts";
 export * from "./game.ts";
 export * from "./git-trigger.ts";
+export * from "./home-dns.ts";
 export * from "./logs.ts";
 export * from "./manifest.ts";
 export * from "./monitoring.ts";

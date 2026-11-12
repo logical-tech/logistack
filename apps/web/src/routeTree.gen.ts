@@ -52,6 +52,7 @@ import { Route as AppMonitoringStatusPagesRouteImport } from './routes/_app/moni
 import { Route as AppMonitoringTrafficRouteImport } from './routes/_app/monitoring/traffic'
 import { Route as AppMonitoringUptimeRouteImport } from './routes/_app/monitoring/uptime'
 import { Route as AppMonitoringUsageRouteImport } from './routes/_app/monitoring/usage'
+import { Route as AppNetworkDnsRouteImport } from './routes/_app/network_.dns'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/projects/$projectId/route'
 import { Route as AppSchedulesScheduleIdRouteImport } from './routes/_app/schedules_.$scheduleId'
@@ -97,6 +98,11 @@ import { Route as AppMonitoringNodesNewRouteImport } from './routes/_app/monitor
 import { Route as AppMonitoringStatusPagesNewRouteImport } from './routes/_app/monitoring/status-pages_.new'
 import { Route as AppMonitoringUptimeMonitorIdRouteImport } from './routes/_app/monitoring/uptime_.$monitorId'
 import { Route as AppMonitoringUptimeNewRouteImport } from './routes/_app/monitoring/uptime_.new'
+import { Route as AppNetworkDnsBlockingRouteImport } from './routes/_app/network_.dns_.blocking'
+import { Route as AppNetworkDnsLogsRouteImport } from './routes/_app/network_.dns_.logs'
+import { Route as AppNetworkDnsNewRouteImport } from './routes/_app/network_.dns_.new'
+import { Route as AppNetworkDnsSettingsRouteImport } from './routes/_app/network_.dns_.settings'
+import { Route as AppNetworkDnsZonesRouteImport } from './routes/_app/network_.dns_.zones'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId/index'
 import { Route as AppProjectsProjectIdDuplicateRouteImport } from './routes/_app/projects/$projectId/duplicate'
 import { Route as AppProjectsProjectIdGitopsRouteImport } from './routes/_app/projects/$projectId/gitops'
@@ -124,6 +130,7 @@ import { Route as AppWorkTKeyRouteImport } from './routes/_app/work/t/$key'
 import { Route as AppIntegrationsDnsProviderIdZoneIdRouteImport } from './routes/_app/integrations/dns_.$providerId.$zoneId'
 import { Route as AppMonitoringStatusPagesPageIdEditRouteImport } from './routes/_app/monitoring/status-pages_.$pageId_.edit'
 import { Route as AppMonitoringUptimeMonitorIdEditRouteImport } from './routes/_app/monitoring/uptime_.$monitorId_.edit'
+import { Route as AppNetworkDnsZonesZoneRouteImport } from './routes/_app/network_.dns_.zones_.$zone'
 import { Route as AppPluginInstallIdPageIdSplatRouteImport } from './routes/_app/plugin.$installId.$pageId.$'
 import { Route as AppProjectsProjectIdServicesServiceIdRouteRouteImport } from './routes/_app/projects/$projectId/services/$serviceId/route'
 import { Route as AppProjectsProjectIdServicesNewRouteImport } from './routes/_app/projects/$projectId/services/new'
@@ -377,6 +384,11 @@ const AppMonitoringUsageRoute = AppMonitoringUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
+const AppNetworkDnsRoute = AppNetworkDnsRouteImport.update({
+  id: '/network_/dns',
+  path: '/network/dns',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -616,6 +628,31 @@ const AppMonitoringUptimeNewRoute = AppMonitoringUptimeNewRouteImport.update({
   path: '/uptime/new',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
+const AppNetworkDnsBlockingRoute = AppNetworkDnsBlockingRouteImport.update({
+  id: '/network_/dns_/blocking',
+  path: '/network/dns/blocking',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkDnsLogsRoute = AppNetworkDnsLogsRouteImport.update({
+  id: '/network_/dns_/logs',
+  path: '/network/dns/logs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkDnsNewRoute = AppNetworkDnsNewRouteImport.update({
+  id: '/network_/dns_/new',
+  path: '/network/dns/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkDnsSettingsRoute = AppNetworkDnsSettingsRouteImport.update({
+  id: '/network_/dns_/settings',
+  path: '/network/dns/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkDnsZonesRoute = AppNetworkDnsZonesRouteImport.update({
+  id: '/network_/dns_/zones',
+  path: '/network/dns/zones',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProjectsProjectIdIndexRoute =
   AppProjectsProjectIdIndexRouteImport.update({
     id: '/',
@@ -770,6 +807,11 @@ const AppMonitoringUptimeMonitorIdEditRoute =
     path: '/uptime/$monitorId/edit',
     getParentRoute: () => AppMonitoringRouteRoute,
   } as any)
+const AppNetworkDnsZonesZoneRoute = AppNetworkDnsZonesZoneRouteImport.update({
+  id: '/network_/dns_/zones_/$zone',
+  path: '/network/dns/zones/$zone',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPluginInstallIdPageIdSplatRoute =
   AppPluginInstallIdPageIdSplatRouteImport.update({
     id: '/plugin/$installId/$pageId/$',
@@ -1012,6 +1054,7 @@ export interface FileRoutesByFullPath {
   '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
+  '/network/dns': typeof AppNetworkDnsRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -1057,6 +1100,11 @@ export interface FileRoutesByFullPath {
   '/monitoring/status-pages/new': typeof AppMonitoringStatusPagesNewRoute
   '/monitoring/uptime/$monitorId': typeof AppMonitoringUptimeMonitorIdRoute
   '/monitoring/uptime/new': typeof AppMonitoringUptimeNewRoute
+  '/network/dns/blocking': typeof AppNetworkDnsBlockingRoute
+  '/network/dns/logs': typeof AppNetworkDnsLogsRoute
+  '/network/dns/new': typeof AppNetworkDnsNewRoute
+  '/network/dns/settings': typeof AppNetworkDnsSettingsRoute
+  '/network/dns/zones': typeof AppNetworkDnsZonesRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
@@ -1087,6 +1135,7 @@ export interface FileRoutesByFullPath {
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
+  '/network/dns/zones/$zone': typeof AppNetworkDnsZonesZoneRoute
   '/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/tasks/settings': typeof AppProjectsProjectIdTasksSettingsRoute
@@ -1155,6 +1204,7 @@ export interface FileRoutesByTo {
   '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
+  '/network/dns': typeof AppNetworkDnsRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -1199,6 +1249,11 @@ export interface FileRoutesByTo {
   '/monitoring/status-pages/new': typeof AppMonitoringStatusPagesNewRoute
   '/monitoring/uptime/$monitorId': typeof AppMonitoringUptimeMonitorIdRoute
   '/monitoring/uptime/new': typeof AppMonitoringUptimeNewRoute
+  '/network/dns/blocking': typeof AppNetworkDnsBlockingRoute
+  '/network/dns/logs': typeof AppNetworkDnsLogsRoute
+  '/network/dns/new': typeof AppNetworkDnsNewRoute
+  '/network/dns/settings': typeof AppNetworkDnsSettingsRoute
+  '/network/dns/zones': typeof AppNetworkDnsZonesRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
@@ -1227,6 +1282,7 @@ export interface FileRoutesByTo {
   '/integrations/dns/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/monitoring/status-pages/$pageId/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/monitoring/uptime/$monitorId/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
+  '/network/dns/zones/$zone': typeof AppNetworkDnsZonesZoneRoute
   '/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/projects/$projectId/tasks/settings': typeof AppProjectsProjectIdTasksSettingsRoute
@@ -1303,6 +1359,7 @@ export interface FileRoutesById {
   '/_app/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/_app/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
+  '/_app/network_/dns': typeof AppNetworkDnsRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
   '/_app/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -1348,6 +1405,11 @@ export interface FileRoutesById {
   '/_app/monitoring/status-pages_/new': typeof AppMonitoringStatusPagesNewRoute
   '/_app/monitoring/uptime_/$monitorId': typeof AppMonitoringUptimeMonitorIdRoute
   '/_app/monitoring/uptime_/new': typeof AppMonitoringUptimeNewRoute
+  '/_app/network_/dns_/blocking': typeof AppNetworkDnsBlockingRoute
+  '/_app/network_/dns_/logs': typeof AppNetworkDnsLogsRoute
+  '/_app/network_/dns_/new': typeof AppNetworkDnsNewRoute
+  '/_app/network_/dns_/settings': typeof AppNetworkDnsSettingsRoute
+  '/_app/network_/dns_/zones': typeof AppNetworkDnsZonesRoute
   '/_app/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/_app/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/_app/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
@@ -1378,6 +1440,7 @@ export interface FileRoutesById {
   '/_app/integrations/dns_/$providerId/$zoneId': typeof AppIntegrationsDnsProviderIdZoneIdRoute
   '/_app/monitoring/status-pages_/$pageId_/edit': typeof AppMonitoringStatusPagesPageIdEditRoute
   '/_app/monitoring/uptime_/$monitorId_/edit': typeof AppMonitoringUptimeMonitorIdEditRoute
+  '/_app/network_/dns_/zones_/$zone': typeof AppNetworkDnsZonesZoneRoute
   '/_app/plugin/$installId/$pageId/$': typeof AppPluginInstallIdPageIdSplatRoute
   '/_app/projects/$projectId/services/new': typeof AppProjectsProjectIdServicesNewRoute
   '/_app/projects/$projectId/tasks/settings': typeof AppProjectsProjectIdTasksSettingsRoute
@@ -1453,6 +1516,7 @@ export interface FileRouteTypes {
     | '/monitoring/traffic'
     | '/monitoring/uptime'
     | '/monitoring/usage'
+    | '/network/dns'
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
@@ -1498,6 +1562,11 @@ export interface FileRouteTypes {
     | '/monitoring/status-pages/new'
     | '/monitoring/uptime/$monitorId'
     | '/monitoring/uptime/new'
+    | '/network/dns/blocking'
+    | '/network/dns/logs'
+    | '/network/dns/new'
+    | '/network/dns/settings'
+    | '/network/dns/zones'
     | '/projects/$projectId/duplicate'
     | '/projects/$projectId/gitops'
     | '/projects/$projectId/import'
@@ -1528,6 +1597,7 @@ export interface FileRouteTypes {
     | '/integrations/dns/$providerId/$zoneId'
     | '/monitoring/status-pages/$pageId/edit'
     | '/monitoring/uptime/$monitorId/edit'
+    | '/network/dns/zones/$zone'
     | '/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/tasks/settings'
@@ -1596,6 +1666,7 @@ export interface FileRouteTypes {
     | '/monitoring/traffic'
     | '/monitoring/uptime'
     | '/monitoring/usage'
+    | '/network/dns'
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
@@ -1640,6 +1711,11 @@ export interface FileRouteTypes {
     | '/monitoring/status-pages/new'
     | '/monitoring/uptime/$monitorId'
     | '/monitoring/uptime/new'
+    | '/network/dns/blocking'
+    | '/network/dns/logs'
+    | '/network/dns/new'
+    | '/network/dns/settings'
+    | '/network/dns/zones'
     | '/projects/$projectId/duplicate'
     | '/projects/$projectId/gitops'
     | '/projects/$projectId/import'
@@ -1668,6 +1744,7 @@ export interface FileRouteTypes {
     | '/integrations/dns/$providerId/$zoneId'
     | '/monitoring/status-pages/$pageId/edit'
     | '/monitoring/uptime/$monitorId/edit'
+    | '/network/dns/zones/$zone'
     | '/plugin/$installId/$pageId/$'
     | '/projects/$projectId/services/new'
     | '/projects/$projectId/tasks/settings'
@@ -1743,6 +1820,7 @@ export interface FileRouteTypes {
     | '/_app/monitoring/traffic'
     | '/_app/monitoring/uptime'
     | '/_app/monitoring/usage'
+    | '/_app/network_/dns'
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
     | '/_app/settings/api-keys'
@@ -1788,6 +1866,11 @@ export interface FileRouteTypes {
     | '/_app/monitoring/status-pages_/new'
     | '/_app/monitoring/uptime_/$monitorId'
     | '/_app/monitoring/uptime_/new'
+    | '/_app/network_/dns_/blocking'
+    | '/_app/network_/dns_/logs'
+    | '/_app/network_/dns_/new'
+    | '/_app/network_/dns_/settings'
+    | '/_app/network_/dns_/zones'
     | '/_app/projects/$projectId/duplicate'
     | '/_app/projects/$projectId/gitops'
     | '/_app/projects/$projectId/import'
@@ -1818,6 +1901,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/dns_/$providerId/$zoneId'
     | '/_app/monitoring/status-pages_/$pageId_/edit'
     | '/_app/monitoring/uptime_/$monitorId_/edit'
+    | '/_app/network_/dns_/zones_/$zone'
     | '/_app/plugin/$installId/$pageId/$'
     | '/_app/projects/$projectId/services/new'
     | '/_app/projects/$projectId/tasks/settings'
@@ -2160,6 +2244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonitoringUsageRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
+    '/_app/network_/dns': {
+      id: '/_app/network_/dns'
+      path: '/network/dns'
+      fullPath: '/network/dns'
+      preLoaderRoute: typeof AppNetworkDnsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projects/': {
       id: '/_app/projects/'
       path: '/'
@@ -2475,6 +2566,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonitoringUptimeNewRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
+    '/_app/network_/dns_/blocking': {
+      id: '/_app/network_/dns_/blocking'
+      path: '/network/dns/blocking'
+      fullPath: '/network/dns/blocking'
+      preLoaderRoute: typeof AppNetworkDnsBlockingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network_/dns_/logs': {
+      id: '/_app/network_/dns_/logs'
+      path: '/network/dns/logs'
+      fullPath: '/network/dns/logs'
+      preLoaderRoute: typeof AppNetworkDnsLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network_/dns_/new': {
+      id: '/_app/network_/dns_/new'
+      path: '/network/dns/new'
+      fullPath: '/network/dns/new'
+      preLoaderRoute: typeof AppNetworkDnsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network_/dns_/settings': {
+      id: '/_app/network_/dns_/settings'
+      path: '/network/dns/settings'
+      fullPath: '/network/dns/settings'
+      preLoaderRoute: typeof AppNetworkDnsSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network_/dns_/zones': {
+      id: '/_app/network_/dns_/zones'
+      path: '/network/dns/zones'
+      fullPath: '/network/dns/zones'
+      preLoaderRoute: typeof AppNetworkDnsZonesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projects/$projectId/': {
       id: '/_app/projects/$projectId/'
       path: '/'
@@ -2663,6 +2789,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/monitoring/uptime/$monitorId/edit'
       preLoaderRoute: typeof AppMonitoringUptimeMonitorIdEditRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
+    }
+    '/_app/network_/dns_/zones_/$zone': {
+      id: '/_app/network_/dns_/zones_/$zone'
+      path: '/network/dns/zones/$zone'
+      fullPath: '/network/dns/zones/$zone'
+      preLoaderRoute: typeof AppNetworkDnsZonesZoneRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/plugin/$installId/$pageId/$': {
       id: '/_app/plugin/$installId/$pageId/$'
@@ -3185,6 +3318,7 @@ interface AppRouteChildren {
   AppIntegrationsSecretProvidersRoute: typeof AppIntegrationsSecretProvidersRoute
   AppIntegrationsTailscaleRoute: typeof AppIntegrationsTailscaleRoute
   AppIntegrationsTunnelsRoute: typeof AppIntegrationsTunnelsRoute
+  AppNetworkDnsRoute: typeof AppNetworkDnsRoute
   AppSchedulesScheduleIdRoute: typeof AppSchedulesScheduleIdRoute
   AppSchedulesNewRoute: typeof AppSchedulesNewRoute
   AppSettingsApiKeysRoute: typeof AppSettingsApiKeysRoute
@@ -3215,6 +3349,11 @@ interface AppRouteChildren {
   AppIntegrationsSecretProvidersNewRoute: typeof AppIntegrationsSecretProvidersNewRoute
   AppIntegrationsTailscaleNewRoute: typeof AppIntegrationsTailscaleNewRoute
   AppIntegrationsTunnelsNewRoute: typeof AppIntegrationsTunnelsNewRoute
+  AppNetworkDnsBlockingRoute: typeof AppNetworkDnsBlockingRoute
+  AppNetworkDnsLogsRoute: typeof AppNetworkDnsLogsRoute
+  AppNetworkDnsNewRoute: typeof AppNetworkDnsNewRoute
+  AppNetworkDnsSettingsRoute: typeof AppNetworkDnsSettingsRoute
+  AppNetworkDnsZonesRoute: typeof AppNetworkDnsZonesRoute
   AppSchedulesScheduleIdEditRoute: typeof AppSchedulesScheduleIdEditRoute
   AppSettingsApiKeysNewRoute: typeof AppSettingsApiKeysNewRoute
   AppSettingsAuthenticationOidcRoute: typeof AppSettingsAuthenticationOidcRoute
@@ -3227,6 +3366,7 @@ interface AppRouteChildren {
   AppSettingsPluginsNewRoute: typeof AppSettingsPluginsNewRoute
   AppBackupsServiceIdIndexRoute: typeof AppBackupsServiceIdIndexRoute
   AppIntegrationsDnsProviderIdZoneIdRoute: typeof AppIntegrationsDnsProviderIdZoneIdRoute
+  AppNetworkDnsZonesZoneRoute: typeof AppNetworkDnsZonesZoneRoute
   AppPluginInstallIdPageIdSplatRoute: typeof AppPluginInstallIdPageIdSplatRoute
 }
 
@@ -3253,6 +3393,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsSecretProvidersRoute: AppIntegrationsSecretProvidersRoute,
   AppIntegrationsTailscaleRoute: AppIntegrationsTailscaleRoute,
   AppIntegrationsTunnelsRoute: AppIntegrationsTunnelsRoute,
+  AppNetworkDnsRoute: AppNetworkDnsRoute,
   AppSchedulesScheduleIdRoute: AppSchedulesScheduleIdRoute,
   AppSchedulesNewRoute: AppSchedulesNewRoute,
   AppSettingsApiKeysRoute: AppSettingsApiKeysRoute,
@@ -3284,6 +3425,11 @@ const AppRouteChildren: AppRouteChildren = {
     AppIntegrationsSecretProvidersNewRoute,
   AppIntegrationsTailscaleNewRoute: AppIntegrationsTailscaleNewRoute,
   AppIntegrationsTunnelsNewRoute: AppIntegrationsTunnelsNewRoute,
+  AppNetworkDnsBlockingRoute: AppNetworkDnsBlockingRoute,
+  AppNetworkDnsLogsRoute: AppNetworkDnsLogsRoute,
+  AppNetworkDnsNewRoute: AppNetworkDnsNewRoute,
+  AppNetworkDnsSettingsRoute: AppNetworkDnsSettingsRoute,
+  AppNetworkDnsZonesRoute: AppNetworkDnsZonesRoute,
   AppSchedulesScheduleIdEditRoute: AppSchedulesScheduleIdEditRoute,
   AppSettingsApiKeysNewRoute: AppSettingsApiKeysNewRoute,
   AppSettingsAuthenticationOidcRoute: AppSettingsAuthenticationOidcRoute,
@@ -3297,6 +3443,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBackupsServiceIdIndexRoute: AppBackupsServiceIdIndexRoute,
   AppIntegrationsDnsProviderIdZoneIdRoute:
     AppIntegrationsDnsProviderIdZoneIdRoute,
+  AppNetworkDnsZonesZoneRoute: AppNetworkDnsZonesZoneRoute,
   AppPluginInstallIdPageIdSplatRoute: AppPluginInstallIdPageIdSplatRoute,
 }
 

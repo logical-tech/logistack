@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { OrganizationPanel } from "@/components/organization-panel";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useInstanceSettings, useSetAllowPrivateHosts } from "@/lib/api/access";
+import { useHomeDns } from "@/lib/api/home-dns";
 
 export const Route = createFileRoute("/_app/settings/general")({
 	staticData: { crumb: "General" },
@@ -49,6 +50,28 @@ function Row({
 				{children}
 			</dd>
 		</div>
+	);
+}
+
+/** Instance admins only: the door to the home network DNS wizard, or where it lives once on. */
+function HomeDnsPanel() {
+	const { data, admin } = useHomeDns();
+	if (!admin || !data) return null;
+	return (
+		<Panel id="home-dns" title="Home network DNS">
+			<div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+				<p className="min-w-0 flex-1 text-sm text-pretty text-muted-foreground">
+					{data.enabled
+						? `On. Devices that use ${data.lanAddress} as their DNS server get ad and tracker blocking and local names.`
+						: "Make this server the house's DNS: ad and tracker blocking for every device, and local names like nas.home.lan."}
+				</p>
+				<Button asChild variant={data.enabled ? "outline" : "default"}>
+					<Link to={data.enabled ? "/network/dns" : "/network/dns/new"}>
+						{data.enabled ? "Open" : "Set up home DNS"}
+					</Link>
+				</Button>
+			</div>
+		</Panel>
 	);
 }
 
@@ -99,6 +122,8 @@ function General() {
 						</dl>
 					)}
 				</Panel>
+
+				<HomeDnsPanel />
 
 				<Panel id="network" title="Network safety">
 					<div className="flex items-start justify-between gap-6 p-4">

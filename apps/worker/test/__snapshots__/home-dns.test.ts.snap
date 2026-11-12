@@ -1,0 +1,60 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`Technitium runs once on the chosen node's host network with the password in env only 1`] = `
+{
+  "Labels": {
+    "logistack.home-dns": "true",
+    "logistack.managed": "true",
+    "logistack.spec-hash": "53374ae4f63273da",
+  },
+  "Mode": {
+    "Replicated": {
+      "Replicas": 1,
+    },
+  },
+  "Name": "ls-hdn-abc",
+  "TaskTemplate": {
+    "ContainerSpec": {
+      "CapabilityAdd": [
+        "NET_ADMIN",
+      ],
+      "Env": [
+        "DNS_SERVER_DOMAIN=logistack-dns",
+        "DNS_SERVER_ADMIN_PASSWORD=secret-password",
+      ],
+      "Image": "technitium/dns-server:15.6.2",
+      "Labels": {
+        "logistack.home-dns": "true",
+        "logistack.managed": "true",
+      },
+      "Mounts": [
+        {
+          "Source": "ls-hdn-abc-data",
+          "Target": "/etc/dns",
+          "Type": "volume",
+          "VolumeOptions": {
+            "Labels": {
+              "logistack.home-dns": "true",
+              "logistack.managed": "true",
+            },
+          },
+        },
+      ],
+    },
+    "Networks": [
+      {
+        "Target": "host",
+      },
+    ],
+    "Placement": {
+      "Constraints": [
+        "node.id==node123",
+      ],
+    },
+    "RestartPolicy": {
+      "Condition": "any",
+      "Delay": 5000000000,
+    },
+  },
+}
+`;

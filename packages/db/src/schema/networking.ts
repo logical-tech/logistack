@@ -1,6 +1,14 @@
-import type { AccessRule, DomainEdge } from "@logistack/contracts";
+import type {
+	AccessRule,
+	DomainEdge,
+	HomeDnsDesiredState,
+	HomeDnsSettings,
+	HomeDnsStatus,
+} from "@logistack/contracts";
+import { sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -13,6 +21,7 @@ import { id, timestamps, tstz } from "./columns.ts";
 import { certMode, dnsProviderKind, domainStatus } from "./enums.ts";
 import { service } from "./hierarchy.ts";
 import { pluginInstall } from "./plugins.ts";
+import { node } from "./runtime.ts";
 
 export const certificate = pgTable("certificate", {
 	id: id("crt"),
@@ -172,4 +181,37 @@ export const tailscalePublication = pgTable(
 	(t) => [
 		unique("tailscale_publication_hostname").on(t.organizationId, t.hostname),
 	],
+);
+
+/**
+ * The instance's home DNS: one Technitium DNS Server on one node, owned by no organization.
+ * `singleton` is always true, so its unique index allows one row.
+ */
+export const homeNetwork = pgTable(
+	"home_network",
+	{
+		id: id("hdn"),
+		singleton: boolean("singleton").notNull().default(true).unique(),
+		nodeId: text("node_id")
+			.notNull()
+			.references(() => node.id, { onDelete: "cascade" }),
+		lanAddress: text("lan_address").notNull(),
+		desiredState: text("desired_state")
+			.$type<HomeDnsDesiredState>()
+			.notNull()
+			.default("running"),
+		status: text("status").$type<HomeDnsStatus>().notNull().default("starting"),
+		statusMessage: text("status_message"),
+		settings: jsonb("settings").$type<HomeDnsSettings>().notNull(),
+		adminPasswordEncrypted: text("admin_password_encrypted").notNull(),
+		/** Technitium API token the worker creates on first contact; null until then. */
+		tokenEncrypted: text("token_encrypted"),
+		/** Hash of the settings last applied to Technitium; a mismatch re-applies them. */
+		appliedHash: text("applied_hash"),
+		/** Swarm id of the Technitium service, recorded by the worker. */
+		serviceId: text("service_id"),
+		version: text("version"),
+		...timestamps,
+	},
+	(t) => [check("home_network_singleton_true", sql`${t.singleton}`)],
 );

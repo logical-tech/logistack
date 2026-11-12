@@ -228,3 +228,15 @@ export const PLUGIN_STATUS: Record<
 	disabled: { label: "Turned off", tone: "idle" },
 	error: { label: "Failed", tone: "bad" },
 };
+
+/** Home DNS as the worker reports it; `ready` with a message is still finishing (the query log extension). */
+export const HOME_DNS_STATUS: Record<
+	"starting" | "configuring" | "ready" | "error" | "stopped",
+	StatusMeta
+> = {
+	starting: { label: "Starting", tone: "busy", live: true },
+	configuring: { label: "Configuring", tone: "busy", live: true },
+	ready: { label: "Running", tone: "ok" },
+	error: { label: "Error", tone: "bad" },
+	stopped: { label: "Stopped", tone: "idle" },
+};

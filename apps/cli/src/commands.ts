@@ -2,6 +2,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import {
 	type DeploymentStatus,
+	HOME_DNS_DEFAULT_BLOCKLIST,
+	type HomeDns,
 	Manifest,
 	type ManifestChange,
 } from "@logistack/contracts";
@@ -43,6 +45,7 @@ Commands:
   deploy                Queue a deployment of a service
   logs                  Print a service's logs (-f to follow)
   exec                  Open a shell in a running replica
+  network <action>      Home network DNS: status, enable, start, stop, disable
 
 Flags:
   -f, --file <path>       Manifest (YAML or JSON); - reads stdin
@@ -58,6 +61,9 @@ Flags:
   --shell <sh|bash>       exec: the shell (default sh)
   -o, --output <path>     export: write to a file
   --format <yaml|json>    export: default yaml
+  --node <id|hostname>    network enable: the node that runs the DNS (default: the only node)
+  --address <ipv4>        network enable: the address devices use as DNS (default: the node's)
+  --zone <name>           network enable: a local zone to create, such as home.lan
   --url <url>             login: the instance URL
   --json                  Machine-readable output
   -h, --help              This help
@@ -80,6 +86,9 @@ const flags = {
 	shell: { type: "string", default: "sh" },
 	output: { type: "string", short: "o" },
 	format: { type: "string", default: "yaml" },
+	node: { type: "string" },
+	address: { type: "string" },
+	zone: { type: "string" },
 	url: { type: "string" },
 	json: { type: "boolean", default: false },
 	help: { type: "boolean", short: "h", default: false },
@@ -100,7 +109,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
 		io.err(`${(e as Error).message}\n\n${HELP}`);
 		return 64;
 	}
-	const [command] = positionals;
+	const [command, action] = positionals;
 	if (values.version) {
 		io.out(VERSION);
 		return 0;
@@ -130,6 +139,8 @@ export async function run(argv: string[], io: Io): Promise<number> {
 				return await logs(api, values, io);
 			case "exec":
 				return await exec(api, values, io);
+			case "network":
+				return await network(api, action, values, io);
 			default:
 				throw new UsageError(`unknown command ${command}\n\n${HELP}`);
 		}
@@ -152,6 +163,90 @@ export async function run(argv: string[], io: Io): Promise<number> {
 				io.err(JSON.stringify(e.details, null, 2));
 		}
 		return e instanceof UsageError ? 64 : 1;
+	}
+}
+
+const DNS = "/network/dns";
+
+/** Home network DNS. `enable` is the wizard's defaults in one call; the dashboard edits the rest. */
+async function network(
+	api: Api,
+	action: string | undefined,
+	values: Flags,
+	io: Io,
+) {
+	const show = (d: HomeDns) => {
+		if (values.json) io.out(JSON.stringify(d));
+		else if (!d.enabled)
+			io.out("Home DNS is off. Turn it on with `logistack network enable`.");
+		else
+			io.out(
+				`Home DNS ${d.status} on ${d.nodeHostname} (${d.lanAddress})${d.version ? `, Technitium ${d.version}` : ""}${d.statusMessage ? `\n${d.statusMessage}` : ""}`,
+			);
+		return 0;
+	};
+	switch (action) {
+		case undefined:
+		case "status":
+			return show(await api.get<HomeDns>(DNS));
+		case "enable": {
+			const nodes =
+				await api.get<{ id: string; hostname: string; address: string }[]>(
+					"/nodes",
+				);
+			const node = values.node
+				? nodes.find((n) => n.id === values.node || n.hostname === values.node)
+				: nodes.length === 1
+					? nodes[0]
+					: undefined;
+			if (!node)
+				throw new UsageError(
+					values.node
+						? `no node ${values.node}; nodes: ${nodes.map((n) => n.hostname).join(", ")}`
+						: `pass --node <id|hostname>; nodes: ${nodes.map((n) => n.hostname).join(", ")}`,
+				);
+			const d = await api.post<HomeDns>(DNS, {
+				nodeId: node.id,
+				lanAddress: values.address ?? node.address,
+				settings: {
+					blocking: { enabled: true, listUrls: [HOME_DNS_DEFAULT_BLOCKLIST] },
+					...(values.zone && { localZone: values.zone }),
+				},
+			});
+			if (!values.json)
+				io.err(
+					`Starting. Port 53 on ${node.hostname} must be free (install.sh --enable-dns frees it). Then set ${d.lanAddress} as the DNS server on your router.`,
+				);
+			return show(d);
+		}
+		case "start":
+		case "stop":
+			return show(
+				await api.patch<HomeDns>(DNS, {
+					desiredState: action === "start" ? "running" : "stopped",
+				}),
+			);
+		case "disable": {
+			if (!values.yes) {
+				if (!io.interactive)
+					throw new UsageError("not a terminal: pass --yes to disable");
+				const answer = await io.prompt(
+					"This deletes the DNS and all its data (zones, records, lists, logs). Type yes: ",
+				);
+				if (answer.trim() !== "yes") {
+					io.err("Nothing changed.");
+					return 1;
+				}
+			}
+			await api.del(DNS);
+			if (values.json) io.out(JSON.stringify({ disabled: true }));
+			else io.out("Home DNS is being removed.");
+			return 0;
+		}
+		default:
+			throw new UsageError(
+				`unknown network action ${action}: use status, enable, start, stop or disable`,
+			);
 	}
 }
 
