@@ -28,6 +28,8 @@ export type Deps = {
 		serviceId: string,
 		port: number,
 	) => { host: string; port: number };
+	/** Base URL of the home DNS's Technitium API; default `http://<its node's address>:5380`. Tests point it at a fake. */
+	homeDnsUrl?: string;
 	/** Statement timeout of explorer queries; default 30 s. Tests shorten it. */
 	databaseStatementTimeoutMs?: number;
 };

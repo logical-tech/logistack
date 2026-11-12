@@ -47,6 +47,7 @@ const templates: Record<EventType, { severity: Severity; what: string }> = {
 		severity: "error",
 		what: "Critical vulnerabilities found",
 	},
+	"network.dns.unhealthy": { severity: "error", what: "Home DNS unhealthy" },
 	"monitor.down": { severity: "error", what: "Monitor down" },
 	"monitor.up": { severity: "success", what: "Monitor up" },
 	"task.created": { severity: "info", what: "Task created" },

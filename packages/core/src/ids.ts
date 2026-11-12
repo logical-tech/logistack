@@ -38,6 +38,7 @@ export const idPrefixes = {
 	cloudflareTunnel: "cft",
 	tailscaleNetwork: "tsn",
 	tailscalePublication: "tsp",
+	homeNetwork: "hdn",
 	migration: "mig",
 	migrationItem: "mgi",
 	aiProviderKey: "aik",
@@ -100,6 +101,7 @@ export type DockerKind =
 	| "cft"
 	| "tsn"
 	| "tsp"
+	| "hdn"
 	| "plg";
 
 /** Docker object name derived from an id, never from user input: `dockerName("svc", "svc_ab12") === "ls-svc-ab12"`. */

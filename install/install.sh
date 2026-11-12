@@ -45,11 +45,13 @@ LOCAL_BUILD=0
 NO_INGRESS=0
 ENABLE_INGRESS=0
 PUBLIC_SETUP=0
+ENABLE_DNS=0
 API_REPLICAS=""
 REGISTRY="ghcr.io/logical-tech"
 CONTROL_SUBNET="10.247.0.0/16"
 TUNNEL_NAME="logistack-api-tunnel"
 MOTD_FILE="/etc/update-motd.d/99-logistack"
+DNS_DROPIN="/etc/systemd/resolved.conf.d/logistack-dns.conf"
 TUNNEL_PORT=${LOGISTACK_TUNNEL_PORT:-3000}
 MIGRATION_FILE="$CONF_DIR/migration"
 MIGRATION_ARCHIVE_DIR=/var/lib/logistack/migration
@@ -121,6 +123,9 @@ Usage: install.sh [options]
   --public-setup       Serve the setup wizard on the public address before setup, guarded by a
                        one-time setup token printed at the end (default: only through an SSH
                        tunnel to 127.0.0.1:$TUNNEL_PORT)
+  --enable-dns         Host the home network DNS (Technitium) on this node: frees port 53 from
+                       systemd-resolved and labels the node, so LogiStack turns the DNS on with
+                       defaults you can change in the dashboard. Works on a new or a running install
   --api-replicas N     API replicas behind Caddy, 1 to 9 (default: the running count, else 1).
                        Kept on re-runs and by in-app updates
   --help, -h           Show this help
@@ -171,6 +176,7 @@ parse_args() {
 		--no-ingress) NO_INGRESS=1 ;;
 		--enable-ingress) ENABLE_INGRESS=1 ;;
 		--public-setup) PUBLIC_SETUP=1 ;;
+		--enable-dns | --with-dns) ENABLE_DNS=1 ;;
 		--api-replicas) API_REPLICAS=${2:?--api-replicas needs a value}; shift ;;
 		--api-replicas=*) API_REPLICAS=${1#*=} ;;
 		--help | -h) usage; exit 0 ;;
@@ -410,6 +416,47 @@ check_ports() {
 	port_busy udp 443 && busy+=("443/udp")
 	[ ${#busy[@]} -eq 0 ] || fail "Ports in use: ${busy[*]}. Stop the web server holding them and re-run."
 	ok "Ports 80 and 443 are free"
+}
+
+# Listeners on 53 other than systemd-resolved's stub, which ensure_dns turns off.
+dns_port_holders() {
+	{ ss -Hlnup 'sport = :53'; ss -Hlntp 'sport = :53'; } 2>/dev/null | grep -v systemd-resolve || true
+}
+
+resolved_stub_on() {
+	[ ! -f "$DNS_DROPIN" ] && port_busy udp 53 && have systemctl && systemctl is-active --quiet systemd-resolved
+}
+
+check_dns() {
+	[ "$ENABLE_DNS" = 1 ] || return 0
+	if [ "$DOCKER_READY" = 1 ] && [ -n "$(docker service ls -q --filter label=logistack.managed=true --filter label=logistack.home-dns=true 2>/dev/null)" ]; then
+		ok "Port 53 belongs to the LogiStack DNS"
+		return
+	fi
+	[ -z "$(dns_port_holders)" ] || fail "Port 53 is in use by another DNS server. Stop it and re-run with --enable-dns."
+	if resolved_stub_on; then
+		ok "Port 53 is held by the systemd-resolved stub; it will be turned off"
+	else
+		ok "Port 53 is free"
+	fi
+}
+
+# With the stub off systemd-resolved points stub-resolv.conf at the uplink servers itself, so the
+# host keeps resolving through /etc/resolv.conf unchanged.
+free_dns_port() {
+	mkdir -p "${DNS_DROPIN%/*}"
+	printf '[Resolve]\nDNSStubListener=no\n' >"$DNS_DROPIN"
+	systemctl restart systemd-resolved
+	! port_busy udp 53
+}
+
+ensure_dns() {
+	[ "$ENABLE_DNS" = 1 ] || return 0
+	step "Home network DNS"
+	if resolved_stub_on; then
+		act "Turn off the systemd-resolved stub listener to free port 53 ($DNS_DROPIN)" free_dns_port
+	fi
+	act "Label this node logistack.dns=true" label_node logistack.dns=true
 }
 
 ipv4_int() {
@@ -1088,6 +1135,7 @@ main() {
 	detect_migration_source
 	detect_ingress_mode
 	check_ports
+	check_dns
 	check_networks
 	detect_addresses
 	confirm
@@ -1101,6 +1149,7 @@ main() {
 	step "Swarm"
 	ensure_swarm
 	ensure_coolify_bridge
+	ensure_dns
 	step "Secrets"
 	ensure_secrets
 	ensure_dokploy_secret
@@ -1145,6 +1194,7 @@ main() {
 			note "After setup the dashboard is served over https on the domain you choose there."
 		fi
 	fi
+	[ "$ENABLE_DNS" = 0 ] || note "Home network DNS starts on this node with defaults. Review them under Network, then set $ADVERTISE_ADDR as the DNS server on your router."
 	note "Back up $CREDENTIALS_FILE: it holds the master key that encrypts your secrets."
 }
 

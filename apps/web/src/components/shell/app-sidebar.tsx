@@ -38,11 +38,12 @@ import {
 } from "@/components/ui/tooltip";
 import { useSurfaces, WorkNavGroup } from "@/components/work/shell/work-nav";
 import { useMe, useOrganization } from "@/lib/api/access";
+import { useHomeDns } from "@/lib/api/home-dns";
 import { versionQuery } from "@/lib/api/instance";
 import { nodesQuery } from "@/lib/api/monitoring";
 import { pluginContributionsQuery } from "@/lib/api/plugins";
 import { auth } from "@/lib/auth";
-import { NAV } from "@/lib/nav";
+import { navGroups } from "@/lib/nav";
 import { NODE_STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -140,6 +141,12 @@ function isActive(pathname: string, to: string) {
 		? pathname === "/"
 		: pathname === to || pathname.startsWith(`${to}/`);
 }
+
+/** The item a path belongs to: the longest match, so /network/dns/logs is not also the map. */
+const activeIn = (items: { to: string }[], pathname: string) =>
+	items
+		.filter((i) => isActive(pathname, i.to))
+		.sort((a, b) => b.to.length - a.to.length)[0]?.to;
 
 const plural = (n: number, word: string) => `${word}${n === 1 ? "" : "s"}`;
 
@@ -277,6 +284,7 @@ export function AppSidebar() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const { isMobile, setOpenMobile } = useSidebar();
 	const { work } = useSurfaces();
+	const { on: homeNetwork } = useHomeDns();
 
 	return (
 		<Sidebar collapsible="icon">
@@ -284,10 +292,12 @@ export function AppSidebar() {
 				<OrgSwitcher />
 			</SidebarHeader>
 			<SidebarContent>
-				{NAV.map((group, i) => (
+				{navGroups(homeNetwork).map((group) => (
 					<Fragment key={group.label ?? "main"}>
-						{i === 1 && work && <WorkNavGroup />}
-						{i === 1 && <PluginsGroup pathname={pathname} />}
+						{group.label === "Integrations" && work && <WorkNavGroup />}
+						{group.label === "Integrations" && (
+							<PluginsGroup pathname={pathname} />
+						)}
 						<SidebarGroup>
 							{group.label && (
 								<SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -295,7 +305,7 @@ export function AppSidebar() {
 							<SidebarGroupContent>
 								<SidebarMenu>
 									{group.items.map((item) => {
-										const active = isActive(pathname, item.to);
+										const active = item.to === activeIn(group.items, pathname);
 										return (
 											<SidebarMenuItem key={item.to}>
 												<SidebarMenuButton

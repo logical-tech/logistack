@@ -44,6 +44,7 @@ import { games } from "./routes/games.ts";
 import { git } from "./routes/git.ts";
 import { gitops } from "./routes/gitops.ts";
 import { health } from "./routes/health.ts";
+import { homeDns } from "./routes/home-dns.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
 import { logDrains } from "./routes/log-drains.ts";
@@ -322,6 +323,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", nodes)
 		.route("/api", patching)
 		.route("/api", networkMapRoutes)
+		.route("/api", homeDns)
 		.route("/api", members)
 		.route("/api", apiKeys)
 		.route("/api", sshKeys)

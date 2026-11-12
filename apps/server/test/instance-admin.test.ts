@@ -69,6 +69,23 @@ const instanceRoutes: [string, string, unknown?][] = [
 	["POST", `/api/migrations/${node}/proxy-switch`, {}],
 	["POST", `/api/migrations/${node}/unfreeze`, {}],
 	["POST", `/api/migrations/${node}/decommission`, {}],
+	["GET", "/api/network/dns"],
+	["POST", "/api/network/dns", { nodeId: node, lanAddress: "192.168.1.2" }],
+	["PATCH", "/api/network/dns", { desiredState: "stopped" }],
+	["DELETE", "/api/network/dns"],
+	["POST", "/api/network/dns/console"],
+	["POST", "/api/network/dns/test", { name: "example.com" }],
+	["GET", "/api/network/dns/stats"],
+	["GET", "/api/network/dns/logs"],
+	["PUT", "/api/network/dns/blocking", { enabled: true, listUrls: [] }],
+	["POST", "/api/network/dns/blocked", { domain: "ads.example.com" }],
+	["DELETE", "/api/network/dns/allowed/example.com"],
+	["GET", "/api/network/dns/zones"],
+	[
+		"POST",
+		"/api/network/dns/zones/home.lan/records",
+		{ name: "a.home.lan", type: "A", content: "192.168.1.3" },
+	],
 ];
 
 describe.skipIf(!hasDocker)("instance admins", () => {

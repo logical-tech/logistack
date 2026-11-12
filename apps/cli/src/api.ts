@@ -52,6 +52,11 @@ export function client(c: Credentials, fetcher: typeof fetch = fetch) {
 			(await request("GET", path, undefined, "text/yaml")).text,
 		post: async <T>(path: string, body?: unknown) =>
 			(await request("POST", path, body ?? {})).json as T,
+		patch: async <T>(path: string, body: unknown) =>
+			(await request("PATCH", path, body)).json as T,
+		del: async (path: string) => {
+			await request("DELETE", path);
+		},
 		/** `ws(s)://<host>/ws...` with the key in a header, never in the URL. */
 		socket: (path: string) =>
 			new WebSocket(`${base.replace(/^http/, "ws")}${path}`, {

@@ -12,6 +12,7 @@ import {
 	Database,
 	FileClock,
 	Fingerprint,
+	Gauge,
 	GitBranch,
 	Globe,
 	HardDrive,
@@ -28,7 +29,10 @@ import {
 	ScrollText,
 	ServerCog,
 	Settings2,
+	ShieldBan,
 	ShieldCheck,
+	Signpost,
+	SlidersHorizontal,
 	Sparkles,
 	TerminalSquare,
 	Users,
@@ -500,7 +504,74 @@ export const NAV: NavGroup[] = [
 	},
 ];
 
-export const SECTIONS = NAV.flatMap((g) => g.items);
+/** Replaces the main group's Network item while home DNS is on (instance admins only). */
+export const HOME_NETWORK: NavGroup = {
+	label: "Network",
+	items: [
+		{
+			to: "/network/dns",
+			title: "Overview",
+			icon: Gauge,
+			description:
+				"The house's DNS: queries, what was blocked, and which devices ask the most.",
+			keywords: ["home", "dns", "technitium", "ad blocking", "pihole"],
+		},
+		{
+			to: "/network/dns/logs",
+			title: "Query log",
+			icon: ScrollText,
+			description:
+				"Every name a device on the network looked up, newest first.",
+			keywords: ["home", "dns", "queries", "log"],
+		},
+		{
+			to: "/network/dns/blocking",
+			title: "Blocking",
+			icon: ShieldBan,
+			description:
+				"Block lists for ads, trackers and malware, plus domains you always allow or block.",
+			keywords: ["home", "dns", "ads", "blocklist", "allowlist", "adblock"],
+		},
+		{
+			to: "/network/dns/zones",
+			title: "Zones",
+			icon: Signpost,
+			description:
+				"Local zones like home.lan and their records, answered only inside the house.",
+			keywords: ["home", "dns", "records", "home.lan", "local"],
+		},
+		{
+			to: "/network",
+			title: "Map",
+			icon: Waypoints,
+			description:
+				"How traffic reaches each service: the proxy and tunnels, every domain, and the tasks running on each node.",
+			keywords: ["map", "topology", "graph", "tunnel", "proxy", "ports"],
+		},
+		{
+			to: "/network/dns/settings",
+			title: "Settings",
+			icon: SlidersHorizontal,
+			description:
+				"Upstream resolver, DNSSEC, the local zone, where the DNS server runs, and the Technitium console.",
+			keywords: ["home", "dns", "upstream", "dnssec", "technitium", "console"],
+		},
+	],
+};
+
+/** The groups to show: with home DNS on, Network becomes its own group after the main one. */
+export function navGroups(homeNetwork: boolean): NavGroup[] {
+	if (!homeNetwork) return NAV;
+	const [main, ...rest] = NAV;
+	if (!main) return NAV;
+	return [
+		{ ...main, items: main.items.filter((s) => s.to !== "/network") },
+		HOME_NETWORK,
+		...rest,
+	];
+}
+
+export const SECTIONS = [...NAV, HOME_NETWORK].flatMap((g) => g.items);
 
 export function section(to: string): Section {
 	const s = SECTIONS.find((x) => x.to === to);

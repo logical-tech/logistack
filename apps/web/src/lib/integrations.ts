@@ -221,6 +221,7 @@ export const EVENT_GROUPS: {
 			{ type: "service.scaled", label: "Service scaled automatically" },
 			{ type: "image.vulnerable", label: "Critical vulnerability found" },
 			{ type: "metric.threshold", label: "Node threshold crossed" },
+			{ type: "network.dns.unhealthy", label: "Home DNS unhealthy" },
 		],
 	},
 	{

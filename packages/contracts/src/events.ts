@@ -42,6 +42,11 @@ export const eventTypes = [
 	"monitor.down",
 	/** A down monitor recovered. */
 	"monitor.up",
+	/**
+	 * Home DNS entered (`state: firing`) or left (`resolved`) its error status; resource
+	 * `home_network:<id>`, sent to every organization since the feature is instance-wide.
+	 */
+	"network.dns.unhealthy",
 	/** Work tasks; resource `task:<id>`, payload `TaskEventPayload`. */
 	"task.created",
 	"task.assigned",

@@ -19,6 +19,7 @@ export * from "./env.ts";
 export * from "./folders.ts";
 export * from "./game.ts";
 export * from "./git-trigger.ts";
+export * from "./home-dns.ts";
 export * from "./ids.ts";
 export * from "./libsql.ts";
 export * from "./manifest-plan.ts";

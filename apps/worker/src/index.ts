@@ -41,6 +41,7 @@ import { runUpgrade } from "./db-upgrade.ts";
 import { decommission } from "./decommission.ts";
 import { abortAll, cancelRunning, processService, terminal } from "./deploy.ts";
 import { recheckExternalSecrets } from "./external-secrets.ts";
+import { syncHomeDns } from "./home-dns.ts";
 import { checkForUpdate, renewSponsorKey } from "./instance-update.ts";
 import { syncLocalRegistry } from "./local-registry.ts";
 import { rotateMasterKey } from "./master-key.ts";
@@ -205,6 +206,12 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		);
 		await syncTailscale(ctx).catch((e: unknown) =>
 			log("warn", "tailscale sync failed", { error: String(e) }),
+		);
+		// Not awaited: Technitium's API can be slow, and proxy syncs must not wait on it.
+		void withLock(ctx.bus.redis, "ls:lock:home-dns", 120_000, () =>
+			syncHomeDns(ctx),
+		).catch((e: unknown) =>
+			log("warn", "home dns sync failed", { error: String(e) }),
 		);
 	}, cfg.LS_PROXY_COALESCE_MS);
 	const workers = [
