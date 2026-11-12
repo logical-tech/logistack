@@ -1053,7 +1053,8 @@ ensure_tunnel() {
 		return 0
 	fi
 	[ -z "$current" ] || act "Remove the old API tunnel" docker rm -f "$TUNNEL_NAME"
-	! port_busy tcp "$TUNNEL_PORT" ||
+	# On --dry-run the old tunnel was not removed, so it still holds the port.
+	[ -n "$current" ] && [ "$DRY_RUN" = 1 ] || ! port_busy tcp "$TUNNEL_PORT" ||
 		fail "Port $TUNNEL_PORT is taken; pick another with LOGISTACK_TUNNEL_PORT=<port>"
 	act "Start the API tunnel on 127.0.0.1:$TUNNEL_PORT" docker run -d --name "$TUNNEL_NAME" \
 		--restart unless-stopped --label logistack.managed=true --label logistack.kind=platform-tunnel \
