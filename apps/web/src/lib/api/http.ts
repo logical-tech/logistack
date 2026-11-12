@@ -49,18 +49,15 @@ export const httpAdapter: ApiAdapter = {
 	access: httpAccess,
 	instance: {
 		status: () => ok(api.setup.status.$get()),
-		checkDns: (hostname, setupToken) =>
+		checkDns: (hostname, setupToken, expected) =>
 			ok(
 				api.setup["dns-check"].$post({
-					json: { hostname },
+					json: { hostname, expected },
 					header: setupHeader(setupToken),
 				}),
 			),
-		completeSetup: async (input, setupToken) => {
-			await ok(
-				api.setup.$post({ json: input, header: setupHeader(setupToken) }),
-			);
-		},
+		completeSetup: (input, setupToken) =>
+			ok(api.setup.$post({ json: input, header: setupHeader(setupToken) })),
 		version: () => ok(api.version.$get()),
 	},
 	overview: {

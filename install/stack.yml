@@ -122,6 +122,8 @@ services:
       # Set only with install.sh --public-setup; empty, setup needs no token (only the tunnel reaches it).
       LOGISTACK_SETUP_TOKEN_FILE: ${LOGISTACK_SETUP_TOKEN_FILE:-}
       LOGISTACK_TUNNEL_ORIGIN: ${LOGISTACK_TUNNEL_ORIGIN:-}
+      # The Swarm address; behind NAT setup can point the dashboard's records at it.
+      LAN_ADDRESS: ${LOGISTACK_LAN_ADDRESS:-}
     secrets:
       - source: logistack-master-key
         target: master_key

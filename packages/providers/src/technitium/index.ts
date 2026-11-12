@@ -485,6 +485,15 @@ export function technitium(baseUrl: string, token?: string, deps?: Deps) {
 			});
 		},
 
+		/** A conditional forwarder: its own records answer, every other name resolves as usual. */
+		async createForwarderZone(name: string): Promise<void> {
+			await call("createZone", "/api/zones/create", ok, {
+				zone: name,
+				type: "Forwarder",
+				forwarder: "this-server",
+			});
+		},
+
 		async deleteZone(name: string): Promise<void> {
 			await call("deleteZone", "/api/zones/delete", ok, { zone: name });
 		},

@@ -34,6 +34,7 @@ curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --dry-run
 | `--no-ingress` | Leave Caddy at 0 tasks and ports 80/443 to another proxy. The dashboard is reachable only through the SSH tunnel. Remembered on re-runs until `--enable-ingress`. |
 | `--enable-ingress` | Turn Caddy on after `--no-ingress`. Ports 80 and 443 must be free by then. Cannot be combined with `--no-ingress`. |
 | `--public-setup` | Serve the setup wizard on the server's public address before setup, guarded by a one-time setup token printed at the end. Not remembered: a re-run without it is private again. Cannot be combined with `--no-ingress`. |
+| `--public-url URL` | The dashboard URL the api uses for sign-in and links (`BETTER_AUTH_URL`, `LOGISTACK_PUBLIC_URL`, `WEB_ORIGIN`), such as `https://logistack.example.com`. Without it, a re-run keeps the value set earlier, and a new install uses `http://<public IP>.sslip.io`. |
 | `--api-replicas N` | Run `N` api replicas, from 1 to 9. Without it, the installer keeps the count that runs now, else 1. In-app updates keep the count too. See [Several api replicas](./architecture.mdx#several-api-replicas). |
 | `--local-build` | Build the four images from the checkout the script runs from, instead of pulling them from `ghcr.io`. Single node only. For development; pass it on every re-run. |
 | `--help`, `-h` | Print the usage. |

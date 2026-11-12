@@ -46,6 +46,7 @@ import type {
 	ServiceThreshold,
 	ServiceThresholdsInput,
 	SetupInput,
+	SetupResult,
 	SourceCheck,
 	UpdateEnvironmentInput,
 	UsageRange,
@@ -62,8 +63,12 @@ export type ApiAdapter = {
 	instance: {
 		status(): Promise<InstanceStatus>;
 		/** `setupToken`: what install.sh --public-setup printed; empty when the server needs none. */
-		checkDns(hostname: string, setupToken: string): Promise<DnsCheck>;
-		completeSetup(input: SetupInput, setupToken: string): Promise<void>;
+		checkDns(
+			hostname: string,
+			setupToken: string,
+			expected?: string,
+		): Promise<DnsCheck>;
+		completeSetup(input: SetupInput, setupToken: string): Promise<SetupResult>;
 		version(): Promise<{ version: string; commit?: string }>;
 	};
 	overview: {

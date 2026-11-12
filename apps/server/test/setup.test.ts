@@ -31,8 +31,21 @@ describe.skipIf(!hasDocker)("first-run setup", () => {
 			hasUsers: false,
 			setupTokenRequired: false,
 			publicIp: "203.0.113.7",
+			lanAddress: null,
+			publicUrl: null,
 			authProviders: { github: false, google: false },
 		});
+		// Records at the LAN address need the installer's LAN_ADDRESS; the refusal leaves setup open.
+		const lan = await h.call("POST", "/api/setup", {
+			body: {
+				...setupBody,
+				instance: { ...setupBody.instance, reachFrom: "lan" },
+			},
+		});
+		expect(lan.status).toBe(400);
+		expect((await h.call("GET", "/api/setup/status")).json.hasUsers).toBe(
+			false,
+		);
 	});
 
 	test("concurrent setups: exactly one wins, then it is locked", async () => {
@@ -49,6 +62,14 @@ describe.skipIf(!hasDocker)("first-run setup", () => {
 		const statuses = results.map((r) => r.status);
 		expect(statuses.filter((s) => s === 201)).toHaveLength(1);
 		expect(statuses.filter((s) => s === 409)).toHaveLength(8);
+		// The wizard moves the browser here and diagnoses a name that does not answer.
+		const won = results.find((r) => r.status === 201);
+		expect(won?.json).toMatchObject({
+			dnsRecords: [],
+			dashboard: { url: "https://ls.example.com", hostname: "ls.example.com" },
+			publicIp: "203.0.113.7",
+		});
+		expect(Array.isArray(won?.json.dashboard.resolvesTo)).toBe(true);
 		expect(
 			(await h.call("POST", "/api/setup", { body: setupBody })).status,
 		).toBe(409);
@@ -57,6 +78,8 @@ describe.skipIf(!hasDocker)("first-run setup", () => {
 			hasUsers: true,
 			setupTokenRequired: false,
 			publicIp: "203.0.113.7",
+			lanAddress: null,
+			publicUrl: "https://ls.example.com",
 			authProviders: { github: false, google: false },
 		});
 		// Once set up, DNS probing is an admin action.

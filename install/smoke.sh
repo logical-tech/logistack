@@ -290,8 +290,8 @@ raw=$(outside "http://$ip:3000/api/health")
 caddy=$(outside "http://$ip/api/setup/status")
 loopback=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health || true)
 if [ "$PUBLIC_SETUP" = 1 ]; then
-	[ "$raw" = 000 ] && [ "$caddy" = 200 ] && [ "$loopback" = 000 ] && ! docker inspect logistack-api-tunnel >/dev/null 2>&1 &&
-		pass "--public-setup: setup public through Caddy, no tunnel, :3000 closed" ||
+	[ "$raw" = 000 ] && [ "$caddy" = 200 ] && [ "$loopback" = 200 ] &&
+		pass "--public-setup: setup public through Caddy, recovery tunnel on 127.0.0.1:3000, $ip:3000 closed" ||
 		fail "--public-setup exposure" "$ip:3000 $raw, $ip:80 $caddy, loopback:3000 $loopback"
 else
 	[ "$raw" = 000 ] && [ "$caddy" = 404 ] && [ "$loopback" = 200 ] &&

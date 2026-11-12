@@ -4,13 +4,14 @@ import {
 	Cloud,
 	Globe,
 	HardDrive,
+	House,
 	Info,
 	KeyRound,
 	ShieldCheck,
+	TriangleAlert,
 	Zap,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { z } from "zod";
 import { Wordmark } from "@/components/brand";
 import { Field } from "@/components/field";
@@ -22,6 +23,7 @@ import {
 	missingFields,
 	toConfig,
 } from "@/components/integrations/config-form";
+import { MoveScreen } from "@/components/setup/move-screen";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,12 +47,17 @@ import {
 	useCompleteSetup,
 } from "@/lib/api/instance";
 import { type DnsKind, schemasQuery } from "@/lib/api/networking";
-import { auth } from "@/lib/auth";
+import type { SetupResult } from "@/lib/api/types";
 import { DNS_KINDS } from "@/lib/integrations";
 import { stepParam } from "@/lib/search";
+import type { Move } from "@/lib/setup-move";
 
 export const Route = createFileRoute("/setup")({
-	validateSearch: z.object({ step: stepParam }),
+	validateSearch: z.object({
+		step: stepParam,
+		/** Mock only: preview the screen that follows setup in one of its states. */
+		move: z.enum(["checking", "reachable", "nat", "unresolved"]).optional(),
+	}),
 	beforeLoad: async ({ context }) => {
 		const status =
 			await context.queryClient.ensureQueryData(instanceStatusQuery);
@@ -76,6 +83,8 @@ type SetupValues = {
 	dnsProvider: DnsChoice;
 	/** The provider's credential fields, from its config schema; never persisted. */
 	dnsCredentials: ConfigValues;
+	/** Behind NAT, where the records point: the LAN address, or the router's public IP. */
+	reachFrom: "lan" | "internet";
 	publicUrl: string;
 	leEmail: string;
 	registry: boolean;
@@ -91,6 +100,7 @@ const DEFAULTS: SetupValues = {
 	wildcard: "",
 	dnsProvider: "cloudflare",
 	dnsCredentials: {},
+	reachFrom: "internet",
 	publicUrl: "",
 	leEmail: "",
 	registry: true,
@@ -128,6 +138,34 @@ function publicUrl(v: SetupValues, ip: string) {
 	return v.publicUrl.trim() || `https://logistack.${domainBase(v, ip)}`;
 }
 
+/** The server's addresses; `lan` only when it differs from the public IP (behind NAT). */
+type Addresses = { ip: string; lan: string | null };
+
+/** Where the `*.base` and `base` records point. */
+function recordsIp(v: SetupValues, a: Addresses) {
+	return v.domainBase === "custom" && a.lan && v.reachFrom === "lan"
+		? a.lan
+		: a.ip;
+}
+
+function NatWarning({ ip, lan }: { ip: string; lan: string }) {
+	return (
+		<div className="flex items-start gap-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm">
+			<TriangleAlert
+				className="mt-0.5 size-4 shrink-0 text-warn-text"
+				aria-hidden
+			/>
+			<p>
+				<span className="font-medium">This server is behind NAT.</span>{" "}
+				<span className="text-muted-foreground">
+					Visitors reach {ip} only if your router forwards ports 80 and 443 to{" "}
+					{lan}. Without that, the dashboard does not answer.
+				</span>
+			</p>
+		</div>
+	);
+}
+
 function DnsRecords({ base, ip }: { base: string; ip: string }) {
 	const rows = [
 		{ type: "A", name: `*.${base}`, value: ip },
@@ -159,14 +197,16 @@ function DnsRecords({ base, ip }: { base: string; ip: string }) {
 
 function DomainStep({
 	w,
-	ip,
+	addresses,
 	schemas,
 }: {
 	w: WizardApi<SetupValues>;
-	ip: string;
+	addresses: Addresses;
 	schemas: Record<string, unknown> | undefined;
 }) {
+	const { ip, lan } = addresses;
 	const v = w.values;
+	const target = recordsIp(v, addresses);
 	const credentialSchema =
 		v.dnsProvider === "manual"
 			? undefined
@@ -273,28 +313,63 @@ function DomainStep({
 							</>
 						)}
 					</div>
+					{lan && (
+						<div className="grid gap-2">
+							<p className="text-sm font-medium">Who opens these addresses</p>
+							<ChoiceGroup
+								label="Who opens these addresses"
+								value={v.reachFrom}
+								onChange={(r) => w.set("reachFrom", r)}
+								choices={[
+									{
+										value: "lan",
+										title: "Only this network",
+										description: `Records point at ${lan}. No port forwarding needed. Certificates still issue through the DNS provider.`,
+										icon: House,
+									},
+									{
+										value: "internet",
+										title: "The internet",
+										description: `Records point at ${ip}, your router's public address.`,
+										icon: Globe,
+									},
+								]}
+							/>
+						</div>
+					)}
+					{lan && v.reachFrom === "internet" && (
+						<NatWarning ip={ip} lan={lan} />
+					)}
 					<div className="grid gap-2">
 						<p className="text-sm font-medium">DNS records</p>
 						<p className="text-sm text-muted-foreground">
-							{v.dnsProvider === "manual"
-								? "Create these two records at your DNS host. Certificates are then issued per hostname over HTTP-01."
-								: "LogiStack creates both records with these credentials when you finish, then issues one wildcard certificate over DNS-01."}
+							{v.dnsProvider !== "manual"
+								? "LogiStack creates both records with these credentials when you finish, then issues one wildcard certificate over DNS-01."
+								: target === lan
+									? "Create these two records at your DNS host. Let's Encrypt cannot reach a LAN address, so choose a DNS provider above to get certificates."
+									: "Create these two records at your DNS host. Certificates are then issued per hostname over HTTP-01."}
 						</p>
-						<DnsRecords base={domainBase(v, ip)} ip={ip} />
+						<DnsRecords base={domainBase(v, ip)} ip={target} />
 					</div>
 				</div>
 			) : (
-				<div className="flex gap-3 rounded-lg bg-muted/60 p-4 text-sm dark:bg-muted/40">
-					<Info className="mt-0.5 size-4 shrink-0 text-info-text" aria-hidden />
-					<p className="text-muted-foreground">
-						<span className="font-medium text-foreground">
-							Good for trying LogiStack.
-						</span>{" "}
-						{v.domainBase}.io isn't on the Public Suffix List, so every instance
-						using it shares one Let's Encrypt limit of 50 certificates a week.
-						Issuance can stall when that budget runs out. Switch to your own
-						domain any time in Settings.
-					</p>
+				<div className="grid gap-4">
+					{lan && <NatWarning ip={ip} lan={lan} />}
+					<div className="flex gap-3 rounded-lg bg-muted/60 p-4 text-sm dark:bg-muted/40">
+						<Info
+							className="mt-0.5 size-4 shrink-0 text-info-text"
+							aria-hidden
+						/>
+						<p className="text-muted-foreground">
+							<span className="font-medium text-foreground">
+								Good for trying LogiStack.
+							</span>{" "}
+							{v.domainBase}.io isn't on the Public Suffix List, so every
+							instance using it shares one Let's Encrypt limit of 50
+							certificates a week. Issuance can stall when that budget runs out.
+							Switch to your own domain any time in Settings.
+						</p>
+					</div>
 				</div>
 			)}
 
@@ -318,10 +393,11 @@ function DomainStep({
 }
 
 function buildSteps(
-	ip: string,
+	addresses: Addresses,
 	schemas: Record<string, unknown> | undefined,
 	tokenRequired: boolean,
 ): WizardStep<SetupValues>[] {
+	const { ip } = addresses;
 	const credentialSchema = (v: SetupValues) =>
 		v.domainBase === "custom" && v.dnsProvider !== "manual"
 			? (schemas?.[v.dnsProvider] as ConfigSchema | undefined)
@@ -442,7 +518,9 @@ function buildSteps(
 						z.url({ protocol: /^https$/, message: "Use an https:// URL." }),
 					]),
 				}),
-			render: (w) => <DomainStep w={w} ip={ip} schemas={schemas} />,
+			render: (w) => (
+				<DomainStep w={w} addresses={addresses} schemas={schemas} />
+			),
 		},
 		{
 			id: "dns",
@@ -450,9 +528,16 @@ function buildSteps(
 			description:
 				"Before certificates are requested, confirm the provider can manage the zone, or that the wildcard already resolves to this server.",
 			when: (v) => v.domainBase === "custom",
-			testKeys: ["domainBase", "wildcard", "dnsProvider", "dnsCredentials"],
+			testKeys: [
+				"domainBase",
+				"wildcard",
+				"dnsProvider",
+				"dnsCredentials",
+				"reachFrom",
+			],
 			test: async (v) => {
 				const s = credentialSchema(v);
+				const target = recordsIp(v, addresses);
 				if (s && v.dnsProvider !== "manual") {
 					const base = domainBase(v, ip);
 					try {
@@ -467,7 +552,7 @@ function buildSteps(
 						return {
 							ok: true,
 							message: `${DNS_KINDS[v.dnsProvider].label} manages ${zone.name}`,
-							detail: `On finish, LogiStack points *.${base} and ${base} at ${ip} and requests one wildcard certificate over DNS-01.`,
+							detail: `On finish, LogiStack points *.${base} and ${base} at ${target} and requests one wildcard certificate over DNS-01.`,
 						};
 					} catch (err) {
 						return {
@@ -478,7 +563,7 @@ function buildSteps(
 					}
 				}
 				const probe = `ls-check.${domainBase(v, ip)}`;
-				const r = await checkDns(probe, v.setupToken.trim());
+				const r = await checkDns(probe, v.setupToken.trim(), target);
 				return r.ok
 					? {
 							ok: true,
@@ -498,16 +583,17 @@ function buildSteps(
 			},
 			render: (w) => {
 				const managed = Boolean(credentialSchema(w.values));
+				const target = recordsIp(w.values, addresses);
 				return (
 					<div className="grid gap-5">
-						<DnsRecords base={domainBase(w.values, ip)} ip={ip} />
+						<DnsRecords base={domainBase(w.values, ip)} ip={target} />
 						<TestPanel
 							w={w}
 							action={managed ? "Check credentials" : "Check DNS"}
 							idle={
 								managed
 									? `We'll sign in to ${DNS_KINDS[w.values.dnsProvider as DnsKind]?.label ?? "the provider"} and find the zone that holds ${domainBase(w.values, ip)}. Nothing is written yet.`
-									: `We'll look up a name under *.${domainBase(w.values, ip)} and compare it with ${ip}.`
+									: `We'll look up a name under *.${domainBase(w.values, ip)} and compare it with ${target}.`
 							}
 						/>
 					</div>
@@ -647,6 +733,25 @@ function buildSteps(
 									...(v.domainBase === "custom"
 										? [
 												{
+													label: "Records point at",
+													value: (
+														<span className="font-mono text-xs">
+															{recordsIp(v, addresses)}
+														</span>
+													),
+												},
+												...(addresses.lan
+													? [
+															{
+																label: "Reachable from",
+																value:
+																	v.reachFrom === "lan"
+																		? "This network only"
+																		: "The internet, with ports 80 and 443 forwarded",
+															},
+														]
+													: []),
+												{
 													label: "Certificates",
 													value:
 														v.dnsProvider === "manual"
@@ -682,21 +787,76 @@ function buildSteps(
 	];
 }
 
+/** Fixed states of the screen after setup, for design work on the mock (`/setup?move=nat`). */
+function movePreview(move: "checking" | "reachable" | "nat" | "unresolved"): {
+	result: SetupResult;
+	initial: Move;
+} {
+	const result: SetupResult = {
+		userId: "usr_mock",
+		organizationId: "org_mock",
+		dnsRecords: [
+			{
+				name: "*.home.example.com",
+				type: "A",
+				content: "81.57.58.142",
+				error: null,
+			},
+			{
+				name: "home.example.com",
+				type: "A",
+				content: "81.57.58.142",
+				error: null,
+			},
+		],
+		dashboard: {
+			url: "https://logistack.home.example.com",
+			hostname: "logistack.home.example.com",
+			resolvesTo: move === "unresolved" ? [] : ["81.57.58.142"],
+		},
+		publicIp: "81.57.58.142",
+	};
+	const initial: Move =
+		move === "checking"
+			? { kind: "checking", since: Date.now() }
+			: move === "reachable"
+				? { kind: "reachable" }
+				: move === "nat"
+					? {
+							kind: "unreachable",
+							diagnosis: {
+								kind: "nat",
+								publicIp: "81.57.58.142",
+								lanIp: "192.168.1.39",
+							},
+						}
+					: { kind: "unreachable", diagnosis: { kind: "unresolved" } };
+	return { result, initial };
+}
+
 function SetupPage() {
-	const { step } = Route.useSearch();
+	const { step, move } = Route.useSearch();
+	const [done, setDone] = useState<{ result: SetupResult; email: string }>();
+	const preview = isMock && move ? movePreview(move) : undefined;
 	const navigate = useNavigate({ from: Route.fullPath });
 	const { data: status } = useQuery(instanceStatusQuery);
 	const complete = useCompleteSetup();
 	const ip = status?.publicIp ?? "0.0.0.0";
+	const lan =
+		status?.lanAddress && status.publicIp && status.lanAddress !== ip
+			? status.lanAddress
+			: null;
 	const { data: schemas } = useQuery(schemasQuery);
 	const tokenRequired = status?.setupTokenRequired ?? false;
 	const steps = useMemo(
-		() => buildSteps(ip, schemas?.dns, tokenRequired),
-		[ip, schemas, tokenRequired],
+		() => buildSteps({ ip, lan }, schemas?.dns, tokenRequired),
+		[ip, lan, schemas, tokenRequired],
 	);
 	// install.sh prints the setup URL with `#token=`: a fragment never reaches a server or its logs.
 	const [defaults] = useState(() => ({
 		...DEFAULTS,
+		// Behind NAT the public address answers only with port forwarding, so the LAN is the safe default.
+		reachFrom: lan ? ("lan" as const) : ("internet" as const),
 		setupToken:
 			new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "",
 	}));
@@ -714,74 +874,76 @@ function SetupPage() {
 				<ThemeToggle />
 			</header>
 			<main className="mx-auto w-full max-w-5xl px-4 pt-4 pb-20 sm:px-6 lg:pt-10">
-				<div className="mb-8 lg:mb-12 lg:pl-[calc(13.5rem+3rem)]">
-					<h1 className="flex items-center gap-2 text-2xl font-semibold">
-						Set up LogiStack
-					</h1>
-					<p className="mt-1.5 max-w-[60ch] text-sm text-muted-foreground">
-						A few answers and this server is ready for its first project. It
-						takes about two minutes.
-					</p>
-				</div>
-				<Wizard
-					id="setup"
-					steps={steps}
-					defaultValues={defaults}
-					secretKeys={["setupToken", "ownerPassword", "dnsCredentials"]}
-					step={step}
-					onStepChange={onStepChange}
-					finishLabel="Finish setup"
-					onComplete={async (v) => {
-						await complete.mutateAsync({
-							setupToken: v.setupToken.trim(),
-							input: {
-								owner: {
-									name: v.ownerName,
-									email: v.ownerEmail,
-									password: v.ownerPassword,
-								},
-								organization: { name: v.orgName.trim() },
-								instance: {
-									publicUrl: publicUrl(v, ip),
-									generatedDomainBase: v.domainBase,
-									customWildcard:
-										v.domainBase === "custom"
-											? `*.${domainBase(v, ip)}`
-											: undefined,
-									letsencryptEmail: v.leEmail,
-									localRegistryEnabled: v.registry,
-									dnsProvider:
-										v.domainBase === "custom" && v.dnsProvider !== "manual"
-											? {
-													kind: v.dnsProvider,
-													credentials: toConfig(
-														schemas?.dns[v.dnsProvider] as ConfigSchema,
-														v.dnsCredentials,
-													),
-												}
-											: undefined,
-								},
-							},
-						});
-						// Setup creates the owner but no session; sign in as them.
-						const signedIn = await auth.signInEmail({
-							email: v.ownerEmail,
-							password: v.ownerPassword,
-							remember: true,
-						});
-						if (signedIn.kind !== "signed-in") {
-							toast.success("LogiStack is ready", {
-								description: "Sign in with the owner account.",
-							});
-							await navigate({ to: "/sign-in" });
-							return;
-						}
-						toast.success("LogiStack is ready", {
-							description: `Signed in as ${v.ownerEmail}.`,
-						});
-						await navigate({ to: "/" });
-					}}
-				/>
+				{preview ? (
+					<MoveScreen
+						result={preview.result}
+						email="owner@example.com"
+						initial={preview.initial}
+						autoOpen={false}
+						browserHostname="192-168-1-39.sslip.io"
+					/>
+				) : done ? (
+					<MoveScreen result={done.result} email={done.email} />
+				) : (
+					<>
+						<div className="mb-8 lg:mb-12 lg:pl-[calc(13.5rem+3rem)]">
+							<h1 className="flex items-center gap-2 text-2xl font-semibold">
+								Set up LogiStack
+							</h1>
+							<p className="mt-1.5 max-w-[60ch] text-sm text-muted-foreground">
+								A few answers and this server is ready for its first project. It
+								takes about two minutes.
+							</p>
+						</div>
+						<Wizard
+							id="setup"
+							steps={steps}
+							defaultValues={defaults}
+							secretKeys={["setupToken", "ownerPassword", "dnsCredentials"]}
+							step={step}
+							onStepChange={onStepChange}
+							finishLabel="Finish setup"
+							onComplete={async (v) => {
+								const result = await complete.mutateAsync({
+									setupToken: v.setupToken.trim(),
+									input: {
+										owner: {
+											name: v.ownerName,
+											email: v.ownerEmail,
+											password: v.ownerPassword,
+										},
+										organization: { name: v.orgName.trim() },
+										instance: {
+											publicUrl: publicUrl(v, ip),
+											generatedDomainBase: v.domainBase,
+											customWildcard:
+												v.domainBase === "custom"
+													? `*.${domainBase(v, ip)}`
+													: undefined,
+											letsencryptEmail: v.leEmail,
+											localRegistryEnabled: v.registry,
+											reachFrom:
+												recordsIp(v, { ip, lan }) === lan ? "lan" : "internet",
+											dnsProvider:
+												v.domainBase === "custom" && v.dnsProvider !== "manual"
+													? {
+															kind: v.dnsProvider,
+															credentials: toConfig(
+																schemas?.dns[v.dnsProvider] as ConfigSchema,
+																v.dnsCredentials,
+															),
+														}
+													: undefined,
+										},
+									},
+								});
+								// No sign-in here: the session would belong to this bootstrap origin, which Caddy
+								// stops serving once it switches to the dashboard's own address.
+								setDone({ result, email: v.ownerEmail });
+							}}
+						/>
+					</>
+				)}
 			</main>
 		</div>
 	);

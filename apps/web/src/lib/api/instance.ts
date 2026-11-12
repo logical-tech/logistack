@@ -27,5 +27,8 @@ export function useCompleteSetup() {
 	});
 }
 
-export const checkDns = (hostname: string, setupToken: string) =>
-	api.instance.checkDns(hostname, setupToken);
+export const checkDns = (
+	hostname: string,
+	setupToken: string,
+	expected?: string,
+) => api.instance.checkDns(hostname, setupToken, expected);

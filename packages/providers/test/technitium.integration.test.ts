@@ -159,6 +159,26 @@ describe.skipIf(!hasDocker)("Technitium client against a real server", () => {
 		expect(await api.zones()).toEqual([]);
 	});
 
+	test("a forwarder zone answers its wildcard with the LAN address", async () => {
+		await api.createForwarderZone("split.example.com");
+		expect((await api.zones()).map((z) => [z.name, z.type])).toContainEqual([
+			"split.example.com",
+			"Forwarder",
+		]);
+		// Hostname refuses wildcards from users; the worker writes this one itself.
+		await api.addRecord("split.example.com", {
+			name: "*.split.example.com",
+			type: "A",
+			content: "192.168.1.39",
+			ttl: 300,
+		});
+		expect(
+			(await api.records("split.example.com")).map((r) => r.name),
+		).toContain("*.split.example.com");
+		const r = await api.resolve("logistack.split.example.com");
+		expect(r.answers).toContainEqual({ type: "A", data: "192.168.1.39" });
+	});
+
 	test("allowed and blocked lists, and the resolver says when a name was blocked", async () => {
 		await api.block("ads.example.com");
 		await api.allow("good.example.com");

@@ -102,27 +102,52 @@ export const mockAdapter: ApiAdapter = {
 					hasUsers: db.setupCompleted,
 					setupTokenRequired: false,
 					publicIp: db.publicIp,
+					// Behind NAT, so the wizard offers records at the LAN address.
+					lanAddress: "192.168.1.39",
+					publicUrl: db.setupCompleted ? "https://logistack.example.com" : null,
 					authProviders: { github: true, google: false },
 				},
 				120,
 			),
-		checkDns: (hostname) => {
+		checkDns: (hostname, _token, expected = db.publicIp) => {
 			const generated = /\.(sslip|nip)\.io$/.test(hostname);
 			const ok =
 				generated || !/(^|\.)example\.(com|org)$|\.invalid$/.test(hostname);
 			return delay(
 				{
 					hostname,
-					expected: db.publicIp,
-					resolved: ok ? [db.publicIp] : [],
+					expected,
+					resolved: ok ? [expected] : [],
 					ok,
 				},
 				900,
 			);
 		},
-		completeSetup: () => {
+		completeSetup: (input) => {
 			db.setupCompleted = true;
-			return delay(undefined, 1200);
+			const target =
+				input.instance.reachFrom === "lan" ? "192.168.1.39" : db.publicIp;
+			const url = input.instance.publicUrl;
+			const hostname = new URL(url).hostname;
+			const base = input.instance.customWildcard?.slice(2);
+			return delay(
+				{
+					userId: "usr_mock",
+					organizationId: "org_mock",
+					dnsRecords:
+						base && input.instance.dnsProvider
+							? [`*.${base}`, base].map((name) => ({
+									name,
+									type: "A" as const,
+									content: target,
+									error: null,
+								}))
+							: [],
+					dashboard: { url, hostname, resolvesTo: [target] },
+					publicIp: db.publicIp,
+				},
+				1200,
+			);
 		},
 		version: () => delay({ version: "0.1.0", commit: "98edb6e" }, 120),
 	},
