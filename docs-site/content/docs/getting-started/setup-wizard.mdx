@@ -66,6 +66,17 @@ For **Your own wildcard domain**, also fill in:
 
    With a DNS provider, LogiStack creates both records when you finish and issues one wildcard certificate over DNS-01. With **None, I'll manage records myself**, create them at your DNS host now; certificates are then issued per hostname over HTTP-01.
 
+If the server is behind NAT, such as a home server at `192.168.1.39` behind a router with the public address `81.57.58.142`, **Who opens these addresses** appears above the records:
+
+| Choice | Records point at | When to choose it |
+| --- | --- | --- |
+| **Only this network** | The server's LAN address, `192.168.1.39` | Only devices on your network use the dashboard and services. No port forwarding needed. The default behind NAT. |
+| **The internet** | The router's public address, `81.57.58.142` | Visitors come from the internet. The router must forward ports 80 and 443 to the server; the wizard shows a warning as a reminder. |
+
+The **DNS records** table shows the address you chose. With **Only this network**, choose a DNS provider: Let's Encrypt cannot reach a LAN address over HTTP-01, so certificates need DNS-01. A public DNS record that points at a private address is fine for this.
+
+With sslip.io or nip.io behind NAT, the wizard shows the same port-forwarding warning, since those names always resolve to the public address.
+
 Finally, **Instance URL** (optional) is where you and your team open LogiStack. Leave it empty to use the suggestion, `https://logistack.srv1.example.com` (or `https://logistack.203-0-113-7.sslip.io`). It must start with `https://`.
 
 <Callout type="info">
@@ -80,7 +91,7 @@ sslip.io and nip.io are not on the Public Suffix List, so every instance that us
 This step appears only for **Your own wildcard domain**. It shows the DNS records again and a test button. You must pass the test to continue.
 
 - With a DNS provider, select **Check credentials**. LogiStack signs in to the provider and finds the zone that holds your wildcard base. Nothing is written yet. A pass reads, for example, `Cloudflare manages example.com`.
-- With **None, I'll manage records myself**, select **Check DNS**. LogiStack looks up `ls-check.srv1.example.com` and compares it with the server's IP. A pass reads `ls-check.srv1.example.com resolves to 203.0.113.7`.
+- With **None, I'll manage records myself**, select **Check DNS**. LogiStack looks up `ls-check.srv1.example.com` and compares it with the address the records point at. A pass reads `ls-check.srv1.example.com resolves to 203.0.113.7`.
 
 If the test fails, fix the problem and select **Test again**. New records can take a few minutes to propagate.
 
@@ -106,7 +117,7 @@ Enter **Email for certificate notices**. Let's Encrypt writes here only about ex
 
 ### Review and finish
 
-The last step summarizes your answers: owner, organization, instance URL, service hostnames (`*.srv1.example.com`), certificates, Let's Encrypt email and registry. Select **Edit** next to a section to go back to it.
+The last step summarizes your answers: owner, organization, instance URL, service hostnames (`*.srv1.example.com`), the address the records point at, certificates, Let's Encrypt email and registry. Behind NAT it also shows **Reachable from**. Select **Edit** next to a section to go back to it.
 
 Select **Finish setup**. LogiStack creates the owner and organization, saves the instance settings and creates DNS records if you chose a provider. The page then waits until your browser can reach the instance URL, which can take a minute or two while the certificate is issued. Select **Open dashboard** and sign in there with the owner email and password.
 
@@ -138,7 +149,7 @@ See [Members and invitations](../team/members-and-invitations.mdx) and [Single s
 
 **"Enter the setup token install.sh printed."** The server was installed with `--public-setup`. Paste `LOGISTACK_SETUP_TOKEN` from `/etc/logistack/credentials`.
 
-**The instance URL does not open from your network.** Your browser reached setup on a private address, and the name resolves to your router's public address. Most home routers do not send that traffic back inside. Point the A records at the server's LAN address, forward ports 80 and 443 to the server, or add a local DNS record for the name. Opening `http://<server LAN address>` on the same network shows where the dashboard lives.
+**The instance URL does not open from your network.** Your browser reached setup on a private address, and the name resolves to your router's public address. Most home routers do not send that traffic back inside. Point the A records at the server's LAN address, forward ports 80 and 443 to the server, or add a local DNS record for the name. With the home network DNS on and pointed at by your router, LogiStack answers your base and its subdomains with the server's LAN address inside your network. Opening `http://<server LAN address>` on the same network shows where the dashboard lives.
 
 **The DNS check fails with "doesn't resolve to ... yet".** The A records are missing or point elsewhere. The message lists what the name resolves to. Fix the records and select **Test again** after a few minutes.
 
