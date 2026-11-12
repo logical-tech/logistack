@@ -1000,7 +1000,8 @@ deploy() {
 	if [ "$PUBLIC_SETUP" = 1 ]; then public=true token_file=/run/secrets/setup_token; fi
 	local replicas=${API_REPLICAS:-$(running_api_replicas)}
 	[[ $replicas =~ ^[1-9]$ ]] || replicas=1
-	with_org_networks "$CONF_DIR/stack.yml" "$CONF_DIR/stack.deploy.yml"
+	act "Write $CONF_DIR/stack.deploy.yml with the organization networks" \
+		with_org_networks "$CONF_DIR/stack.yml" "$CONF_DIR/stack.deploy.yml"
 	local files=(-c "$CONF_DIR/stack.deploy.yml")
 	[ "$DOKPLOY" = 0 ] || files+=(-c "$CONF_DIR/$DOKPLOY_STACK")
 	[ "$COOLIFY" = 0 ] || files+=(-c "$CONF_DIR/$COOLIFY_STACK")
@@ -1129,7 +1130,7 @@ ingress_ready() {
 }
 
 wait_healthy() {
-	[ "$DRY_RUN" = 0 ] || { plan "wait up to ${WAIT_TIMEOUT}s for every service and $PUBLIC_URL/api/health"; return 0; }
+	[ "$DRY_RUN" = 0 ] || { plan "wait up to ${WAIT_TIMEOUT}s for every service and http://127.0.0.1:$TUNNEL_PORT/api/health"; return 0; }
 	local deadline=$((SECONDS + WAIT_TIMEOUT)) next_note=$((SECONDS + 15))
 	local -A ready=()
 	local name replicas pending=()
