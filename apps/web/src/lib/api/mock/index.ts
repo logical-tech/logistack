@@ -102,19 +102,22 @@ export const mockAdapter: ApiAdapter = {
 					hasUsers: db.setupCompleted,
 					setupTokenRequired: false,
 					publicIp: db.publicIp,
+					// Behind NAT, so the wizard offers records at the LAN address.
+					lanAddress: "192.168.1.39",
+					publicUrl: db.setupCompleted ? "https://logistack.example.com" : null,
 					authProviders: { github: true, google: false },
 				},
 				120,
 			),
-		checkDns: (hostname) => {
+		checkDns: (hostname, _token, expected = db.publicIp) => {
 			const generated = /\.(sslip|nip)\.io$/.test(hostname);
 			const ok =
 				generated || !/(^|\.)example\.(com|org)$|\.invalid$/.test(hostname);
 			return delay(
 				{
 					hostname,
-					expected: db.publicIp,
-					resolved: ok ? [db.publicIp] : [],
+					expected,
+					resolved: ok ? [expected] : [],
 					ok,
 				},
 				900,
@@ -122,6 +125,8 @@ export const mockAdapter: ApiAdapter = {
 		},
 		completeSetup: (input) => {
 			db.setupCompleted = true;
+			const target =
+				input.instance.reachFrom === "lan" ? "192.168.1.39" : db.publicIp;
 			const url = input.instance.publicUrl;
 			const hostname = new URL(url).hostname;
 			const base = input.instance.customWildcard?.slice(2);
@@ -134,11 +139,11 @@ export const mockAdapter: ApiAdapter = {
 							? [`*.${base}`, base].map((name) => ({
 									name,
 									type: "A" as const,
-									content: db.publicIp,
+									content: target,
 									error: null,
 								}))
 							: [],
-					dashboard: { url, hostname, resolvesTo: [db.publicIp] },
+					dashboard: { url, hostname, resolvesTo: [target] },
 					publicIp: db.publicIp,
 				},
 				1200,

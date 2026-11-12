@@ -4,9 +4,11 @@ import {
 	Cloud,
 	Globe,
 	HardDrive,
+	House,
 	Info,
 	KeyRound,
 	ShieldCheck,
+	TriangleAlert,
 	Zap,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -81,6 +83,8 @@ type SetupValues = {
 	dnsProvider: DnsChoice;
 	/** The provider's credential fields, from its config schema; never persisted. */
 	dnsCredentials: ConfigValues;
+	/** Behind NAT, where the records point: the LAN address, or the router's public IP. */
+	reachFrom: "lan" | "internet";
 	publicUrl: string;
 	leEmail: string;
 	registry: boolean;
@@ -96,6 +100,7 @@ const DEFAULTS: SetupValues = {
 	wildcard: "",
 	dnsProvider: "cloudflare",
 	dnsCredentials: {},
+	reachFrom: "internet",
 	publicUrl: "",
 	leEmail: "",
 	registry: true,
@@ -133,6 +138,34 @@ function publicUrl(v: SetupValues, ip: string) {
 	return v.publicUrl.trim() || `https://logistack.${domainBase(v, ip)}`;
 }
 
+/** The server's addresses; `lan` only when it differs from the public IP (behind NAT). */
+type Addresses = { ip: string; lan: string | null };
+
+/** Where the `*.base` and `base` records point. */
+function recordsIp(v: SetupValues, a: Addresses) {
+	return v.domainBase === "custom" && a.lan && v.reachFrom === "lan"
+		? a.lan
+		: a.ip;
+}
+
+function NatWarning({ ip, lan }: { ip: string; lan: string }) {
+	return (
+		<div className="flex items-start gap-3 rounded-lg bg-warn/10 px-3.5 py-3 text-sm">
+			<TriangleAlert
+				className="mt-0.5 size-4 shrink-0 text-warn-text"
+				aria-hidden
+			/>
+			<p>
+				<span className="font-medium">This server is behind NAT.</span>{" "}
+				<span className="text-muted-foreground">
+					Visitors reach {ip} only if your router forwards ports 80 and 443 to{" "}
+					{lan}. Without that, the dashboard does not answer.
+				</span>
+			</p>
+		</div>
+	);
+}
+
 function DnsRecords({ base, ip }: { base: string; ip: string }) {
 	const rows = [
 		{ type: "A", name: `*.${base}`, value: ip },
@@ -164,14 +197,16 @@ function DnsRecords({ base, ip }: { base: string; ip: string }) {
 
 function DomainStep({
 	w,
-	ip,
+	addresses,
 	schemas,
 }: {
 	w: WizardApi<SetupValues>;
-	ip: string;
+	addresses: Addresses;
 	schemas: Record<string, unknown> | undefined;
 }) {
+	const { ip, lan } = addresses;
 	const v = w.values;
+	const target = recordsIp(v, addresses);
 	const credentialSchema =
 		v.dnsProvider === "manual"
 			? undefined
@@ -278,28 +313,63 @@ function DomainStep({
 							</>
 						)}
 					</div>
+					{lan && (
+						<div className="grid gap-2">
+							<p className="text-sm font-medium">Who opens these addresses</p>
+							<ChoiceGroup
+								label="Who opens these addresses"
+								value={v.reachFrom}
+								onChange={(r) => w.set("reachFrom", r)}
+								choices={[
+									{
+										value: "lan",
+										title: "Only this network",
+										description: `Records point at ${lan}. No port forwarding needed. Certificates still issue through the DNS provider.`,
+										icon: House,
+									},
+									{
+										value: "internet",
+										title: "The internet",
+										description: `Records point at ${ip}, your router's public address.`,
+										icon: Globe,
+									},
+								]}
+							/>
+						</div>
+					)}
+					{lan && v.reachFrom === "internet" && (
+						<NatWarning ip={ip} lan={lan} />
+					)}
 					<div className="grid gap-2">
 						<p className="text-sm font-medium">DNS records</p>
 						<p className="text-sm text-muted-foreground">
-							{v.dnsProvider === "manual"
-								? "Create these two records at your DNS host. Certificates are then issued per hostname over HTTP-01."
-								: "LogiStack creates both records with these credentials when you finish, then issues one wildcard certificate over DNS-01."}
+							{v.dnsProvider !== "manual"
+								? "LogiStack creates both records with these credentials when you finish, then issues one wildcard certificate over DNS-01."
+								: target === lan
+									? "Create these two records at your DNS host. Let's Encrypt cannot reach a LAN address, so choose a DNS provider above to get certificates."
+									: "Create these two records at your DNS host. Certificates are then issued per hostname over HTTP-01."}
 						</p>
-						<DnsRecords base={domainBase(v, ip)} ip={ip} />
+						<DnsRecords base={domainBase(v, ip)} ip={target} />
 					</div>
 				</div>
 			) : (
-				<div className="flex gap-3 rounded-lg bg-muted/60 p-4 text-sm dark:bg-muted/40">
-					<Info className="mt-0.5 size-4 shrink-0 text-info-text" aria-hidden />
-					<p className="text-muted-foreground">
-						<span className="font-medium text-foreground">
-							Good for trying LogiStack.
-						</span>{" "}
-						{v.domainBase}.io isn't on the Public Suffix List, so every instance
-						using it shares one Let's Encrypt limit of 50 certificates a week.
-						Issuance can stall when that budget runs out. Switch to your own
-						domain any time in Settings.
-					</p>
+				<div className="grid gap-4">
+					{lan && <NatWarning ip={ip} lan={lan} />}
+					<div className="flex gap-3 rounded-lg bg-muted/60 p-4 text-sm dark:bg-muted/40">
+						<Info
+							className="mt-0.5 size-4 shrink-0 text-info-text"
+							aria-hidden
+						/>
+						<p className="text-muted-foreground">
+							<span className="font-medium text-foreground">
+								Good for trying LogiStack.
+							</span>{" "}
+							{v.domainBase}.io isn't on the Public Suffix List, so every
+							instance using it shares one Let's Encrypt limit of 50
+							certificates a week. Issuance can stall when that budget runs out.
+							Switch to your own domain any time in Settings.
+						</p>
+					</div>
 				</div>
 			)}
 
@@ -323,10 +393,11 @@ function DomainStep({
 }
 
 function buildSteps(
-	ip: string,
+	addresses: Addresses,
 	schemas: Record<string, unknown> | undefined,
 	tokenRequired: boolean,
 ): WizardStep<SetupValues>[] {
+	const { ip } = addresses;
 	const credentialSchema = (v: SetupValues) =>
 		v.domainBase === "custom" && v.dnsProvider !== "manual"
 			? (schemas?.[v.dnsProvider] as ConfigSchema | undefined)
@@ -447,7 +518,9 @@ function buildSteps(
 						z.url({ protocol: /^https$/, message: "Use an https:// URL." }),
 					]),
 				}),
-			render: (w) => <DomainStep w={w} ip={ip} schemas={schemas} />,
+			render: (w) => (
+				<DomainStep w={w} addresses={addresses} schemas={schemas} />
+			),
 		},
 		{
 			id: "dns",
@@ -455,9 +528,16 @@ function buildSteps(
 			description:
 				"Before certificates are requested, confirm the provider can manage the zone, or that the wildcard already resolves to this server.",
 			when: (v) => v.domainBase === "custom",
-			testKeys: ["domainBase", "wildcard", "dnsProvider", "dnsCredentials"],
+			testKeys: [
+				"domainBase",
+				"wildcard",
+				"dnsProvider",
+				"dnsCredentials",
+				"reachFrom",
+			],
 			test: async (v) => {
 				const s = credentialSchema(v);
+				const target = recordsIp(v, addresses);
 				if (s && v.dnsProvider !== "manual") {
 					const base = domainBase(v, ip);
 					try {
@@ -472,7 +552,7 @@ function buildSteps(
 						return {
 							ok: true,
 							message: `${DNS_KINDS[v.dnsProvider].label} manages ${zone.name}`,
-							detail: `On finish, LogiStack points *.${base} and ${base} at ${ip} and requests one wildcard certificate over DNS-01.`,
+							detail: `On finish, LogiStack points *.${base} and ${base} at ${target} and requests one wildcard certificate over DNS-01.`,
 						};
 					} catch (err) {
 						return {
@@ -483,7 +563,7 @@ function buildSteps(
 					}
 				}
 				const probe = `ls-check.${domainBase(v, ip)}`;
-				const r = await checkDns(probe, v.setupToken.trim());
+				const r = await checkDns(probe, v.setupToken.trim(), target);
 				return r.ok
 					? {
 							ok: true,
@@ -503,16 +583,17 @@ function buildSteps(
 			},
 			render: (w) => {
 				const managed = Boolean(credentialSchema(w.values));
+				const target = recordsIp(w.values, addresses);
 				return (
 					<div className="grid gap-5">
-						<DnsRecords base={domainBase(w.values, ip)} ip={ip} />
+						<DnsRecords base={domainBase(w.values, ip)} ip={target} />
 						<TestPanel
 							w={w}
 							action={managed ? "Check credentials" : "Check DNS"}
 							idle={
 								managed
 									? `We'll sign in to ${DNS_KINDS[w.values.dnsProvider as DnsKind]?.label ?? "the provider"} and find the zone that holds ${domainBase(w.values, ip)}. Nothing is written yet.`
-									: `We'll look up a name under *.${domainBase(w.values, ip)} and compare it with ${ip}.`
+									: `We'll look up a name under *.${domainBase(w.values, ip)} and compare it with ${target}.`
 							}
 						/>
 					</div>
@@ -652,6 +733,25 @@ function buildSteps(
 									...(v.domainBase === "custom"
 										? [
 												{
+													label: "Records point at",
+													value: (
+														<span className="font-mono text-xs">
+															{recordsIp(v, addresses)}
+														</span>
+													),
+												},
+												...(addresses.lan
+													? [
+															{
+																label: "Reachable from",
+																value:
+																	v.reachFrom === "lan"
+																		? "This network only"
+																		: "The internet, with ports 80 and 443 forwarded",
+															},
+														]
+													: []),
+												{
 													label: "Certificates",
 													value:
 														v.dnsProvider === "manual"
@@ -742,15 +842,21 @@ function SetupPage() {
 	const { data: status } = useQuery(instanceStatusQuery);
 	const complete = useCompleteSetup();
 	const ip = status?.publicIp ?? "0.0.0.0";
+	const lan =
+		status?.lanAddress && status.publicIp && status.lanAddress !== ip
+			? status.lanAddress
+			: null;
 	const { data: schemas } = useQuery(schemasQuery);
 	const tokenRequired = status?.setupTokenRequired ?? false;
 	const steps = useMemo(
-		() => buildSteps(ip, schemas?.dns, tokenRequired),
-		[ip, schemas, tokenRequired],
+		() => buildSteps({ ip, lan }, schemas?.dns, tokenRequired),
+		[ip, lan, schemas, tokenRequired],
 	);
 	// install.sh prints the setup URL with `#token=`: a fragment never reaches a server or its logs.
 	const [defaults] = useState(() => ({
 		...DEFAULTS,
+		// Behind NAT the public address answers only with port forwarding, so the LAN is the safe default.
+		reachFrom: lan ? ("lan" as const) : ("internet" as const),
 		setupToken:
 			new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "",
 	}));
@@ -816,6 +922,8 @@ function SetupPage() {
 													: undefined,
 											letsencryptEmail: v.leEmail,
 											localRegistryEnabled: v.registry,
+											reachFrom:
+												recordsIp(v, { ip, lan }) === lan ? "lan" : "internet",
 											dnsProvider:
 												v.domainBase === "custom" && v.dnsProvider !== "manual"
 													? {

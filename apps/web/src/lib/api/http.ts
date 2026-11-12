@@ -49,10 +49,10 @@ export const httpAdapter: ApiAdapter = {
 	access: httpAccess,
 	instance: {
 		status: () => ok(api.setup.status.$get()),
-		checkDns: (hostname, setupToken) =>
+		checkDns: (hostname, setupToken, expected) =>
 			ok(
 				api.setup["dns-check"].$post({
-					json: { hostname },
+					json: { hostname, expected },
 					header: setupHeader(setupToken),
 				}),
 			),
