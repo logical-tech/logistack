@@ -66,9 +66,12 @@ When it finishes, the installer prints something like this:
 LogiStack 0.2.0 is running.
   Until setup is done the dashboard is reachable only on 127.0.0.1:3000. From your machine: ssh -L 3000:127.0.0.1:3000 root@203.0.113.7
   then open http://localhost:3000 to finish the guided setup.
-  After setup the dashboard is served over https on the domain you choose there.
-  Back up /etc/logistack/credentials: it holds the master key that encrypts your secrets.
+    After setup the dashboard is served over https on the domain you choose there.
+    If you ever lose the dashboard: ssh -L 3000:127.0.0.1:3000 root@203.0.113.7, then open http://localhost:3000
+    Back up /etc/logistack/credentials: it holds the master key that encrypts your secrets.
 ```
+
+The tunnel line stays true after setup: the installer keeps the API on `127.0.0.1:3000` in every mode, so you can always get back in over SSH.
 
 It also writes a login banner (`/etc/update-motd.d/99-logistack`) that repeats these instructions on every SSH login until setup is done.
 
