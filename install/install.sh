@@ -1134,7 +1134,7 @@ wait_healthy() {
 	[ "$DRY_RUN" = 0 ] || { plan "wait up to ${WAIT_TIMEOUT}s for every service and http://127.0.0.1:$TUNNEL_PORT/api/health"; return 0; }
 	local deadline=$((SECONDS + WAIT_TIMEOUT)) next_note=$((SECONDS + 15))
 	local -A ready=()
-	local name replicas pending=()
+	local name replicas state error pending=()
 	while :; do
 		pending=()
 		# A worker from before the label fix pushes its DB copy (pending) back until it is replaced.
@@ -1145,7 +1145,17 @@ wait_healthy() {
 			name=${name#"${STACK_NAME}_"}
 			# Global with no node labelled logistack.ingress=true: 0/0 is the intended state.
 			if [ "$NO_INGRESS" = 1 ] && [ "$name" = caddy ]; then continue; fi
-			if [[ $replicas =~ ^([0-9]+)/([0-9]+) ]] && [ "${BASH_REMATCH[2]}" -gt 0 ] &&
+			# start-first keeps the old task running, so n/n holds while the new one is still on trial.
+			state=$(docker service inspect "${STACK_NAME}_$name" --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}} {{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null || true)
+			# A rollback left over from an earlier run is stale once the spec carries this release's tag.
+			if [[ $state =~ ^(rollback_[a-z]+|paused)\  ]] && [[ $state != *":$IMAGE_TAG"* ]]; then
+				printf '  %s✗%s %s did not start on %s; Swarm put back the previous version\n' "$RED" "$RESET" "$name" "$IMAGE_TAG" >&2
+				error=$(docker service ps "${STACK_NAME}_$name" --no-trunc --filter desired-state=shutdown --format '{{.Error}}' 2>/dev/null | grep -m1 . || true)
+				[ -z "$error" ] || note "$name: $error"
+				fail "See why with: docker service logs ${STACK_NAME}_$name   (re-running the installer is safe)"
+			fi
+			state=${state%% *}
+			if [ "$state" != updating ] && [[ $replicas =~ ^([0-9]+)/([0-9]+) ]] && [ "${BASH_REMATCH[2]}" -gt 0 ] &&
 				[ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ]; then
 				[ -n "${ready[$name]:-}" ] || ok "$name $replicas"
 				ready[$name]=1
@@ -1162,7 +1172,6 @@ wait_healthy() {
 			[ ${#pending[@]} -gt 0 ] || pending=("logistack-api (/api/health)")
 			printf '  %s✗%s Not ready after %ss: %s\n' "$RED" "$RESET" "$WAIT_TIMEOUT" "${pending[*]}" >&2
 			for name in "${pending[@]}"; do
-				local error
 				error=$(grep -m1 . <<<"$(docker service ps "${STACK_NAME}_${name%% *}" --no-trunc --format '{{.Error}}' 2>/dev/null)" || true)
 				[ -z "$error" ] || note "$name: $error"
 			done

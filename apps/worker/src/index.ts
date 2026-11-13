@@ -23,7 +23,7 @@ import { createDockerClient, type DockerEvent } from "@logistack/docker";
 import { pinnedFetch } from "@logistack/providers";
 import { coalesce } from "@logistack/proxy";
 import { type Job, Worker } from "bullmq";
-import { eq, notInArray } from "drizzle-orm";
+import { eq, notInArray, sql } from "drizzle-orm";
 import { ensureStackNetwork, reattachOrgNetworks } from "./apply.ts";
 import { processBackupJob } from "./backups.ts";
 import { installEmulation, probeBuildkit } from "./build-platforms.ts";
@@ -178,6 +178,17 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 		queues: createQueues(connection),
 		nodes: await createNodeRunner(cfg.REDIS_URL),
 	};
+	// A fresh task's overlay DNS can miss "postgres" for a few seconds; crashing here makes Swarm roll the update back.
+	for (let deadline = Date.now() + 60_000; ; ) {
+		try {
+			await ctx.db.execute(sql`select 1`);
+			break;
+		} catch (e) {
+			if (Date.now() > deadline) throw e;
+			log("warn", "waiting for postgres", { error: String((e as Error).cause ?? e) });
+			await Bun.sleep(2_000);
+		}
+	}
 	const failed = (queue: string) => (job: Job | undefined, err: Error) =>
 		log("error", "job failed", { queue, jobId: job?.id, error: err.message });
 
