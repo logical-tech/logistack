@@ -631,7 +631,7 @@ running_api_env() {
 	have docker || return 0
 	docker service inspect "${STACK_NAME}_logistack-api" \
 		--format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null |
-		sed -n "s|^$1=||p" | head -n1
+		sed -n "s|^$1=||p" | head -n1 || true
 }
 
 # Unauthenticated: GitHub allows 60 requests an hour per IP. `releases/latest` skips prereleases.
