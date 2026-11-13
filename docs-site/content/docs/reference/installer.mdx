@@ -128,7 +128,15 @@ From the dashboard, an admin opens **Settings > Updates** and selects **Update t
 curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.3.0
 ```
 
-The api and worker roll with start-first updates and roll back on failure. Postgres, Redis and Caddy stop the old task first, because they own a data directory or host ports. The api runs database migrations at startup. A release that changes `stack.yml` (a new service or variable) says so in its notes and needs the installer; an in-app update swaps images only.
+The api and worker roll with start-first updates and roll back on failure. The installer waits until every service has finished its update, not only until it has a running task. If Swarm rolled a service back, the installer stops and names it:
+
+```text
+  ✗ logistack-worker did not start on 0.3.0; Swarm put back the previous version
+    logistack-worker: task: non-zero exit (1)
+See why with: docker service logs logistack_logistack-worker   (re-running the installer is safe)
+```
+
+The instance keeps running the previous release of that service. Read the logs, fix the cause, and run the installer again. Postgres, Redis and Caddy stop the old task first, because they own a data directory or host ports. The api runs database migrations at startup. A release that changes `stack.yml` (a new service or variable) says so in its notes and needs the installer; an in-app update swaps images only.
 
 ## Repair
 
@@ -138,7 +146,7 @@ Run the installer again with no options. It recreates missing secrets from `/etc
 curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash
 ```
 
-If the dashboard's domain stops working, this is also how you get back in: the tunnel on `127.0.0.1:3000` comes back and you reach it over SSH.
+After setup, a re-run ends with `Setup is done. Open the dashboard at https://...` and the SSH tunnel command. If the dashboard's domain stops working, this is also how you get back in: the tunnel on `127.0.0.1:3000` comes back and you reach it over SSH.
 
 ## Uninstall
 
