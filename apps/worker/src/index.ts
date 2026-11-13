@@ -185,7 +185,9 @@ export async function startWorker(cfg: Config): Promise<RunningWorker> {
 			break;
 		} catch (e) {
 			if (Date.now() > deadline) throw e;
-			log("warn", "waiting for postgres", { error: String((e as Error).cause ?? e) });
+			log("warn", "waiting for postgres", {
+				error: String((e as Error).cause ?? e),
+			});
 			await Bun.sleep(2_000);
 		}
 	}
