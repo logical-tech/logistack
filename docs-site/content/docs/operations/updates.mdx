@@ -114,7 +114,7 @@ Run the installer with the release you want, as root on the LogiStack server:
 curl -fsSL https://stack.logicaltech.it/install.sh | sudo bash -s -- --version 0.2.0
 ```
 
-`--version` takes `0.2.0`, `v0.2.0` or `latest`. The installer redeploys the stack with the new images; the API and worker roll with start-first updates and roll back on failure. Use this path when a release's notes say it changes the stack file, or when the dashboard is not reachable.
+`--version` takes `0.2.0`, `v0.2.0` or `latest`. The installer redeploys the stack with the new images; the API and worker roll with start-first updates and roll back on failure. The installer waits for each update to finish, and stops with the service's name and error if Swarm rolled one back. Use this path when a release's notes say it changes the stack file, or when the dashboard is not reachable.
 
 The same command moves an install built with `--local-build` to the published images: leave out `--local-build` and name the release. See the [installer reference](../reference/installer.mdx) for every flag.
 
@@ -124,3 +124,4 @@ The same command moves an install built with `--local-build` to the published im
 - **The update stopped at Pull images.** An image for that release is not published yet, or `ghcr.io` is unreachable. Nothing changed; try again later.
 - **The update stopped at Finish running work.** A deployment or backup ran for more than 30 minutes. Wait for it, or cancel it, then start the update again.
 - **The update failed and rolled back.** Open the run's panel to see which step failed, and report it with the release number.
+- **The installer says a service did not start and Swarm put back the previous version.** The new task exited and that service still runs the old release. Read `docker service logs logistack_<service>`, then run the installer again.
