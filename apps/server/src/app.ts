@@ -169,7 +169,7 @@ const securityHeaders: MiddlewareHandler<Env> = async (c, next) => {
 };
 
 /** The app shell's CSP: its one inline script (the theme bootstrap) by hash, everything else from this origin. */
-function shellPolicy(indexHtml: string): string {
+export function shellPolicy(indexHtml: string): string {
 	const hashes = [...indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
 		(m) =>
 			`'sha256-${createHash("sha256")
@@ -188,7 +188,8 @@ function shellPolicy(indexHtml: string): string {
 		"frame-ancestors 'self'",
 		"object-src 'none'",
 		"base-uri 'self'",
-		"form-action 'self'",
+		// The GitHub App manifest flow is a real form POST to github.com (integrations/git/new).
+		"form-action 'self' https://github.com",
 	].join("; ");
 }
 
