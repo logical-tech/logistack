@@ -66,7 +66,8 @@ type RecordKey = {
 
 /**
  * Pure: an A record per route name at the proxy's LAN address. Our records for a removed route
- * or an older address go; records someone made by hand are never touched.
+ * or an older address go; records someone made by hand are never touched, and one that already
+ * gives the right address stands in for ours.
  */
 export function homeProxyRecordsPlan<R extends RecordKey>(
 	existing: R[],
@@ -78,9 +79,11 @@ export function homeProxyRecordsPlan<R extends RecordKey>(
 	return {
 		add: [...new Set(names)]
 			.filter(
+				// A matching record made by hand already answers; Technitium refuses a duplicate.
 				(name) =>
 					!existing.some(
-						(e) => ours(e) && e.name === name && e.content === lanAddress,
+						(e) =>
+							e.type === "A" && e.name === name && e.content === lanAddress,
 					),
 			)
 			.sort()
