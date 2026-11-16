@@ -45,6 +45,7 @@ import { git } from "./routes/git.ts";
 import { gitops } from "./routes/gitops.ts";
 import { health } from "./routes/health.ts";
 import { homeDns } from "./routes/home-dns.ts";
+import { homeProxyRoutes } from "./routes/home-proxy.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
 import { logDrains } from "./routes/log-drains.ts";
@@ -53,6 +54,7 @@ import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
 import { migrations } from "./routes/migrations.ts";
 import { networkMapRoutes } from "./routes/network-map.ts";
+import { networkPeopleRoutes } from "./routes/network-people.ts";
 import { nodes } from "./routes/nodes.ts";
 import { notifications } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
@@ -324,6 +326,8 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", patching)
 		.route("/api", networkMapRoutes)
 		.route("/api", homeDns)
+		.route("/api", homeProxyRoutes)
+		.route("/api", networkPeopleRoutes)
 		.route("/api", members)
 		.route("/api", apiKeys)
 		.route("/api", sshKeys)

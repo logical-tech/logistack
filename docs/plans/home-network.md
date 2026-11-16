@@ -125,6 +125,27 @@ Run on the dev machine (OrbStack, single-node Swarm, Docker 29.8.2) with `techni
 
 ## Open questions
 
-1. **LAN devices behind a name.** Casa DNS can proxy `nas.<zone>` to any IP on the LAN (NAS, router, Home Assistant). LogiStack domains belong to a deployed service. Should phase 3 add an "external" service kind that is only a proxy route to a LAN address?
+1. ~~**LAN devices behind a name.**~~ Answered by the **local proxy** (below).
 2. **Delegated access.** Is "instance admins only" enough, or should a non-admin (a partner) be able to pause filters or see the dashboard?
 3. **Name.** "Network" in the sidebar and "home network" in the docs, or something else?
+
+## Local proxy (2026-11-16)
+
+Casa DNS's own Caddy, rebuilt on LogiStack's: HTTPS names for things on the LAN (`nas.<zone>` to `https://192.168.1.10:5001`) without exposing anything to the internet.
+
+- **Its own switch**, independent of the home DNS: `home_proxy` (singleton: zone, tls, the internal CA root read back from Caddy, status) and `home_proxy_route` (name, upstream, skip-verify). Instance admins only, `/api/network/proxy*`, so MCP tools come for free. A wizard at `/network/proxy/new`.
+- **Not a service kind.** Routes are not services or domains; the worker adds them to the compiled Caddy config as `local-<id>` routes. A route's hostname may not equal a service domain's.
+- **Private clients only.** Every route carries an `ip_allow` on `PRIVATE_RANGES` (Tailscale's CGNAT included), so a router forwarding 443 to the server does not publish the NAS.
+- **One certificate.** `acme`: a `*.<zone>` wildcard from Let's Encrypt over DNS-01 through whichever connected DNS provider holds the zone (as the instance wildcard finds its provider); no public record is needed. `internal`: the same wildcard from Caddy's internal CA; the worker reads the root from Caddy's admin API (`/pki/ca/local`) for the UI to offer as a download. Checked on Caddy 2.11.7: with `*.home.lan` in `automate`, routes for `nas.home.lan` and `pve.home.lan` are served from the wildcard and Caddy obtains no certificate of its own for them.
+- **Records.** With the home DNS on, the worker keeps an `A <name>.<zone> -> <home DNS node address>` per route in a Forwarder zone (other names under the zone still resolve publicly), tagged `LogiStack: local proxy`; only tagged records are changed. With it off, the user points the names (or `*.<zone>`) at the server in their router.
+- **Not done:** records left in an old zone after a zone change, or after the proxy is turned off, stay until removed by hand. The address is the home DNS node's, the same shortcut as the instance base: with ingress on other nodes the records should point there. No CLI command and no docs-site page yet.
+
+## People and devices (2026-11-16)
+
+The first slice of phase 2.
+
+- `network_person` (a virtual member: a name, no sign-in) and `network_device` (a name, the IP it asks from, an optional person). Instance admins, `/api/network/people*` and `/api/network/devices*`.
+- Each person and each device can block **more** than the house: list URLs and domains. A device gets its person's rules plus its own. The house's lists stay in Technitium's own blocking, which keeps running for everyone, so these rules only add; nobody can be exempted from the house's lists yet.
+- `compileAdvancedBlocking` (`packages/core`, pure) turns them into Advanced Blocking groups picked by client address: `device-<id>` for a device with rules of its own, `person-<id>` shared by a person's other devices, `everyone` for the rest. The worker installs the app in the background only once somebody has rules, then writes the config whenever it differs; with no rules left its blocking is turned off.
+- Devices are known by IP only. MAC-based devices wait for DHCP (phase 3); until then a device needs a fixed address or a DHCP reservation on the router.
+- Not done yet: groups, schedules, pauses, no-history, blockable app catalog, "why is it blocked?", new-device alert.

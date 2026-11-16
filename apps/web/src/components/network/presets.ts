@@ -37,8 +37,22 @@ export const BLOCKLISTS = [
 	},
 ] as const;
 
+/** Lists that suit one person or device rather than the whole house. */
+export const PERSONAL_BLOCKLISTS = [
+	{
+		name: "Hagezi NSFW",
+		url: hagezi("nsfw"),
+		description: "Adult content.",
+	},
+	{
+		name: "Hagezi Gambling",
+		url: hagezi("gambling"),
+		description: "Betting, casinos and lotteries.",
+	},
+] as const;
+
 export const listName = (url: string) =>
-	BLOCKLISTS.find((l) => l.url === url)?.name;
+	[...BLOCKLISTS, ...PERSONAL_BLOCKLISTS].find((l) => l.url === url)?.name;
 
 type Upstream = HomeDnsSettings["upstream"];
 

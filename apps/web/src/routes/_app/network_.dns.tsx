@@ -14,10 +14,13 @@ import {
 	HomeDnsPage,
 	homeDnsMeta,
 } from "@/components/network/home-dns";
+import { useNameDevice } from "@/components/network/people";
 import { Panel, SkeletonRows } from "@/components/panel";
 import { Segmented } from "@/components/segmented";
 import { StatusLabel } from "@/components/status";
+import { Button } from "@/components/ui/button";
 import { homeDnsStatsQuery } from "@/lib/api/home-dns";
+import { useDeviceNames } from "@/lib/api/network-people";
 import { formatCount } from "@/lib/metrics";
 import { cn } from "@/lib/utils";
 
@@ -133,6 +136,8 @@ function StatusPanel({ dns }: { dns: HomeDns }) {
 
 function Dashboard({ range }: { range: Range }) {
 	const { data, isError, error } = useQuery(homeDnsStatsQuery(range));
+	const devices = useDeviceNames();
+	const nameDevice = useNameDevice();
 	const chartRange = RANGES.find((r) => r.value === range)?.chart ?? "24h";
 	const rows = data?.chart.labels.map((label, i) => {
 		const row: { t: number; [k: string]: number | null } = {
@@ -156,6 +161,7 @@ function Dashboard({ range }: { range: Range }) {
 	const t = data?.totals;
 	return (
 		<div className="grid gap-8">
+			{nameDevice.dialog}
 			<dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
 				<Kpi label="Queries" value={t && full(t.queries)} />
 				<Kpi
@@ -187,22 +193,43 @@ function Dashboard({ range }: { range: Range }) {
 					title="Top devices"
 					id="top-clients"
 					items={data?.topClients}
-					render={(c) => (
-						<Link
-							to="/network/dns/logs"
-							search={{ client: c.name }}
-							className="block min-w-0 rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-						>
-							<span className="block truncate text-sm">
-								{c.domain?.replace(/\.home\.lan$|\.lan$|\.local$/, "") ??
-									c.name}
-							</span>
-							{c.domain && (
-								<span className="block truncate font-mono text-xs text-muted-foreground">
-									{c.name}
+					render={(c) => {
+						const d = devices.get(c.name);
+						const host = c.domain?.replace(/\.home\.lan$|\.lan$|\.local$/, "");
+						return (
+							<Link
+								to="/network/dns/logs"
+								search={{ client: c.name }}
+								className="block min-w-0 rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+							>
+								<span className="block truncate text-sm">
+									{d?.name ?? host ?? c.name}
 								</span>
+								{(d || c.domain) && (
+									<span className="block truncate text-xs text-muted-foreground">
+										{d?.personName ?? (
+											<span className="font-mono">{c.name}</span>
+										)}
+									</span>
+								)}
+							</Link>
+						);
+					}}
+					// Same width on every row, so the counts line up whether or not a row can be named.
+					action={(c) => (
+						<span className="inline-flex w-14 justify-end">
+							{!devices.has(c.name) && (
+								<Button
+									variant="ghost"
+									size="xs"
+									className="text-muted-foreground"
+									aria-label={`Name the device at ${c.name}`}
+									onClick={() => nameDevice.open(c.name)}
+								>
+									Name
+								</Button>
 							)}
-						</Link>
+						</span>
 					)}
 				/>
 				<TopList

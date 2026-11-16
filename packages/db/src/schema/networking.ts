@@ -4,6 +4,8 @@ import type {
 	HomeDnsDesiredState,
 	HomeDnsSettings,
 	HomeDnsStatus,
+	HomeProxyTls,
+	NetworkBlocking,
 } from "@logistack/contracts";
 import { sql } from "drizzle-orm";
 import {
@@ -214,4 +216,62 @@ export const homeNetwork = pgTable(
 		...timestamps,
 	},
 	(t) => [check("home_network_singleton_true", sql`${t.singleton}`)],
+);
+
+/**
+ * The instance's local proxy: HTTPS names under `zone` for devices on the LAN, served by Caddy to
+ * private addresses only. `singleton` is always true, so its unique index allows one row.
+ */
+export const homeProxy = pgTable(
+	"home_proxy",
+	{
+		id: id("hpx"),
+		singleton: boolean("singleton").notNull().default(true).unique(),
+		zone: text("zone").notNull(),
+		tls: text("tls").$type<HomeProxyTls>().notNull(),
+		/** Caddy's internal root certificate, read back by the worker for tls `internal`. */
+		caRootPem: text("ca_root_pem"),
+		statusMessage: text("status_message"),
+		...timestamps,
+	},
+	(t) => [check("home_proxy_singleton_true", sql`${t.singleton}`)],
+);
+
+/** `<name>.<zone>` proxied to `upstream` (`https://192.168.1.10:8006`). */
+export const homeProxyRoute = pgTable("home_proxy_route", {
+	id: id("hpr"),
+	name: text("name").notNull().unique(),
+	upstream: text("upstream").notNull(),
+	insecure: boolean("insecure").notNull().default(false),
+	...timestamps,
+});
+
+/** A virtual member of the house: groups devices and blocks more for them. No sign-in. */
+export const networkPerson = pgTable("network_person", {
+	id: id("nps"),
+	name: text("name").notNull(),
+	blocking: jsonb("blocking")
+		.$type<NetworkBlocking>()
+		.notNull()
+		.default({ listUrls: [], blocked: [] }),
+	...timestamps,
+});
+
+/** A home DNS client, by the IP address it asks from. */
+export const networkDevice = pgTable(
+	"network_device",
+	{
+		id: id("ndv"),
+		name: text("name").notNull(),
+		address: text("address").notNull().unique(),
+		personId: text("person_id").references(() => networkPerson.id, {
+			onDelete: "set null",
+		}),
+		blocking: jsonb("blocking")
+			.$type<NetworkBlocking>()
+			.notNull()
+			.default({ listUrls: [], blocked: [] }),
+		...timestamps,
+	},
+	(t) => [index("network_device_person_id_idx").on(t.personId)],
 );

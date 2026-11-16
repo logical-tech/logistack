@@ -13,7 +13,12 @@ import type {
 import { movedPage } from "./pages.ts";
 import { WEB_ANALYTICS_SCRIPT } from "./web-analytics.ts";
 
-export type Upstream = { host: string; port: number };
+export type Upstream = {
+	host: string;
+	port: number;
+	/** Speak HTTPS to the upstream; `insecure` skips verifying its certificate (a NAS's self-signed one). */
+	tls?: { insecure: boolean };
+};
 
 /** Credential keys are the JSON fields of each caddy-dns module. */
 export type DnsChallenge =
@@ -683,11 +688,19 @@ export const CLIENT_IP_HEADER = "X-Logistack-Client-Ip";
 
 const proxyTo = (u: Upstream, request?: CaddyHeaderOps): CaddyHandler => ({
 	handler: "reverse_proxy",
-	upstreams: [{ dial: `${u.host}:${u.port}` }],
+	upstreams: [
+		{ dial: `${u.host.includes(":") ? `[${u.host}]` : u.host}:${u.port}` },
+	],
 	load_balancing: {
 		try_duration: UPSTREAM_TRY_DURATION,
 		try_interval: "250ms",
 	},
+	...(u.tls && {
+		transport: {
+			protocol: "http",
+			tls: u.tls.insecure ? { insecure_skip_verify: true } : {},
+		},
+	}),
 	...(request && { headers: { request } }),
 });
 const basicAuth = (

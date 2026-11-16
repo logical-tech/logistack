@@ -1,4 +1,4 @@
-import { HomeDnsResponseType } from "@logistack/contracts";
+import { HomeDnsResponseType, type NetworkDevice } from "@logistack/contracts";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { EmptyState } from "@/components/empty-state";
 import { DomainActions, HomeDnsPage } from "@/components/network/home-dns";
+import { useNameDevice } from "@/components/network/people";
 import { SkeletonRows } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ApiError } from "@/lib/api";
 import { type HomeDnsLogEntry, homeDnsLogsQuery } from "@/lib/api/home-dns";
+import { useDeviceNames } from "@/lib/api/network-people";
 import { cn } from "@/lib/utils";
 
 const WINDOWS = {
@@ -81,6 +83,8 @@ function LogTable() {
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const [live, setLive] = useState(true);
+	const devices = useDeviceNames();
+	const nameDevice = useNameDevice();
 	const [domain, setDomain] = useState(search.domain ?? "");
 	const [client, setClient] = useState(search.client ?? "");
 	const page = search.page ?? 1;
@@ -140,6 +144,7 @@ function LogTable() {
 
 	return (
 		<div className="grid gap-4">
+			{nameDevice.dialog}
 			<div className="flex flex-wrap items-center gap-2">
 				<div className="relative min-w-48 flex-1">
 					<Search
@@ -156,15 +161,43 @@ function LogTable() {
 						className="pl-8 font-mono"
 					/>
 				</div>
-				<Input
-					value={client}
-					onChange={(e) => setClient(e.target.value)}
-					placeholder="Device IP"
-					aria-label="Filter by device IP"
-					aria-invalid={clientValid ? undefined : true}
-					spellCheck={false}
-					className="w-36 font-mono tabular-nums"
-				/>
+				{devices.size ? (
+					<Select
+						value={search.client ?? ALL}
+						onValueChange={(v) => {
+							const next = v === ALL ? undefined : v;
+							setClient(next ?? "");
+							set({ client: next });
+						}}
+					>
+						<SelectTrigger className="w-44" aria-label="Device">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={ALL}>Any device</SelectItem>
+							{[...devices.values()].map((d) => (
+								<SelectItem key={d.id} value={d.address}>
+									{d.name}
+								</SelectItem>
+							))}
+							{search.client && !devices.has(search.client) && (
+								<SelectItem value={search.client} className="font-mono">
+									{search.client}
+								</SelectItem>
+							)}
+						</SelectContent>
+					</Select>
+				) : (
+					<Input
+						value={client}
+						onChange={(e) => setClient(e.target.value)}
+						placeholder="Device IP"
+						aria-label="Filter by device IP"
+						aria-invalid={clientValid ? undefined : true}
+						spellCheck={false}
+						className="w-36 font-mono tabular-nums"
+					/>
+				)}
 				<Select
 					value={search.type ?? ALL}
 					onValueChange={(v) =>
@@ -242,10 +275,10 @@ function LogTable() {
 								: "No queries in this time range yet. Point a device at the home DNS and they show up here."}
 						</p>
 					) : (
-						<div className="overflow-x-auto">
+						<div className="relative overflow-x-auto">
 							<table
 								className={cn(
-									"w-full min-w-[34rem] table-fixed text-sm sm:min-w-[46rem]",
+									"w-full min-w-[38rem] table-fixed text-sm sm:min-w-[50rem]",
 									isFetching && !live && "opacity-70",
 								)}
 								aria-label="DNS queries"
@@ -258,7 +291,7 @@ function LogTable() {
 										>
 											Time
 										</th>
-										<th scope="col" className="h-9 w-36 px-4 font-medium">
+										<th scope="col" className="h-9 w-48 px-4 font-medium">
 											Device
 										</th>
 										<th scope="col" className="h-9 px-4 font-medium">
@@ -283,6 +316,8 @@ function LogTable() {
 										<Row
 											key={`${e.timestamp}-${e.client}-${e.domain}-${e.type}`}
 											e={e}
+											device={devices.get(e.client)}
+											onName={nameDevice.open}
 											onClient={(c) => {
 												setClient(c);
 												set({ client: c });
@@ -342,10 +377,14 @@ function LogTable() {
 
 function Row({
 	e,
+	device,
 	onClient,
+	onName,
 }: {
 	e: HomeDnsLogEntry;
+	device: NetworkDevice | undefined;
 	onClient: (ip: string) => void;
+	onName: (ip: string) => void;
 }) {
 	const r = RESPONSE[e.responseType] ?? { label: e.responseType };
 	const blocked = isBlocked(e.responseType);
@@ -354,15 +393,41 @@ function Row({
 			<td className="hidden h-11 px-4 whitespace-nowrap text-xs text-muted-foreground tabular sm:table-cell">
 				{time.format(new Date(e.timestamp))}
 			</td>
-			<td className="h-11 px-4">
-				<button
-					type="button"
-					onClick={() => onClient(e.client)}
-					className="rounded-sm font-mono text-xs tabular outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-					title="Show only this device"
-				>
-					{e.client}
-				</button>
+			<td className="h-11 max-w-0 px-4">
+				<div className="flex min-w-0 items-center gap-1">
+					<button
+						type="button"
+						onClick={() => onClient(e.client)}
+						className="min-w-0 rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+						title={`Show only ${device?.name ?? e.client}`}
+					>
+						{device ? (
+							<>
+								<span className="block truncate text-xs">{device.name}</span>
+								{device.personName && (
+									<span className="block truncate text-2xs text-muted-foreground">
+										{device.personName}
+									</span>
+								)}
+							</>
+						) : (
+							<span className="block truncate font-mono text-xs tabular">
+								{e.client}
+							</span>
+						)}
+					</button>
+					{!device && (
+						<Button
+							variant="ghost"
+							size="xs"
+							className="h-6 shrink-0 px-1.5 text-muted-foreground"
+							aria-label={`Name the device at ${e.client}`}
+							onClick={() => onName(e.client)}
+						>
+							Name
+						</Button>
+					)}
+				</div>
 			</td>
 			<td className="h-11 max-w-0 px-4">
 				<span className="block truncate font-mono text-xs" title={e.domain}>
