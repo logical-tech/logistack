@@ -156,6 +156,13 @@ describe("local proxy records on the home DNS", () => {
 		]);
 	});
 
+	test("a hand-made record with the same name and address stands in for ours and stays", () => {
+		const handMade = { name: "ha.home.lan", type: "A", content: "192.168.1.2" };
+		expect(
+			homeProxyRecordsPlan([handMade], ["ha.home.lan"], "192.168.1.2"),
+		).toEqual({ add: [], remove: [] });
+	});
+
 	test("converged: nothing to do", () => {
 		expect(
 			homeProxyRecordsPlan(
