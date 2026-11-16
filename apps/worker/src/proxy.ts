@@ -47,6 +47,13 @@ import { log } from "./bus.ts";
 import { caddyStorageKey } from "./caddy-storage.ts";
 import { covers, refreshCertSnapshot } from "./certs.ts";
 import type { Ctx } from "./ctx.ts";
+import {
+	homeProxyCandidates,
+	homeProxyDomainId,
+	loadHomeProxy,
+	recordCaRoot,
+	recordHomeProxyStatus,
+} from "./home-proxy.ts";
 import type { DomainRow } from "./load.ts";
 import { svcName } from "./load.ts";
 import { localRegistryName, ZOT_PORT } from "./local-registry.ts";
@@ -253,13 +260,14 @@ export function isolateRoutes(
 }
 
 /**
- * Has Caddy manage one `*.base` certificate over DNS-01. Caddy then serves every exact host
- * under the base (generated domains, the dashboard) from it and issues none of their own.
+ * Has Caddy manage one `*.base` certificate over DNS-01, or from its internal CA. Caddy then
+ * serves every exact host under the base (generated domains, the dashboard) from it and issues
+ * none of their own.
  */
 export function withInstanceWildcard(
 	config: CaddyConfig,
 	wildcard: string,
-	challenge: DnsChallenge,
+	challenge: DnsChallenge | "internal",
 ): CaddyConfig {
 	const tls = config.apps.tls as CaddyConfig["apps"]["tls"] & {
 		certificates?: { automate?: string[] };
@@ -275,7 +283,9 @@ export function withInstanceWildcard(
 				...tls,
 				certificates: {
 					...tls.certificates,
-					automate: [...(tls.certificates?.automate ?? []), wildcard],
+					automate: [
+						...new Set([...(tls.certificates?.automate ?? []), wildcard]),
+					],
 				},
 				automation: {
 					policies: taken
@@ -283,21 +293,24 @@ export function withInstanceWildcard(
 						: [
 								{
 									subjects: [wildcard],
-									issuers: (catchAll?.issuers ?? []).map((i) =>
-										i.module === "acme"
-											? {
-													...i,
-													challenges: {
-														dns: {
-															provider: {
-																name: challenge.provider,
-																...challenge.credentials,
-															},
-														},
-													},
-												}
-											: i,
-									),
+									issuers:
+										challenge === "internal"
+											? [{ module: "internal" }]
+											: (catchAll?.issuers ?? []).map((i) =>
+													i.module === "acme"
+														? {
+																...i,
+																challenges: {
+																	dns: {
+																		provider: {
+																			name: challenge.provider,
+																			...challenge.credentials,
+																		},
+																	},
+																},
+															}
+														: i,
+												),
 								},
 								...policies,
 							],
@@ -556,6 +569,34 @@ export async function syncProxy(
 		),
 	);
 
+	// The local proxy: LAN names under its zone, one wildcard certificate for all of them.
+	const lanProxy = await loadHomeProxy(ctx);
+	let localWildcard: string | undefined;
+	let localIssuer: DnsChallenge | "internal" = "internal";
+	let localError: string | null = null;
+	if (lanProxy) {
+		const { zone, tls } = lanProxy.proxy;
+		try {
+			if (tls === "acme") {
+				const p = providers.find((x) =>
+					findZoneForHostname(zone, ZoneList.catch([]).parse(x.zonesCache)),
+				);
+				if (!p) throw new Error(`no connected DNS provider holds ${zone}`);
+				localIssuer = await challengeOf(p);
+			}
+			candidates.push(
+				...homeProxyCandidates(
+					lanProxy.proxy,
+					lanProxy.routes,
+					localIssuer === "internal" ? undefined : localIssuer,
+				),
+			);
+			localWildcard = `*.${zone}`;
+		} catch (e) {
+			localError = e instanceof Error ? e.message : String(e);
+		}
+	}
+
 	const addresses = await caddyAddresses(ctx, opts.starting);
 	if (!addresses.length) {
 		log("warn", "proxy sync: no running Caddy task", {
@@ -592,6 +633,8 @@ export async function syncProxy(
 				wildcard.hostname,
 				wildcard.challenge,
 			);
+		if (localWildcard)
+			config = withInstanceWildcard(config, localWildcard, localIssuer);
 		config = withAutomatedNames(config, dbHostnames, wildcard?.hostname);
 		config = withAcmeDirectory(
 			config,
@@ -606,6 +649,23 @@ export async function syncProxy(
 		if (result && !result.ok) failures.push(result.error.message);
 	}
 	for (const r of routes) outcome.set(r.domainId, failures[0] ?? null);
+	if (lanProxy) {
+		const skipped = lanProxy.routes.flatMap((r) => {
+			const e = isolated.errors.get(homeProxyDomainId(r.id));
+			return e ? [`${r.name}: ${e}`] : [];
+		});
+		await recordHomeProxyStatus(
+			ctx,
+			lanProxy.proxy,
+			localError ?? failures[0] ?? (skipped.join("; ") || null),
+		);
+		if (!failures.length)
+			await recordCaRoot(
+				ctx,
+				lanProxy.proxy,
+				`http://${addresses[0]}:${ADMIN_PORT}`,
+			);
+	}
 
 	for (const { domain: d, organizationId, projectId } of rows) {
 		const error = outcome.get(d.id) ?? null;

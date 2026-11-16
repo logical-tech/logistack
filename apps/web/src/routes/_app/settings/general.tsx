@@ -17,6 +17,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useInstanceSettings, useSetAllowPrivateHosts } from "@/lib/api/access";
 import { useHomeDns } from "@/lib/api/home-dns";
+import { useHomeProxy } from "@/lib/api/home-proxy";
 
 export const Route = createFileRoute("/_app/settings/general")({
 	staticData: { crumb: "General" },
@@ -75,6 +76,28 @@ function HomeDnsPanel() {
 	);
 }
 
+/** Instance admins only: the door to the local proxy wizard, or its page once on. */
+function HomeProxyPanel() {
+	const { data, admin } = useHomeProxy();
+	if (!admin || !data) return null;
+	return (
+		<Panel id="home-proxy" title="Local proxy">
+			<div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+				<p className="min-w-0 flex-1 text-sm text-pretty text-muted-foreground">
+					{data.enabled
+						? `On. Devices in the house answer at HTTPS names under ${data.zone}.`
+						: "HTTPS names with a valid certificate for devices in the house, like nas.home.example.com, reachable only from your network."}
+				</p>
+				<Button asChild variant={data.enabled ? "outline" : "default"}>
+					<Link to={data.enabled ? "/network/proxy" : "/network/proxy/new"}>
+						{data.enabled ? "Open" : "Set up local proxy"}
+					</Link>
+				</Button>
+			</div>
+		</Panel>
+	);
+}
+
 function General() {
 	const { data: s, isPending } = useInstanceSettings();
 	const setAllow = useSetAllowPrivateHosts();
@@ -124,6 +147,7 @@ function General() {
 				</Panel>
 
 				<HomeDnsPanel />
+				<HomeProxyPanel />
 
 				<Panel id="network" title="Network safety">
 					<div className="flex items-start justify-between gap-6 p-4">

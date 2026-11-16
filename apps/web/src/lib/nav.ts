@@ -22,10 +22,12 @@ import {
 	LockKeyhole,
 	type LucideIcon,
 	Mail,
+	MonitorSmartphone,
 	Network,
 	Orbit,
 	Palette,
 	Puzzle,
+	Route,
 	ScrollText,
 	ServerCog,
 	Settings2,
@@ -504,7 +506,7 @@ export const NAV: NavGroup[] = [
 	},
 ];
 
-/** Replaces the main group's Network item while home DNS is on (instance admins only). */
+/** Replaces the main group's Network item while home DNS or the local proxy is on (instance admins only). */
 export const HOME_NETWORK: NavGroup = {
 	label: "Network",
 	items: [
@@ -533,12 +535,45 @@ export const HOME_NETWORK: NavGroup = {
 			keywords: ["home", "dns", "ads", "blocklist", "allowlist", "adblock"],
 		},
 		{
+			to: "/network/people",
+			title: "People",
+			icon: Users,
+			description:
+				"The people in the house, their devices, and what each of them blocks on top of the house's lists.",
+			keywords: ["home", "dns", "family", "kids", "parental", "members"],
+		},
+		{
+			to: "/network/devices",
+			title: "Devices",
+			icon: MonitorSmartphone,
+			description:
+				"Names for the addresses that ask the home DNS, who they belong to, and their own extra blocking.",
+			keywords: ["home", "dns", "clients", "ip", "phone", "laptop", "tv"],
+		},
+		{
 			to: "/network/dns/zones",
 			title: "Zones",
 			icon: Signpost,
 			description:
 				"Local zones like home.lan and their records, answered only inside the house.",
 			keywords: ["home", "dns", "records", "home.lan", "local"],
+		},
+		{
+			to: "/network/proxy",
+			title: "Local proxy",
+			icon: Route,
+			description:
+				"HTTPS names for devices in the house, like nas.home.example.com, reachable only from your network.",
+			keywords: [
+				"home",
+				"proxy",
+				"https",
+				"nas",
+				"router",
+				"home assistant",
+				"lan",
+				"caddy",
+			],
 		},
 		{
 			to: "/network",
@@ -559,14 +594,25 @@ export const HOME_NETWORK: NavGroup = {
 	],
 };
 
-/** The groups to show: with home DNS on, Network becomes its own group after the main one. */
-export function navGroups(homeNetwork: boolean): NavGroup[] {
-	if (!homeNetwork) return NAV;
+/** The local proxy alone: the group without the pages that need the home DNS. */
+export const PROXY_NETWORK: NavGroup = {
+	...HOME_NETWORK,
+	items: HOME_NETWORK.items.filter(
+		(s) => s.to === "/network/proxy" || s.to === "/network",
+	),
+};
+
+/**
+ * The groups to show: with home DNS or the local proxy on, Network becomes its own group
+ * after the main one; the DNS pages only while home DNS is on.
+ */
+export function navGroups(homeDns: boolean, homeProxy = false): NavGroup[] {
+	if (!homeDns && !homeProxy) return NAV;
 	const [main, ...rest] = NAV;
 	if (!main) return NAV;
 	return [
 		{ ...main, items: main.items.filter((s) => s.to !== "/network") },
-		HOME_NETWORK,
+		homeDns ? HOME_NETWORK : PROXY_NETWORK,
 		...rest,
 	];
 }

@@ -442,6 +442,24 @@ export function technitium(baseUrl: string, token?: string, deps?: Deps) {
 			);
 		},
 
+		/** An installed app's config text (JSON for most apps); null when it has none. */
+		async appConfig(name: string): Promise<string | null> {
+			return (
+				(
+					await call(
+						"appConfig",
+						"/api/apps/config/get",
+						z.object({ config: z.string().nullish() }),
+						{ name },
+					)
+				).config ?? null
+			);
+		},
+
+		async setAppConfig(name: string, config: string): Promise<void> {
+			await call("setAppConfig", "/api/apps/config/set", ok, { name, config });
+		},
+
 		allowed: () => exported("allowed", "/api/allowed/export"),
 		allow: async (domain: string) => {
 			await call("allow", "/api/allowed/add", ok, { domain });

@@ -7,7 +7,9 @@ import {
 	TECHNITIUM_PORT,
 } from "@logistack/contracts";
 import {
+	ADVANCED_BLOCKING_APP,
 	advanceHomeDns,
+	compileAdvancedBlocking,
 	decrypt,
 	dockerName,
 	encrypt,
@@ -17,6 +19,8 @@ import {
 import {
 	homeNetwork,
 	instanceSettings,
+	networkDevice,
+	networkPerson,
 	node,
 	organization,
 } from "@logistack/db";
@@ -36,6 +40,7 @@ import { eq } from "drizzle-orm";
 import { inspectService, notFound, upsertService } from "./apply.ts";
 import { log } from "./bus.ts";
 import { type Ctx, scope } from "./ctx.ts";
+import { ensureHomeProxyRecords, loadHomeProxy } from "./home-proxy.ts";
 
 /** On every object this module creates; cleanup lists by it and nothing else. */
 export const HOME_DNS_LABEL = "logistack.home-dns";
@@ -260,7 +265,22 @@ export async function syncHomeDns(
 			if (base && isPrivateAddress(row.lanAddress))
 				await ensureSplitHorizon(api, base, row.lanAddress);
 
-			message = await ensureQueryLogApp(row.id, api);
+			const local = await loadHomeProxy(ctx);
+			if (local)
+				await ensureHomeProxyRecords(
+					api,
+					local.proxy.zone,
+					local.routes.map((r) => `${r.name}.${local.proxy.zone}`),
+					row.lanAddress,
+				);
+
+			message =
+				(await ensureApp(
+					row.id,
+					api,
+					QUERY_LOG_APP.name,
+					"query log extension",
+				)) ?? (await ensureAdvancedBlocking(ctx, row.id, api));
 
 			try {
 				await (deps.probe ?? probePort53)(row.lanAddress, zone);
@@ -420,29 +440,31 @@ const defaultUrl = (address: string) =>
 const installs = new Map<string, { running?: Promise<void>; error?: string }>();
 
 /**
- * The query log extension is a download of many megabytes from Technitium's site, so it installs
- * in the background; the pass reports progress through the status message and never waits.
+ * Technitium's apps are downloads of many megabytes from its site, so they install in the
+ * background; the pass reports progress through the status message and never waits. Null once
+ * the app is installed.
  */
-async function ensureQueryLogApp(
+async function ensureApp(
 	rowId: string,
 	api: ReturnType<typeof technitium>,
+	app: string,
+	label: string,
 ): Promise<string | null> {
-	if ((await api.apps()).some((a) => a.name === QUERY_LOG_APP.name)) {
-		installs.delete(rowId);
+	const key = `${rowId} ${app}`;
+	if ((await api.apps()).some((a) => a.name === app)) {
+		installs.delete(key);
 		return null;
 	}
-	const state = installs.get(rowId) ?? {};
-	installs.set(rowId, state);
-	if (state.running)
-		return "Installing the query log extension; the download can take several minutes";
+	const state = installs.get(key) ?? {};
+	installs.set(key, state);
+	const waiting = `Installing the ${label}; the download can take several minutes`;
+	if (state.running) return waiting;
 	const previous = state.error;
 	try {
-		const app = (await api.storeApps()).find(
-			(a) => a.name === QUERY_LOG_APP.name,
-		);
-		if (!app) throw new Error("it is not in Technitium's app store");
+		const found = (await api.storeApps()).find((a) => a.name === app);
+		if (!found) throw new Error("it is not in Technitium's app store");
 		state.running = api
-			.installApp(app.name, app.url, INSTALL_TIMEOUT_MS)
+			.installApp(found.name, found.url, INSTALL_TIMEOUT_MS)
 			.then(
 				() => {
 					state.error = undefined;
@@ -459,8 +481,55 @@ async function ensureQueryLogApp(
 	}
 	const failed = state.error ?? previous;
 	return failed
-		? `The query log extension did not install (${failed}); retrying`
-		: "Installing the query log extension; the download can take several minutes";
+		? `The ${label} did not install (${failed}); retrying`
+		: waiting;
+}
+
+/**
+ * People's and devices' extra blocking, as Advanced Blocking groups. The app is installed only
+ * once somebody blocks more; once there, it always gets the current config, so removing the last
+ * rule turns its blocking off.
+ */
+async function ensureAdvancedBlocking(
+	ctx: Ctx,
+	rowId: string,
+	api: ReturnType<typeof technitium>,
+): Promise<string | null> {
+	const [people, devices] = await Promise.all([
+		ctx.db.select().from(networkPerson),
+		ctx.db.select().from(networkDevice),
+	]);
+	const { needed, config } = compileAdvancedBlocking(people, devices);
+	const installed = (await api.apps()).some(
+		(a) => a.name === ADVANCED_BLOCKING_APP.name,
+	);
+	if (!installed) {
+		if (!needed) return null;
+		const waiting = await ensureApp(
+			rowId,
+			api,
+			ADVANCED_BLOCKING_APP.name,
+			"per-person blocking extension",
+		);
+		if (waiting) return waiting;
+	}
+	const text = JSON.stringify(config, null, 2);
+	const current = await api.appConfig(ADVANCED_BLOCKING_APP.name);
+	if (!current || !sameJson(current, text)) {
+		await api.setAppConfig(ADVANCED_BLOCKING_APP.name, text);
+		log("info", "home dns per-person blocking applied", {
+			groups: config.groups.length,
+		});
+	}
+	return null;
+}
+
+function sameJson(a: string, b: string) {
+	try {
+		return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b));
+	} catch {
+		return false;
+	}
 }
 
 /** Any answer proves the port is served; with a local zone, its SOA proves the answer is Technitium's. */

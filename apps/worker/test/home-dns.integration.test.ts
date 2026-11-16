@@ -3,7 +3,16 @@ import { Resolver } from "node:dns/promises";
 import { connect } from "node:net";
 import { HomeDnsSettings, TECHNITIUM_PORT } from "@logistack/contracts";
 import { decrypt, encrypt, importMasterKey } from "@logistack/core";
-import { createDb, homeNetwork, node, organization } from "@logistack/db";
+import {
+	createDb,
+	homeNetwork,
+	homeProxy,
+	homeProxyRoute,
+	networkDevice,
+	networkPerson,
+	node,
+	organization,
+} from "@logistack/db";
 import {
 	createDockerClient,
 	DockerError,
@@ -18,6 +27,7 @@ import {
 	homeDnsNames,
 	syncHomeDns,
 } from "../src/home-dns.ts";
+import { HOME_PROXY_RECORD_COMMENT } from "../src/home-proxy.ts";
 import { cleanup, hasDocker, startInfra, workerConfig } from "./harness.ts";
 
 // Its own prefix, so cleanup never reaches the api and client suites' `ls-test-homedns-*` objects.
@@ -38,8 +48,12 @@ function fakeTechnitium(password: string) {
 		settingsApplied: 0,
 		settings: {} as Record<string, string>,
 		zones: new Set<string>(),
+		/** A records by zone: `name ip comment`. */
+		records: new Map<string, { name: string; ip: string; comment: string }[]>(),
 		installed: false,
 		installs: 0,
+		abInstalled: false,
+		abConfig: null as string | null,
 		/** Resolves the pending install, as the download finishing would. */
 		finishInstall: () => {},
 	};
@@ -92,12 +106,51 @@ function fakeTechnitium(password: string) {
 				case "/api/zones/create":
 					state.zones.add(form.zone ?? "");
 					return ok();
+				case "/api/zones/records/get":
+					return ok({
+						records: (state.records.get(form.zone ?? "") ?? []).map((r) => ({
+							name: r.name,
+							type: "A",
+							ttl: 300,
+							disabled: false,
+							comments: r.comment,
+							rData: { ipAddress: r.ip },
+						})),
+					});
+				case "/api/zones/records/add": {
+					const list = state.records.get(form.zone ?? "") ?? [];
+					list.push({
+						name: form.domain ?? "",
+						ip: form.ipAddress ?? "",
+						comment: form.comments ?? "",
+					});
+					state.records.set(form.zone ?? "", list);
+					return ok();
+				}
+				case "/api/zones/records/delete":
+					state.records.set(
+						form.zone ?? "",
+						(state.records.get(form.zone ?? "") ?? []).filter(
+							(r) => !(r.name === form.domain && r.ip === form.ipAddress),
+						),
+					);
+					return ok();
 				case "/api/apps/list":
 					return ok({
-						apps: state.installed
-							? [{ name: "Query Logs (Sqlite)", version: "9.1.3" }]
-							: [],
+						apps: [
+							...(state.installed
+								? [{ name: "Query Logs (Sqlite)", version: "9.1.3" }]
+								: []),
+							...(state.abInstalled
+								? [{ name: "Advanced Blocking", version: "10.0" }]
+								: []),
+						],
 					});
+				case "/api/apps/config/get":
+					return ok({ config: state.abConfig });
+				case "/api/apps/config/set":
+					state.abConfig = form.config ?? null;
+					return ok();
 				case "/api/apps/listStoreApps":
 					return ok({
 						storeApps: [
@@ -105,9 +158,17 @@ function fakeTechnitium(password: string) {
 								name: "Query Logs (Sqlite)",
 								url: "https://download.example/ql.zip",
 							},
+							{
+								name: "Advanced Blocking",
+								url: "https://download.example/ab.zip",
+							},
 						],
 					});
 				case "/api/apps/downloadAndInstall":
+					if (form.name === "Advanced Blocking") {
+						state.abInstalled = true;
+						return ok();
+					}
 					state.installs++;
 					await new Promise<void>((resolve) => {
 						state.finishInstall = resolve;
@@ -355,6 +416,69 @@ describe.skipIf(!hasDocker)("home dns sync against fakes", () => {
 		await sync();
 		expect(tech.state.settingsApplied).toBe(applied + 1);
 		expect(tech.state.settings.dnssecValidation).toBe("false");
+	});
+
+	test("local proxy routes get an A record at the LAN address in a forwarder zone, and lose it with the route", async () => {
+		await ctx.db
+			.insert(homeProxy)
+			.values({ zone: "home.example.com", tls: "internal" });
+		const [nas] = await ctx.db
+			.insert(homeProxyRoute)
+			.values({ name: "nas", upstream: "http://192.168.1.10:5000" })
+			.returning();
+		await sync();
+		await sync();
+		expect(tech.state.zones.has("home.example.com")).toBe(true);
+		expect(tech.state.records.get("home.example.com")).toEqual([
+			{
+				name: "nas.home.example.com",
+				ip: "192.168.1.2",
+				comment: HOME_PROXY_RECORD_COMMENT,
+			},
+		]);
+		await ctx.db
+			.delete(homeProxyRoute)
+			.where(eq(homeProxyRoute.id, nas?.id as string));
+		await sync();
+		expect(tech.state.records.get("home.example.com")).toEqual([]);
+		await ctx.db.delete(homeProxy);
+	});
+
+	test("extra blocking for a person installs Advanced Blocking once, then keeps its config current", async () => {
+		const [kid] = await ctx.db
+			.insert(networkPerson)
+			.values({
+				name: "Luca",
+				blocking: { listUrls: [], blocked: ["tiktok.com"] },
+			})
+			.returning();
+		const [tablet] = await ctx.db
+			.insert(networkDevice)
+			.values({
+				name: "Tablet",
+				address: "192.168.1.40",
+				personId: kid?.id as string,
+			})
+			.returning();
+		await sync();
+		expect(tech.state.abInstalled).toBe(true);
+		await sync();
+		const config = JSON.parse(tech.state.abConfig ?? "{}");
+		expect(config.enableBlocking).toBe(true);
+		expect(config.networkGroupMap["192.168.1.40"]).toBe(`person-${kid?.id}`);
+		expect(
+			config.groups.find(
+				(g: { name: string }) => g.name === `person-${kid?.id}`,
+			).blocked,
+		).toEqual(["tiktok.com"]);
+
+		await ctx.db
+			.delete(networkDevice)
+			.where(eq(networkDevice.id, tablet?.id as string));
+		await ctx.db.delete(networkPerson);
+		await sync();
+		expect(JSON.parse(tech.state.abConfig ?? "{}").enableBlocking).toBe(false);
+		expect((await row())?.statusMessage).toBeNull();
 	});
 
 	test("port 53 not answering is an error that fires once to every organization, then resolves", async () => {

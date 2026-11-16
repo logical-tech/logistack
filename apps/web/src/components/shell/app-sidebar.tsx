@@ -39,6 +39,7 @@ import {
 import { useSurfaces, WorkNavGroup } from "@/components/work/shell/work-nav";
 import { useMe, useOrganization } from "@/lib/api/access";
 import { useHomeDns } from "@/lib/api/home-dns";
+import { useHomeProxy } from "@/lib/api/home-proxy";
 import { versionQuery } from "@/lib/api/instance";
 import { nodesQuery } from "@/lib/api/monitoring";
 import { pluginContributionsQuery } from "@/lib/api/plugins";
@@ -285,6 +286,7 @@ export function AppSidebar() {
 	const { isMobile, setOpenMobile } = useSidebar();
 	const { work } = useSurfaces();
 	const { on: homeNetwork } = useHomeDns();
+	const { on: homeProxy } = useHomeProxy();
 
 	return (
 		<Sidebar collapsible="icon">
@@ -292,7 +294,7 @@ export function AppSidebar() {
 				<OrgSwitcher />
 			</SidebarHeader>
 			<SidebarContent>
-				{navGroups(homeNetwork).map((group) => (
+				{navGroups(homeNetwork, homeProxy).map((group) => (
 					<Fragment key={group.label ?? "main"}>
 						{group.label === "Integrations" && work && <WorkNavGroup />}
 						{group.label === "Integrations" && (

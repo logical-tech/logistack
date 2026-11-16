@@ -470,6 +470,20 @@
       "when": 1794500421828,
       "tag": "0066_home_network",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794838571043,
+      "tag": "0067_home_proxy",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1794839577603,
+      "tag": "0068_network_people",
+      "breakpoints": true
     }
   ]
 }
