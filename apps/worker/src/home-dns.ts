@@ -265,6 +265,8 @@ export async function syncHomeDns(
 			if (base && isPrivateAddress(row.lanAddress))
 				await ensureSplitHorizon(api, base, row.lanAddress);
 
+			// The local proxy's names are its own feature: a failure there must not take the DNS down.
+			let recordsError: string | null = null;
 			const local = await loadHomeProxy(ctx);
 			if (local)
 				await ensureHomeProxyRecords(
@@ -272,7 +274,10 @@ export async function syncHomeDns(
 					local.proxy.zone,
 					local.routes.map((r) => `${r.name}.${local.proxy.zone}`),
 					row.lanAddress,
-				);
+				).catch((e: unknown) => {
+					recordsError = `Local proxy records in ${local.proxy.zone}: ${errorText(e)}`;
+					log("warn", "local proxy records failed", { error: recordsError });
+				});
 
 			message =
 				(await ensureApp(
@@ -280,7 +285,9 @@ export async function syncHomeDns(
 					api,
 					QUERY_LOG_APP.name,
 					"query log extension",
-				)) ?? (await ensureAdvancedBlocking(ctx, row.id, api));
+				)) ??
+				(await ensureAdvancedBlocking(ctx, row.id, api)) ??
+				recordsError;
 
 			try {
 				await (deps.probe ?? probePort53)(row.lanAddress, zone);
