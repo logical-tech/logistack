@@ -30,6 +30,7 @@ import { TaskKey } from "@/components/work/parts";
 import { useSurfaces } from "@/components/work/shell/work-nav";
 import { useOpenTask } from "@/components/work/task-sheet/open-task";
 import { useHomeDns } from "@/lib/api/home-dns";
+import { useHomeProxy } from "@/lib/api/home-proxy";
 import { projectsQuery } from "@/lib/api/projects";
 import { useWorkSearch } from "@/lib/api/work-queries";
 import { auth } from "@/lib/auth";
@@ -52,6 +53,7 @@ export function CommandMenuProvider({ children }: { children: ReactNode }) {
 	const { data: hits } = useWorkSearch(work && open ? query.trim() : "");
 	const openTask = useOpenTask();
 	const homeDns = useHomeDns();
+	const homeProxy = useHomeProxy();
 	const taskKey = /^[a-z][a-z0-9]{1,9}-\d+$/i.test(query.trim())
 		? query.trim().toUpperCase()
 		: null;
@@ -245,7 +247,7 @@ export function CommandMenuProvider({ children }: { children: ReactNode }) {
 							</CommandGroup>
 						)}
 						{ops &&
-							navGroups(homeDns.on).map((g) => (
+							navGroups(homeDns.on, homeProxy.on).map((g) => (
 								<CommandGroup
 									key={g.label ?? "go"}
 									heading={g.label ?? "Go to"}

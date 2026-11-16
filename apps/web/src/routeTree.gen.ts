@@ -52,7 +52,10 @@ import { Route as AppMonitoringStatusPagesRouteImport } from './routes/_app/moni
 import { Route as AppMonitoringTrafficRouteImport } from './routes/_app/monitoring/traffic'
 import { Route as AppMonitoringUptimeRouteImport } from './routes/_app/monitoring/uptime'
 import { Route as AppMonitoringUsageRouteImport } from './routes/_app/monitoring/usage'
+import { Route as AppNetworkDevicesRouteImport } from './routes/_app/network_.devices'
 import { Route as AppNetworkDnsRouteImport } from './routes/_app/network_.dns'
+import { Route as AppNetworkPeopleRouteImport } from './routes/_app/network_.people'
+import { Route as AppNetworkProxyRouteImport } from './routes/_app/network_.proxy'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectIdRouteRouteImport } from './routes/_app/projects/$projectId/route'
 import { Route as AppSchedulesScheduleIdRouteImport } from './routes/_app/schedules_.$scheduleId'
@@ -103,6 +106,7 @@ import { Route as AppNetworkDnsLogsRouteImport } from './routes/_app/network_.dn
 import { Route as AppNetworkDnsNewRouteImport } from './routes/_app/network_.dns_.new'
 import { Route as AppNetworkDnsSettingsRouteImport } from './routes/_app/network_.dns_.settings'
 import { Route as AppNetworkDnsZonesRouteImport } from './routes/_app/network_.dns_.zones'
+import { Route as AppNetworkProxyNewRouteImport } from './routes/_app/network_.proxy_.new'
 import { Route as AppProjectsProjectIdIndexRouteImport } from './routes/_app/projects/$projectId/index'
 import { Route as AppProjectsProjectIdDuplicateRouteImport } from './routes/_app/projects/$projectId/duplicate'
 import { Route as AppProjectsProjectIdGitopsRouteImport } from './routes/_app/projects/$projectId/gitops'
@@ -384,9 +388,24 @@ const AppMonitoringUsageRoute = AppMonitoringUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => AppMonitoringRouteRoute,
 } as any)
+const AppNetworkDevicesRoute = AppNetworkDevicesRouteImport.update({
+  id: '/network_/devices',
+  path: '/network/devices',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNetworkDnsRoute = AppNetworkDnsRouteImport.update({
   id: '/network_/dns',
   path: '/network/dns',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkPeopleRoute = AppNetworkPeopleRouteImport.update({
+  id: '/network_/people',
+  path: '/network/people',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkProxyRoute = AppNetworkProxyRouteImport.update({
+  id: '/network_/proxy',
+  path: '/network/proxy',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
@@ -651,6 +670,11 @@ const AppNetworkDnsSettingsRoute = AppNetworkDnsSettingsRouteImport.update({
 const AppNetworkDnsZonesRoute = AppNetworkDnsZonesRouteImport.update({
   id: '/network_/dns_/zones',
   path: '/network/dns/zones',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNetworkProxyNewRoute = AppNetworkProxyNewRouteImport.update({
+  id: '/network_/proxy_/new',
+  path: '/network/proxy/new',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjectsProjectIdIndexRoute =
@@ -1054,7 +1078,10 @@ export interface FileRoutesByFullPath {
   '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
+  '/network/devices': typeof AppNetworkDevicesRoute
   '/network/dns': typeof AppNetworkDnsRoute
+  '/network/people': typeof AppNetworkPeopleRoute
+  '/network/proxy': typeof AppNetworkProxyRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -1105,6 +1132,7 @@ export interface FileRoutesByFullPath {
   '/network/dns/new': typeof AppNetworkDnsNewRoute
   '/network/dns/settings': typeof AppNetworkDnsSettingsRoute
   '/network/dns/zones': typeof AppNetworkDnsZonesRoute
+  '/network/proxy/new': typeof AppNetworkProxyNewRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
@@ -1204,7 +1232,10 @@ export interface FileRoutesByTo {
   '/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/monitoring/usage': typeof AppMonitoringUsageRoute
+  '/network/devices': typeof AppNetworkDevicesRoute
   '/network/dns': typeof AppNetworkDnsRoute
+  '/network/people': typeof AppNetworkPeopleRoute
+  '/network/proxy': typeof AppNetworkProxyRoute
   '/schedules/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/schedules/new': typeof AppSchedulesNewRoute
   '/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -1254,6 +1285,7 @@ export interface FileRoutesByTo {
   '/network/dns/new': typeof AppNetworkDnsNewRoute
   '/network/dns/settings': typeof AppNetworkDnsSettingsRoute
   '/network/dns/zones': typeof AppNetworkDnsZonesRoute
+  '/network/proxy/new': typeof AppNetworkProxyNewRoute
   '/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
@@ -1359,7 +1391,10 @@ export interface FileRoutesById {
   '/_app/monitoring/traffic': typeof AppMonitoringTrafficRoute
   '/_app/monitoring/uptime': typeof AppMonitoringUptimeRoute
   '/_app/monitoring/usage': typeof AppMonitoringUsageRoute
+  '/_app/network_/devices': typeof AppNetworkDevicesRoute
   '/_app/network_/dns': typeof AppNetworkDnsRoute
+  '/_app/network_/people': typeof AppNetworkPeopleRoute
+  '/_app/network_/proxy': typeof AppNetworkProxyRoute
   '/_app/schedules_/$scheduleId': typeof AppSchedulesScheduleIdRoute
   '/_app/schedules_/new': typeof AppSchedulesNewRoute
   '/_app/settings/api-keys': typeof AppSettingsApiKeysRoute
@@ -1410,6 +1445,7 @@ export interface FileRoutesById {
   '/_app/network_/dns_/new': typeof AppNetworkDnsNewRoute
   '/_app/network_/dns_/settings': typeof AppNetworkDnsSettingsRoute
   '/_app/network_/dns_/zones': typeof AppNetworkDnsZonesRoute
+  '/_app/network_/proxy_/new': typeof AppNetworkProxyNewRoute
   '/_app/projects/$projectId/duplicate': typeof AppProjectsProjectIdDuplicateRoute
   '/_app/projects/$projectId/gitops': typeof AppProjectsProjectIdGitopsRoute
   '/_app/projects/$projectId/import': typeof AppProjectsProjectIdImportRoute
@@ -1516,7 +1552,10 @@ export interface FileRouteTypes {
     | '/monitoring/traffic'
     | '/monitoring/uptime'
     | '/monitoring/usage'
+    | '/network/devices'
     | '/network/dns'
+    | '/network/people'
+    | '/network/proxy'
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
@@ -1567,6 +1606,7 @@ export interface FileRouteTypes {
     | '/network/dns/new'
     | '/network/dns/settings'
     | '/network/dns/zones'
+    | '/network/proxy/new'
     | '/projects/$projectId/duplicate'
     | '/projects/$projectId/gitops'
     | '/projects/$projectId/import'
@@ -1666,7 +1706,10 @@ export interface FileRouteTypes {
     | '/monitoring/traffic'
     | '/monitoring/uptime'
     | '/monitoring/usage'
+    | '/network/devices'
     | '/network/dns'
+    | '/network/people'
+    | '/network/proxy'
     | '/schedules/$scheduleId'
     | '/schedules/new'
     | '/settings/api-keys'
@@ -1716,6 +1759,7 @@ export interface FileRouteTypes {
     | '/network/dns/new'
     | '/network/dns/settings'
     | '/network/dns/zones'
+    | '/network/proxy/new'
     | '/projects/$projectId/duplicate'
     | '/projects/$projectId/gitops'
     | '/projects/$projectId/import'
@@ -1820,7 +1864,10 @@ export interface FileRouteTypes {
     | '/_app/monitoring/traffic'
     | '/_app/monitoring/uptime'
     | '/_app/monitoring/usage'
+    | '/_app/network_/devices'
     | '/_app/network_/dns'
+    | '/_app/network_/people'
+    | '/_app/network_/proxy'
     | '/_app/schedules_/$scheduleId'
     | '/_app/schedules_/new'
     | '/_app/settings/api-keys'
@@ -1871,6 +1918,7 @@ export interface FileRouteTypes {
     | '/_app/network_/dns_/new'
     | '/_app/network_/dns_/settings'
     | '/_app/network_/dns_/zones'
+    | '/_app/network_/proxy_/new'
     | '/_app/projects/$projectId/duplicate'
     | '/_app/projects/$projectId/gitops'
     | '/_app/projects/$projectId/import'
@@ -2244,11 +2292,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMonitoringUsageRouteImport
       parentRoute: typeof AppMonitoringRouteRoute
     }
+    '/_app/network_/devices': {
+      id: '/_app/network_/devices'
+      path: '/network/devices'
+      fullPath: '/network/devices'
+      preLoaderRoute: typeof AppNetworkDevicesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/network_/dns': {
       id: '/_app/network_/dns'
       path: '/network/dns'
       fullPath: '/network/dns'
       preLoaderRoute: typeof AppNetworkDnsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network_/people': {
+      id: '/_app/network_/people'
+      path: '/network/people'
+      fullPath: '/network/people'
+      preLoaderRoute: typeof AppNetworkPeopleRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network_/proxy': {
+      id: '/_app/network_/proxy'
+      path: '/network/proxy'
+      fullPath: '/network/proxy'
+      preLoaderRoute: typeof AppNetworkProxyRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projects/': {
@@ -2599,6 +2668,13 @@ declare module '@tanstack/react-router' {
       path: '/network/dns/zones'
       fullPath: '/network/dns/zones'
       preLoaderRoute: typeof AppNetworkDnsZonesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/network_/proxy_/new': {
+      id: '/_app/network_/proxy_/new'
+      path: '/network/proxy/new'
+      fullPath: '/network/proxy/new'
+      preLoaderRoute: typeof AppNetworkProxyNewRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projects/$projectId/': {
@@ -3318,7 +3394,10 @@ interface AppRouteChildren {
   AppIntegrationsSecretProvidersRoute: typeof AppIntegrationsSecretProvidersRoute
   AppIntegrationsTailscaleRoute: typeof AppIntegrationsTailscaleRoute
   AppIntegrationsTunnelsRoute: typeof AppIntegrationsTunnelsRoute
+  AppNetworkDevicesRoute: typeof AppNetworkDevicesRoute
   AppNetworkDnsRoute: typeof AppNetworkDnsRoute
+  AppNetworkPeopleRoute: typeof AppNetworkPeopleRoute
+  AppNetworkProxyRoute: typeof AppNetworkProxyRoute
   AppSchedulesScheduleIdRoute: typeof AppSchedulesScheduleIdRoute
   AppSchedulesNewRoute: typeof AppSchedulesNewRoute
   AppSettingsApiKeysRoute: typeof AppSettingsApiKeysRoute
@@ -3354,6 +3433,7 @@ interface AppRouteChildren {
   AppNetworkDnsNewRoute: typeof AppNetworkDnsNewRoute
   AppNetworkDnsSettingsRoute: typeof AppNetworkDnsSettingsRoute
   AppNetworkDnsZonesRoute: typeof AppNetworkDnsZonesRoute
+  AppNetworkProxyNewRoute: typeof AppNetworkProxyNewRoute
   AppSchedulesScheduleIdEditRoute: typeof AppSchedulesScheduleIdEditRoute
   AppSettingsApiKeysNewRoute: typeof AppSettingsApiKeysNewRoute
   AppSettingsAuthenticationOidcRoute: typeof AppSettingsAuthenticationOidcRoute
@@ -3393,7 +3473,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsSecretProvidersRoute: AppIntegrationsSecretProvidersRoute,
   AppIntegrationsTailscaleRoute: AppIntegrationsTailscaleRoute,
   AppIntegrationsTunnelsRoute: AppIntegrationsTunnelsRoute,
+  AppNetworkDevicesRoute: AppNetworkDevicesRoute,
   AppNetworkDnsRoute: AppNetworkDnsRoute,
+  AppNetworkPeopleRoute: AppNetworkPeopleRoute,
+  AppNetworkProxyRoute: AppNetworkProxyRoute,
   AppSchedulesScheduleIdRoute: AppSchedulesScheduleIdRoute,
   AppSchedulesNewRoute: AppSchedulesNewRoute,
   AppSettingsApiKeysRoute: AppSettingsApiKeysRoute,
@@ -3430,6 +3513,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppNetworkDnsNewRoute: AppNetworkDnsNewRoute,
   AppNetworkDnsSettingsRoute: AppNetworkDnsSettingsRoute,
   AppNetworkDnsZonesRoute: AppNetworkDnsZonesRoute,
+  AppNetworkProxyNewRoute: AppNetworkProxyNewRoute,
   AppSchedulesScheduleIdEditRoute: AppSchedulesScheduleIdEditRoute,
   AppSettingsApiKeysNewRoute: AppSettingsApiKeysNewRoute,
   AppSettingsAuthenticationOidcRoute: AppSettingsAuthenticationOidcRoute,

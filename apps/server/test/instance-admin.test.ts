@@ -86,6 +86,27 @@ const instanceRoutes: [string, string, unknown?][] = [
 		"/api/network/dns/zones/home.lan/records",
 		{ name: "a.home.lan", type: "A", content: "192.168.1.3" },
 	],
+	["GET", "/api/network/proxy"],
+	["POST", "/api/network/proxy", { zone: "home.lan", tls: "internal" }],
+	["PATCH", "/api/network/proxy", { tls: "internal" }],
+	["DELETE", "/api/network/proxy"],
+	["POST", "/api/network/proxy/test", { upstream: "192.168.1.10:80" }],
+	["GET", "/api/network/proxy/routes"],
+	[
+		"POST",
+		"/api/network/proxy/routes",
+		{ name: "nas", upstream: "192.168.1.10" },
+	],
+	["PATCH", `/api/network/proxy/routes/${node}`, { insecure: true }],
+	["DELETE", `/api/network/proxy/routes/${node}`],
+	["GET", "/api/network/people"],
+	["POST", "/api/network/people", { name: "Luca" }],
+	["PATCH", `/api/network/people/${node}`, { name: "Anna" }],
+	["DELETE", `/api/network/people/${node}`],
+	["GET", "/api/network/devices"],
+	["POST", "/api/network/devices", { name: "Tablet", address: "192.168.1.40" }],
+	["PATCH", `/api/network/devices/${node}`, { name: "Phone" }],
+	["DELETE", `/api/network/devices/${node}`],
 ];
 
 describe.skipIf(!hasDocker)("instance admins", () => {
