@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAgentRouteImport } from './routes/_app/agent'
 import { Route as AppAiRouteRouteImport } from './routes/_app/ai/route'
 import { Route as AppDomainsRouteImport } from './routes/_app/domains'
+import { Route as AppLsdcRouteImport } from './routes/_app/lsdc'
 import { Route as AppMonitoringRouteRouteImport } from './routes/_app/monitoring/route'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppProjectsRouteRouteImport } from './routes/_app/projects/route'
@@ -44,6 +45,7 @@ import { Route as AppIntegrationsS3RouteImport } from './routes/_app/integration
 import { Route as AppIntegrationsSecretProvidersRouteImport } from './routes/_app/integrations/secret-providers'
 import { Route as AppIntegrationsTailscaleRouteImport } from './routes/_app/integrations/tailscale'
 import { Route as AppIntegrationsTunnelsRouteImport } from './routes/_app/integrations/tunnels'
+import { Route as AppLsdcNewRouteImport } from './routes/_app/lsdc_.new'
 import { Route as AppMonitoringIndexRouteImport } from './routes/_app/monitoring/index'
 import { Route as AppMonitoringAlertsRouteImport } from './routes/_app/monitoring/alerts'
 import { Route as AppMonitoringIncidentsRouteImport } from './routes/_app/monitoring/incidents'
@@ -202,6 +204,11 @@ const AppDomainsRoute = AppDomainsRouteImport.update({
   path: '/domains',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLsdcRoute = AppLsdcRouteImport.update({
+  id: '/lsdc',
+  path: '/lsdc',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMonitoringRouteRoute = AppMonitoringRouteRouteImport.update({
   id: '/monitoring',
   path: '/monitoring',
@@ -345,6 +352,11 @@ const AppIntegrationsTailscaleRoute =
 const AppIntegrationsTunnelsRoute = AppIntegrationsTunnelsRouteImport.update({
   id: '/integrations/tunnels',
   path: '/integrations/tunnels',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLsdcNewRoute = AppLsdcNewRouteImport.update({
+  id: '/lsdc_/new',
+  path: '/lsdc/new',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMonitoringIndexRoute = AppMonitoringIndexRouteImport.update({
@@ -1046,6 +1058,7 @@ export interface FileRoutesByFullPath {
   '/work': typeof AppWorkRouteRouteWithChildren
   '/agent': typeof AppAgentRoute
   '/domains': typeof AppDomainsRoute
+  '/lsdc': typeof AppLsdcRoute
   '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
   '/storage': typeof AppStorageRoute
@@ -1071,6 +1084,7 @@ export interface FileRoutesByFullPath {
   '/integrations/secret-providers': typeof AppIntegrationsSecretProvidersRoute
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
+  '/lsdc/new': typeof AppLsdcNewRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
   '/monitoring/patches': typeof AppMonitoringPatchesRoute
@@ -1201,6 +1215,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/agent': typeof AppAgentRoute
   '/domains': typeof AppDomainsRoute
+  '/lsdc': typeof AppLsdcRoute
   '/network': typeof AppNetworkRoute
   '/schedules': typeof AppSchedulesRoute
   '/storage': typeof AppStorageRoute
@@ -1225,6 +1240,7 @@ export interface FileRoutesByTo {
   '/integrations/secret-providers': typeof AppIntegrationsSecretProvidersRoute
   '/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
+  '/lsdc/new': typeof AppLsdcNewRoute
   '/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/monitoring/incidents': typeof AppMonitoringIncidentsRoute
   '/monitoring/patches': typeof AppMonitoringPatchesRoute
@@ -1358,6 +1374,7 @@ export interface FileRoutesById {
   '/_app/work': typeof AppWorkRouteRouteWithChildren
   '/_app/agent': typeof AppAgentRoute
   '/_app/domains': typeof AppDomainsRoute
+  '/_app/lsdc': typeof AppLsdcRoute
   '/_app/network': typeof AppNetworkRoute
   '/_app/schedules': typeof AppSchedulesRoute
   '/_app/storage': typeof AppStorageRoute
@@ -1384,6 +1401,7 @@ export interface FileRoutesById {
   '/_app/integrations/secret-providers': typeof AppIntegrationsSecretProvidersRoute
   '/_app/integrations/tailscale': typeof AppIntegrationsTailscaleRoute
   '/_app/integrations/tunnels': typeof AppIntegrationsTunnelsRoute
+  '/_app/lsdc_/new': typeof AppLsdcNewRoute
   '/_app/monitoring/alerts': typeof AppMonitoringAlertsRoute
   '/_app/monitoring/incidents': typeof AppMonitoringIncidentsRoute
   '/_app/monitoring/patches': typeof AppMonitoringPatchesRoute
@@ -1520,6 +1538,7 @@ export interface FileRouteTypes {
     | '/work'
     | '/agent'
     | '/domains'
+    | '/lsdc'
     | '/network'
     | '/schedules'
     | '/storage'
@@ -1545,6 +1564,7 @@ export interface FileRouteTypes {
     | '/integrations/secret-providers'
     | '/integrations/tailscale'
     | '/integrations/tunnels'
+    | '/lsdc/new'
     | '/monitoring/alerts'
     | '/monitoring/incidents'
     | '/monitoring/patches'
@@ -1675,6 +1695,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/agent'
     | '/domains'
+    | '/lsdc'
     | '/network'
     | '/schedules'
     | '/storage'
@@ -1699,6 +1720,7 @@ export interface FileRouteTypes {
     | '/integrations/secret-providers'
     | '/integrations/tailscale'
     | '/integrations/tunnels'
+    | '/lsdc/new'
     | '/monitoring/alerts'
     | '/monitoring/incidents'
     | '/monitoring/patches'
@@ -1831,6 +1853,7 @@ export interface FileRouteTypes {
     | '/_app/work'
     | '/_app/agent'
     | '/_app/domains'
+    | '/_app/lsdc'
     | '/_app/network'
     | '/_app/schedules'
     | '/_app/storage'
@@ -1857,6 +1880,7 @@ export interface FileRouteTypes {
     | '/_app/integrations/secret-providers'
     | '/_app/integrations/tailscale'
     | '/_app/integrations/tunnels'
+    | '/_app/lsdc_/new'
     | '/_app/monitoring/alerts'
     | '/_app/monitoring/incidents'
     | '/_app/monitoring/patches'
@@ -2038,6 +2062,13 @@ declare module '@tanstack/react-router' {
       path: '/domains'
       fullPath: '/domains'
       preLoaderRoute: typeof AppDomainsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/lsdc': {
+      id: '/_app/lsdc'
+      path: '/lsdc'
+      fullPath: '/lsdc'
+      preLoaderRoute: typeof AppLsdcRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/monitoring': {
@@ -2234,6 +2265,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations/tunnels'
       fullPath: '/integrations/tunnels'
       preLoaderRoute: typeof AppIntegrationsTunnelsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/lsdc_/new': {
+      id: '/_app/lsdc_/new'
+      path: '/lsdc/new'
+      fullPath: '/lsdc/new'
+      preLoaderRoute: typeof AppLsdcNewRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/monitoring/': {
@@ -3378,6 +3416,7 @@ interface AppRouteChildren {
   AppWorkRouteRoute: typeof AppWorkRouteRouteWithChildren
   AppAgentRoute: typeof AppAgentRoute
   AppDomainsRoute: typeof AppDomainsRoute
+  AppLsdcRoute: typeof AppLsdcRoute
   AppNetworkRoute: typeof AppNetworkRoute
   AppSchedulesRoute: typeof AppSchedulesRoute
   AppStorageRoute: typeof AppStorageRoute
@@ -3394,6 +3433,7 @@ interface AppRouteChildren {
   AppIntegrationsSecretProvidersRoute: typeof AppIntegrationsSecretProvidersRoute
   AppIntegrationsTailscaleRoute: typeof AppIntegrationsTailscaleRoute
   AppIntegrationsTunnelsRoute: typeof AppIntegrationsTunnelsRoute
+  AppLsdcNewRoute: typeof AppLsdcNewRoute
   AppNetworkDevicesRoute: typeof AppNetworkDevicesRoute
   AppNetworkDnsRoute: typeof AppNetworkDnsRoute
   AppNetworkPeopleRoute: typeof AppNetworkPeopleRoute
@@ -3457,6 +3497,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppWorkRouteRoute: AppWorkRouteRouteWithChildren,
   AppAgentRoute: AppAgentRoute,
   AppDomainsRoute: AppDomainsRoute,
+  AppLsdcRoute: AppLsdcRoute,
   AppNetworkRoute: AppNetworkRoute,
   AppSchedulesRoute: AppSchedulesRoute,
   AppStorageRoute: AppStorageRoute,
@@ -3473,6 +3514,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsSecretProvidersRoute: AppIntegrationsSecretProvidersRoute,
   AppIntegrationsTailscaleRoute: AppIntegrationsTailscaleRoute,
   AppIntegrationsTunnelsRoute: AppIntegrationsTunnelsRoute,
+  AppLsdcNewRoute: AppLsdcNewRoute,
   AppNetworkDevicesRoute: AppNetworkDevicesRoute,
   AppNetworkDnsRoute: AppNetworkDnsRoute,
   AppNetworkPeopleRoute: AppNetworkPeopleRoute,

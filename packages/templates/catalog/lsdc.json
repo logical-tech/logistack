@@ -1,0 +1,94 @@
+{
+	"schema": 1,
+	"id": "lsdc",
+	"name": "LSDC",
+	"description": "Self-driving CMS: a no-code, database-driven back office. Collections, pages, roles and a REST API per collection, configured from the browser.",
+	"category": "cms",
+	"tags": [
+		"cms",
+		"crm",
+		"back-office",
+		"no-code",
+		"rest-api",
+		"logical"
+	],
+	"logo": "logos/lsdc.svg",
+	"website": "https://github.com/logical-tech/LSDC",
+	"docs": "https://github.com/logical-tech/LSDC#readme",
+	"version": "0.7.0",
+	"source": {
+		"kind": "logistack",
+		"path": "packages/templates/own/lsdc.json",
+		"license": "proprietary"
+	},
+	"inputs": [
+		{
+			"key": "appDomain",
+			"label": "Domain",
+			"type": "domain",
+			"role": "primary"
+		},
+		{
+			"key": "adminEmail",
+			"label": "Admin email",
+			"description": "The first admin, created on the first start. Leave empty to use the setup wizard instead.",
+			"type": "text",
+			"default": ""
+		},
+		{
+			"key": "adminPassword",
+			"label": "Admin password",
+			"type": "password",
+			"length": 24
+		},
+		{
+			"key": "authSecret",
+			"label": "Session secret",
+			"type": "secret",
+			"length": 64
+		},
+		{
+			"key": "managementKey",
+			"label": "Management key",
+			"description": "Lets LogiStack read usage and manage the instance (LSDC_MANAGEMENT_KEY).",
+			"type": "secret",
+			"length": 64,
+			"charset": "hex"
+		},
+		{
+			"key": "blueprintUrl",
+			"label": "Blueprint URL",
+			"description": "An https URL to a blueprint imported on the first start: collections, pages, menu and roles. Leave empty for a blank instance.",
+			"type": "text",
+			"default": ""
+		}
+	],
+	"services": [
+		{
+			"name": "lsdc",
+			"dependsOn": [],
+			"env": {
+				"APP_URL": "https://${{ inputs.appDomain }}",
+				"BETTER_AUTH_SECRET": "${{ inputs.authSecret }}",
+				"ADMIN_EMAIL": "${{ inputs.adminEmail }}",
+				"ADMIN_PASSWORD": "${{ inputs.adminPassword }}",
+				"BLUEPRINT_URL": "${{ inputs.blueprintUrl }}",
+				"LSDC_MANAGEMENT_KEY": "${{ inputs.managementKey }}"
+			},
+			"volumes": [
+				{
+					"name": "lsdc-data",
+					"target": "/data"
+				}
+			],
+			"files": [],
+			"kind": "application",
+			"image": "ghcr.io/logical-tech/lsdc:0.7.0",
+			"ports": [],
+			"public": {
+				"port": 3000,
+				"domain": "appDomain"
+			}
+		}
+	]
+}

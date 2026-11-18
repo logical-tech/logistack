@@ -4,6 +4,7 @@ import {
 	Bell,
 	BotMessageSquare,
 	Boxes,
+	Building2,
 	Cable,
 	CalendarClock,
 	CircleArrowUp,
@@ -138,6 +139,19 @@ export const NAV: NavGroup[] = [
 					action: "Choose a project",
 				},
 				keywords: ["s3", "buckets", "minio", "files", "object storage"],
+			},
+			{
+				to: "/lsdc",
+				title: "LSDC",
+				icon: Building2,
+				description:
+					"Managed LSDC back offices, one container per customer: its plan, live usage and monthly price.",
+				empty: {
+					title: "No LSDC instances yet",
+					body: "Provision a back office for a customer: where it runs, its limits and its monthly price. LogiStack deploys it and creates the first admin.",
+					action: "New instance",
+				},
+				keywords: ["back office", "customers", "managed", "billing", "revenue"],
 			},
 			{
 				to: "/agent",

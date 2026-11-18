@@ -50,7 +50,7 @@ const DeployResult = z
  * Provenance kept on each created service: `template:<templateId>:<instance>/<service>`, with
  * `@<index host>` after the id for a community template.
  */
-const provenance = (
+export const provenance = (
 	templateId: string,
 	name: string,
 	svc: string,
@@ -127,7 +127,7 @@ async function existingInstance(
 }
 
 /** Every caller-facing problem with the values, before anything is generated. */
-function checkInputs(t: Template, given: Record<string, string>) {
+export function checkInputs(t: Template, given: Record<string, string>) {
 	const issues: string[] = [];
 	const keys = new Set(t.inputs.map((i) => i.key));
 	for (const k of Object.keys(given))
@@ -145,6 +145,46 @@ function checkInputs(t: Template, given: Record<string, string>) {
 	}
 	if (issues.length)
 		throw new Failure("validation_failed", "invalid template inputs", issues);
+}
+
+/**
+ * A value per input: the caller's, else a generated hostname for an empty domain (named after
+ * the service that serves it, `ids` by template service name), else a generated secret or default.
+ */
+export async function templateValues(
+	c: Context<Env>,
+	t: Template,
+	given: Record<string, string>,
+	ids: Map<string, string>,
+) {
+	const { db, config } = c.var.deps;
+	const values: Record<string, string> = {};
+	const generated = new Set<string>();
+	const needsHost = t.inputs.some(
+		(i) => i.type === "domain" && !given[i.key]?.trim(),
+	);
+	const [settings] = needsHost
+		? await db.select().from(instanceSettings)
+		: [undefined];
+	const ip = needsHost ? ((await publicIp(config)) ?? undefined) : undefined;
+	for (const i of t.inputs) {
+		const v = given[i.key]?.trim();
+		if (v) values[i.key] = i.type === "domain" ? v.toLowerCase() : v;
+		else if (i.type === "domain") {
+			const owner = t.services.find(
+				(s) => s.kind === "application" && s.public?.domain === i.key,
+			) as (typeof t.services)[number];
+			values[i.key] = generatedHostname({
+				slug: owner.name,
+				serviceId: ids.get(owner.name) as string,
+				base: settings?.generatedDomainBase ?? "sslip",
+				ip,
+				customWildcard: settings?.customWildcard,
+			});
+			generated.add(values[i.key] as string);
+		} else values[i.key] = generateInput(i) ?? "";
+	}
+	return { values, generated };
 }
 
 /** `uptime-kuma` → `uptimekuma`, when the template is a brand we draw. */
@@ -300,38 +340,14 @@ export const templates = router()
 			if (again) return c.json({ created: false, name, ...again }, 200);
 			checkInputs(t, input.inputs);
 
-			const { db, config } = c.var.deps;
 			// Ids first: a generated hostname is derived from its service's id.
 			const ids = new Map(t.services.map((s) => [s.name, newId("svc")]));
-			const values: Record<string, string> = {};
-			const generated = new Set<string>();
-			const needsHost = t.inputs.some(
-				(i) => i.type === "domain" && !input.inputs[i.key]?.trim(),
+			const { values, generated } = await templateValues(
+				c,
+				t,
+				input.inputs,
+				ids,
 			);
-			const [settings] = needsHost
-				? await db.select().from(instanceSettings)
-				: [undefined];
-			const ip = needsHost
-				? ((await publicIp(config)) ?? undefined)
-				: undefined;
-			for (const i of t.inputs) {
-				const given = input.inputs[i.key]?.trim();
-				if (given)
-					values[i.key] = i.type === "domain" ? given.toLowerCase() : given;
-				else if (i.type === "domain") {
-					const owner = t.services.find(
-						(s) => s.kind === "application" && s.public?.domain === i.key,
-					) as (typeof t.services)[number];
-					values[i.key] = generatedHostname({
-						slug: owner.name,
-						serviceId: ids.get(owner.name) as string,
-						base: settings?.generatedDomainBase ?? "sslip",
-						ip,
-						customWildcard: settings?.customWildcard,
-					});
-					generated.add(values[i.key] as string);
-				} else values[i.key] = generateInput(i) ?? "";
-			}
 
 			let created: Awaited<ReturnType<typeof createStack>>;
 			try {

@@ -11,10 +11,13 @@ export function UsageMeter({
 	label,
 	value,
 	detail,
+	reading,
 }: {
 	label: string;
 	value: number | null;
 	detail?: string;
+	/** Shown instead of the percentage, e.g. "0.6 / 2". */
+	reading?: string;
 }) {
 	const v = value ?? 0;
 	const tone = v >= 85 ? "bg-bad" : v >= 70 ? "bg-warn" : "bg-foreground/70";
@@ -22,7 +25,9 @@ export function UsageMeter({
 		<div className="grid min-w-0 gap-1" title={detail}>
 			<div className="flex justify-between gap-2 text-2xs text-muted-foreground">
 				<span>{label}</span>
-				<span className="tabular text-foreground">{formatPct(value)}</span>
+				<span className="tabular truncate text-foreground">
+					{reading ?? formatPct(value)}
+				</span>
 			</div>
 			{detail && <span className="sr-only">{detail}</span>}
 			<div

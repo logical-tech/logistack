@@ -458,6 +458,18 @@ async function main() {
 		});
 	}
 
+	// Templates written here win over a converted one with the same id.
+	const own = join(import.meta.dir, "../own");
+	for (const f of readdirSync(own).filter((f) => f.endsWith(".json"))) {
+		const template = Template.parse(
+			JSON.parse(readFileSync(join(own, f), "utf8")),
+		);
+		byId.set(template.id, {
+			template,
+			...(template.logo && { logoFrom: join(own, template.logo) }),
+		});
+	}
+
 	rmSync(out, { recursive: true, force: true });
 	mkdirSync(join(out, "logos"), { recursive: true });
 	const index: TemplateSummary[] = [];

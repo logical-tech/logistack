@@ -49,6 +49,7 @@ import { homeProxyRoutes } from "./routes/home-proxy.ts";
 import { instance } from "./routes/instance-settings.ts";
 import { integrations } from "./routes/integrations.ts";
 import { logDrains } from "./routes/log-drains.ts";
+import { lsdc } from "./routes/lsdc.ts";
 import { manifests } from "./routes/manifest.ts";
 import { members } from "./routes/members.ts";
 import { metrics } from "./routes/metrics.ts";
@@ -353,6 +354,7 @@ export function createApp(deps: Deps, opts: { actor?: Actor } = {}) {
 		.route("/api", containerFiles)
 		.route("/api", storage)
 		.route("/api", games)
+		.route("/api", lsdc)
 		.route("/api", databases)
 		.route("/api", databaseAccessRoutes)
 		.route("/api", migrations)

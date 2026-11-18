@@ -4030,6 +4030,23 @@
 		"services": 1
 	},
 	{
+		"id": "lsdc",
+		"name": "LSDC",
+		"description": "Self-driving CMS: a no-code, database-driven back office. Collections, pages, roles and a REST API per collection, configured from the browser.",
+		"category": "cms",
+		"tags": [
+			"cms",
+			"crm",
+			"back-office",
+			"no-code",
+			"rest-api",
+			"logical"
+		],
+		"logo": "logos/lsdc.svg",
+		"source": "logistack",
+		"services": 1
+	},
+	{
 		"id": "lubelogger",
 		"name": "LubeLogger",
 		"description": "LubeLogger is a self-hosted vehicle maintenance and fuel mileage tracker for managing service records, reminders, fuel logs, and vehicle expenses.",

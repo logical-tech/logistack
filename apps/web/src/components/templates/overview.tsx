@@ -118,7 +118,9 @@ export function TemplateOverview({
 			<p className="text-xs text-muted-foreground">
 				{t.source.kind === "community"
 					? "Community template, from the signed community index:"
-					: `Adapted from the ${SOURCE_NAME[t.source.kind]} template`}{" "}
+					: t.source.kind === "logistack"
+						? "LogiStack template"
+						: `Adapted from the ${SOURCE_NAME[t.source.kind]} template`}{" "}
 				<span className="font-mono break-all">{t.source.path}</span>, licensed{" "}
 				{t.source.license}. Version {t.version}.
 			</p>
